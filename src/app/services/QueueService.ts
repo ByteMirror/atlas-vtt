@@ -212,7 +212,7 @@ export class QueueService {
                 if (this.state.repeatMode === 'all') {
                     // Reshuffle for next cycle
                     this.generateShuffledIndices();
-                    nextIndex = this.state.shuffledIndices![0]!;
+                    nextIndex = this.state.shuffledIndices[0]!;
                 } else {
                     // End of queue
                     this.state.currentIndex = -1;

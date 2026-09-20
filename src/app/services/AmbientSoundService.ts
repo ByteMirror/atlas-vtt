@@ -331,7 +331,7 @@ export class AmbientSoundService extends EventEmitter {
             return 0;
         }
 
-        return instance.howl.seek() as number;
+        return instance.howl.seek();
     }
 
     /**

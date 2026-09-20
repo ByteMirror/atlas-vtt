@@ -219,7 +219,7 @@ export class SyncService implements ITokenSyncService {
       // Update controls position if this is the selected token
       const selectedIds = this.store.getState().selectedIds;
       if (selectedIds.length === 1 && selectedIds[0] === tokenId) {
-        const tokenSize = (tokenSprite.children[0] as any)?.width || 70;
+        const tokenSize = tokenSprite.children[0]?.width || 70;
         this.updateControlsPosition?.(currentX, currentY, tokenSize);
       }
       
@@ -324,7 +324,7 @@ export class SyncService implements ITokenSyncService {
       // Update controls position if this is the selected token
       const selectedIds = this.store.getState().selectedIds;
       if (selectedIds.length === 1 && selectedIds[0] === tokenId) {
-        const tokenSize = (tokenSprite.children[0] as any)?.width || 70;
+        const tokenSize = tokenSprite.children[0]?.width || 70;
         this.updateControlsPosition?.(position.x, position.y, tokenSize);
       }
       

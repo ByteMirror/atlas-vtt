@@ -15,8 +15,7 @@ import { GlobalAudioService } from './GlobalAudioService';
 import { getQueueService } from './QueueService';
 import { SoundEffectService } from './SoundEffectService';
 import { DiceToastObserver } from './DiceToastObserver';
-import type { ViewAtlasState } from '../storeFactory';
-import type { StoreApi } from 'zustand';
+import type { ViewAtlasStore } from '../storeFactory';
 
 /**
  * ServiceManager serves as a central registry for all Atlas services
@@ -41,7 +40,7 @@ export class ServiceManager {
   private thumbnailUnsubs: Array<() => void> = [];
   private thumbnailGenerationTimeout: number | null = null;
   
-  constructor(private app: App, private store: StoreApi<ViewAtlasState>, private plugin?: Plugin, viewId?: string) {
+  constructor(private app: App, private store: ViewAtlasStore, private plugin?: Plugin, viewId?: string) {
     // Create event bus for inter-service communication
     this.eventBus = new EventEmitter();
     this.eventBus.setMaxListeners(30); // Increase max listeners
@@ -181,7 +180,7 @@ export class ServiceManager {
 
 
 
-  public getStore(): StoreApi<ViewAtlasState> {
+  public getStore(): ViewAtlasStore {
     return this.store;
   }
   

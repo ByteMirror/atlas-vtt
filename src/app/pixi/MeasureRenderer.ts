@@ -1,4 +1,4 @@
-import { Graphics, Text, TextStyle } from "pixi.js";
+import { FederatedPointerEvent, Graphics, Text, TextStyle } from "pixi.js";
 import { Viewport } from "pixi-viewport";
 import { EventEmitter } from 'events';
 import { getObsidianAccentColor, cssColorToHexNumber } from "./utils/colorUtils";
@@ -35,9 +35,9 @@ export class MeasureRenderer {
   private persistMeasurements: boolean = false;
   private persistentMeasurements: PersistentMeasurement[] = [];
   
-  private pointerDownHandler: (e: any) => void;
-  private pointerMoveHandler: (e: any) => void;
-  private pointerUpHandler: (e: any) => void;
+  private pointerDownHandler: (e: FederatedPointerEvent) => void;
+  private pointerMoveHandler: (e: FederatedPointerEvent) => void;
+  private pointerUpHandler: (e: FederatedPointerEvent) => void;
   private rightClickDownPos: { x: number; y: number } | null = null;
   
   private _unsubscribeFromToolChanges?: () => void;
@@ -178,23 +178,23 @@ export class MeasureRenderer {
     this.clearMeasurement();
   }
   
-  private handlePointerDown(e: any): void {
+  private handlePointerDown(e: FederatedPointerEvent): void {
     const tool = this.store.getState().activeTool;
     if (tool !== 'measure' && tool !== 'measure-circle' && tool !== 'measure-cone') return;
     
     // Check which button was pressed
-    if (e.data.button === 2) {
+    if (e.button === 2) {
       // Right click - allow panning
-      this.rightClickDownPos = { x: e.data.global.x, y: e.data.global.y };
+      this.rightClickDownPos = { x: e.global.x, y: e.global.y };
       // Don't stop propagation for right click - let viewport handle panning
       return;
     }
     
     // Left click - measure tool
-    if (e.data.button === 0) {
+    if (e.button === 0) {
       e.stopPropagation();
       
-      const worldPos = this.viewport.toWorld(e.data.global);
+      const worldPos = this.viewport.toWorld(e.global);
       // Snap to grid center
       const snappedPos = this.gridSystem.snapToCellCenter(worldPos.x, worldPos.y);
       
@@ -206,7 +206,7 @@ export class MeasureRenderer {
     }
   }
   
-  private handlePointerMove(e: any): void {
+  private handlePointerMove(e: FederatedPointerEvent): void {
     const tool = this.store.getState().activeTool;
     if (tool !== 'measure' && tool !== 'measure-circle' && tool !== 'measure-cone') return;
     
@@ -220,7 +220,7 @@ export class MeasureRenderer {
     
     e.stopPropagation();
     
-    const worldPos = this.viewport.toWorld(e.data.global);
+    const worldPos = this.viewport.toWorld(e.global);
     // Snap to grid center
     const snappedPos = this.gridSystem.snapToCellCenter(worldPos.x, worldPos.y);
     
@@ -228,7 +228,7 @@ export class MeasureRenderer {
     this.updateMeasurement();
   }
   
-  private handlePointerUp(e: any): void {
+  private handlePointerUp(e: FederatedPointerEvent): void {
     const tool = this.store.getState().activeTool;
     if (tool !== 'measure' && tool !== 'measure-circle' && tool !== 'measure-cone') return;
     

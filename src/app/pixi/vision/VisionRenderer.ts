@@ -73,7 +73,7 @@ export class VisionRenderer {
     this.lightIconGraphics.zIndex = 1050; // Above fog (1000), below wall editor (1100)
     this.lightIconGraphics.eventMode = 'none';
 
-    this.colorTintCanvas = document.createElement('canvas');
+    this.colorTintCanvas = createEl('canvas');
     this.colorTintCtx = this.colorTintCanvas.getContext('2d')!;
 
     this.doorIconContainer = new Container();
@@ -113,7 +113,7 @@ export class VisionRenderer {
    */
   private isCanvasVisible(): boolean {
     if (document.hidden) return false;
-    const canvas = this.pixiApp.canvas as HTMLCanvasElement;
+    const canvas = this.pixiApp.canvas;
     return canvas.isConnected && canvas.offsetParent !== null;
   }
 
@@ -444,7 +444,7 @@ export class VisionRenderer {
 
   private svgToTexture(svg: string, size: number): Promise<Texture> {
     return new Promise((resolve, reject) => {
-      const canvas = document.createElement('canvas');
+      const canvas = createEl('canvas');
       canvas.width = size;
       canvas.height = size;
       const ctx = canvas.getContext('2d');

@@ -33,7 +33,7 @@ export function suppressActiveLeaf(workspace: WorkspaceWithSetActiveLeaf): () =>
     return () => {};
   }
 
-  workspace.setActiveLeaf = (() => {}) as typeof workspace.setActiveLeaf;
+  workspace.setActiveLeaf = (() => {});
   return () => {
     workspace.setActiveLeaf = originalSetActiveLeaf;
   };

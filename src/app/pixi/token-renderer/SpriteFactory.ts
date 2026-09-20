@@ -88,7 +88,7 @@ export class SpriteFactory implements ITokenSpriteFactory {
 
     // Create token ring with default or specified color
     const defaultRingColor = '#ffffff';
-    const ringColor = (token as any).ringColor || defaultRingColor;
+    const ringColor = token.ringColor || defaultRingColor;
     this.createTokenRing(tokenGroup, ringColor);
 
     return tokenGroup;
@@ -282,7 +282,7 @@ export class SpriteFactory implements ITokenSpriteFactory {
     }
 
     const size = 512;
-    const canvas = document.createElement('canvas');
+    const canvas = createEl('canvas');
     canvas.width = size;
     canvas.height = size;
     const ctx = canvas.getContext('2d')!;
@@ -426,7 +426,7 @@ export class SpriteFactory implements ITokenSpriteFactory {
   // Private helper methods
 
   private calculateTokenSize(token: TokenEntity): { tokenSize: number; strokeWidth: number } {
-    return this.calculateTokenSizeFromMultiplier((token as any).size || 1);
+    return this.calculateTokenSizeFromMultiplier(token.size || 1);
   }
 
   private calculateTokenSizeFromMultiplier(sizeMultiplier: number): { tokenSize: number; strokeWidth: number } {

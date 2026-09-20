@@ -24,7 +24,7 @@ export class AssetValidationService {
 
     private async initializePlaceholderAsset(): Promise<void> {
         // Create a simple placeholder image data URL
-        const canvas = document.createElement('canvas');
+        const canvas = createEl('canvas');
         canvas.width = 128;
         canvas.height = 128;
         const ctx = canvas.getContext('2d');

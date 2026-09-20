@@ -40,7 +40,7 @@ export async function presentTabInPlayerWindow(app: App, view: AtlasView, tabId:
 
   const service =
     PlayerWindowService.getInstance() ??
-    new PlayerWindowService(app, view.atlasStore as StoreApi<ViewAtlasState>, view.serviceManager.getSettingsService());
+    new PlayerWindowService(app, view.atlasStore, view.serviceManager.getSettingsService());
   if (service.isWindowOpen()) {
     service.presentCanvas(source, tabId);
   } else {
@@ -90,7 +90,7 @@ function findTab(view: AtlasView, tabId: string): SceneTab | undefined {
 
 /** Resolve the view's frame source after the current scene load has finished and been drawn. */
 async function waitForRenderedFrameSource(view: AtlasView): Promise<PlayerFrameSource | null> {
-  await waitForMapLoaded(view.atlasStore as StoreApi<ViewAtlasState>);
+  await waitForMapLoaded(view.atlasStore);
   await nextAnimationFrames(2);
   const renderer = view.serviceManager.getRendererService().getRenderer();
   const canvas = renderer?.getAppInstance()?.canvas;

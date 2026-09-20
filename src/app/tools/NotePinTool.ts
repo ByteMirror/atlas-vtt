@@ -83,7 +83,7 @@ export class NotePinTool {
         // Show the note selection dropdown at the pin's position
         runInBackground(this.showNotePinDropdownForExistingPin(pin), 'Opening the note pin editor');
       }
-    }) as EventListener;
+    });
     window.addEventListener('atlas-pin-action', this.pinActionHandler);
   }
   
@@ -155,7 +155,7 @@ export class NotePinTool {
       let selectedIcon = existingIcon || this.currentPreviewIcon;
 
       // ── Outer container ──
-      const dropdown = document.createElement('div');
+      const dropdown = createDiv();
       dropdown.id = 'atlas-note-pin-dropdown';
       dropdown.classList.add('atlas-note-pin-dropdown');
 
@@ -259,7 +259,7 @@ export class NotePinTool {
 
                 entireItem.onclick = () => {
                   this.closeDropdown();
-                  resolve({ accepted: true, notePath: targetFile!.path, icon: selectedIcon });
+                  resolve({ accepted: true, notePath: targetFile.path, icon: selectedIcon });
                 };
               }
 
@@ -278,11 +278,11 @@ export class NotePinTool {
                   name.textContent = header.heading;
 
                   const file = item.createSpan({ cls: 'pin-header-file' });
-                  file.textContent = targetFile!.basename;
+                  file.textContent = targetFile.basename;
 
                   item.onclick = () => {
                     this.closeDropdown();
-                    resolve({ accepted: true, notePath: `${targetFile!.path}#${header.heading}`, icon: selectedIcon });
+                    resolve({ accepted: true, notePath: `${targetFile.path}#${header.heading}`, icon: selectedIcon });
                   };
 
                 });
@@ -303,7 +303,7 @@ export class NotePinTool {
 
               entireItem.onclick = () => {
                 this.closeDropdown();
-                resolve({ accepted: true, notePath: targetFile!.path, icon: selectedIcon });
+                resolve({ accepted: true, notePath: targetFile.path, icon: selectedIcon });
               };
             }
           } else {

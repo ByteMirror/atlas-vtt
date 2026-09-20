@@ -5,7 +5,6 @@ import type { GlobalAssetManagerService } from '../services/GlobalAssetManagerSe
 import type { GlobalMusicPlayerService } from '../services/GlobalMusicPlayerService';
 import type { ImageDisplayService } from '../services/ImageDisplayService';
 import type { ImageOptimizationService } from '../services/ImageOptimizationService';
-import { generateGenericTokens } from '../services/GenericTokenService';
 import { presentActiveTabInPlayerWindow } from '../services/PlayerWindowPresenter';
 import { hasBestiaryFrontmatter } from '../services/statblockNoteSource';
 import { TokenStatblockLinkService } from '../services/TokenStatblockLinkService';
@@ -34,16 +33,6 @@ async function openDashboard(plugin: Plugin): Promise<void> {
   } catch (error) {
     console.error('[Atlas] Error opening dashboard:', error);
     new Notice('Error opening the dashboard');
-  }
-}
-
-async function generateTokens(plugin: Plugin): Promise<void> {
-  try {
-    const { created, registered, skipped } = await generateGenericTokens(plugin.app);
-    new Notice(`Generic tokens: ${created} created, ${registered} re-registered, ${skipped} already present.`);
-  } catch (error) {
-    console.error('[Atlas] Failed to generate generic tokens:', error);
-    new Notice('Failed to generate generic tokens. See console for details.');
   }
 }
 
@@ -140,12 +129,6 @@ function registerMapCommands(plugin: Plugin, deps: CommandDependencies): void {
       }
       return true;
     },
-  });
-
-  plugin.addCommand({
-    id: 'generate-generic-tokens',
-    name: 'Generate generic tokens',
-    callback: () => void generateTokens(plugin),
   });
 
   plugin.addCommand({

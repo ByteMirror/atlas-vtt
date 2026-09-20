@@ -14,6 +14,7 @@ import type { MeasurementPair } from '../../pixi/gridAlignmentMath';
 import type { GridType } from '../../grid/GridSystem';
 import { isHexGridType } from '../../grid/hexGeometry';
 import { setCanvasCursor } from '../../pixi/utils/canvasCursor';
+import type { AtlasView } from '../../atlas-view';
 
 // ---------------------------------------------------------------------------
 // Shared prop type for both alignment tabs
@@ -21,7 +22,7 @@ import { setCanvasCursor } from '../../pixi/utils/canvasCursor';
 
 export interface AlignmentTabProps {
   controller: GridAlignmentController | null;
-  view: { renderer?: { pixiAppManager?: { getCanvasElement(): HTMLCanvasElement | null } } } | null;
+  view: AtlasView | null;
   result: AlignmentResult | null;
   setResult: (r: AlignmentResult | null) => void;
   gridType: GridType;
@@ -47,7 +48,7 @@ export function describeGridType(gridType: GridType): string {
 
 export function useCrosshairCursor(isPreviewing: boolean, view: AlignmentTabProps['view']): void {
   useEffect(() => {
-    const canvasEl = view?.renderer?.pixiAppManager?.getCanvasElement();
+    const canvasEl = view?.renderer?.getCanvasElement();
     if (!canvasEl) return;
 
     if (!isPreviewing) {

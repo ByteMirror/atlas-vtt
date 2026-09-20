@@ -1,7 +1,8 @@
 import React, { useRef } from 'react';
 import { Map as MapIcon, Link } from 'lucide-react';
 import type {
-  AnyAsset, TokenAsset, MapAsset, EncounterAsset,
+  AnyAsset,
+  MapAsset,
 } from '../types';
 import {
   spawnTokenAsset,
@@ -13,6 +14,7 @@ import { Notice, TFile } from 'obsidian';
 import { runInBackground } from '../../../../utils/backgroundTask';
 import { TokenPortrait } from '../../shared/TokenPortrait';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../primitives/tooltip';
+import type { AtlasView } from '../../../../atlas-view';
 
 export interface AssetCardProps {
   asset: AnyAsset;
@@ -23,7 +25,7 @@ export interface AssetCardProps {
   draggedItems: { type: 'asset' | 'folder'; ids: string[] } | null;
   setDraggedItems: React.Dispatch<React.SetStateAction<{ type: 'asset' | 'folder'; ids: string[] } | null>>;
   selectedAssetIds: string[];
-  view: any;
+  view: AtlasView | null;
   addToken: (data: any) => string;
   setSelection: (ids: string[]) => void;
   app: any;
@@ -81,7 +83,7 @@ export function AssetCard({
   };
 
   const encounterTokens = asset.type === 'encounters'
-    ? ((asset as EncounterAsset).tokens || [])
+    ? (asset.tokens || [])
     : [];
   const encounterPreviewUrls = encounterTokens
     .map((token) => resolveVaultImageUrl(token.imagePath))
@@ -118,7 +120,7 @@ export function AssetCard({
 
     if (asset.type === 'tokens') {
       const count = spawnCountRef.current || 1;
-      const ids = await spawnTokenAsset(spawnCtx, asset as TokenAsset, count);
+      const ids = await spawnTokenAsset(spawnCtx, asset, count);
       if (ids.length > 0) onClose();
       return;
     }
@@ -139,13 +141,12 @@ export function AssetCard({
     }
 
     if (asset.type === 'encounters') {
-      const encounterAsset = asset as EncounterAsset;
-      const ids = await spawnEncounterTokens(spawnCtx, encounterAsset);
-      const expected = (encounterAsset.tokens || []).length;
+      const ids = await spawnEncounterTokens(spawnCtx, asset);
+      const expected = (asset.tokens || []).length;
       if (ids.length < expected) {
-        new Notice(`Spawned ${ids.length} of ${expected} tokens from "${encounterAsset.name}" (some had missing images)`);
+        new Notice(`Spawned ${ids.length} of ${expected} tokens from "${asset.name}" (some had missing images)`);
       } else {
-        new Notice(`Spawned ${ids.length} tokens from "${encounterAsset.name}"`);
+        new Notice(`Spawned ${ids.length} tokens from "${asset.name}"`);
       }
     }
   };
@@ -163,7 +164,7 @@ export function AssetCard({
 
   const isDragging = draggedItems?.type === 'asset' && draggedItems.ids.includes(asset.id);
   const isToken = asset.type === 'tokens';
-  const statblockPath = isToken ? (asset as TokenAsset).statblockPath : undefined;
+  const statblockPath = isToken ? asset.statblockPath : undefined;
 
   const renderArtwork = (): React.ReactNode => {
     if (asset.type === 'encounters' && encounterPreviewUrls.length > 0) {

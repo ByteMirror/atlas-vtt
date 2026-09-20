@@ -84,7 +84,7 @@ export class TextRotationUI {
   /** A circular arrow, drawn once to a canvas and reused as a texture. */
   private createRotateIcon(): Texture {
     const size = 32;
-    const canvas = document.createElement('canvas');
+    const canvas = createEl('canvas');
     canvas.width = size;
     canvas.height = size;
     const ctx = canvas.getContext('2d');

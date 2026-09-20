@@ -70,8 +70,8 @@ export function CommandPalette({ isOpen, onClose, toolbarRef }: CommandPalettePr
   const setActiveTool = useAtlasStore(state => state.setActiveTool);
   const { app, view } = useAtlasUI();
   const isPlayerWindowFrozen = useStore(playerWindowStore, (s) => s.isFrozen);
-  const isPlayerMode = (view as any)?.isPlayerMode ?? false;
-  const setPlayerMode = (mode: boolean): void => (view as any)?.setPlayerMode?.(mode);
+  const isPlayerMode = view?.isInPlayerMode?.() ?? false;
+  const setPlayerMode = (mode: boolean): void => view?.setPlayerMode?.(mode);
 
   const widgetSettings = useAtlasStore(state => state.widgetSettings);
   const setWidgetSettings = useAtlasStore(state => state.setWidgetSettings);
@@ -96,7 +96,7 @@ export function CommandPalette({ isOpen, onClose, toolbarRef }: CommandPalettePr
   const optionsContainerRef = useRef<HTMLDivElement>(null);
 
   // Grid settings local state
-  const gridState = view?.store?.getState()?.grid;
+  const gridState = view?.atlasStore?.getState()?.grid;
   const [localOpacity, setLocalOpacity] = useState(gridState?.opacity ?? 0.5);
   const [localLineWidth, setLocalLineWidth] = useState(gridState?.lineWidth ?? 1);
   const [localGridVisible, setLocalGridVisible] = useState(gridState?.visible ?? true);
@@ -130,28 +130,30 @@ export function CommandPalette({ isOpen, onClose, toolbarRef }: CommandPalettePr
   // Create debounced update functions
   const debouncedOpacityUpdate = useMemo(
     () => debounce((opacity: number) => {
-      if (view?.store) {
-        const currentGrid = view.store.getState().grid;
-        view.store.getState().setGrid({
+      if (view?.atlasStore) {
+        const currentGrid = view.atlasStore.getState().grid;
+        if (!currentGrid) return;
+        view.atlasStore.getState().setGrid({
           ...currentGrid,
           opacity
         });
       }
     }, 100),
-    [view?.store]
+    [view?.atlasStore]
   );
 
   const debouncedLineWidthUpdate = useMemo(
     () => debounce((lineWidth: number) => {
-      if (view?.store) {
-        const currentGrid = view.store.getState().grid;
-        view.store.getState().setGrid({
+      if (view?.atlasStore) {
+        const currentGrid = view.atlasStore.getState().grid;
+        if (!currentGrid) return;
+        view.atlasStore.getState().setGrid({
           ...currentGrid,
           lineWidth
         });
       }
     }, 100),
-    [view?.store]
+    [view?.atlasStore]
   );
 
   // Position starts as null so the first paint already sits at the measured spot
@@ -341,12 +343,12 @@ export function CommandPalette({ isOpen, onClose, toolbarRef }: CommandPalettePr
     (showingSubmenu || activeTab === "all" || option.section === activeTab)
   );
 
-  // Define tabs with their keyboard shortcuts
+  // Tab order for forward and backward keyboard cycling
   const tabs = [
-    { id: "all", label: "All", shortcut: "⌘1" },
-    { id: "tools", label: "Tools", shortcut: "⌘2" },
-    { id: "mode", label: "Mode", shortcut: "⌘3" },
-    { id: "settings", label: "Settings", shortcut: "⌘4" },
+    { id: "all", label: "All" },
+    { id: "tools", label: "Tools" },
+    { id: "mode", label: "Mode" },
+    { id: "settings", label: "Settings" },
   ];
 
   // Obsidian sets `contain: strict` on `.workspace-leaf`, which makes the leaf the
@@ -493,20 +495,12 @@ export function CommandPalette({ isOpen, onClose, toolbarRef }: CommandPalettePr
       if (!isShortcutScopeActive(containerRef.current, view?.viewId)) return;
 
       // In settings modes, only handle Escape and Cmd+K for closing
-      if (activeSubmenu === 'grid-settings' || activeSubmenu === 'token-settings' || activeSubmenu === 'widget-settings') {
+      if (isSettingsPanelId(activeSubmenu)) {
         if (e.key === "Escape" || (e.metaKey && e.key === "k")) {
           e.preventDefault();
           exitSubmenu();
         }
         return; // No other keyboard navigation in settings modes
-      }
-
-      // Handle tab switching with Cmd+1, Cmd+2, etc.
-      if (e.metaKey && e.key >= "1" && e.key <= String(tabs.length)) {
-        e.preventDefault();
-        const tabIndex = parseInt(e.key) - 1;
-        setActiveTab(tabs[tabIndex]!.id);
-        return;
       }
 
       // Handle Cmd+K to close the command palette
@@ -545,15 +539,11 @@ export function CommandPalette({ isOpen, onClose, toolbarRef }: CommandPalettePr
         case "Tab":
           e.preventDefault();
           setLastInteractionType('keyboard');
-          if (e.shiftKey) {
-            setFocusedOptionIndex((prev) =>
-              prev <= 0 ? filteredOptions.length - 1 : prev - 1
-            );
-          } else {
-            setFocusedOptionIndex((prev) =>
-              prev >= filteredOptions.length - 1 ? 0 : prev + 1
-            );
-          }
+          setActiveTab((prev) => {
+            const index = tabs.findIndex(tab => tab.id === prev);
+            const direction = e.shiftKey ? -1 : 1;
+            return tabs[(index + direction + tabs.length) % tabs.length]!.id;
+          });
           break;
         case "ArrowDown":
           e.preventDefault();
@@ -833,7 +823,6 @@ export function CommandPalette({ isOpen, onClose, toolbarRef }: CommandPalettePr
                   onClick={() => setActiveTab(tab.id)}
                 >
                   <span className="atlas-command-palette-tab-label">{tab.label}</span>
-                  <span className="atlas-command-palette-tab-shortcut">{tab.shortcut}</span>
                 </Button>
               ))}
             </div>
@@ -871,6 +860,10 @@ export function CommandPalette({ isOpen, onClose, toolbarRef }: CommandPalettePr
         {!activePanel && (
           <div className="atlas-command-palette-footer">
             <div className="atlas-command-palette-footer-left">
+              <div className="atlas-command-palette-footer-item">
+                <kbd className="atlas-command-palette-kbd">Tab / Shift+Tab</kbd>
+                <span>to switch tabs</span>
+              </div>
               <div className="atlas-command-palette-footer-item">
                 <span className="atlas-command-palette-footer-arrows">
                   <ArrowUp className="atlas-command-palette-arrow" />

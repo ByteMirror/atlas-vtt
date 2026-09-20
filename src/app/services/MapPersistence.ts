@@ -81,7 +81,7 @@ function debounce<T extends (...args: any[]) => any>(func: T, wait: number): T &
   };
   
   // Add flush method to force immediate execution
-  (debounced as any).flush = () => {
+  debounced.flush = () => {
     if (timeout) {
       window.clearTimeout(timeout);
       timeout = null;
@@ -134,7 +134,7 @@ export function createAtlasStorage<T extends { mapPath: string | null }, S = unk
         const content = await app.vault.read(mapFile);
         // Attempt to parse to ensure it's valid JSON before returning
         try {
-          let parsed = JSON.parse(content) as any;
+          let parsed = JSON.parse(content);
         
         // Check if widget migration is needed
         if (plugin && needsWidgetMigration(parsed)) {

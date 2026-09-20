@@ -24,7 +24,7 @@ interface GridAlignmentOverlayProps {
 
 export function GridAlignmentOverlay({ onClose }: GridAlignmentOverlayProps): React.ReactElement {
   const { view } = useAtlasUI();
-  const store = view?.store;
+  const store = view?.atlasStore;
   const gridType: GridType = store?.getState().grid?.type ?? 'square';
 
   const [activeTab, setActiveTab] = useState<'intersections' | 'quick'>('intersections');
@@ -41,9 +41,9 @@ export function GridAlignmentOverlay({ onClose }: GridAlignmentOverlayProps): Re
   // -----------------------------------------------------------------------
 
   const initController = useCallback((): void => {
-    const viewport = view?.renderer?.viewport;
-    const gridSystem = view?.renderer?.gridSystem;
-    const canvasEl = view?.renderer?.pixiAppManager?.getCanvasElement();
+    const viewport = view?.renderer?.getViewportInstance();
+    const gridSystem = view?.renderer?.getGridSystem();
+    const canvasEl = view?.renderer?.getCanvasElement();
     const bgSprite = view?.renderer?.getBackgroundSprite?.() ?? null;
     if (!viewport || !gridSystem || !canvasEl) return;
 
@@ -56,12 +56,12 @@ export function GridAlignmentOverlay({ onClose }: GridAlignmentOverlayProps): Re
   // -----------------------------------------------------------------------
 
   useEffect(() => {
-    const viewport = view?.renderer?.viewport;
+    const viewport = view?.renderer?.getViewportInstance();
     if (!viewport) return;
 
     // Dismiss any blocking overlays left over from how the user got here
     // (e.g. the command palette backdrop that sits full-screen above the canvas).
-    const backdrop = document.querySelector('.atlas-command-palette-backdrop') as HTMLElement | null;
+    const backdrop = document.querySelector<HTMLElement>('.atlas-command-palette-backdrop');
     if (backdrop) backdrop.click();
 
     // The drag plugin is paused for most tools (select, fog, draw…).
@@ -149,7 +149,8 @@ export function GridAlignmentOverlay({ onClose }: GridAlignmentOverlayProps): Re
       renderer.applyGridAlignment(cellSize, offsetX, offsetY, resultType);
     }
 
-    const currentGrid = store.getState().grid || {};
+    const currentGrid = store.getState().grid;
+    if (!currentGrid) return;
     store.getState().setGrid({
       ...currentGrid,
       ...(resultType ? { type: resultType } : {}),

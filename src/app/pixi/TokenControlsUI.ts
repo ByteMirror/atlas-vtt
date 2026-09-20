@@ -122,14 +122,14 @@ export class TokenControlsUI {
     
     const svgSize = 48; // Match status badge icon size
     
-    for (const [iconType, svgTemplate] of Object.entries(this.ICON_SVGS) as [string, string][]) {
+    for (const [iconType, svgTemplate] of Object.entries(this.ICON_SVGS)) {
       for (const color of colors) {
         const key = `${iconType}-${color.name}`;
         const colorHex = `#${color.hex.toString(16).padStart(6, '0')}`;
         const svg = svgTemplate.replace(/currentColor/g, colorHex);
         
         // Create canvas following TokenUIRenderer pattern
-        const canvas = document.createElement('canvas');
+        const canvas = createEl('canvas');
         canvas.width = svgSize;
         canvas.height = svgSize;
         const ctx = canvas.getContext('2d');

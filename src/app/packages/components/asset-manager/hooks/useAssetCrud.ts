@@ -196,7 +196,7 @@ export function useAssetCrud(
           return (asset as any).imagePath as string | undefined;
         }
         return (
-          ((asset as any).filePath as string | undefined) ??
+          (asset.filePath) ??
           `${tabBase}/${asset.id}.json`
         );
       })();
@@ -293,7 +293,7 @@ export function useAssetCrud(
       if (!match) return;
       const blob = await assetService.exportCollection(match.id);
       const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
+      const a = createEl('a');
       a.href = url;
       a.download = `${match.name}.atlas-collection.zip`;
       document.body.appendChild(a);

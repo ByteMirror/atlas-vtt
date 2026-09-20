@@ -13,7 +13,7 @@ export async function generateEncounterThumbnail(
   tokenAssets: ThumbnailToken[]
 ): Promise<string> {
   return new Promise((resolve) => {
-    const canvas = document.createElement('canvas');
+    const canvas = createEl('canvas');
     const ctx = canvas.getContext('2d');
     if (!ctx) {
       resolve('');

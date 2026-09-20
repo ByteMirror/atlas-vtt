@@ -95,7 +95,7 @@ export function TimerWidgetDisplay({
   const inputRef = useRef<HTMLInputElement>(null);
   const expireTimeoutRef = useRef<number | null>(null);
 
-  const remainingSeconds = (widget.value as number) ?? 0;
+  const remainingSeconds = (widget.value) ?? 0;
   const duration = widget.duration ?? 300; // default 5 min
 
   // Clean up interval on unmount

@@ -171,9 +171,9 @@ export class GridSystem {
     });
 
     if (hexLayout) {
-      drawHexGrid(graphics, bounds, hexLayout, lineType, lineWidth!);
+      drawHexGrid(graphics, bounds, hexLayout, lineType, lineWidth);
     } else {
-      drawSquareGrid(graphics, bounds, size, offsetX, offsetY, lineType, lineWidth!);
+      drawSquareGrid(graphics, bounds, size, offsetX, offsetY, lineType, lineWidth);
     }
     if (lineType === 'dotted') {
       graphics.fill({ color: gridColor, alpha: gridAlpha });
@@ -440,7 +440,7 @@ export class GridSystem {
     this.options.mapScale = scale;
     if (this.bgSprite) {
       if (this.bgSprite.texture && this.bgSprite.texture.source) {
-        (this.bgSprite.texture.source as any).scaleMode = 'linear';
+        this.bgSprite.texture.source.scaleMode = 'linear';
       }
       this.bgSprite.scale.set(scale);
       this.createGrid();

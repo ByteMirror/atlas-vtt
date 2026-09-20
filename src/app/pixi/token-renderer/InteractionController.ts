@@ -60,7 +60,7 @@ export class InteractionController implements ITokenInteractionController {
   private lastDragStreamSentAt = 0;
   
   // Hover handlers
-  private hoverHandlers: Record<string, { over: (e?: any) => void; out: () => void }> = {};
+  private hoverHandlers: Record<string, { over: (e?: FederatedPointerEvent) => void; out: () => void }> = {};
   private _currentHoverId: string | null = null;
   
   // Callbacks for external systems
@@ -212,7 +212,7 @@ export class InteractionController implements ITokenInteractionController {
   }
 
   private createPointerDownHandler(token: TokenEntity, container: Container) {
-    return (e: any) => {
+    return (e: FederatedPointerEvent) => {
       // Check if a measure tool is active
       const activeTool = this.store.getState().activeTool;
       if (activeTool === 'measure' || activeTool === 'measure-circle' || activeTool === 'measure-cone') {
@@ -240,7 +240,7 @@ export class InteractionController implements ITokenInteractionController {
     };
   }
 
-  private prepareInteraction(token: TokenEntity, e: any): void {
+  private prepareInteraction(token: TokenEntity, e: FederatedPointerEvent): void {
     this.viewport.plugins.pause('drag');
     
     // Clean up any existing listeners before attaching new ones
@@ -286,7 +286,7 @@ export class InteractionController implements ITokenInteractionController {
     this.viewport.on('pointerupoutside', this.onPointerUp, this);
   }
 
-  private onPointerMove = (e: any) => {
+  private onPointerMove = (e: FederatedPointerEvent) => {
     if (!this.dragState.isDragging) return;
     
     const worldPos = this.viewport.toWorld(e.global);
@@ -381,7 +381,7 @@ export class InteractionController implements ITokenInteractionController {
     this.viewport.off('pointerupoutside', this.onPointerUp, this);
   }
 
-  private onPointerUp = (e: any) => {
+  private onPointerUp = (e: FederatedPointerEvent) => {
     if (!this.dragState.isDragging) return;
     const wasDrag = this.dragState.hasMoved;
 
@@ -496,7 +496,7 @@ export class InteractionController implements ITokenInteractionController {
     return this.conditionDefsProvider?.() ?? [];
   }
 
-  private showContextMenu(token: TokenEntity, e: any): void {
+  private showContextMenu(token: TokenEntity, e: FederatedPointerEvent): void {
     const character = token as any;
     const entries: ContextMenuEntry[] = [];
 
@@ -691,11 +691,7 @@ export class InteractionController implements ITokenInteractionController {
       render: () => this.renderDestructiveRow(token),
     });
 
-    const pos = e.originalEvent
-      ? { x: e.originalEvent.clientX, y: e.originalEvent.clientY }
-      : { x: e.global.x, y: e.global.y };
-
-    openContextMenuGlobal(entries, pos);
+    openContextMenuGlobal(entries, { x: e.clientX, y: e.clientY });
   }
 
   handleDrag(
@@ -802,7 +798,7 @@ export class InteractionController implements ITokenInteractionController {
   }
 
   private showEditTokenModal(token: TokenEntity): void {
-    openEditTokenModal(token as any, this.store);
+    openEditTokenModal(token, this.store);
   }
 
   destroyAll(): void {

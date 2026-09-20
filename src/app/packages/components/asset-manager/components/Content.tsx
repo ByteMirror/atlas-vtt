@@ -7,6 +7,7 @@ import { getTabDisplayName } from '../types';
 import { AssetCard } from './AssetCard';
 import { TooltipProvider } from '../../primitives/tooltip';
 import type { AssetService } from '../../../../services/AssetService';
+import type { AtlasView } from '../../../../atlas-view';
 
 export interface ContentProps {
   activeTab: Tab;
@@ -31,7 +32,7 @@ export interface ContentProps {
   dropTarget: string | null;
   setDropTarget: React.Dispatch<React.SetStateAction<string | null>>;
   onDrop: (targetFolderId: string | null) => void;
-  view: any;
+  view: AtlasView | null;
   addToken: (data: any) => string;
   setSelection: (ids: string[]) => void;
   app: any;

@@ -3,6 +3,8 @@ import { Check } from 'lucide-react';
 import { cn } from '../../../../utils/cn';
 import { ObsidianMenuDropdown } from '../ObsidianMenuDropdown';
 import { SettingRow, SettingSliderRow, SettingToggleRow } from './SettingRows';
+import type { AtlasView } from '../../../atlas-view';
+import type { GridType } from '../../../grid/GridSystem';
 
 const GRID_COLORS = [
   { value: '#00FFFF', label: 'Cyan' },
@@ -25,6 +27,10 @@ const GRID_TYPE_OPTIONS = {
   'hex-vertical': 'Hex (Pointy)',
 };
 
+function isGridType(value: string): value is GridType {
+  return value in GRID_TYPE_OPTIONS;
+}
+
 const LINE_STYLE_OPTIONS = {
   solid: 'Solid',
   dashed: 'Dashed',
@@ -32,7 +38,7 @@ const LINE_STYLE_OPTIONS = {
 };
 
 interface GridSettingsPanelProps {
-  view: any;
+  view: AtlasView | null;
   localOpacity: number;
   setLocalOpacity: (opacity: number) => void;
   localLineWidth: number;
@@ -58,15 +64,16 @@ export function GridSettingsPanel({
   debouncedOpacityUpdate,
   debouncedLineWidthUpdate,
 }: GridSettingsPanelProps): React.ReactElement {
-  const currentGrid = view?.store?.getState()?.grid;
+  const currentGrid = view?.atlasStore?.getState()?.grid;
   const currentType: string = currentGrid?.type ?? 'square';
   const currentColor: string = currentGrid?.color ?? '#00FFFF';
   const currentLineType: string = currentGrid?.lineType ?? 'solid';
 
   const patchGrid = (patch: Record<string, unknown>): void => {
-    if (!view?.store) return;
-    const grid = view.store.getState().grid;
-    view.store.getState().setGrid({ ...grid, ...patch });
+    if (!view?.atlasStore) return;
+    const grid = view.atlasStore.getState().grid;
+    if (!grid) return;
+    view.atlasStore.getState().setGrid({ ...grid, ...patch });
   };
 
   return (
@@ -78,7 +85,7 @@ export function GridSettingsPanel({
         onToggle={() => {
           const next = !localGridVisible;
           setLocalGridVisible(next);
-          view?.store?.getState().setGridVisible(next);
+          view?.atlasStore?.getState().setGridVisible(next);
         }}
       />
 
@@ -89,7 +96,7 @@ export function GridSettingsPanel({
         onToggle={() => {
           const next = !localSnapToGrid;
           setLocalSnapToGrid(next);
-          view?.store?.getState().setSnapToGrid(next);
+          view?.atlasStore?.getState().setSnapToGrid(next);
         }}
       />
 
@@ -99,7 +106,8 @@ export function GridSettingsPanel({
           value={currentType}
           options={GRID_TYPE_OPTIONS}
           onChange={(newType) => {
-            view?.renderer?.gridSystem?.setGridType(newType);
+            if (!isGridType(newType)) return;
+            view?.renderer?.getGridSystem()?.setGridType(newType);
             patchGrid({ type: newType });
           }}
         />

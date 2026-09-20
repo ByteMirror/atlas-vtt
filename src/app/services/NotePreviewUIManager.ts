@@ -226,7 +226,7 @@ export class NotePreviewWindow {
   }
 
   private resolveMountRoot(): HTMLElement {
-    const preferredLeafContainer = (this.preferredActiveLeaf as any)?.view?.containerEl as HTMLElement | undefined;
+    const preferredLeafContainer = this.preferredActiveLeaf?.view?.containerEl;
     const preferredLeafRoot =
       preferredLeafContainer?.closest('.workspace-leaf') as HTMLElement | null ??
       preferredLeafContainer ??
@@ -284,7 +284,7 @@ export class NotePreviewWindow {
     // leaf, causing a visible flash of the note view behind the canvas.
     const origSetActiveLeaf = this.app.workspace.setActiveLeaf.bind(this.app.workspace);
     const suppressActiveLeaf = (): void => {
-      this.app.workspace.setActiveLeaf = (() => {}) as any;
+      this.app.workspace.setActiveLeaf = (() => {});
     };
     const restoreActiveLeaf = (): void => {
       this.app.workspace.setActiveLeaf = origSetActiveLeaf;
@@ -506,7 +506,7 @@ export class NotePreviewWindow {
         if (href) {
           // Open the link in the main workspace, not in the preview
           // This preserves the map view context
-          const newLeaf = (e as MouseEvent).metaKey || (e as MouseEvent).ctrlKey;
+          const newLeaf = e.metaKey || e.ctrlKey;
           runInBackground(this.app.workspace.openLinkText(href, '', newLeaf), `Opening link ${href}`, 'Could not open the linked note');
         }
       });

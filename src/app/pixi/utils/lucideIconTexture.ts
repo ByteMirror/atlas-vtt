@@ -13,7 +13,7 @@ export async function createLucideIconTexture(
   color: string,
   size: number
 ): Promise<Texture> {
-  const canvas = document.createElement('canvas');
+  const canvas = createEl('canvas');
   canvas.width = size;
   canvas.height = size;
   const ctx = canvas.getContext('2d');

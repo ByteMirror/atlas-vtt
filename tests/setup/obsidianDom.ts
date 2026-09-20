@@ -83,6 +83,26 @@ const helpers: Record<string, (this: HTMLElement, ...args: never[]) => unknown> 
   },
 };
 
+function createDetached(tag: string, spec: ElementSpec): HTMLElement {
+  const el = document.createElement(tag);
+  applyOptions(el, spec);
+  return el;
+}
+
+const globalHelpers: Record<string, (...args: never[]) => unknown> = {
+  createEl: (tag: string, spec?: ElementSpec) => createDetached(tag, spec),
+  createDiv: (spec?: ElementSpec) => createDetached('div', spec),
+  createSpan: (spec?: ElementSpec) => createDetached('span', spec),
+  createFragment: () => document.createDocumentFragment(),
+};
+
+if (typeof document !== 'undefined') {
+  const scope = globalThis as unknown as Record<string, unknown>;
+  for (const [name, helper] of Object.entries(globalHelpers)) {
+    if (!(name in scope)) scope[name] = helper;
+  }
+}
+
 if (typeof Element !== 'undefined') {
   const prototype = Element.prototype as unknown as Record<string, unknown>;
   for (const [name, helper] of Object.entries(helpers)) {

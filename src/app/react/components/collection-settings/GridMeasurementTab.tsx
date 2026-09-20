@@ -9,7 +9,6 @@ import { Button } from '../../../packages/components/primitives/button';
 import type {
   CollectionGridDefaults,
   GridUnitType,
-  MeasurementMode,
   RangeBand,
 } from '../../../types/collectionSettingsTypes';
 
@@ -94,14 +93,14 @@ export function GridMeasurementTab({
           <Button
             variant="ghost"
             className={`atlas-csm-segment ${gridDefaults.measurementMode === 'metric' ? 'atlas-active' : ''}`}
-            onClick={() => updateField('measurementMode', 'metric' as MeasurementMode)}
+            onClick={() => updateField('measurementMode', 'metric')}
           >
             Metric
           </Button>
           <Button
             variant="ghost"
             className={`atlas-csm-segment ${gridDefaults.measurementMode === 'abstract' ? 'atlas-active' : ''}`}
-            onClick={() => updateField('measurementMode', 'abstract' as MeasurementMode)}
+            onClick={() => updateField('measurementMode', 'abstract')}
           >
             Abstract
           </Button>

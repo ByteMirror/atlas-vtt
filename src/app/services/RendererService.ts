@@ -1,10 +1,9 @@
 import { App } from 'obsidian';
 import { PixiRendererOrchestrator } from '../PixiRendererOrchestrator'; // New import
 import { PixiAppManager } from '../pixi/PixiAppManager'; // Import PixiAppManager
-import { Container } from 'pixi.js';
+import type { Viewport } from 'pixi-viewport';
 import { EventEmitter } from 'events';
-import type { ViewAtlasState } from '../storeFactory';
-import type { StoreApi } from 'zustand';
+import type { ViewAtlasStore } from '../storeFactory';
 import type { SettingsService } from './SettingsService';
 import { bindViewportNavigation } from '../pixi/viewportNavigation';
 
@@ -13,7 +12,7 @@ export class RendererService {
   private renderer: PixiRendererOrchestrator | null = null; // New type
   private eventBus: EventEmitter;
   private pixiAppManager: PixiAppManager | null = null; // Add PixiAppManager instance variable
-  private store: StoreApi<ViewAtlasState>; // Add store
+  private store: ViewAtlasStore; // Add store
   private viewId: string;
   private settingsService: SettingsService;
   private unbindNavigation: (() => void) | null = null;
@@ -21,7 +20,7 @@ export class RendererService {
   constructor(
     private app: App,
     eventBus: EventEmitter,
-    store: StoreApi<ViewAtlasState>,
+    store: ViewAtlasStore,
     viewId: string,
     settingsService: SettingsService
   ) {
@@ -102,7 +101,7 @@ export class RendererService {
    * Get the Pixi viewport
    * @returns The Pixi viewport or null if not initialized
    */
-  public getViewport(): Container | null { // PixiRendererOrchestrator has getViewportInstance()
+  public getViewport(): Viewport | null {
     return this.renderer ? this.renderer.getViewportInstance() : null;
   }
   

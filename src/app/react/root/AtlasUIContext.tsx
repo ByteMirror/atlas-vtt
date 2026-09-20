@@ -3,10 +3,11 @@ import { App } from 'obsidian';
 import { Application } from 'pixi.js';
 import { LayerManager } from '../../layerManager'; // Adjusted path
 import type { PixiRendererOrchestrator } from '../../PixiRendererOrchestrator';
+import type { AtlasView } from '../../atlas-view';
 
 export interface AtlasUIContextValue {
   app: App;
-  view: any; // TODO: Add specific type for AtlasView
+  view: AtlasView | null;
   pixiApp: Application | null;
   renderer: PixiRendererOrchestrator | null;
   mapData: any; // TODO: Add specific type for MapData

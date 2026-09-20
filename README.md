@@ -29,7 +29,7 @@ Atlas VTT is desktop only.
 
 Pin an Obsidian markdown note or even another Atlas map to a location, then read and edit it in a floating panel without leaving the map. Keep room descriptions, session prep, and character details close at hand, with Obsidian's familiar note linking built in.
 
-![Atlas VTT showing the note picker beside a linked note open on the map, with editing and Obsidian link suggestions](docs/images/note-linking-preview.png)
+![Atlas VTT showing the note picker beside a linked note open on the map, with editing and Obsidian link suggestions](docs/images/note-linking-preview.webp)
 
 ## Organise your campaign
 
@@ -39,13 +39,13 @@ Keep scenes, maps, encounters, and characters together in collections. Use folde
 
 ## Install
 
-Requires **Obsidian 1.8.7 or newer on desktop**. Atlas is currently available as a beta through [BRAT](https://github.com/TfTHacker/obsidian42-brat).
+Requires **Obsidian 1.8.7 or newer on desktop**. Atlas VTT is available through Obsidian's community plugins.
 
-1. Install and enable **BRAT** from **Settings → Community plugins → Browse**.
-2. Run **BRAT: Add a beta plugin for testing** from the command palette and enter `ByteMirror/atlas-vtt`.
-3. Select the latest version and enable **Atlas VTT** if it is not enabled automatically.
+1. Open **Settings → Community plugins** and turn off **Restricted mode** if it is enabled.
+2. Select **Browse** and search for **Atlas VTT**.
+3. Select **Install**, then **Enable**.
 
-BRAT can keep Atlas updated as new betas are released.
+Check for updates under **Settings → Community plugins**.
 
 <details>
 <summary>Manual installation</summary>

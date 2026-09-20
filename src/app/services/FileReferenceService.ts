@@ -1,5 +1,5 @@
 import { App } from 'obsidian';
-import { AssetService, TokenAsset, EncounterAsset, PlayerAsset, MapAsset, NoteAsset, Asset } from './AssetService';
+import { AssetService, Asset } from './AssetService';
 import { normalizeImagePath } from '../utils/pathUtils';
 
 /**
@@ -56,28 +56,26 @@ export class FileReferenceService {
     for (const asset of Object.values(assets)) {
       switch (asset.type) {
         case 'token': {
-          const t = asset as TokenAsset;
-          if (this.pathMatches(t.imagePath, oldPath, normalizedOld)) {
-            (t as any).imagePath = newPath;
+          if (this.pathMatches(asset.imagePath, oldPath, normalizedOld)) {
+            asset.imagePath = newPath;
             changed = true;
           }
-          if (t.statblockPath && this.pathMatches(t.statblockPath, oldPath, normalizedOld)) {
-            (t as any).statblockPath = newPath;
+          if (asset.statblockPath && this.pathMatches(asset.statblockPath, oldPath, normalizedOld)) {
+            asset.statblockPath = newPath;
             changed = true;
           }
           break;
         }
         case 'encounter':
         case 'player': {
-          const group = asset as EncounterAsset | PlayerAsset;
-          if (group.tokens) {
-            for (const tok of group.tokens) {
+          if (asset.tokens) {
+            for (const tok of asset.tokens) {
               if (tok.imagePath && this.pathMatches(tok.imagePath, oldPath, normalizedOld)) {
                 tok.imagePath = newPath;
                 changed = true;
               }
-              if ((tok as any).statblockPath && this.pathMatches((tok as any).statblockPath, oldPath, normalizedOld)) {
-                (tok as any).statblockPath = newPath;
+              if (tok.statblockPath && this.pathMatches(tok.statblockPath, oldPath, normalizedOld)) {
+                tok.statblockPath = newPath;
                 changed = true;
               }
             }
@@ -85,17 +83,15 @@ export class FileReferenceService {
           break;
         }
         case 'map': {
-          const m = asset as MapAsset;
-          if (this.pathMatches(m.mapFilePath, oldPath, normalizedOld)) {
-            (m as any).mapFilePath = newPath;
+          if (this.pathMatches(asset.mapFilePath, oldPath, normalizedOld)) {
+            asset.mapFilePath = newPath;
             changed = true;
           }
           break;
         }
         case 'note': {
-          const n = asset as NoteAsset;
-          if (this.pathMatches(n.notePath, oldPath, normalizedOld)) {
-            (n as any).notePath = newPath;
+          if (this.pathMatches(asset.notePath, oldPath, normalizedOld)) {
+            asset.notePath = newPath;
             changed = true;
           }
           break;
@@ -122,7 +118,7 @@ export class FileReferenceService {
 
     /** Returns the rewritten map JSON, or null when the map does not reference the old path. */
     const rewriteMap = (content: string): string | null => {
-      const mapData = JSON.parse(content) as any;
+      const mapData = JSON.parse(content);
 
       if (!mapData.state?.objects?.tokens) return null;
 

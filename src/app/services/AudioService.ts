@@ -161,7 +161,7 @@ export class AudioService extends EventEmitter {
 
         channelState.timeUpdateInterval = window.setInterval(() => {
             if (channelState.howl && channelState.isPlaying) {
-                const currentTime = channelState.howl.seek() as number || 0;
+                const currentTime = channelState.howl.seek() || 0;
                 const duration = channelState.howl.duration();
                 
                 channelState.currentTime = currentTime;

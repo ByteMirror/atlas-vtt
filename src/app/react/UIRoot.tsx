@@ -3,7 +3,6 @@ import { App } from 'obsidian';
 import { Application } from 'pixi.js';
 import { BackgroundSprite } from './BackgroundSprite';
 import { MainToolbar } from '../packages/components/MainToolbar';
-import { LayerManager } from '../layerManager';
 import { GridSettingsModal } from './components/GridSettingsModalSimple';
 import { GridAlignmentOverlay } from './components/GridAlignmentOverlay';
 import { ResponsiveWidgetBar } from './components/ResponsiveWidgetBar';
@@ -26,10 +25,12 @@ import { HotkeyHelp } from '../keyboard/HotkeyHelp';
 import { AtlasUIContext, AtlasUIContextValue } from './root/AtlasUIContext';
 import { useCurrentMapData } from './root/useCurrentMapData';
 import { ContextMenuProvider } from './root/ContextMenuContext';
+import type { AtlasView } from '../atlas-view';
+import { runInBackground } from '../utils/backgroundTask';
 
 interface UIRootProps {
   app: App;
-  view: any; // TODO: Add specific type for AtlasView
+  view: AtlasView; // TODO: Add specific type for AtlasView
   pixiApp: Application | null;
   mapData: any; // Initial map data
 }
@@ -150,7 +151,7 @@ export const UIRoot: React.FC<UIRootProps> = ({ app, view, pixiApp, mapData }) =
       pixiApp,
       renderer: view?.renderer ?? null,
       mapData: currentMapData,
-      layerMgr: view?.layerMgr as LayerManager | null,
+      layerMgr: null,
     }),
     [app, view, pixiApp, currentMapData]
   );
@@ -238,8 +239,8 @@ export const UIRoot: React.FC<UIRootProps> = ({ app, view, pixiApp, mapData }) =
           {/* Scene Tab Bar - only for DM view when not loading */}
           {!isPlayerView && !isMapLoading && (
             <SceneTabBar
-              onSwitchTab={(tabId) => view?.switchToTab(tabId)}
-              onCloseTab={(tabId) => view?.closeTab(tabId)}
+              onSwitchTab={(tabId) => { if (view) runInBackground(view.switchToTab(tabId), 'Switching scene tab'); }}
+              onCloseTab={(tabId) => { if (view) runInBackground(view.closeTab(tabId), 'Closing scene tab'); }}
               onAddTab={() => view?.openSceneBrowser()}
               onPresentTab={(tabId) => {
                 if (view) void presentTabInPlayerWindow(app, view, tabId);

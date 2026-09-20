@@ -3,7 +3,6 @@ import type { Viewport } from 'pixi-viewport';
 import type { StoreApi } from 'zustand';
 import type { ViewAtlasState } from '../storeFactory';
 import { beginHistoryTransaction, endHistoryTransaction } from '../stores/history';
-import type { DrawingStroke } from '../types';
 import { hitTestDrawing } from './drawingGeometry';
 import { MAP_ICON_LABELS } from './mapIcons';
 import { openContextMenuGlobal, type ContextMenuEntry } from '../react/root/ContextMenuContext';
@@ -32,7 +31,7 @@ export class DrawingInteraction {
 
   /** Topmost drawing under a world-space point, or null. */
   public hitTest(worldX: number, worldY: number): string | null {
-    const drawings = Object.values(this.store.getState().objects?.drawings ?? {}) as DrawingStroke[];
+    const drawings = Object.values(this.store.getState().objects?.drawings ?? {});
     const tolerance = HIT_TOLERANCE_PX / this.viewport.scale.x;
     const point = { x: worldX, y: worldY };
 

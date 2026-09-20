@@ -102,7 +102,7 @@ export class WallInteraction {
       for (const link of this.dragState.linkedVertices) {
         state.updateWall(link.wallId, {
           [link.vertex]: { x: worldX, y: worldY },
-        } as any);
+        });
       }
     } else if (this.dragState.type === 'light') {
       state.updateLight(this.dragState.lightId, { x: worldX, y: worldY });
@@ -155,7 +155,7 @@ export class WallInteraction {
           updates.closed = true;
         }
       }
-      state.updateWall(id, updates as any);
+      state.updateWall(id, updates);
     }
     this.wallRenderer.forceRedraw();
   }

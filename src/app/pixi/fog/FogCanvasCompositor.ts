@@ -18,7 +18,7 @@ export class FogCanvasCompositor {
   constructor(bounds: FogBounds, scale = 0.5) {
     this.bounds = bounds;
     this.scale = scale;
-    this.canvas = document.createElement('canvas');
+    this.canvas = createEl('canvas');
     this.canvas.width = Math.max(1, Math.round(bounds.width * scale));
     this.canvas.height = Math.max(1, Math.round(bounds.height * scale));
 

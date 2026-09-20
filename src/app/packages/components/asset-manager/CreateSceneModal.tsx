@@ -33,8 +33,6 @@ export default function CreateSceneModal({
   defaultName
 }: CreateSceneModalProps) {
   const [sceneName, setSceneName] = useState('');
-  const [selectedCampaign, setSelectedCampaign] = useState<string | null>(null);
-  const [campaigns, setCampaigns] = useState<Array<{id: string, name: string}>>([]);
   const [isCreating, setIsCreating] = useState(false);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const { tags, createTag, isCreatingTag } = useAssetTags(assetService, isOpen, selectedCollection || 'default');
@@ -81,17 +79,6 @@ export default function CreateSceneModal({
       };
     }
   }, [isOpen, onClose]);
-
-  useEffect(() => {
-    // Load available campaigns
-    if (isOpen && assetService) {
-      assetService.getAssets(undefined, 'campaign' as any).then(campaignAssets => {
-        setCampaigns(campaignAssets.map(c => ({ id: c.id, name: c.name })));
-      }).catch(error => {
-        console.error('[CreateSceneModal] Error loading campaigns:', error);
-      });
-    }
-  }, [isOpen, assetService]);
 
   const handleCreate = async () => {
     if (!sceneName.trim() || !assetService || isCreating || isCreatingTag) return;
@@ -159,9 +146,7 @@ export default function CreateSceneModal({
         }
       }
 
-      const scenePath = normalizePath(selectedCampaign
-        ? `atlas-vtt/collections/${collectionId}/campaigns/${selectedCampaign}/scenes/${sceneName.trim()}.atlasmap`
-        : `atlas-vtt/collections/${collectionId}/scenes/${sceneName.trim()}.atlasmap`);
+      const scenePath = normalizePath(`atlas-vtt/collections/${collectionId}/scenes/${sceneName.trim()}.atlasmap`);
 
       if (app.vault.getAbstractFileByPath(scenePath)) {
         new Notice(`A scene named "${sceneName.trim()}" already exists`);
@@ -179,8 +164,7 @@ export default function CreateSceneModal({
           collection: collectionId,
           tags: selectedTags,
           data: {
-            mapPath: scenePath,
-            campaignId: selectedCampaign || undefined
+            mapPath: scenePath
           }
         };
         
@@ -279,29 +263,6 @@ export default function CreateSceneModal({
             onCreate={createTag}
             disabled={!assetService || isCreating}
           />
-
-          <div className="atlas-create-scene-field">
-            <label className="atlas-create-scene-label">Campaign (optional)</label>
-            <select
-              className="atlas-create-scene-select"
-              value={selectedCampaign || ''}
-              onChange={(e) => setSelectedCampaign(e.target.value || null)}
-            >
-              <option value="">No campaign</option>
-              {campaigns.length > 0 ? (
-                campaigns.map(campaign => (
-                  <option key={campaign.id} value={campaign.id}>
-                    {campaign.name}
-                  </option>
-                ))
-              ) : (
-                <option value="" disabled>No campaigns available</option>
-              )}
-            </select>
-            <div className="atlas-create-scene-hint">
-              Campaigns are collections of scenes. Create campaigns in the Campaigns tab.
-            </div>
-          </div>
         </div>
 
         <div className="atlas-create-scene-footer">

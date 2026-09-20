@@ -347,7 +347,7 @@ export class DrawingRenderer {
     const drawings = state.objects?.drawings ?? {};
     const radius = this.settings.eraserWidth / 2;
 
-    for (const stroke of Object.values(drawings) as DrawingStroke[]) {
+    for (const stroke of Object.values(drawings)) {
       if (stroke.type === 'icon') {
         const center = stroke.points[0];
         const reach = radius + stroke.width / 2 + ERASER_SLACK;

@@ -149,7 +149,7 @@ export function simplifyPolygon(
     return [...left.slice(0, -1), ...right];
   }
 
-  return [first!, last!];
+  return [first, last];
 }
 
 function perpendicularDistance(

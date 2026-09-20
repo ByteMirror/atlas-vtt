@@ -258,7 +258,7 @@ This folder contains audio files for your Atlas VTT maps.
                     musicFiles.push({
                         id: file.path,
                         name: file.basename,
-                        path: (app.vault.adapter as any).getResourcePath(file.path),
+                        path: app.vault.adapter.getResourcePath(file.path),
                         tags: metadata.tags || [],
                         ...(metadata.duration != null && { duration: metadata.duration }),
                     });
@@ -711,8 +711,8 @@ This folder contains audio files for your Atlas VTT maps.
                         const fileExplorer = app.workspace.getLeavesOfType('file-explorer')[0];
                         if (fileExplorer && fileExplorer.view) {
                             app.workspace.revealLeaf(fileExplorer);
-                            if ((fileExplorer.view as any).revealInFolder) {
-                                (fileExplorer.view as any).revealInFolder(file);
+                            if (fileExplorer.view.revealInFolder) {
+                                fileExplorer.view.revealInFolder(file);
                             }
                         } else {
                             await app.workspace.getLeftLeaf(false).setViewState({
@@ -723,9 +723,9 @@ This folder contains audio files for your Atlas VTT maps.
                                 if (
                                     newFileExplorer &&
                                     newFileExplorer.view &&
-                                    (newFileExplorer.view as any).revealInFolder
+                                    newFileExplorer.view.revealInFolder
                                 ) {
-                                    (newFileExplorer.view as any).revealInFolder(file);
+                                    newFileExplorer.view.revealInFolder(file);
                                 }
                             }, 100);
                         }
@@ -885,7 +885,7 @@ This folder contains audio files for your Atlas VTT maps.
                 label: 'Add Music Tracks...',
                 icon: 'file-audio',
                 onClick: async () => {
-                    const input = document.createElement('input');
+                    const input = createEl('input');
                     input.type = 'file';
                     input.accept = '.mp3,.wav,.ogg,.m4a,.flac';
                     input.multiple = true;

@@ -3,11 +3,12 @@ import { mountUI, unmountUI } from '../react/index';
 import { EventEmitter } from 'events';
 import type { ViewAtlasState } from '../storeFactory';
 import type { StoreApi } from 'zustand';
+import type { AtlasView } from '../atlas-view';
 
 export class UIOverlay {
   private uiContainer: HTMLDivElement | null = null;
   private eventBus: EventEmitter;
-  private view: any;
+  private view: AtlasView | null = null;
   private mountObserver: MutationObserver | null = null;
   private remountTimeout: number | null = null;
 
@@ -21,7 +22,7 @@ export class UIOverlay {
    * @param view The AtlasView instance
    * @param pixiApp The PixiJS application instance
    */
-  public mount(containerEl: HTMLElement, view: any, pixiApp: any): void {
+  public mount(containerEl: HTMLElement, view: AtlasView, pixiApp: any): void {
     if (this.uiContainer) {
       this.unmount();
     }

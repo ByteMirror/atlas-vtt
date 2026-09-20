@@ -88,7 +88,7 @@ function linkTextNode(textNode: Text): void {
   if (!DICE_PATTERN.test(text)) return;
 
   DICE_PATTERN.lastIndex = 0;
-  const fragment = document.createDocumentFragment();
+  const fragment = createFragment();
   let cursor = 0;
   let match: RegExpExecArray | null;
 
@@ -98,7 +98,7 @@ function linkTextNode(textNode: Text): void {
       fragment.append(text.slice(cursor, match.index));
     }
 
-    const link = document.createElement('span');
+    const link = createSpan();
     link.className = LINK_CLASS;
     link.textContent = matched;
     link.dataset.formula = toRollFormula(matched);

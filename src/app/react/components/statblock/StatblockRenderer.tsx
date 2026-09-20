@@ -87,7 +87,7 @@ function CollapseBlock(props: BlockViewProps): React.JSX.Element {
     <details
       className="atlas-sb-collapse"
       open={open}
-      onToggle={(event) => setOpen((event.currentTarget as HTMLDetailsElement).open)}
+      onToggle={(event) => setOpen(event.currentTarget.open)}
     >
       <summary>{item.heading ?? ''}</summary>
       {(item.nested ?? []).map((nested) => (

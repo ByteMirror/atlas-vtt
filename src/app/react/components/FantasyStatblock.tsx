@@ -179,7 +179,7 @@ export function FantasyStatblock({
       return {
         tokenId: token?.id,
         statblockPath: notePath,
-        tokenName: token?.name ?? (monster.name as string | undefined),
+        tokenName: token?.name ?? (monster.name),
         tokenImagePath: token?.imagePath,
       };
     });

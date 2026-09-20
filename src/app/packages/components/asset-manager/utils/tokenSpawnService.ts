@@ -10,6 +10,7 @@ import {
   type FormationGrid,
   type FormationSlot,
 } from '../../../../encounters/encounterFormation';
+import type { AtlasView } from '../../../../atlas-view';
 
 // ─── Viewport helpers ───────────────────────────────────────────────
 
@@ -31,7 +32,7 @@ interface GridSystemLike {
 
 export interface SpawnContext {
   app: ObsidianApp;
-  view: any;
+  view: AtlasView | null;
   addToken: (data: any) => string;
   setSelection: (ids: string[]) => void;
   assetService: AssetService | null;
@@ -46,8 +47,8 @@ interface SpawnTarget {
   pitch: number;
 }
 
-function getSpawnTarget(view: any): SpawnTarget | null {
-  const serviceManager = (view as any)?.serviceManager;
+function getSpawnTarget(view: AtlasView | null): SpawnTarget | null {
+  const serviceManager = view?.serviceManager;
   const rendererService = serviceManager?.getRendererService();
   const viewport = rendererService?.getViewport() as ViewportLike | undefined;
   const gridSystem = (rendererService?.getGridSystem() as GridSystemLike | undefined) ?? null;
@@ -176,12 +177,12 @@ export async function spawnTokenAsset(
     }
   }
 
-  const vaultPath = (freshAsset as any).imagePath;
+  const vaultPath = freshAsset.imagePath;
   if (!vaultPath) {
     console.error('[tokenSpawnService] Token asset missing imagePath:', freshAsset);
     return [];
   }
-  const statblockPath = (freshAsset as any).statblockPath || null;
+  const statblockPath = freshAsset.statblockPath || null;
 
   const spawnedIds: string[] = [];
   for (let i = 0; i < count; i++) {
@@ -293,8 +294,8 @@ export async function spawnSelectedTokens(
 
     const pos = gridPosition(i, tokensToSpawn.length, center.x, center.y, pitch, gridSystem);
 
-    let vaultPath = (tokenAsset as any).imagePath || (tokenAsset as TokenAsset).imageUrl;
-    let statblockPath = (tokenAsset as any).statblockPath || null;
+    let vaultPath = tokenAsset.imagePath || tokenAsset.imageUrl;
+    let statblockPath = tokenAsset.statblockPath || null;
 
     // Refresh from service for latest paths
     if (ctx.assetService && tokenAsset.id) {

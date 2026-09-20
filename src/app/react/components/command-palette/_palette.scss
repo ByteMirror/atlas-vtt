@@ -128,7 +128,7 @@
 }
 
 .atlas-command-palette-tab.btn {
-  // Four equal tabs filling the row; label and shortcut sit together in the centre
+  // Four equal tabs filling the row with centered labels
   flex: 1 1 0;
   min-width: 0;
   justify-content: center;
@@ -151,11 +151,6 @@
 
 .atlas-command-palette-tab-label {
   @include atlas-truncate;
-}
-
-.atlas-command-palette-tab-shortcut {
-  font-size: $font-ui-smaller;
-  color: var(--text-faint);
 }
 
 // ── Footer ──────────────────────────────────────────────────────────────────

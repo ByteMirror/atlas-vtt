@@ -57,7 +57,7 @@ export class LayerGraph {
       
       // Pre-create standard layers in the correct order
       Object.values(LayerName).forEach(name => {
-        this.getLayer(name as string);
+        this.getLayer(name);
       });
       
       this.eventBus.emit('layers-ready', this);

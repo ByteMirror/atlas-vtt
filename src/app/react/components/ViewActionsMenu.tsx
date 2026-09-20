@@ -6,7 +6,7 @@ import { openContextMenuGlobal, type ContextMenuEntry } from '../root/ContextMen
 
 interface ViewActionsMenuProps {
   app: App;
-  filePath?: string;
+  filePath?: string | undefined;
 }
 
 export const ViewActionsMenu: React.FC<ViewActionsMenuProps> = ({ app, filePath }) => {

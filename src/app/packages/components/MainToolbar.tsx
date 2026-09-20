@@ -436,7 +436,7 @@ export const MainToolbar = forwardRef<HTMLDivElement, MainToolbarProps>(({ viewI
     assets: () => !isActualPlayerView && handleAssetManagerToggle(),
     pin: () => !isActualPlayerView && handleToolClick("note-pin"),
     wall: () => WALLS_AND_LIGHTING_ENABLED && !isActualPlayerView && handleToolClick("wall"),
-    audio: () => AMBIENT_AUDIO_ENABLED && !isActualPlayerView && handleToolClick("audio" as Tool),
+    audio: () => AMBIENT_AUDIO_ENABLED && !isActualPlayerView && handleToolClick("audio"),
     diceTray: () => store.getState().setDiceTrayOpen(!store.getState().isDiceTrayOpen),
     initiative: () => {
       if (isActualPlayerView) return;
@@ -820,7 +820,7 @@ export const MainToolbar = forwardRef<HTMLDivElement, MainToolbarProps>(({ viewI
                   const measureTools: Array<'measure' | 'measure-circle' | 'measure-cone'> = ['measure', 'measure-circle', 'measure-cone'];
                   if (measureTools.includes(activeTool as any)) {
                     // If already a measure tool, just re-select it
-                    handleToolClick(activeTool as 'measure' | 'measure-circle' | 'measure-cone');
+                    handleToolClick(activeTool);
                   } else {
                     // Otherwise select the basic measure tool
                     handleToolClick("measure");
@@ -979,7 +979,7 @@ export const MainToolbar = forwardRef<HTMLDivElement, MainToolbarProps>(({ viewI
               label="Ambient Sound"
               shortcut={hotkeyLabel('audio')}
               isActive={activeTool === "audio"}
-              onClick={() => handleToolClick("audio" as Tool)}
+              onClick={() => handleToolClick("audio")}
             />
           )}
 

@@ -12,6 +12,7 @@ import { formatServiceAsset } from '../utils/assetFormatters';
 import { useAtlasUI } from '../../../../react/root/AtlasUIContext';
 import { useAtlasStore } from '../../../../react/ViewStoreContext';
 import { runInBackground } from '../../../../utils/backgroundTask';
+import type { AtlasView } from '../../../../atlas-view';
 
 export interface AssetData {
   folders: Folder[];
@@ -31,7 +32,7 @@ export interface AssetData {
   reloadGlobalTags: () => Promise<void>;
   // Store-provided
   app: ObsidianApp;
-  view: any;
+  view: AtlasView | null;
   addToken: (data: any) => string;
   setSelection: (ids: string[]) => void;
   mapPath: string | null;

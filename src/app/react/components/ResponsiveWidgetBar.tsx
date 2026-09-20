@@ -242,7 +242,7 @@ export function ResponsiveWidgetBar({ isPlayerView = false, store, viewId, widge
     };
   }, [handleInteraction, broadcastAnimation, settings, viewId]);
   
-  const visibleWidgets: AnyWidget[] = (Object.values(storedWidgetSettings?.widgets ?? {}) as AnyWidget[])
+  const visibleWidgets: AnyWidget[] = Object.values<AnyWidget>(storedWidgetSettings?.widgets ?? {})
     .filter((widget) => widget.visible && (!isPlayerView || widget.visibleToPlayers))
     .sort((a, b) => a.order - b.order);
   const visibleWidgetsRef = useRef(visibleWidgets);

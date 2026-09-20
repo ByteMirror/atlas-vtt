@@ -70,7 +70,7 @@ export class MapThumbnailService {
       return pixiApp.renderer.extract.canvas(renderTexture) as HTMLCanvasElement;
     }
 
-    const canvas = document.createElement('canvas');
+    const canvas = createEl('canvas');
     const pixelData = pixiApp.renderer.extract?.pixels(renderTexture);
     if (!pixelData) {
       canvas.width = MapThumbnailService.THUMBNAIL_WIDTH;
@@ -90,7 +90,7 @@ export class MapThumbnailService {
   }
 
   private fitIntoThumbnailCanvas(sourceCanvas: HTMLCanvasElement): HTMLCanvasElement {
-    const canvas = document.createElement('canvas');
+    const canvas = createEl('canvas');
     canvas.width = MapThumbnailService.THUMBNAIL_WIDTH;
     canvas.height = MapThumbnailService.THUMBNAIL_HEIGHT;
 
@@ -168,9 +168,9 @@ export class MapThumbnailService {
       // Save thumbnail file
       const existingThumb = this.app.vault.getAbstractFileByPath(thumbnailPath);
       if (existingThumb instanceof TFile) {
-        await this.app.vault.modifyBinary(existingThumb, bytes.buffer as ArrayBuffer);
+        await this.app.vault.modifyBinary(existingThumb, bytes.buffer);
       } else {
-        await this.app.vault.createBinary(thumbnailPath, bytes.buffer as ArrayBuffer);
+        await this.app.vault.createBinary(thumbnailPath, bytes.buffer);
       }
       
     } catch (error) {

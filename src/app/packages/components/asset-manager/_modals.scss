@@ -140,16 +140,6 @@
   @include atlas-text-input;
 }
 
-.atlas-create-scene-select {
-  @include atlas-text-input;
-  cursor: pointer;
-}
-
-.atlas-create-scene-hint {
-  font-size: $font-ui-smaller;
-  color: var(--text-faint);
-}
-
 .atlas-create-scene-footer {
   @include atlas-modal-footer;
 }

@@ -947,12 +947,12 @@ export class FogOfWarRenderer {
       }
       if (this.isTexturedDisplayObject(child)) {
         candidates.push({
-          x: (child as any).x,
-          y: (child as any).y,
-          width: (child as any).width,
-          height: (child as any).height,
-          area: (child as any).width * (child as any).height,
-          source: `viewport-child:${(child as any).label || child.constructor?.name || 'DisplayObject'}`,
+          x: child.x,
+          y: child.y,
+          width: child.width,
+          height: child.height,
+          area: child.width * child.height,
+          source: `viewport-child:${child.label || child.constructor?.name || 'DisplayObject'}`,
         });
       }
     }

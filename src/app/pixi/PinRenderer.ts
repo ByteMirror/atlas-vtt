@@ -4,8 +4,8 @@ import { App as ObsidianApp, TFile } from 'obsidian';
 import { EventEmitter } from 'events';
 import type { NotePin } from "../types";
 import { createLucideIconTexture } from "./utils/lucideIconTexture";
-import type { StoreApi } from 'zustand';
-import type { ViewAtlasState } from '../storeFactory';
+import { isHandled } from "./utils/handledEvents";
+import type { ViewAtlasState, ViewAtlasStore } from '../storeFactory';
 import { beginHistoryTransaction, endHistoryTransaction } from '../stores/history';
 import { openContextMenuGlobal } from '../react/root/ContextMenuContext';
 import { pinSize } from '../styles/designTokens';
@@ -22,7 +22,7 @@ export class PinRenderer {
   private _viewportPinClickListener: ((e: FederatedPointerEvent) => void) | null = null;
   private _contextMenuListener: ((e: CustomEvent) => void) | null = null;
   private isPlayerView: boolean;
-  private store: StoreApi<ViewAtlasState>;
+  private store: ViewAtlasStore;
   private iconTextureCache: Map<string, Texture> = new Map();
   private themeObserver: MutationObserver | null = null;
   private _viewportZoomHandler?: () => void;
@@ -86,7 +86,7 @@ export class PinRenderer {
     }
   };
 
-  constructor(obsApp: ObsidianApp, viewport: Viewport, eventBus: EventEmitter, store: StoreApi<ViewAtlasState>, isPlayerView: boolean = false) {
+  constructor(obsApp: ObsidianApp, viewport: Viewport, eventBus: EventEmitter, store: ViewAtlasStore, isPlayerView: boolean = false) {
     this.obsApp = obsApp;
     this.viewport = viewport;
     this.eventBus = eventBus;
@@ -104,13 +104,13 @@ export class PinRenderer {
     this.pinContainer.eventMode = 'none'; // Viewport-level dispatch handles pin interactions
     this.pinContainer.interactiveChildren = false;
     this.viewport.addChild(this.pinContainer);
-    const unsubscribePins = (this.store as any).subscribe(
+    const unsubscribePins = this.store.subscribe(
       (state: ViewAtlasState) => state.objects.pins,
       this.syncPins.bind(this),
       { fireImmediately: true }
     );
     // The player window mirrors this canvas, so pins must vanish with the GM view
-    const unsubscribeGMView = (this.store as any).subscribe(
+    const unsubscribeGMView = this.store.subscribe(
       (state: ViewAtlasState) => state.isGMView,
       () => { this.pinContainer.visible = !this.arePinsHidden(); },
       { fireImmediately: true }
@@ -121,7 +121,7 @@ export class PinRenderer {
     };
     this._notePinToolViewportListener = (e: FederatedPointerEvent) => {
       // Skip if already handled by viewport-level dispatch (e.g. pin click)
-      if ((e as any)._atlasHandled) return;
+      if (isHandled(e)) return;
 
       const activeTool = this.store.getState().activeTool;
       if (activeTool === 'fog' || activeTool === 'eraser') return;
@@ -159,7 +159,7 @@ export class PinRenderer {
   
   private async initializeIconTextures(): Promise<void> {
     const svgSize = 48; // Higher resolution for better quality
-    const icons = Object.keys(this.iconData) as Array<keyof typeof this.iconData>;
+    const icons = Object.keys(this.iconData);
 
     for (const iconType of icons) {
       const iconInfo = this.iconData[iconType];
@@ -325,7 +325,7 @@ export class PinRenderer {
     if (!pin) return;
 
     if (e.button === 2) {
-      const originalEvent = (e as any).originalEvent;
+      const originalEvent = e.originalEvent;
       const pos = originalEvent instanceof MouseEvent
         ? { x: originalEvent.clientX, y: originalEvent.clientY }
         : { x: e.global.x, y: e.global.y };
@@ -496,7 +496,7 @@ export class PinRenderer {
       container.addChild(iconSprite);
     } else {
       // Fallback: create a simple colored dot if texture not loaded
-      const iconDataEntry = this.iconData[iconType as keyof typeof this.iconData];
+      const iconDataEntry = this.iconData[iconType];
       if (iconDataEntry) {
         const iconColor = isDarkMode ? iconDataEntry.color.dark : iconDataEntry.color.light;
         const fallbackIcon = new Graphics();
@@ -694,11 +694,11 @@ export class PinRenderer {
   public destroy(): void {
     this._unsubscribeFromStore?.();
     if (this._notePinToolViewportListener && this.viewport) {
-        this.viewport.off('pointerdown', this._notePinToolViewportListener as any);
+        this.viewport.off('pointerdown', this._notePinToolViewportListener);
         this._notePinToolViewportListener = null;
     }
     if (this._viewportPinClickListener && this.viewport) {
-        this.viewport.off('pointerdown', this._viewportPinClickListener as any);
+        this.viewport.off('pointerdown', this._viewportPinClickListener);
         this._viewportPinClickListener = null;
     }
     if (this._contextMenuListener) {

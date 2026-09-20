@@ -214,7 +214,7 @@ export class ImageDisplayService {
       const image = new Image();
       image.crossOrigin = 'anonymous';
       image.onload = (): void => {
-        const canvas = document.createElement('canvas');
+        const canvas = createEl('canvas');
         canvas.width = image.naturalWidth;
         canvas.height = image.naturalHeight;
         const ctx = canvas.getContext('2d');

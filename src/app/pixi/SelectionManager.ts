@@ -1,9 +1,9 @@
-import { Graphics, Rectangle, Container } from "pixi.js";
+import { Graphics, Rectangle, Container, FederatedPointerEvent } from "pixi.js";
 import { Viewport } from "pixi-viewport";
 // For Token Sprite type if needed
 import { getObsidianAccentColor, cssColorToHexNumber } from "./utils/colorUtils";
-import type { ViewAtlasState } from '../storeFactory';
-import type { StoreApi } from 'zustand';
+import { isHandled } from "./utils/handledEvents";
+import type { ViewAtlasState, ViewAtlasStore } from '../storeFactory';
 import { EventEmitter } from 'events';
 import { getDrawingBounds, type DrawingBounds } from './drawingGeometry';
 
@@ -24,19 +24,19 @@ export class SelectionManager {
   private _unsubscribeFromToolChanges?: () => void;
   private _unsubscribeFromDrawingChanges?: () => void;
   private _unsubscribeFromSelectionMode?: () => void;
-  private store: StoreApi<ViewAtlasState>;
+  private store: ViewAtlasStore;
   private eventBus: EventEmitter;
 
   // Store handlers to remove them correctly
-  private marqueeDownHandler: (e: any) => void;
-  private marqueeMoveHandler: (e: any) => void;
-  private marqueeUpHandler: (e: any) => void;
+  private marqueeDownHandler: (e: FederatedPointerEvent) => void;
+  private marqueeMoveHandler: (e: FederatedPointerEvent) => void;
+  private marqueeUpHandler: (e: FederatedPointerEvent) => void;
 
   constructor(
     viewport: Viewport,
     tokenRendererProvider: () => ({ [id: string]: Container }),
     fogSpriteProvider: () => ({ [id: string]: Container }),
-    store: StoreApi<ViewAtlasState>,
+    store: ViewAtlasStore,
     eventBus: EventEmitter
   ) {
     this.viewport = viewport;
@@ -67,7 +67,7 @@ export class SelectionManager {
     this.updateSelectionOverlay(); // Initial draw
     
     // Subscribe to selection mode changes from the store
-    this._unsubscribeFromSelectionMode = (this.store as any).subscribe(
+    this._unsubscribeFromSelectionMode = this.store.subscribe(
       (state: ViewAtlasState) => state.selectionMode,
       (mode: 'box' | 'lasso') => {
         this.selectionMode = mode;
@@ -95,19 +95,19 @@ export class SelectionManager {
   }
 
   private subscribeToStoreChanges(): void {
-    this._unsubscribeFromSelectionChanges = (this.store as any).subscribe(
+    this._unsubscribeFromSelectionChanges = this.store.subscribe(
       (state: ViewAtlasState) => state.selectedIds, // Only listen to selected IDs changes
       () => this.updateSelectionOverlay(),
       { fireImmediately: true }
     );
 
     // Dragged or undone drawings move without the selection changing
-    this._unsubscribeFromDrawingChanges = (this.store as any).subscribe(
+    this._unsubscribeFromDrawingChanges = this.store.subscribe(
       (state: ViewAtlasState) => state.objects.drawings,
       () => this.updateSelectionOverlay()
     );
 
-    this._unsubscribeFromToolChanges = (this.store as any).subscribe(
+    this._unsubscribeFromToolChanges = this.store.subscribe(
       (state: ViewAtlasState) => state.activeTool,
       (tool: string) => {
         // Enable marquee selection for both 'move' and 'select' tools
@@ -131,7 +131,7 @@ export class SelectionManager {
     );
   }
 
-  private handleMarqueeStart(e: any): void {
+  private handleMarqueeStart(e: FederatedPointerEvent): void {
     const activeTool = this.store.getState().activeTool;
     if (activeTool !== 'select' && activeTool !== 'move') return;
     
@@ -139,7 +139,7 @@ export class SelectionManager {
     if (e.button !== 0) return;
 
     // Skip if another handler already claimed this event (e.g. token or fog click)
-    if (e._atlasHandled) return;
+    if (isHandled(e)) return;
     
     // Don't start marquee if clicking on a token (geometry-based fallback)
     const worldPos = this.viewport.toWorld(e.global);
@@ -165,11 +165,11 @@ export class SelectionManager {
     }
   }
 
-  private handleMarqueeMove(e: any): void {
+  private handleMarqueeMove(e: FederatedPointerEvent): void {
     const activeTool = this.store.getState().activeTool;
     if (!this.selectionStart || (activeTool !== 'select' && activeTool !== 'move')) return;
     e.stopPropagation();
-    const worldPos = this.viewport.toWorld(e.data?.global ?? e.global);
+    const worldPos = this.viewport.toWorld(e.global);
     
     // Safety check - ensure marquee graphics exist and haven't been destroyed
     if (!this.marqueeGraphics || this.marqueeGraphics.destroyed) {
@@ -206,11 +206,11 @@ export class SelectionManager {
     }
   }
 
-  private handleMarqueeEnd(e: any): void {
+  private handleMarqueeEnd(e: FederatedPointerEvent): void {
     const activeTool = this.store.getState().activeTool;
     if (!this.selectionStart || (activeTool !== 'select' && activeTool !== 'move')) return;
     e.stopPropagation();
-    const worldPos = this.viewport.toWorld(e.data?.global ?? e.global);
+    const worldPos = this.viewport.toWorld(e.global);
     
     const selectedIds: string[] = [];
     const tokenSprites = this.tokenRendererProvider(); // Get current token sprites

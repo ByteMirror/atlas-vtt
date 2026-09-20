@@ -10,9 +10,8 @@ import type { LayerVisibility } from '../playerSafeFrame';
 import { Container } from 'pixi.js';
 import { Viewport } from 'pixi-viewport';
 import type { ITokenUIManager } from './types';
-import type { TokenEntity, Character } from '../../types';
-import type { ViewAtlasState } from '../../storeFactory';
-import type { StoreApi } from 'zustand';
+import type { TokenEntity } from '../../types';
+import type { ViewAtlasState, ViewAtlasStore } from '../../storeFactory';
 import { TokenUIRenderer } from '../TokenUIRenderer';
 import { TokenControlsUI } from '../TokenControlsUI';
 import { TokenRotationUI } from '../TokenRotationUI';
@@ -21,7 +20,7 @@ import type { ConditionDefinition } from '../../types/collectionSettingsTypes';
 
 export class UIManager implements ITokenUIManager {
   private viewport: Viewport;
-  private store: StoreApi<ViewAtlasState>;
+  private store: ViewAtlasStore;
   private viewId: string;
   private isPlayerView: boolean;
   
@@ -50,7 +49,7 @@ export class UIManager implements ITokenUIManager {
 
   constructor(
     viewport: Viewport,
-    store: StoreApi<ViewAtlasState>,
+    store: ViewAtlasStore,
     viewId: string,
     isPlayerView: boolean = false
   ) {
@@ -86,19 +85,19 @@ export class UIManager implements ITokenUIManager {
 
   private setupSubscriptions(): void {
     // Subscribe to selection changes
-    this.unsubscribeSelection = (this.store as any).subscribe(
+    this.unsubscribeSelection = this.store.subscribe(
       (state: ViewAtlasState) => state.selectedIds,
       (selectedIds: string[]) => this.updateSelectionUI(selectedIds)
     );
     
     // Subscribe to token settings changes
-    this.unsubscribeSettings = (this.store as any).subscribe(
+    this.unsubscribeSettings = this.store.subscribe(
       (state: ViewAtlasState) => state.tokenSettings,
       () => this.updateAllTokenSettings()
     );
     
     // Subscribe to grid changes to reposition selection controls/handles
-    this.unsubscribeGrid = (this.store as any).subscribe(
+    this.unsubscribeGrid = this.store.subscribe(
       (state: ViewAtlasState) => state.grid,
       () => this.refreshSelectionControls()
     );
@@ -110,7 +109,6 @@ export class UIManager implements ITokenUIManager {
       return null;
     }
     
-    const character = token as Character;
     const ui = new TokenUIRenderer(this.store, this.viewId, this.viewport);
     ui.conditionDefsProvider = this.conditionDefsProvider;
     this.tokenUIs[tokenId] = ui;
@@ -121,11 +119,11 @@ export class UIManager implements ITokenUIManager {
     // Get token size from container metadata
     const tokenSize = (container as any).tokenSize || 70;
     const gridSize = this.store.getState().grid?.size || 70;
-    const tokenSizeInCells = (token as any).size || 1;
+    const tokenSizeInCells = token.size || 1;
     const tokenDiameterInCells = (2 * tokenSizeInCells - 1);
     
     // Initial update and position sync
-    ui.update(character, tokenSize, tokenDiameterInCells, gridSize);
+    ui.update(token, tokenSize, tokenDiameterInCells, gridSize);
     this.syncUIPosition(tokenId, container.position.x, container.position.y);
     
     // Set up hover handlers for the UI
@@ -140,7 +138,6 @@ export class UIManager implements ITokenUIManager {
       return;
     }
     
-    const character = token as Character;
     const tokenSprite = this.getTokenSprite(tokenId);
     if (!tokenSprite) {
       return;
@@ -150,10 +147,10 @@ export class UIManager implements ITokenUIManager {
     const sprite = tokenSprite.getChildByLabel('tokenSprite') as any;
     const spriteWidth = sprite?.width || 70;
     const gridSize = this.store.getState().grid?.size || 70;
-    const tokenSizeInCells = (token as any).size || 1;
+    const tokenSizeInCells = token.size || 1;
     const tokenDiameterInCells = (2 * tokenSizeInCells - 1);
     
-    ui.update(character, spriteWidth, tokenDiameterInCells, gridSize);
+    ui.update(token, spriteWidth, tokenDiameterInCells, gridSize);
   }
 
   updateSelectionUI(selectedTokenIds: string[]): void {
@@ -335,9 +332,9 @@ export class UIManager implements ITokenUIManager {
       const token = this.store.getState().objects?.tokens?.[tokenId];
       if (token && token.kind === 'character') {
         const gridSize = gridSizeOverride ?? (this.store.getState().grid?.size || 70);
-        const tokenSizeInCells = (token as any).size || 1;
+        const tokenSizeInCells = token.size || 1;
         const tokenDiameterInCells = (2 * tokenSizeInCells - 1);
-        ui.update(token as Character, tokenSize, tokenDiameterInCells, gridSize);
+        ui.update(token, tokenSize, tokenDiameterInCells, gridSize);
       }
     }
   }

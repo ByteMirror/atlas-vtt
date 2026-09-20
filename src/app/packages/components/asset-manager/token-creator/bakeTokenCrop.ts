@@ -36,7 +36,7 @@ export async function bakeTokenCrop(file: File, scale: number, position: ImagePo
     const sourcePixels = Math.round((aspect.width * TOKEN_CROP_FRACTION) / scale);
     const outputSize = Math.min(MAX_OUTPUT_SIZE, Math.max(MIN_OUTPUT_SIZE, sourcePixels));
 
-    const canvas = document.createElement('canvas');
+    const canvas = createEl('canvas');
     canvas.width = outputSize;
     canvas.height = outputSize;
     const ctx = canvas.getContext('2d');

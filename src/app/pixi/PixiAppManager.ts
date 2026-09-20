@@ -14,7 +14,7 @@ export class PixiAppManager {
   constructor(initialWidth: number, initialHeight: number) {
     this.width = initialWidth;
     this.height = initialHeight;
-    this.canvasEl = document.createElement('canvas');
+    this.canvasEl = createEl('canvas');
     this.app = new Application();
   }
 

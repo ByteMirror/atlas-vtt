@@ -1,4 +1,4 @@
-import { Container, Graphics, Sprite, Texture, Circle } from 'pixi.js';
+import { Container, FederatedPointerEvent, Graphics, Sprite, Texture, Circle } from 'pixi.js';
 import { Viewport } from 'pixi-viewport';
 import type { ViewAtlasState } from '../storeFactory';
 import type { StoreApi } from 'zustand';
@@ -98,7 +98,7 @@ export class TokenRotationUI {
         .replace(/height="\d+"/, `height="${canvasSize}"`);
       const key = `rotate-${theme}`;
       
-      const canvas = document.createElement('canvas');
+      const canvas = createEl('canvas');
       canvas.width = canvasSize;
       canvas.height = canvasSize;
       const ctx = canvas.getContext('2d');
@@ -205,7 +205,7 @@ export class TokenRotationUI {
       
       // Get token size - check for temporary size during resize
       const tempSize = temporarySizes?.[tokenId];
-      const tokenSize = tempSize !== undefined ? tempSize : ((token as any).size || 1);
+      const tokenSize = tempSize !== undefined ? tempSize : (token.size || 1);
       
       // Calculate token ring center radius (must match SpriteFactory.createTokenRing)
       const gridStrokeWidth = computeTokenStrokeWidth(gridSize);
@@ -304,7 +304,7 @@ export class TokenRotationUI {
   /**
    * Start rotating tokens
    */
-  private startRotation(e: any): void {
+  private startRotation(e: FederatedPointerEvent): void {
     this.isRotating = true;
     this.hasRotated = false;
     
@@ -359,7 +359,7 @@ export class TokenRotationUI {
   /**
    * Handle rotation movement
    */
-  private onRotationMove = (e: any): void => {
+  private onRotationMove = (e: FederatedPointerEvent): void => {
     if (!this.isRotating) return;
     
     // Calculate center of rotation
@@ -442,7 +442,7 @@ export class TokenRotationUI {
   /**
    * End rotation
    */
-  private onRotationEnd = (e: any): void => {
+  private onRotationEnd = (e: FederatedPointerEvent): void => {
     if (!this.isRotating) return;
     
     // If rotation occurred, create a single undo state for all rotations
@@ -640,7 +640,7 @@ export class TokenRotationUI {
         for (const tokenGroup of child.children) {
           if ((tokenGroup as any).tokenId === tokenId || 
               (tokenGroup as any).tokenData?.id === tokenId) {
-            return tokenGroup as Container;
+            return tokenGroup;
           }
         }
       }

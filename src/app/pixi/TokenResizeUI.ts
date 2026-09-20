@@ -1,4 +1,4 @@
-import { Container, Graphics, Sprite, Texture, Circle } from 'pixi.js';
+import { Container, FederatedPointerEvent, Graphics, Sprite, Texture, Circle } from 'pixi.js';
 import { Viewport } from 'pixi-viewport';
 import type { ViewAtlasState } from '../storeFactory';
 import type { StoreApi } from 'zustand';
@@ -99,7 +99,7 @@ export class TokenResizeUI {
           .replace(/height="\d+"/, `height="${canvasSize}"`);
         const key = `${icon.name}-${theme}`;
         
-        const canvas = document.createElement('canvas');
+        const canvas = createEl('canvas');
         canvas.width = canvasSize;
         canvas.height = canvasSize;
         const ctx = canvas.getContext('2d');
@@ -217,7 +217,7 @@ export class TokenResizeUI {
       
       // Get current size - check for temporary size during drag
       const tempSize = this.temporarySizes[tokenId];
-      const currentSize = tempSize !== undefined ? tempSize : ((token as any).size || 1);
+      const currentSize = tempSize !== undefined ? tempSize : (token.size || 1);
       
       // Calculate token ring center radius (must match SpriteFactory.createTokenRing)
       const gridStrokeWidth = computeTokenStrokeWidth(gridSize);
@@ -321,7 +321,7 @@ export class TokenResizeUI {
   /**
    * Start resizing tokens
    */
-  private startResize(e: any, direction: 'left' | 'right'): void {
+  private startResize(e: FederatedPointerEvent, direction: 'left' | 'right'): void {
     this.isResizing = true;
     this.hasResized = false;
     this.activeHandle = direction;
@@ -343,7 +343,7 @@ export class TokenResizeUI {
       const token = this.store.getState().objects.tokens[tokenId];
       if (token) {
         // Get current size or default to 1
-        const currentSize = (token as any).size || 1;
+        const currentSize = token.size || 1;
         this.initialSizes[tokenId] = currentSize;
         this.startSizes[tokenId] = currentSize; // For undo/redo
       }
@@ -365,7 +365,7 @@ export class TokenResizeUI {
   /**
    * Handle resize movement
    */
-  private onResizeMove = (e: any): void => {
+  private onResizeMove = (e: FederatedPointerEvent): void => {
     if (!this.isResizing) return;
     
     // Calculate resize delta
@@ -440,7 +440,7 @@ export class TokenResizeUI {
   /**
    * End resize
    */
-  private onResizeEnd = (e: any): void => {
+  private onResizeEnd = (e: FederatedPointerEvent): void => {
     if (!this.isResizing) return;
     
     // If resize occurred, create a single undo state for all resizes
@@ -616,7 +616,7 @@ export class TokenResizeUI {
         for (const tokenGroup of child.children) {
           if ((tokenGroup as any).tokenId === tokenId || 
               (tokenGroup as any).tokenData?.id === tokenId) {
-            return tokenGroup as Container;
+            return tokenGroup;
           }
         }
       }

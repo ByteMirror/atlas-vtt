@@ -114,7 +114,7 @@ export async function resolveCreatureFromFence(
     const linkpath = note.replace(/(^\[\[|\]\]$)/g, '').split('|')[0] ?? '';
     const file = app.metadataCache.getFirstLinkpathDest(linkpath, sourcePath);
     if (file) {
-      fromNote = (app.metadataCache.getFileCache(file)?.frontmatter ?? {}) as Record<string, unknown>;
+      fromNote = (app.metadataCache.getFileCache(file)?.frontmatter ?? {});
     }
   }
 

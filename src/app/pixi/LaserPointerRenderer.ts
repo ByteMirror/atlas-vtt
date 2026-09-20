@@ -1,8 +1,7 @@
-import { Application, Color, Container, Graphics } from 'pixi.js';
+import { Application, Color, Container, FederatedPointerEvent, Graphics } from 'pixi.js';
 import type { Viewport } from 'pixi-viewport';
 import type { EventEmitter } from 'events';
-import type { StoreApi } from 'zustand';
-import type { ViewAtlasState } from '../storeFactory';
+import type { ViewAtlasState, ViewAtlasStore } from '../storeFactory';
 import type { LaserPointerSettings } from '../tools/LaserPointerTool';
 import { setCanvasCursor } from './utils/canvasCursor';
 
@@ -23,7 +22,7 @@ export class LaserPointerRenderer {
   private viewport: Viewport;
   private pixiApp: Application;
   private eventBus: EventEmitter;
-  private store: StoreApi<ViewAtlasState>;
+  private store: ViewAtlasStore;
   private canvasEl: HTMLCanvasElement;
 
   private container: Container;
@@ -44,17 +43,17 @@ export class LaserPointerRenderer {
   private onCanvasLeave: () => void;
 
   // Bound viewport handlers (stored for cleanup)
-  private onPointerDown: (e: any) => void;
-  private onPointerMove: (e: any) => void;
-  private onPointerUp: (e: any) => void;
-  private onPointerUpOutside: (e: any) => void;
+  private onPointerDown: (e: FederatedPointerEvent) => void;
+  private onPointerMove: (e: FederatedPointerEvent) => void;
+  private onPointerUp: (e: FederatedPointerEvent) => void;
+  private onPointerUpOutside: (e: FederatedPointerEvent) => void;
   private onViewportMoved: () => void;
 
   constructor(
     viewport: Viewport,
     pixiApp: Application,
     eventBus: EventEmitter,
-    store: StoreApi<ViewAtlasState>,
+    store: ViewAtlasStore,
     canvasEl: HTMLCanvasElement,
   ) {
     this.viewport = viewport;
@@ -80,7 +79,7 @@ export class LaserPointerRenderer {
     this.container.addChild(this.cursorGraphics);
 
     // Store subscription for tool activation (follows MeasureRenderer pattern)
-    this.unsubscribeFromStore = (this.store as any).subscribe(
+    this.unsubscribeFromStore = this.store.subscribe(
       (state: ViewAtlasState) => state.activeTool,
       (tool: string) => {
         const wasActive = this.isToolActive;
@@ -131,8 +130,8 @@ export class LaserPointerRenderer {
 
   // ── Input handling ──────────────────────────────────────────────────
 
-  private getWorldFromPointerEvent(e: any): { x: number; y: number } | null {
-    const global = e?.data?.global;
+  private getWorldFromPointerEvent(e: FederatedPointerEvent): { x: number; y: number } | null {
+    const global = e.global;
     if (!global) {
       return null;
     }
@@ -144,8 +143,8 @@ export class LaserPointerRenderer {
     return { x: world.x, y: world.y };
   }
 
-  private handlePointerDown(e: any): void {
-    const button: number = e.data.button;
+  private handlePointerDown(e: FederatedPointerEvent): void {
+    const button: number = e.button;
     const world = this.getWorldFromPointerEvent(e);
     if (!world) {
       return;
@@ -171,7 +170,7 @@ export class LaserPointerRenderer {
     }
   }
 
-  private handlePointerMove(e: any): void {
+  private handlePointerMove(e: FederatedPointerEvent): void {
     const world = this.getWorldFromPointerEvent(e);
     if (!world) {
       return;
@@ -204,8 +203,8 @@ export class LaserPointerRenderer {
     }
   }
 
-  private handlePointerUp(e: any): void {
-    const button: number = e.data.button;
+  private handlePointerUp(e: FederatedPointerEvent): void {
+    const button: number = e.button;
 
     if (button === 1 && this.isQuickMode) {
       this.isQuickMode = false;

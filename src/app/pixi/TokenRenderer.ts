@@ -6,8 +6,7 @@ import { App as ObsidianApp, TFile, parseYaml } from 'obsidian';
 import type { TokenEntity } from "../types";
 import type { GridSystem } from "../grid/GridSystem";
 import { getDrawingBounds } from "./drawingGeometry";
-import type { ViewAtlasState } from '../storeFactory';
-import type { StoreApi } from 'zustand';
+import type { ViewAtlasStore } from '../storeFactory';
 import { EventEmitter } from 'events';
 import { StatblockDialogService } from '../services/StatblockDialogService';
 import { AssetService } from '../services/AssetService';
@@ -22,6 +21,7 @@ import { SyncService } from './token-renderer/SyncService';
 import { updateInstanceBadge } from './token-renderer/InstanceBadge';
 import type { ConditionDefinition } from '../types/collectionSettingsTypes';
 import { setCanvasCursor } from './utils/canvasCursor';
+import { markHandled, resetHandled } from './utils/handledEvents';
 import { runInBackground } from '../utils/backgroundTask';
 
 export class TokenRenderer {
@@ -34,7 +34,7 @@ export class TokenRenderer {
   private _unsubscribeFromStore?: () => void;
   private _unsubscribeFromViewport?: () => void;
   private selectionOverlayUpdater: () => void;
-  private store: StoreApi<ViewAtlasState>;
+  private store: ViewAtlasStore;
   private eventBus: EventEmitter;
   private statblockDialogService: StatblockDialogService;
   private assetService: AssetService;
@@ -99,7 +99,7 @@ export class TokenRenderer {
     viewport: Viewport,
     gridSystem: GridSystem,
     selectionOverlayUpdater: () => void,
-    store: StoreApi<ViewAtlasState>,
+    store: ViewAtlasStore,
     eventBus: EventEmitter,
     viewId?: string
   ) {
@@ -220,7 +220,7 @@ export class TokenRenderer {
     // This prevents syncing with stale tokens from previous maps
     const currentMapPath = this.store.getState().mapPath;
     if (currentMapPath) {
-      runInBackground(this.syncTokens(this.store.getState().objects.tokens, {} as any), 'Initial token sync');
+      runInBackground(this.syncTokens(this.store.getState().objects.tokens, {}), 'Initial token sync');
       // Ensure all existing tokens (including ones without explicit ringColor)
       // get their ring rebuilt with the current renderer implementation.
       this.onWhenAllTokensLoaded(() => this.updateAllTokenSizes());
@@ -331,7 +331,7 @@ export class TokenRenderer {
         // Show resize handles for all selected tokens
         this.uiManager.getResizeUI()?.showHandles(selectedIds, this.tokenSprites as Record<string, Container>);
       }
-    }) as EventListener;
+    });
 
     // Listen for resize end events to re-show rotation handles
     this._handleResizeEnded = ((event: Event) => {
@@ -343,7 +343,7 @@ export class TokenRenderer {
         // Show rotation handles for all selected tokens
         this.uiManager.getRotationUI()?.showHandles(selectedIds, this.tokenSprites as Record<string, Container>);
       }
-    }) as EventListener;
+    });
 
     window.addEventListener('atlas-token-rotation-ended', this._handleRotationEnded);
     window.addEventListener('atlas-token-resize-ended', this._handleResizeEnded);
@@ -1266,7 +1266,7 @@ export class TokenRenderer {
       
       // Convert SVG to texture with higher resolution
       // Create canvas to avoid PIXI warning about Image elements
-      const canvas = document.createElement('canvas');
+      const canvas = createEl('canvas');
       canvas.width = svgSize * 2; // 2x resolution
       canvas.height = svgSize * 2;
       const ctx = canvas.getContext('2d');
@@ -1348,7 +1348,7 @@ export class TokenRenderer {
     }
     
     try {
-      const file = this.obsApp.vault.getAbstractFileByPath(character.statblockPath!);
+      const file = this.obsApp.vault.getAbstractFileByPath(character.statblockPath);
       if (!(file instanceof TFile)) {
         console.warn(`[TokenRenderer] Statblock file not found: ${character.statblockPath}`);
         return character;
@@ -1473,7 +1473,7 @@ export class TokenRenderer {
     (this as any).tokenContainer = null;
     (this as any).store = null;
     (this as any).eventBus = null;
-    (this as any).pixiApp = null;
+    this.pixiApp = null;
   }
 
   // Helper function to get MIME type (simplified)
@@ -1699,7 +1699,7 @@ export class TokenRenderer {
       const token = tokens[id];
       if (!token) continue;
 
-      const sizeMultiplier = (token as any).size || 1;
+      const sizeMultiplier = token.size || 1;
       const tokenSize = computeTokenPixelSize(gridSize, sizeMultiplier);
       const radius = tokenSize / 2;
 
@@ -1752,8 +1752,8 @@ export class TokenRenderer {
       const sprite = tokenGroup.children[0];
       if (!sprite || !('width' in sprite)) continue;
 
-      const halfW = (sprite as any).width / 2;
-      const halfH = (sprite as any).height / 2;
+      const halfW = sprite.width / 2;
+      const halfH = sprite.height / 2;
       const x = tokenGroup.position.x;
       const y = tokenGroup.position.y;
 
@@ -1783,7 +1783,7 @@ export class TokenRenderer {
 
   private onViewportPointerDown = (e: FederatedPointerEvent): void => {
     // PIXI v8 reuses FederatedPointerEvent objects — clear custom flags from previous events
-    delete (e as any)._atlasHandled;
+    resetHandled(e);
 
     const activeTool = this.store.getState().activeTool;
     const worldPos = this.viewport.toWorld(e.global);
@@ -1793,7 +1793,7 @@ export class TokenRenderer {
       // Wall context menu (when wall tool is active)
       if (activeTool === 'wall' && this.wallContextMenuHandler) {
         this.wallContextMenuHandler(worldPos.x, worldPos.y, e.clientX, e.clientY);
-        (e as any)._atlasHandled = true;
+        markHandled(e);
         return;
       }
 
@@ -1801,7 +1801,7 @@ export class TokenRenderer {
       if (this.pinHitTestProvider && this.pinClickHandler) {
         const pinId = this.pinHitTestProvider(worldPos.x, worldPos.y);
         if (pinId) {
-          (e as any)._atlasHandled = true;
+          markHandled(e);
           this.pinClickHandler(pinId, e);
           return;
         }
@@ -1809,7 +1809,7 @@ export class TokenRenderer {
       if (this.fogHitTestProvider && this.fogClickHandler) {
         const fogId = this.fogHitTestProvider(worldPos.x, worldPos.y);
         if (fogId) {
-          (e as any)._atlasHandled = true;
+          markHandled(e);
           this.fogClickHandler(fogId, e);
           return;
         }
@@ -1820,7 +1820,7 @@ export class TokenRenderer {
     if (e.button === 0 && this.pinHitTestProvider && this.pinClickHandler) {
       const pinId = this.pinHitTestProvider(worldPos.x, worldPos.y);
       if (pinId) {
-        (e as any)._atlasHandled = true;
+        markHandled(e);
         this.pinClickHandler(pinId, e);
         return;
       }
@@ -1830,7 +1830,7 @@ export class TokenRenderer {
     if (activeTool === 'wall' && e.button === 0 && this.wallPointerDownHandler) {
       const handled = this.wallPointerDownHandler(worldPos.x, worldPos.y, e);
       if (handled) {
-        (e as any)._atlasHandled = true;
+        markHandled(e);
         return;
       }
     }
@@ -1839,7 +1839,7 @@ export class TokenRenderer {
     if (activeTool === 'audio' && e.button === 0 && this.audioPointerDownHandler) {
       const handled = this.audioPointerDownHandler(worldPos.x, worldPos.y, e);
       if (handled) {
-        (e as any)._atlasHandled = true;
+        markHandled(e);
         return;
       }
     }
@@ -1850,7 +1850,7 @@ export class TokenRenderer {
     // 1. Hit-test individual tokens
     const tokenId = this.hitTestTokens(worldPos.x, worldPos.y);
     if (tokenId) {
-      (e as any)._atlasHandled = true;
+      markHandled(e);
       this.interactionController.handleViewportTokenPointerDown(tokenId, e);
       // Drawings selected alongside the token follow its drag
       if (e.button === 0) this.drawingDragStartHandler?.(e);
@@ -1861,7 +1861,7 @@ export class TokenRenderer {
     if (e.button === 0) {
       const selectedIds = this.store.getState().selectedIds;
       if (selectedIds.length > 1 && this.isPointInSelectionBounds(worldPos.x, worldPos.y, selectedIds)) {
-        (e as any)._atlasHandled = true;
+        markHandled(e);
         this.startGroupDrag(e);
         return;
       }
@@ -1871,7 +1871,7 @@ export class TokenRenderer {
     if (this.drawingHitTestProvider && this.drawingClickHandler) {
       const drawingId = this.drawingHitTestProvider(worldPos.x, worldPos.y);
       if (drawingId) {
-        (e as any)._atlasHandled = true;
+        markHandled(e);
         this.drawingClickHandler(drawingId, e);
         if (e.button === 0) this.startTokenGroupDrag(e);
         return;
@@ -1882,7 +1882,7 @@ export class TokenRenderer {
     if (this.fogHitTestProvider && this.fogClickHandler) {
       const fogId = this.fogHitTestProvider(worldPos.x, worldPos.y);
       if (fogId) {
-        (e as any)._atlasHandled = true;
+        markHandled(e);
         this.fogClickHandler(fogId, e);
         return;
       }
@@ -2014,7 +2014,7 @@ export class TokenRenderer {
     for (const [tokenId, token] of Object.entries(tokens)) {
       const tokenGroup = this.tokenSprites[tokenId];
       if (tokenGroup instanceof Container) {
-        const size = (token as any).size || 1;
+        const size = token.size || 1;
         this.spriteFactory.updateTokenSize(tokenId, tokenGroup, size);
         
         // Calculate token size based on grid
@@ -2024,7 +2024,7 @@ export class TokenRenderer {
         this.uiManager.syncUIScale(tokenId, tokenSize);
         
         // Always refresh ring, even when token has no explicit ringColor.
-        const ringColor = (token as any).ringColor;
+        const ringColor = token.ringColor;
         this.updateTokenRing(tokenId, tokenGroup, tokenSize, ringColor);
       }
     }

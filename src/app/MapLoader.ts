@@ -89,7 +89,7 @@ async function createPlaceholderTexture(app: App, mapData: MapFile): Promise<Tex
   let texture = (app as any).renderer?.generateTexture(graphics) || Texture.EMPTY;
   if (texture === Texture.EMPTY) {
     // Fallback: create a minimal texture
-    const canvas = document.createElement('canvas');
+    const canvas = createEl('canvas');
     canvas.width = defaultWidth;
     canvas.height = defaultHeight;
     const ctx = canvas.getContext('2d');

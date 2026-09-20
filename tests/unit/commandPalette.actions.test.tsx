@@ -33,6 +33,60 @@ describe('Atlas search actions', () => {
     else Reflect.deleteProperty(Element.prototype, 'scrollIntoView');
   });
 
+  it.each([
+    { shiftKey: false, labels: ['Tools', 'Mode', 'Settings', 'All'] },
+    { shiftKey: true, labels: ['Settings', 'Mode', 'Tools', 'All'] },
+  ])('cycles palette tabs with wraparound (shift: $shiftKey)', ({ shiftKey, labels }) => {
+    const store = create(() => ({}));
+    render(<ViewStoreProvider store={store}><CommandPalette isOpen onClose={vi.fn()} /></ViewStoreProvider>);
+    const input = screen.getByPlaceholderText('Search commands...');
+    fireEvent.change(input, { target: { value: 'no matching command' } });
+
+    for (const label of labels) {
+      expect(fireEvent.keyDown(input, { key: 'Tab', shiftKey })).toBe(false);
+      expect(screen.getByRole('button', { name: new RegExp(`^${label}`) }).classList.contains('atlas-active')).toBe(true);
+      expect(document.activeElement).toBe(input);
+      expect((input as HTMLInputElement).value).toBe('no matching command');
+    }
+  });
+
+  it('shows tab labels without dedicated shortcuts and ignores Cmd+number', () => {
+    const store = create(() => ({}));
+    render(<ViewStoreProvider store={store}><CommandPalette isOpen onClose={vi.fn()} /></ViewStoreProvider>);
+
+    for (const label of ['All', 'Tools', 'Mode', 'Settings']) {
+      expect(screen.getByRole('button', { name: new RegExp(`^${label}`) }).textContent).toBe(label);
+    }
+    for (const key of ['1', '2', '3', '4']) {
+      expect(fireEvent.keyDown(document, { key, metaKey: true })).toBe(true);
+      expect(screen.getByRole('button', { name: 'All' }).classList.contains('atlas-active')).toBe(true);
+    }
+  });
+
+  it('uses arrow keys and Enter to select commands after switching tabs', () => {
+    const onClose = vi.fn();
+    const store = create(() => ({}));
+    render(<ViewStoreProvider store={store}><CommandPalette isOpen onClose={onClose} /></ViewStoreProvider>);
+    const input = screen.getByPlaceholderText('Search commands...');
+    fireEvent.keyDown(input, { key: 'Tab' });
+    fireEvent.keyDown(input, { key: 'Tab' });
+    expect(screen.getByRole('button', { name: /^Enter Player Mode/ }).classList.contains('atlas-focused')).toBe(true);
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
+    expect(screen.getByRole('button', { name: /^Freeze Player Camera/ }).classList.contains('atlas-focused')).toBe(true);
+    fireEvent.keyDown(input, { key: 'ArrowUp' });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it.each(['Grid settings', 'Token settings', 'Widget settings', 'Local player view settings'])('preserves native Tab navigation inside %s', (label) => {
+    const store = create(() => ({}));
+    render(<ViewStoreProvider store={store}><CommandPalette isOpen onClose={vi.fn()} /></ViewStoreProvider>);
+    fireEvent.click(screen.getByRole('button', { name: label }));
+
+    expect(fireEvent.keyDown(document, { key: 'Tab' })).toBe(true);
+    expect(fireEvent.keyDown(document, { key: 'Tab', shiftKey: true })).toBe(true);
+  });
+
   it.each(['scene', 'asset manager', 'toggle'])('finds and opens the scene browser for "%s"', (query) => {
     const setActiveTool = vi.fn();
     const onClose = vi.fn();

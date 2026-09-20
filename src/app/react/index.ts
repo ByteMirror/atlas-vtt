@@ -6,6 +6,7 @@ import { UIRoot } from './UIRoot';
 import { ViewStoreProvider } from './ViewStoreContext';
 import type { ViewAtlasState } from '../storeFactory';
 import type { StoreApi } from 'zustand';
+import type { AtlasView } from '../atlas-view';
 
 // Store multiple React roots keyed by container element
 const reactRoots = new WeakMap<HTMLElement, Root>();
@@ -17,7 +18,7 @@ export function mountUI(
   app: App,
   container: HTMLElement,
   mapData: any,
-  view: any,
+  view: AtlasView,
   pixiApp: Application | null,
   store: StoreApi<ViewAtlasState>
 ): void {

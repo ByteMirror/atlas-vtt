@@ -1,6 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Assets, Texture, Sprite } from 'pixi.js';
-import { Viewport } from 'pixi-viewport';
 import { useAtlasUI } from './root/AtlasUIContext';
 import { useViewStoreHook } from './ViewStoreContext';
 import { toError } from '../utils/errors';
@@ -149,7 +148,7 @@ export const BackgroundSprite: React.FC<BackgroundSpriteProps> = ({ imagePath })
   useEffect(() => {
     if (!texture || !renderer) return;
     
-    const viewport = renderer.getViewportInstance() as Viewport | null;
+    const viewport = renderer.getViewportInstance();
     if (!viewport) {
       console.error('[BackgroundSprite] No viewport available');
       return;

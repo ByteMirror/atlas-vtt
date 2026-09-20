@@ -2,9 +2,8 @@ import { App, TFile } from 'obsidian';
 import { MapController } from '../MapController';
 import { EventEmitter } from 'events';
 import { RendererService } from './RendererService';
-import type { ViewAtlasState } from '../storeFactory';
+import type { ViewAtlasState, ViewAtlasStore } from '../storeFactory';
 import { getHistoryStore } from '../stores/history';
-import type { StoreApi } from 'zustand';
 
 // Define a local interface for the map data that MapController works with
 interface MapData {
@@ -45,7 +44,7 @@ export class MapService {
     return 'Untitled Map';
   }
   
-  constructor(private app: App, eventBus: EventEmitter, private store: StoreApi<ViewAtlasState>) {
+  constructor(private app: App, eventBus: EventEmitter, private store: ViewAtlasStore) {
     this.eventBus = eventBus;
   }
 
@@ -83,10 +82,7 @@ export class MapService {
       // This prevents the debounced save from writing cleared state to the old file
       try {
         // Force immediate save of current state to the old map file
-        const storage = (this.store as any).persist?.getOptions?.()?.storage;
-        if (storage && typeof storage.flush === 'function') {
-          await storage.flush();
-        }
+        await this.store.flushStorage();
       } catch (flushError) {
         console.warn('[MapService] Could not flush pending saves:', flushError);
       }
@@ -148,7 +144,7 @@ export class MapService {
         // Re-hydrate persisted state for this map now that the path is known.
         
         try {
-          await (this.store as any).persist.rehydrate();
+          await this.store.persist.rehydrate();
           const afterRehydration = this.store.getState();
           
           // If this is a new map (no file exists yet), ensure state is truly empty
@@ -194,7 +190,7 @@ export class MapService {
         
         if (!hasValidPersistedState) {
           // No valid persisted state, use data from map file
-          const objects = (this.currentMapData as any).objects;
+          const objects = this.currentMapData.objects;
           if (objects) {
             if (objects.tokens) {
               storeState.setTokens(objects.tokens);

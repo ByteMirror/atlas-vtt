@@ -1,7 +1,7 @@
 import { ItemView, WorkspaceLeaf, TFile, Notice } from "obsidian";
 import { createRoot, Root } from 'react-dom/client';
 import React, { useState, useEffect } from 'react';
-import { AssetService, SceneAsset, MapAsset, Asset } from './services/AssetService';
+import { AssetService, Asset } from './services/AssetService';
 import { GlobalAssetManagerService } from './services/GlobalAssetManagerService';
 import { Button } from './packages/components/primitives/button';
 import {
@@ -38,10 +38,10 @@ interface DashboardProps {
 /** Get the .atlasmap file path from a scene or map asset. */
 function getAssetMapPath(asset: Asset): string {
   if (asset.type === 'scene') {
-    return (asset as SceneAsset).data?.mapPath ?? '';
+    return asset.data?.mapPath ?? '';
   }
   if (asset.type === 'map') {
-    return (asset as MapAsset).mapFilePath ?? '';
+    return asset.mapFilePath ?? '';
   }
   return '';
 }

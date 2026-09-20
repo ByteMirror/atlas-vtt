@@ -50,7 +50,7 @@ async function decodeTokenImage(buffer: ArrayBuffer, mimeType: string): Promise<
     img.src = url;
     await img.decode();
     const target = fitWithin(img.naturalWidth || 512, img.naturalHeight || 512, MAX_TOKEN_TEXTURE_SIZE);
-    const canvas = document.createElement('canvas');
+    const canvas = createEl('canvas');
     canvas.width = target.width;
     canvas.height = target.height;
     canvas.getContext('2d')!.drawImage(img, 0, 0, target.width, target.height);
@@ -227,7 +227,7 @@ export class TextureCache implements ITextureCache {
     }
 
     // Create gradient using Canvas API
-    const canvas = document.createElement('canvas');
+    const canvas = createEl('canvas');
     canvas.width = width;
     canvas.height = height;
     const ctx = canvas.getContext('2d')!;

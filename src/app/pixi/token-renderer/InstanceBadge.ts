@@ -28,7 +28,7 @@ export function updateInstanceBadge(
   const posX = ringRadius * Math.cos(angle);
   const posY = ringRadius * Math.sin(angle);
 
-  let badge = tokenGroup.getChildByLabel(BADGE_NAME) as Container | null;
+  let badge = tokenGroup.getChildByLabel(BADGE_NAME);
 
   if (!badge) {
     badge = new Container();
@@ -84,7 +84,7 @@ export function updateInstanceBadge(
  * Remove the instance badge from a token container entirely.
  */
 export function removeInstanceBadge(tokenGroup: Container): void {
-  const badge = tokenGroup.getChildByLabel(BADGE_NAME) as Container | null;
+  const badge = tokenGroup.getChildByLabel(BADGE_NAME);
   if (badge) {
     tokenGroup.removeChild(badge);
     badge.destroy({ children: true });

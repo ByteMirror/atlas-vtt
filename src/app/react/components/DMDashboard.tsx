@@ -60,7 +60,7 @@ const NoteContent: React.FC<NoteContentProps> = ({ notePath, app, onFocus }) => 
         // so Obsidian never switches away from the atlas canvas view.
         const origSetActiveLeaf = app.workspace.setActiveLeaf.bind(app.workspace);
         const suppressActiveLeaf = (): void => {
-          app.workspace.setActiveLeaf = (() => {}) as any;
+          app.workspace.setActiveLeaf = (() => {});
         };
         const restoreActiveLeaf = (): void => {
           app.workspace.setActiveLeaf = origSetActiveLeaf;

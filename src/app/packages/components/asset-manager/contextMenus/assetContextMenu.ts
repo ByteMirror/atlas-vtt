@@ -2,7 +2,9 @@ import type * as React from 'react';
 import { App as ObsidianApp } from 'obsidian';
 import type { ContextMenuEntry } from '../../../../react/components/context-menu/AtlasContextMenu';
 import type {
-  AnyAsset, TokenAsset, EncounterAsset, Folder, Tag as TagType,
+  AnyAsset,
+  Folder,
+  Tag as TagType,
 } from '../types';
 import {
   spawnEncounterTokens,
@@ -13,10 +15,11 @@ import type { AssetService } from '../../../../services/AssetService';
 import { TagSearchModal } from '../TagSearchModal';
 import { runInBackground } from '../../../../utils/backgroundTask';
 import { confirmAction } from '../../../../ui/confirmDialog';
+import type { AtlasView } from '../../../../atlas-view';
 
 export interface AssetContextMenuDeps {
   app: ObsidianApp;
-  view: any;
+  view: AtlasView | null;
   addToken: (data: any) => string;
   setSelection: (ids: string[]) => void;
   assetService: AssetService | null;
@@ -63,7 +66,7 @@ export function buildAssetContextMenuEntries(
       label: 'Spawn Encounter',
       icon: 'target',
       onClick: async () => {
-        const ids = await spawnEncounterTokens(spawnCtx, asset as EncounterAsset);
+        const ids = await spawnEncounterTokens(spawnCtx, asset);
         if (ids.length > 0) deps.onClose();
       },
     });
@@ -146,7 +149,7 @@ export function buildAssetContextMenuEntries(
 
   // ── Statblock link (single token) ─────────────────────────────
   if (asset.type === 'tokens' && selectedAssets.length === 1) {
-    const hasStatblock = Boolean((asset as TokenAsset).statblockPath);
+    const hasStatblock = Boolean(asset.statblockPath);
     entries.push({
       type: 'item',
       label: hasStatblock ? 'Change Statblock' : 'Link Statblock',

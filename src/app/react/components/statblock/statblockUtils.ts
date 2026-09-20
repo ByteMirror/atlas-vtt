@@ -53,7 +53,7 @@ export function signed(value: number): string {
  *
  * Trust boundary: `code` comes from a Fantasy Statblocks layout definition,
  * which lives in the user's own vault and is authored by them — the same trust
- * level as any other plugin config, and the same thing Fantasy Statblocks does
+ * level other plugin config, and the same thing Fantasy Statblocks does
  * with these callbacks. No remote or document content reaches this function.
  * Failures fall back to the untransformed value rather than breaking the render.
  */

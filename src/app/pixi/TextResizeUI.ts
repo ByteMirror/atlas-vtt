@@ -91,7 +91,7 @@ export class TextResizeUI {
 
   private createChevronIcon(side: 'left' | 'right'): Texture {
     // Create texture using canvas to avoid renderer dependency
-    const canvas = document.createElement('canvas');
+    const canvas = createEl('canvas');
     const size = 32; // Increased size for better visibility
     canvas.width = size;
     canvas.height = size;
@@ -252,7 +252,7 @@ export class TextResizeUI {
     
     // Reset handle appearance
     [this.leftHandle, this.rightHandle].forEach(handle => {
-      const bg = handle.getChildAt(0) as Graphics;
+      const bg = handle.getChildAt<Graphics>(0);
       bg.clear();
       drawIdleHandleBackground(bg);
     });

@@ -20,7 +20,7 @@ export function grayFromCanvasSource(
   const width = Math.max(1, Math.round(sourceWidth * scale));
   const height = Math.max(1, Math.round(sourceHeight * scale));
 
-  const canvas = document.createElement('canvas');
+  const canvas = createEl('canvas');
   canvas.width = width;
   canvas.height = height;
   const ctx = canvas.getContext('2d', { willReadFrequently: true });

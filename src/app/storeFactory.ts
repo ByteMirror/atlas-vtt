@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import type { Mutate, StoreApi } from "zustand";
 import { subscribeWithSelector, persist } from "zustand/middleware";
 import type { StorageValue } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
@@ -314,18 +315,18 @@ const createInitialState = (): Pick<ViewAtlasState, 'schema' | 'version' | 'mapP
     opacity: 0.5,
     lineType: 'solid',
     lineWidth: 1
-  } as GridState,
-  objects: {
-    tokens: {} as Record<string, TokenEntity>,
-    fog: {} as Record<string, FogOperation>,
-    pins: {} as Record<string, NotePin>,
-    texts: {} as Record<string, TextElement>,
-    drawings: {} as Record<string, DrawingStroke>,
-    walls: {} as Record<string, WallSegment>,
-    lights: {} as Record<string, LightSource>,
-    audios: {} as Record<string, AudioSource>,
   },
-  camera: { x: 0, y: 0, scale: 1 } as CameraState,
+  objects: {
+    tokens: {},
+    fog: {},
+    pins: {},
+    texts: {},
+    drawings: {},
+    walls: {},
+    lights: {},
+    audios: {},
+  },
+  camera: { x: 0, y: 0, scale: 1 },
   persistenceEnabled: true,
   widgetSettings: createDefaultWidgets(),
   widgetValues: {}, // Widget values stored separately
@@ -343,6 +344,18 @@ const createInitialState = (): Pick<ViewAtlasState, 'schema' | 'version' | 'mapP
 
 export type TokenUpdates = Partial<Omit<TokenEntity, 'id' | 'kind'>>;
 
+/**
+ * A view store as seen after its middleware stack: selector-aware `subscribe`,
+ * the `persist` API, and the storage flush used for tab-switch save coordination.
+ * Assignable to `StoreApi<ViewAtlasState>` for consumers that only need the basics.
+ */
+export type ViewAtlasStore = Mutate<
+  StoreApi<ViewAtlasState>,
+  [['zustand/subscribeWithSelector', never], ['zustand/persist', PersistedViewState]]
+> & {
+  flushStorage: () => Promise<void>;
+};
+
 function applyTokenUpdates(token: TokenEntity | undefined, updates: TokenUpdates): void {
   if (!token) return;
   const normalized = updates.imagePath
@@ -354,9 +367,9 @@ function applyTokenUpdates(token: TokenEntity | undefined, updates: TokenUpdates
 /**
  * Creates an isolated Atlas store instance for a specific view
  */
-export function createViewAtlasStore(app: App, viewId: string, plugin?: any, isPlayerView: boolean = false) {
+export function createViewAtlasStore(app: App, viewId: string, plugin?: any, isPlayerView: boolean = false): ViewAtlasStore {
   // Create a storage factory that will access the store once it's created
-  let storeRef: any = null;
+  let storeRef: Pick<StoreApi<ViewAtlasState>, 'getState'> | null = null;
 
   // Keep a reference to the delayed storage so we can expose flush() on the store
   let delayedStorageRef: ReturnType<typeof createDelayedStorage> | null = null;
@@ -660,7 +673,7 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: any, isP
                 const normalizedToken = {
                   ...token,
                   imagePath: normalizeImagePath(token.imagePath)
-                } as TokenEntity;
+                };
                 filteredTokens[id] = normalizedToken;
               }
             }
@@ -807,7 +820,7 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: any, isP
                 const offset = 20;
 
                 const instanceNumber = computeNextInstanceNumber(
-                  draft.objects.tokens as Record<string, TokenEntity>,
+                  draft.objects.tokens,
                   original.imagePath,
                 );
 
@@ -1093,7 +1106,7 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: any, isP
                 kind: 'fog',
                 timestamp: Date.now(),
                 ...data,
-              } as FogOperation;
+              };
               draft.objects.fog[id] = op;
             });
             return id;
@@ -1164,7 +1177,7 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: any, isP
           addWall: (data) => {
             const id = `wall_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
             set((draft) => {
-              draft.objects.walls[id] = { id, kind: 'wall', ...data } as WallSegment;
+              draft.objects.walls[id] = { id, kind: 'wall', ...data };
               draft._visionDirty = true;
               draft._audioDirty = true;
             });
@@ -1209,7 +1222,7 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: any, isP
           addLight: (data) => {
             const id = `light_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
             set((draft) => {
-              draft.objects.lights[id] = { id, kind: 'light', ...data } as LightSource;
+              draft.objects.lights[id] = { id, kind: 'light', ...data };
               draft._visionDirty = true;
             });
             return id;
@@ -1233,7 +1246,7 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: any, isP
           addAudio: (data) => {
             const id = `audio_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
             set((draft) => {
-              draft.objects.audios[id] = { id, kind: 'audio', ...data } as AudioSource;
+              draft.objects.audios[id] = { id, kind: 'audio', ...data };
               draft._audioDirty = true;
             });
             return id;
@@ -1315,7 +1328,7 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: any, isP
             draft.objects.tokens = {
               ...draft.objects.tokens,
               [id]: updated,
-            } as any;
+            };
           }),
           
           // Token condition actions
@@ -1326,9 +1339,9 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: any, isP
               return;
             }
 
-            const current = (token as any).conditions ?? [];
+            const current = token.conditions ?? [];
             if (!current.includes(conditionId)) {
-              (token as any).conditions = [...current, conditionId];
+              token.conditions = [...current, conditionId];
             }
           }),
 
@@ -1339,11 +1352,11 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: any, isP
               return;
             }
 
-            const current = ((token as any).conditions ?? []).filter((c: string) => c !== conditionId);
+            const current = (token.conditions ?? []).filter((c: string) => c !== conditionId);
             if (current.length > 0) {
-              (token as any).conditions = current;
+              token.conditions = current;
             } else {
-              delete (token as any).conditions;
+              delete token.conditions;
             }
           }),
 
@@ -1354,7 +1367,7 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: any, isP
               return;
             }
 
-            delete (token as any).conditions;
+            delete token.conditions;
           }),
 
           // Kill tokens - set HP to 0
@@ -1381,7 +1394,7 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: any, isP
               }
             });
 
-            draft.objects.tokens = updatedTokens as any;
+            draft.objects.tokens = updatedTokens;
           }),
 
           // Reset tokens - restore HP and stress, clear statuses
@@ -1415,7 +1428,7 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: any, isP
               }
             });
 
-            draft.objects.tokens = updatedTokens as any;
+            draft.objects.tokens = updatedTokens;
           }),
 
           // --- Initiative Tracker State & Actions (from initiativeSlice.ts) ---
@@ -1437,7 +1450,7 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: any, isP
 
           // --- Per-view UI visibility (from uiSlice.ts) ---
           ...createInitialUIState(),
-          ...createUIActions(set as unknown as (fn: (draft: UISlice) => void) => void),
+          ...createUIActions(set),
 
         })),
         {
@@ -1456,7 +1469,7 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: any, isP
           partialize: (state): PersistedViewState => {
             // Use per-store persistence control instead of global
             if (!state.persistenceEnabled) {
-              return {} as PersistedViewState;
+              return {};
             }
             
             return {
@@ -1474,7 +1487,7 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: any, isP
               initiative: state.initiative, // Initiative tracker state
               initiativeTrackerOpen: state.initiativeTrackerOpen, // Initiative tracker open/closed state
               diceLog: state.diceLog, // Dice roll history (last 20 per map)
-            } as PersistedViewState;
+            };
           },
           
           onRehydrateStorage: () => {
@@ -1490,19 +1503,24 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: any, isP
     // Undo/redo tracks objects, grid, background and widgetValues only;
     // selection, camera, tool and loading state never enter the history.
     // storeRef is assigned right after creation, before any history call.
-    createHistoryOptions<ViewAtlasState>(() => storeRef.getState())
+    createHistoryOptions<ViewAtlasState>(() => storeRef!.getState())
   )
 );
 
   // Set the store reference after creation
   storeRef = store;
 
-  // Expose the storage flush method on the store for tab-switch save coordination
-  (store as any).flushStorage = async (): Promise<void> => {
-    if (delayedStorageRef && typeof delayedStorageRef.flush === 'function') {
-      await delayedStorageRef.flush();
-    }
-  };
+  // Immer types `setState` with draft updaters, and WritableDraft<ViewAtlasState> is not
+  // assignable back to ViewAtlasState because the state holds the Obsidian `plugin`.
+  // The public type keeps the plain StoreApi `setState`, which the Immer store also honours.
+  const publicStore = store as unknown as Omit<ViewAtlasStore, 'flushStorage'>;
 
-  return store;
+  // Expose the storage flush method on the store for tab-switch save coordination
+  return Object.assign(publicStore, {
+    flushStorage: async (): Promise<void> => {
+      if (delayedStorageRef && typeof delayedStorageRef.flush === 'function') {
+        await delayedStorageRef.flush();
+      }
+    },
+  });
 }

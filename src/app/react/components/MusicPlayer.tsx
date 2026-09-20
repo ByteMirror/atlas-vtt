@@ -496,7 +496,7 @@ export const MusicPlayer: React.FC<MusicPlayerProps> = ({
     
     const handleFilePickerForAmbient = async (soundId: string) => {
         // Create file input element
-        const input = document.createElement('input');
+        const input = createEl('input');
         input.type = 'file';
         input.accept = 'audio/*';
         

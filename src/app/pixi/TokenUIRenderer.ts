@@ -264,7 +264,7 @@ export class TokenUIRenderer {
         this.lastUpdateData = ''; // Clear cache to force update
         this.update(this.currentToken, this.currentTokenSize);
       }
-    }, 100) as any; // 100ms throttle
+    }, 100); // 100ms throttle
   };
   
   private resizeTimeout: number | null = null;
@@ -400,8 +400,8 @@ export class TokenUIRenderer {
     // Quick change detection without JSON stringify
     const hpString = token.hp === undefined ? 'no-hp' : (typeof token.hp === 'object' ? `${token.hp.current}/${token.hp.max}` : String(token.hp));
     const stressString = token.stress === undefined ? 'no-stress' : (typeof token.stress === 'object' ? `${token.stress.current}/${token.stress.max}` : String(token.stress));
-    const showNameplate = playerSettings ? playerSettings.showTokenNameplates : tokenSettings.showNameplates || (token as any).showNameplate === true;
-    const conditionsKey = (token as any).conditions?.join(',') ?? '';
+    const showNameplate = playerSettings ? playerSettings.showTokenNameplates : tokenSettings.showNameplates || token.showNameplate === true;
+    const conditionsKey = token.conditions?.join(',') ?? '';
     const updateKey = `${hpString}_${stressString}_${spriteWidth}_${gridPx}_${this.isHovered}_${this.isSelected}_${token.name || ''}_${showNameplate}_${(token as any).statblockName || ''}_${tokenSettings.showHPBars}_${tokenSettings.showStressBars}_${conditionsKey}`;
     
     // Skip update if nothing has changed
@@ -429,7 +429,7 @@ export class TokenUIRenderer {
     const hasStress = hasStatblock && token.stress !== undefined && tokenSettings.showStressBars;
     // showNameplate is already calculated above for change detection
 
-    const hasConditions = ((token as any).conditions?.length ?? 0) > 0;
+    const hasConditions = (token.conditions?.length ?? 0) > 0;
 
     if (!hasHP && !hasStress && !showNameplate && !hasConditions) {
       this.container.visible = false;
@@ -671,7 +671,7 @@ export class TokenUIRenderer {
     // Condition dots — horizontal row between nameplate and HP bar
     const conditionDefs = this.conditionDefsProvider?.() ?? [];
     const conditionY = tokenRadiusInUIUnits + baseGap / 2;
-    this.conditionDots.update((token as any).conditions ?? [], conditionDefs, conditionY);
+    this.conditionDots.update(token.conditions ?? [], conditionDefs, conditionY);
 
   }
   
@@ -689,7 +689,7 @@ export class TokenUIRenderer {
 
     // Condition UI: show panel on hover only when CMD/Ctrl is NOT held
     // (CMD+hover is reserved for statblock preview)
-    const conditions = (this.currentToken as any)?.conditions ?? [];
+    const conditions = this.currentToken?.conditions ?? [];
     const conditionDefs = this.conditionDefsProvider?.() ?? [];
 
     // Dots always stay visible when conditions exist
@@ -816,7 +816,7 @@ export class TokenUIRenderer {
     if (this.isEditingName || !this.currentToken || !this.store) return;
     
     // Only allow editing if nameplate is visible
-    const shouldShowNameplate = (this.currentToken as any).showNameplate === true;
+    const shouldShowNameplate = this.currentToken.showNameplate === true;
     if (!shouldShowNameplate) return;
     
     this.isEditingName = true;
@@ -983,7 +983,7 @@ export class TokenUIRenderer {
     this.cursorBlinkInterval = window.setInterval(() => {
       cursorVisible = !cursorVisible;
       this.editCursor.alpha = cursorVisible ? 1 : 0;
-    }, 500) as unknown as number;
+    }, 500);
     
     // Event handlers will be defined and attached later
     

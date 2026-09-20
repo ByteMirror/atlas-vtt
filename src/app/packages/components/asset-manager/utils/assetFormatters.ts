@@ -2,7 +2,6 @@ import { TFile, App as ObsidianApp } from 'obsidian';
 import type { AnyAsset, Tab } from '../types';
 import type {
   Asset as ServiceAsset,
-  EncounterAsset as ServiceEncounterAsset,
 } from '../../../../services/AssetService';
 
 /**
@@ -17,7 +16,7 @@ export function formatServiceAsset(
 ): AnyAsset {
   let thumbnailUrl = '';
   let imageUrl = '';
-  const assetFilePath = (asset as ServiceAsset & { filePath?: string }).filePath;
+  const assetFilePath = asset.filePath;
 
   // ── Token ──────────────────────────────────────────────────────
   if (asset.type === 'token') {
@@ -108,17 +107,17 @@ export function formatServiceAsset(
     // Encounter-specific fields
     ...(asset.type === 'encounter' && {
       tokens:
-        (asset as ServiceEncounterAsset).tokens ||
+        asset.tokens ||
         (asset as ServiceAsset & { data?: { tokens?: any[] } }).data?.tokens ||
         [],
       description:
         (asset as any).description ||
         (asset as ServiceAsset & { data?: { description?: string } }).data?.description,
       difficulty:
-        (asset as any).difficulty ||
+        asset.difficulty ||
         (asset as ServiceAsset & { data?: { difficulty?: string } }).data?.difficulty,
       formation:
-        (asset as ServiceEncounterAsset).formation ||
+        asset.formation ||
         (asset as ServiceAsset & { data?: { formation?: unknown } }).data?.formation,
     }),
   } as AnyAsset;

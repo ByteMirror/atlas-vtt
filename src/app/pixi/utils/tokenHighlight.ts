@@ -1,5 +1,7 @@
 import { OutlineFilter } from 'pixi-filters';
+import type { Filter } from 'pixi.js';
 import { getObsidianAccentColor, cssColorToHexNumber } from './colorUtils';
+import type { AtlasView } from '../../atlas-view';
 
 /**
  * Configuration options for the zoom-to-token functionality
@@ -8,6 +10,11 @@ interface ZoomToTokenOptions {
   zoomLevel?: number;
   highlightDuration?: number;
   glowThickness?: number;
+}
+
+/** PIXI types `filters` as a single filter or an array; normalise to an array. */
+function toFilterArray(filters: Filter | Filter[] | null | undefined): Filter[] {
+  return filters ? [filters].flat() : [];
 }
 
 /**
@@ -20,7 +27,7 @@ interface ZoomToTokenOptions {
  * @param options - Optional configuration for zoom level and highlight duration
  */
 export function zoomToTokenWithHighlight(
-  view: any,
+  view: AtlasView | null,
   tokenId: string,
   tokenPosition: { x: number; y: number },
   options: ZoomToTokenOptions = {}
@@ -52,27 +59,24 @@ export function zoomToTokenWithHighlight(
  * @param options - Configuration for highlight duration and glow thickness
  */
 export function addTokenHighlight(
-  view: any,
+  view: AtlasView | null,
   tokenId: string,
   options: { highlightDuration?: number; glowThickness?: number } = {}
 ): void {
   const { highlightDuration = 3000, glowThickness = 4 } = options;
 
   try {
-    const tokenRenderer = view?.renderer?.tokenRenderer;
+    const tokenRenderer = view?.renderer?.getTokenRenderer();
     if (!tokenRenderer) return;
 
-    const tokenSprite = tokenRenderer.tokenSprites[tokenId];
+    const tokenSprite = tokenRenderer.getTokenSprites()[tokenId];
     if (!tokenSprite) return;
 
     const accentColor = getObsidianAccentColor();
     const hexColor = cssColorToHexNumber(accentColor);
     const glowFilter = new OutlineFilter({ thickness: glowThickness, color: hexColor, quality: 1 });
 
-    if (!tokenSprite.filters) {
-      tokenSprite.filters = [];
-    }
-    tokenSprite.filters = [...tokenSprite.filters, glowFilter];
+    tokenSprite.filters = [...toFilterArray(tokenSprite.filters), glowFilter];
 
     let time = 0;
     const animateGlow = (): void => {
@@ -81,20 +85,13 @@ export function addTokenHighlight(
       glowFilter.alpha = 0.8 + Math.sin(time) * 0.2;
     };
 
-    const ticker = view?.renderer?.app?.ticker;
+    const ticker = view?.renderer?.getAppInstance().ticker;
     if (ticker) {
       ticker.add(animateGlow);
 
       window.setTimeout(() => {
         ticker.remove(animateGlow);
-        if (tokenSprite.filters) {
-          tokenSprite.filters = tokenSprite.filters.filter(
-            (f: unknown) => f !== glowFilter
-          );
-          if (tokenSprite.filters.length === 0) {
-            tokenSprite.filters = null;
-          }
-        }
+        tokenSprite.filters = toFilterArray(tokenSprite.filters).filter((f) => f !== glowFilter);
       }, highlightDuration);
     }
   } catch (e) {

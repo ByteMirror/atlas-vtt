@@ -1,9 +1,8 @@
 import { FileView, WorkspaceLeaf, TFile, normalizePath, ViewStateResult, Notice } from "obsidian";
 import { ServiceManager } from './services/ServiceManager';
-import { createViewAtlasStore, ViewAtlasState } from './storeFactory';
+import { createViewAtlasStore, ViewAtlasStore } from './storeFactory';
 import { getHistoryStore, type HistoryState } from './stores/history';
 import { createTabMetaStore, type TabMetaStore } from './stores/tabMetaStore';
-import type { StoreApi } from 'zustand';
 import type { SceneTab } from './types/sceneTabTypes';
 import { claimWorkspaceLeafFocus } from './utils/activeLeafGuard';
 
@@ -28,11 +27,11 @@ interface AtlasViewState {
 export class AtlasView extends FileView {
   private _serviceManager: ServiceManager;
   private currentMapFilePath: string | null = null;
-  private store: ReturnType<typeof createViewAtlasStore>;
+  private store: ViewAtlasStore;
   public tabMetaStore: TabMetaStore;
   private temporalCache: Map<string, Pick<HistoryState, 'pastStates' | 'futureStates'>> = new Map();
   private viewportCache: Map<string, { centerX: number; centerY: number; scale: number }> = new Map();
-  private viewId: string;
+  public readonly viewId: string;
   private isSwitching: boolean = false;
   private plugin: any;
   private resizeObserver: ResizeObserver | null = null;
@@ -61,7 +60,7 @@ export class AtlasView extends FileView {
     this.tabMetaStore = createTabMetaStore();
 
     // Initialize the service manager with the view store and plugin
-    this._serviceManager = new ServiceManager(this.app, this.store as StoreApi<ViewAtlasState>, this.plugin, this.viewId);
+    this._serviceManager = new ServiceManager(this.app, this.store, this.plugin, this.viewId);
   }
 
   // --- State Management ---
@@ -147,7 +146,7 @@ export class AtlasView extends FileView {
     };
   }
 
-  getStore(): ReturnType<typeof createViewAtlasStore> {
+  getStore(): ViewAtlasStore {
     return this.store;
   }
 
@@ -492,7 +491,7 @@ export class AtlasView extends FileView {
       const tabId = tabState.addTab(file.path, displayName);
 
       // Update FileView's file reference so Obsidian's leaf tracks the current file
-      (this as any).file = file;
+      this.file = file;
 
       // Perform the scene load (single store — loadMap handles clear + rehydrate)
       await this.performSceneLoad(file);
@@ -556,7 +555,7 @@ export class AtlasView extends FileView {
    */
   private async flushPendingSaves(): Promise<void> {
     try {
-      await (this.store as any).flushStorage?.();
+      await this.store.flushStorage();
     } catch (error) {
       console.error('[AtlasView] Error flushing saves:', error);
     }
@@ -621,6 +620,10 @@ export class AtlasView extends FileView {
    */
   public setPlayerMode(isPlayerMode: boolean): void {
     this._serviceManager.getToolController().setPlayerMode(isPlayerMode);
+  }
+
+  public isInPlayerMode(): boolean {
+    return this._serviceManager.getToolController().isInPlayerMode();
   }
 
   /**

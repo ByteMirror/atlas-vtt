@@ -95,13 +95,13 @@ const initialState: Pick<AtlasState, 'schema' | 'version' | 'mapPath' | 'backgro
     offsetY: 0,
     color: '#00FFFF',
     opacity: 0.5
-  } as GridState,
-  objects: {
-    tokens: {} as Record<string, TokenEntity>,
-    fog: {},
-    pins: {} as Record<string, NotePin>,
   },
-  camera: { x: 0, y: 0, scale: 1 } as CameraState,
+  objects: {
+    tokens: {},
+    fog: {},
+    pins: {},
+  },
+  camera: { x: 0, y: 0, scale: 1 },
 };
 
 // Global persistence control flag (outside of store to avoid triggering saves)
@@ -139,7 +139,7 @@ function createCustomStorage() {
         // avoid console errors during initial module load. This data will be
         // superseded once the proper vault storage kicks in after init.
         const raw = localStoreAvailable ? window.localStorage.getItem(name) : memoryFallback.get(name);
-        return raw ? (JSON.parse(raw) as unknown as StorageValue<Partial<AtlasState>>) : null;
+        return raw ? (JSON.parse(raw)) : null;
       }
       const storage = createAtlasStorage<AtlasState, Partial<AtlasState>>(app, _deprecatedAtlasStore);
       return storage.getItem(name);
@@ -192,7 +192,7 @@ const _deprecatedAtlasStore = create<AtlasState>()(
         ...initialState,
         // Selection and tool state
         selectedIds: [] as string[],
-        activeTool: 'move' as AtlasState['activeTool'],
+        activeTool: 'move',
 
         // Set the map path - this drives persistence
         setMapPath: (path) => set((draft) => {
@@ -235,7 +235,7 @@ const _deprecatedAtlasStore = create<AtlasState>()(
               ...existing, 
               kind: 'character', 
               ...extra 
-            } as Character;
+            };
           }
         }),
 
@@ -300,7 +300,7 @@ const _deprecatedAtlasStore = create<AtlasState>()(
             } else {
               // Ensure the token maintains all its properties including statblockPath
               // This is important when loading from persisted state
-              filteredTokens[id] = token as TokenEntity;
+              filteredTokens[id] = token;
             }
           }
           
@@ -463,7 +463,7 @@ const _deprecatedAtlasStore = create<AtlasState>()(
           draft.objects.tokens = {
             ...draft.objects.tokens,
             [id]: updated,
-          } as any;
+          };
         }),
       })),
       {
@@ -481,7 +481,7 @@ const _deprecatedAtlasStore = create<AtlasState>()(
         partialize: (state): Partial<AtlasState> => {
           // If persistence is disabled, return null to prevent saving
           if (!globalPersistenceEnabled) {
-            return {} as Partial<AtlasState>;
+            return {};
           }
           
           return {
@@ -491,7 +491,7 @@ const _deprecatedAtlasStore = create<AtlasState>()(
             grid: state.grid,
             objects: state.objects,
             camera: state.camera
-          } as Partial<AtlasState>;
+          };
         },
         
         onRehydrateStorage: () => {

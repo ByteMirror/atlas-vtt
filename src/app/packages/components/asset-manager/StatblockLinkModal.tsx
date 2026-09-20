@@ -33,7 +33,7 @@ const StatblockLinkModal: React.FC<StatblockLinkModalProps> = ({
   useEffect(() => {
     if (isOpen) {
       loadStatblockEntries();
-      setCurrentLink((asset as any).statblockPath || null);
+      setCurrentLink(asset.statblockPath || null);
     }
   }, [isOpen, asset]);
 

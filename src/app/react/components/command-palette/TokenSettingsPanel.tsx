@@ -1,5 +1,6 @@
 import React from 'react';
 import { SettingToggleRow } from './SettingRows';
+import type { AtlasView } from '../../../atlas-view';
 
 type TokenToggleKey = 'showNameplates' | 'showHPBars' | 'showStressBars' | 'showInstanceBadges';
 
@@ -21,11 +22,11 @@ const RIGHT_TOGGLES: ReadonlyArray<TokenToggle> = [
 ];
 
 interface TokenSettingsPanelProps {
-  view: any;
+  view: AtlasView | null;
 }
 
 export function TokenSettingsPanel({ view }: TokenSettingsPanelProps): React.ReactElement {
-  const tokenSettings = view?.store?.getState()?.tokenSettings || {
+  const tokenSettings = view?.atlasStore?.getState()?.tokenSettings || {
     showNameplates: false,
     showHPBars: true,
     showStressBars: false,
@@ -33,9 +34,9 @@ export function TokenSettingsPanel({ view }: TokenSettingsPanelProps): React.Rea
   };
 
   const toggle = (key: TokenToggleKey): void => {
-    if (!view?.store) return;
-    const current = view.store.getState().tokenSettings || {};
-    view.store.getState().setTokenSettings({ ...current, [key]: !current[key] });
+    if (!view?.atlasStore) return;
+    const current = view.atlasStore.getState().tokenSettings || {};
+    view.atlasStore.getState().setTokenSettings({ ...current, [key]: !current[key] });
   };
 
   const renderToggle = ({ key, label, hint }: TokenToggle): React.ReactElement => (

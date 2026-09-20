@@ -31,7 +31,7 @@ export class FogOperationCanvas {
     };
 
     // Create canvas at scaled resolution
-    this.canvas = document.createElement('canvas');
+    this.canvas = createEl('canvas');
     this.canvas.width = Math.max(1, Math.round(this.worldBounds.width * scale));
     this.canvas.height = Math.max(1, Math.round(this.worldBounds.height * scale));
 

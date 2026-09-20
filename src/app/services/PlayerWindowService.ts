@@ -151,7 +151,7 @@ export class PlayerWindowService {
 
   private updateFreezeIndicator(): void {
     if (!this.playerWindow || this.playerWindow.closed) return;
-    const indicator = this.playerWindow.document.getElementById('atlas-player-freeze-indicator') as HTMLElement | null;
+    const indicator = this.playerWindow.document.getElementById('atlas-player-freeze-indicator');
     if (indicator) {
       indicator.style.display = this.isCameraFrozen ? 'flex' : 'none';
     }
@@ -447,7 +447,7 @@ export class PlayerWindowService {
     if (!this.playerWindow || !this.streamSource) return;
 
     const targetCanvas = this.playerWindow.document.getElementById('atlas-player-canvas') as HTMLCanvasElement;
-    const fpsDisplay = this.playerWindow.document.getElementById('atlas-player-fps') as HTMLElement | null;
+    const fpsDisplay = this.playerWindow.document.getElementById('atlas-player-fps');
     
     if (!targetCanvas) return;
 

@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Grid, Hexagon } from 'lucide-react';
 import { CloseButton } from '../../packages/components/primitives/CloseButton';
+import type { AtlasView } from '../../atlas-view';
 
 interface GridSettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
-  view: any;
+  view: AtlasView | null;
 }
 
 type GridType = 'square' | 'hex-horizontal' | 'hex-vertical';
@@ -25,7 +26,7 @@ interface GridSettings {
 export function GridSettingsModal({ isOpen, onClose, view }: GridSettingsModalProps) {
   // Grid settings state - initialize from store when modal opens
   const [settings, setSettings] = useState<GridSettings>(() => {
-    const currentGrid = view?.store?.getState()?.grid;
+    const currentGrid = view?.atlasStore?.getState()?.grid;
     return {
       type: currentGrid?.type || 'square',
       size: currentGrid?.size || 50,
@@ -39,13 +40,13 @@ export function GridSettingsModal({ isOpen, onClose, view }: GridSettingsModalPr
   });
   
   const [gridVisible, setLocalGridVisible] = useState(() => {
-    return view?.store?.getState()?.grid?.visible ?? true;
+    return view?.atlasStore?.getState()?.grid?.visible ?? true;
   });
   
   // Update settings when modal opens to reflect current store state
   useEffect(() => {
-    if (isOpen && view?.store) {
-      const currentGrid = view.store.getState().grid;
+    if (isOpen && view?.atlasStore) {
+      const currentGrid = view.atlasStore.getState().grid;
       if (currentGrid) {
         setSettings({
           type: currentGrid.type || 'square',
@@ -67,8 +68,8 @@ export function GridSettingsModal({ isOpen, onClose, view }: GridSettingsModalPr
   };
 
   const applySettings = () => {
-    if (view?.renderer?.gridSystem) {
-      const gridSystem = view.renderer.gridSystem;
+    const gridSystem = view?.renderer?.getGridSystem();
+    if (gridSystem) {
       
       // Update grid settings
       gridSystem.setGridType(settings.type);
@@ -77,15 +78,16 @@ export function GridSettingsModal({ isOpen, onClose, view }: GridSettingsModalPr
       gridSystem.setGridOpacity(settings.opacity);
       
       // Update grid visibility and settings via store
-      if (view?.store) {
-        view.store.getState().setGridVisible(gridVisible);
-        view.store.getState().setGridUnits({
+      if (view?.atlasStore) {
+        view.atlasStore.getState().setGridVisible(gridVisible);
+        view.atlasStore.getState().setGridUnits({
           unitType: settings.unitType,
           unitDistance: settings.unitDistance
         });
         
         // Update grid settings in store for persistence
-        const currentGrid = view.store.getState().grid;
+        const currentGrid = view.atlasStore.getState().grid;
+        if (!currentGrid) return;
         const newGridState = {
           ...currentGrid,
           type: settings.type,
@@ -96,10 +98,10 @@ export function GridSettingsModal({ isOpen, onClose, view }: GridSettingsModalPr
           unitType: settings.unitType,
           unitDistance: settings.unitDistance,
           visible: gridVisible,
-          enabled: currentGrid?.enabled ?? true
+          enabled: currentGrid.enabled
         };
         
-        view.store.getState().setGrid(newGridState);
+        view.atlasStore.getState().setGrid(newGridState);
         
         // Verify it was set
       }

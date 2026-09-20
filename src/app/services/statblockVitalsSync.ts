@@ -77,7 +77,7 @@ function resizeTrack(boxes: HTMLInputElement[], kind: TrackKind, total: number):
 
   const grown = [...boxes];
   for (let index = boxes.length; index < total; index++) {
-    const box = document.createElement('input');
+    const box = createEl('input');
     box.type = 'checkbox';
     box.classList.add(`${kind}-${index}`, 'stat-value');
     parent.insertBefore(box, anchor.nextSibling);

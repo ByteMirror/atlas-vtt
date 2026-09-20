@@ -261,7 +261,7 @@ export class AssetService {
           // Migrate from old format
           await this.migrateFromOldFormat(parsed);
         } else if (parsed && typeof parsed === 'object' && 'assets' in parsed && 'collections' in parsed && 'version' in parsed) {
-          this.metadata = parsed as unknown as AssetMetadata;
+          this.metadata = parsed;
           // Migrate tags to collection-based system if needed
           await this.migrateTagsToCollections();
         } else {
@@ -395,18 +395,17 @@ export class AssetService {
 
     for (const asset of Object.values(this.metadata.assets)) {
       if (asset.type === 'token') {
-        const tokenAsset = asset as TokenAsset;
-        if (tokenAsset.imagePath) {
-          existingTokenImagePaths.add(tokenAsset.imagePath);
+        if (asset.imagePath) {
+          existingTokenImagePaths.add(asset.imagePath);
         }
         continue;
       }
 
       if (asset.type === 'encounter' || asset.type === 'player') {
-        const tokens = Array.isArray((asset as any).tokens)
-          ? (asset as any).tokens
-          : Array.isArray((asset as any).data?.tokens)
-            ? (asset as any).data.tokens
+        const tokens = Array.isArray(asset.tokens)
+          ? asset.tokens
+          : Array.isArray(asset.data?.tokens)
+            ? asset.data.tokens
             : [];
         for (const token of tokens) {
           if (token && typeof token.imagePath === 'string' && token.imagePath.length > 0) {
@@ -657,8 +656,7 @@ export class AssetService {
       if (asset.type !== 'token') {
         continue;
       }
-      const tokenAsset = asset as TokenAsset;
-      const imagePath = tokenAsset.imagePath;
+      const imagePath = asset.imagePath;
       const isCollectionTokenPath = typeof imagePath === 'string' &&
         /^atlas-vtt\/collections\/[^/]+\/(?:.+\/)?tokens\/.+$/i.test(imagePath);
       const isEncounterOrPlayerThumbnail = typeof imagePath === 'string' && (
@@ -686,9 +684,9 @@ export class AssetService {
 
       if (isRecoveredId && imagePath) {
         const normalizedName = this.deriveRecoveredTokenName(imagePath);
-        if (normalizedName && tokenAsset.name !== normalizedName) {
-          tokenAsset.name = normalizedName;
-          tokenAsset.modifiedAt = Date.now();
+        if (normalizedName && asset.name !== normalizedName) {
+          asset.name = normalizedName;
+          asset.modifiedAt = Date.now();
           needsSave = true;
         }
       }
@@ -757,7 +755,7 @@ export class AssetService {
           modifiedAt: oldToken.modifiedAt
         };
         
-        this.metadata!.assets[id] = newToken;
+        this.metadata.assets[id] = newToken;
       }
     }
     
@@ -834,28 +832,27 @@ export class AssetService {
         continue;
       }
 
-      const groupAsset = asset as EncounterAsset | PlayerAsset;
       let assetChanged = false;
 
-      if (Array.isArray(groupAsset.tokens)) {
-        const result = syncTokenList(groupAsset.tokens);
+      if (Array.isArray(asset.tokens)) {
+        const result = syncTokenList(asset.tokens);
         if (result.changed) {
-          groupAsset.tokens = result.next as any;
+          asset.tokens = result.next;
           assetChanged = true;
         }
       }
 
-      const dataTokens = (groupAsset as any).data?.tokens;
+      const dataTokens = asset.data?.tokens;
       if (Array.isArray(dataTokens)) {
         const result = syncTokenList(dataTokens);
         if (result.changed) {
-          (groupAsset as any).data.tokens = result.next;
+          asset.data.tokens = result.next;
           assetChanged = true;
         }
       }
 
       if (assetChanged) {
-        groupAsset.modifiedAt = Date.now();
+        asset.modifiedAt = Date.now();
         metadataChanged = true;
       }
     }
@@ -879,28 +876,27 @@ export class AssetService {
         continue;
       }
 
-      const groupAsset = asset as EncounterAsset | PlayerAsset;
       let assetChanged = false;
 
-      if (Array.isArray(groupAsset.tokens)) {
-        const result = removeFromList(groupAsset.tokens);
+      if (Array.isArray(asset.tokens)) {
+        const result = removeFromList(asset.tokens);
         if (result.changed) {
-          groupAsset.tokens = result.next as any;
+          asset.tokens = result.next;
           assetChanged = true;
         }
       }
 
-      const dataTokens = (groupAsset as any).data?.tokens;
+      const dataTokens = asset.data?.tokens;
       if (Array.isArray(dataTokens)) {
         const result = removeFromList(dataTokens);
         if (result.changed) {
-          (groupAsset as any).data.tokens = result.next;
+          asset.data.tokens = result.next;
           assetChanged = true;
         }
       }
 
       if (assetChanged) {
-        groupAsset.modifiedAt = Date.now();
+        asset.modifiedAt = Date.now();
         metadataChanged = true;
       }
     }
@@ -1091,7 +1087,7 @@ export class AssetService {
     
     // Debug logging for statblockPath updates
     
-    this.metadata!.assets[id] = updatedAsset as Asset;
+    this.metadata!.assets[id] = updatedAsset;
 
     if (asset.type === 'token') {
       this.propagateTokenReferenceUpdate(updatedAsset as TokenAsset);
@@ -1118,7 +1114,7 @@ export class AssetService {
           await this.app.vault.process(file, () => content);
         }
       } else if ('data' in updates) {
-        const content = JSON.stringify((updates as any).data, null, 2) || '{}';
+        const content = JSON.stringify(updates.data, null, 2) || '{}';
         const file = this.app.vault.getAbstractFileByPath(assetPath);
         if (file instanceof TFile) {
           await this.app.vault.process(file, () => content);
@@ -1150,10 +1146,8 @@ export class AssetService {
 
     // For scene assets, also delete the map file and close any open leaves
     if (asset.type === 'scene') {
-      const sceneAsset = asset as SceneAsset;
-      
       // Load the scene data from the JSON file if not already loaded
-      let sceneData = sceneAsset.data;
+      let sceneData = asset.data;
       if (!sceneData) {
         try {
           const sceneJsonPath = this.getAssetPath(asset);
@@ -1221,7 +1215,7 @@ export class AssetService {
     }
 
     const oldPath = this.getAssetPath(asset);
-    const updatedAsset = { ...asset, collection: targetCollection, modifiedAt: Date.now() } as Asset;
+    const updatedAsset = { ...asset, collection: targetCollection, modifiedAt: Date.now() };
     const oldCollectionPrefix = `${COLLECTIONS_DIR}/${asset.collection}/`;
     if (
       (asset.type === 'statblock' ||
@@ -1336,7 +1330,7 @@ export class AssetService {
     // Include statblock .md files referenced by tokens
     for (const asset of assets) {
       if (asset.type === 'token') {
-        const statblockPath = (asset as TokenAsset).statblockPath;
+        const statblockPath = asset.statblockPath;
         if (statblockPath && !processedFiles.has(statblockPath)) {
           const sbFile = this.app.vault.getAbstractFileByPath(statblockPath);
           if (sbFile instanceof TFile) {
@@ -1452,8 +1446,8 @@ export class AssetService {
       if (asset.type === 'statblock' || asset.type === 'character' || asset.type === 'scene' || asset.type === 'encounter' || asset.type === 'player') {
         const fallbackDataPath = `${asset.type === 'encounter' ? 'encounters' : asset.type === 'player' ? 'players' : asset.type + 's'}/${asset.id}.json`;
         const dataPath =
-          typeof (asset as any).filePath === 'string'
-            ? (((asset as any).filePath as string).replace(/^atlas-vtt\/collections\/[^/]+\//, '') || fallbackDataPath)
+          typeof asset.filePath === 'string'
+            ? (asset.filePath.replace(/^atlas-vtt\/collections\/[^/]+\//, '') || fallbackDataPath)
             : fallbackDataPath;
         const dataFile = zip.file(dataPath);
         if (dataFile) {
@@ -1472,8 +1466,8 @@ export class AssetService {
         ...asset,
         collection: collectionId
       };
-      if (typeof (importedAsset as any).filePath === 'string') {
-        (importedAsset as any).filePath = ((importedAsset as any).filePath as string)
+      if (typeof importedAsset.filePath === 'string') {
+        importedAsset.filePath = (importedAsset.filePath)
           .replace(/^atlas-vtt\/collections\/[^/]+\//, `${COLLECTIONS_DIR}/${collectionId}/`);
       }
       this.metadata!.assets[asset.id] = importedAsset;

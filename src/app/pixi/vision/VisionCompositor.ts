@@ -24,11 +24,11 @@ export class VisionCompositor {
   private resFactor: number = 1;
 
   constructor() {
-    this.canvas = document.createElement('canvas');
+    this.canvas = createEl('canvas');
     this.ctx = this.canvas.getContext('2d')!;
-    this.lightCanvas = document.createElement('canvas');
+    this.lightCanvas = createEl('canvas');
     this.lightCtx = this.lightCanvas.getContext('2d')!;
-    this.shadowCanvas = document.createElement('canvas');
+    this.shadowCanvas = createEl('canvas');
     this.shadowCtx = this.shadowCanvas.getContext('2d')!;
   }
 

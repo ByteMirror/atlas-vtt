@@ -417,7 +417,7 @@ export function SpellsBlock({ item, monster, app, sourcePath }: BlockProps): Rea
       typeof entry === 'string' && (entry.trim().endsWith(':') || !entry.includes(':'));
 
     if (isHeader) {
-      blocks.push({ header: ensureColon(entry as string), spells: [] });
+      blocks.push({ header: ensureColon(entry), spells: [] });
       continue;
     }
 

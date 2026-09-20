@@ -102,7 +102,7 @@ export class TokenStatblockLinkService extends EventEmitter {
           type: 'linked',
           tokenImagePath: (character as any).imagePath || '',
           statblockPath,
-        } as LinkChangeEvent);
+        });
         
         // Update all spawned tokens on all maps
         if ((character as any).imagePath) {
@@ -199,7 +199,7 @@ export class TokenStatblockLinkService extends EventEmitter {
       tokenImagePath: finalTokenPath,
       statblockPath,
       previousStatblockPath: currentStatblockPath
-    } as LinkChangeEvent);
+    });
     
     // Update all spawned tokens on all maps
     await this.updateAllSpawnedTokens(finalTokenPath, statblockPath);
@@ -233,7 +233,7 @@ export class TokenStatblockLinkService extends EventEmitter {
     // Update the asset service
     const allAssets = await this.assetService.getAssets();
     const tokenAssets = allAssets.filter(asset => 
-      asset.type === 'token' && (asset as any).imagePath === tokenImagePath
+      asset.type === 'token' && asset.imagePath === tokenImagePath
     );
     
     for (const asset of tokenAssets) {
@@ -270,7 +270,7 @@ export class TokenStatblockLinkService extends EventEmitter {
       tokenImagePath,
       statblockPath: null,
       previousStatblockPath: statblockPath
-    } as LinkChangeEvent);
+    });
     
     // Update all spawned tokens on all maps
     await this.updateAllSpawnedTokens(tokenImagePath, null);
@@ -367,7 +367,7 @@ export class TokenStatblockLinkService extends EventEmitter {
         type: 'linked',
         tokenImagePath: imageFile.path,
         statblockPath,
-      } as LinkChangeEvent);
+      });
 
       new Notice(`Created token from ${statblockFile.basename}`);
       return imageFile.path;
@@ -461,7 +461,7 @@ export class TokenStatblockLinkService extends EventEmitter {
           tokenImagePath: (character as any).imagePath || '',
           statblockPath: null,
           previousStatblockPath: statblockPath
-        } as LinkChangeEvent);
+        });
         
         // Update all spawned tokens on all maps
         if ((character as any).imagePath) {

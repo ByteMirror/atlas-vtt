@@ -112,7 +112,7 @@ export class GridAlignmentController {
 
   showMeasurementCrosshair(index: number, point: AlignmentPoint): void {
     if (this.crosshairs[index]) {
-      this.removeGraphics(this.crosshairs[index]!);
+      this.removeGraphics(this.crosshairs[index]);
     }
 
     const g = new Graphics();
@@ -129,7 +129,7 @@ export class GridAlignmentController {
 
   showMeasurementLine(index: number, a: AlignmentPoint, b: AlignmentPoint): void {
     if (this.connectingLines[index]) {
-      this.removeGraphics(this.connectingLines[index]!);
+      this.removeGraphics(this.connectingLines[index]);
     }
 
     const dx = b.x - a.x;

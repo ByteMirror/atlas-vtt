@@ -6,7 +6,7 @@ import { Viewport } from "pixi-viewport"; // Keep for type, but instance comes f
 import { WorkspaceLeaf } from 'obsidian';
 import { GridOptions, GridSystem, GridType } from "./grid/GridSystem";
 import type { App } from 'obsidian';
-import type { ViewAtlasState } from './storeFactory';
+import type { ViewAtlasState, ViewAtlasStore } from './storeFactory';
 import { openContextMenuGlobal, type ContextMenuEntry } from './react/root/ContextMenuContext';
 import { EventEmitter } from 'events';
 import { PixiAppManager } from "./pixi/PixiAppManager"; // Import the new manager
@@ -36,7 +36,6 @@ import { AudioRenderer } from './pixi/audio/AudioRenderer';
 import { SoundRegistry } from './audio/SoundRegistry';
 import { AudioBufferCache } from './audio/AudioBufferCache';
 import { SpatialAudioEngine } from './audio/SpatialAudioEngine';
-import type { StoreApi } from 'zustand';
 import { AssetService } from './services/AssetService';
 import { findAtlasLeafByViewId } from './utils/atlasLeafLookup';
 
@@ -83,7 +82,7 @@ export class PixiRendererOrchestrator { // Renamed class
   private notePreviewLeaf: WorkspaceLeaf | null = null;
   private isPreviewPinned: boolean = false;
   private _isShowingPreview: boolean = false;
-  private store: StoreApi<ViewAtlasState>; // Add store
+  private store: ViewAtlasStore; // Add store
   private _unsubscribeFromToolChanges?: () => void; // Add tool subscription cleanup
   private _unsubscribeFromGridVisibility?: () => void; // Add grid visibility subscription cleanup
   private viewId: string;
@@ -111,7 +110,7 @@ export class PixiRendererOrchestrator { // Renamed class
     obsApp: App, 
     pixiAppManager: PixiAppManager, 
     eventBus: EventEmitter,
-    store: StoreApi<ViewAtlasState>,
+    store: ViewAtlasStore,
     viewId: string
   ) {
     this.obsApp = obsApp;
@@ -151,7 +150,7 @@ export class PixiRendererOrchestrator { // Renamed class
       }
       
       // Subscribe to tool changes from the isolated view store
-      this._unsubscribeFromToolChanges = (this.store as any).subscribe(
+      this._unsubscribeFromToolChanges = this.store.subscribe(
         (state: ViewAtlasState) => state.activeTool,
         (tool: any, previousTool: any) => {
           // Use getter to always get current viewport, not the one from closure
@@ -186,7 +185,7 @@ export class PixiRendererOrchestrator { // Renamed class
       );
       
       // Subscribe to grid changes (including visibility and offset)
-      this._unsubscribeFromGridVisibility = (this.store as any).subscribe(
+      this._unsubscribeFromGridVisibility = this.store.subscribe(
         (state: ViewAtlasState) => state.grid,
         (grid: any) => {
           if (this.gridSystem && grid) {
@@ -388,7 +387,7 @@ export class PixiRendererOrchestrator { // Renamed class
     this.audioTool = new AudioTool(this.eventBus);
 
     // Initialize SoundRegistry and SpatialAudioEngine
-    const pluginDir = (this.store.getState().plugin as any)?.manifest?.dir ?? `${this.obsApp.vault.configDir}/plugins/atlas-vtt`;
+    const pluginDir = this.store.getState().plugin?.manifest?.dir ?? `${this.obsApp.vault.configDir}/plugins/atlas-vtt`;
     this.soundRegistry = new SoundRegistry(this.obsApp, pluginDir);
     void this.soundRegistry.scanCustomSounds();
     this.bufferCache = new AudioBufferCache(new AudioContext(), this.obsApp, this.soundRegistry);
@@ -433,7 +432,7 @@ export class PixiRendererOrchestrator { // Renamed class
     laserPointerContainer.zIndex = 2000;
 
     // Initialize DrawingRenderer (ink strokes; self-manages activation via store subscription)
-    this.drawingRenderer = new DrawingRenderer(viewport, this.eventBus as any, this.store);
+    this.drawingRenderer = new DrawingRenderer(viewport, this.eventBus, this.store);
     this.drawingInteraction = new DrawingInteraction(viewport, this.store);
     const drawingContainer = this.drawingRenderer.getContainer();
     viewport.addChild(drawingContainer);
@@ -708,6 +707,7 @@ export class PixiRendererOrchestrator { // Renamed class
   }
 
   getViewportInstance(): Viewport | null { return this.pixiAppManager.getViewport(); }
+  getCanvasElement(): HTMLCanvasElement { return this.pixiAppManager.getCanvasElement(); }
   getGridSystem(): GridSystem | null { return this.gridSystem || null; }
   getBackgroundSprite(): Sprite | null { return this.backgroundSprite; }
   getTokenRenderer(): TokenRenderer | null { return this.tokenRenderer || null; }

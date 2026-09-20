@@ -18,12 +18,12 @@ Atlas VTT is desktop only.
 
 ## At the table
 
-- **Maps and grids** — Build scenes from your own map images. Align square or hex grids manually or with automatic detection.
-- **Tokens and encounters** — Import characters, move and resize tokens, and save groups as reusable encounters. Link creature notes with the optional [Fantasy Statblocks](https://github.com/javalent/fantasy-statblocks) plugin.
-- **Fog and player view** — Reveal the map as your players explore. Show a separate player window on a second screen while keeping GM information hidden.
-- **Drawing and notes** — Sketch, add text, measure distances, and pin Markdown notes or other Atlas maps to locations.
-- **Dice and initiative** — Roll dice, review the roll log, track turns, and keep counters and timers close at hand.
-- **Music and controls** — Play audio from your vault, customise map hotkeys, and undo or redo map edits.
+- **Maps and grids:** Build scenes from your own map images. Align square or hex grids manually or with automatic detection.
+- **Tokens and encounters:** Import characters, move and resize tokens, and save groups as reusable encounters. Link creature notes with the optional [Fantasy Statblocks](https://github.com/javalent/fantasy-statblocks) plugin.
+- **Fog and player view:** Reveal the map as your players explore. Show a separate player window on a second screen while keeping GM information hidden.
+- **Drawing and notes:** Sketch, add text, measure distances, and pin Markdown notes or other Atlas maps to locations.
+- **Dice and initiative:** Roll dice, review the roll log, track turns, and keep counters and timers close at hand.
+- **Music and controls:** Play audio from your vault, customise map hotkeys, and undo or redo map edits.
 
 ## Organise your campaign
 

@@ -98,6 +98,17 @@ export default function CreateSceneModal({
 
     setIsCreating(true);
     try {
+      // The picker stores display names; vault paths and metadata use IDs.
+      // Resolve the stored ID instead of guessing from the name (which may change).
+      const selection = selectedCollection || 'default';
+      const collectionList = await assetService.getCollections();
+      const collection = collectionList.find((item) => item.id === selection)
+        ?? collectionList.find((item) => item.name === selection);
+      if (!collection) {
+        throw new Error(`Collection "${selection}" no longer exists. Select another collection and try again.`);
+      }
+      const collectionId = collection.id;
+
       // Create a new empty scene structure
       const normalizedBackground = backgroundPath ? normalizeImagePath(backgroundPath) : null;
       const mapData = {
@@ -136,8 +147,8 @@ export default function CreateSceneModal({
       };
 
       // Apply collection grid defaults if available
-      if (assetService && selectedCollection) {
-        const settings = assetService.getCollectionSettings(selectedCollection);
+      if (assetService) {
+        const settings = assetService.getCollectionSettings(collectionId);
         if (settings.gridDefaults) {
           const gd = settings.gridDefaults;
           Object.assign(mapData.state.grid, {
@@ -149,8 +160,8 @@ export default function CreateSceneModal({
       }
 
       const scenePath = normalizePath(selectedCampaign
-        ? `atlas-vtt/collections/${selectedCollection || 'default'}/campaigns/${selectedCampaign}/scenes/${sceneName.trim()}.atlasmap`
-        : `atlas-vtt/collections/${selectedCollection || 'default'}/scenes/${sceneName.trim()}.atlasmap`);
+        ? `atlas-vtt/collections/${collectionId}/campaigns/${selectedCampaign}/scenes/${sceneName.trim()}.atlasmap`
+        : `atlas-vtt/collections/${collectionId}/scenes/${sceneName.trim()}.atlasmap`);
 
       if (app.vault.getAbstractFileByPath(scenePath)) {
         new Notice(`A scene named "${sceneName.trim()}" already exists`);
@@ -165,7 +176,7 @@ export default function CreateSceneModal({
         const sceneAsset = {
           type: 'scene' as const,
           name: sceneName.trim(),
-          collection: selectedCollection || 'default',
+          collection: collectionId,
           tags: selectedTags,
           data: {
             mapPath: scenePath,
@@ -185,6 +196,7 @@ export default function CreateSceneModal({
       onSceneCreated();
     } catch (error) {
       console.error('[CreateSceneModal] Error creating scene:', error);
+      new Notice(`Could not create scene: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       setIsCreating(false);
     }

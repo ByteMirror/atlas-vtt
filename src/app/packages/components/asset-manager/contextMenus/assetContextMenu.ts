@@ -1,3 +1,4 @@
+import type * as React from 'react';
 import { App as ObsidianApp } from 'obsidian';
 import type { ContextMenuEntry } from '../../../../react/components/context-menu/AtlasContextMenu';
 import type {

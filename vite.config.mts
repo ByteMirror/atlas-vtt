@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react';
 import module from 'module';
 import path from 'path';
 import fs from 'fs';
+import { desktopDependencies } from './vite/desktop-dependencies.mts';
 
 const isProduction = process.env.NODE_ENV === 'production';
 const copyToTestVault = process.env.COPY_ON_CHANGE === 'true';
@@ -97,6 +98,7 @@ function copyFilesPlugin(): Plugin {
 
 export default defineConfig({
   plugins: [
+    desktopDependencies(),
     react(), // Enable React support
     copyFilesPlugin() // Add our custom plugin
   ],

@@ -1,4 +1,5 @@
 import 'obsidian';
+import type { EventRef } from 'obsidian';
 
 declare module 'obsidian' {
   interface Workspace {

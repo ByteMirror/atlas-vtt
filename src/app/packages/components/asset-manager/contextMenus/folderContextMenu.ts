@@ -1,3 +1,4 @@
+import type * as React from 'react';
 import type { ContextMenuEntry } from '../../../../react/components/context-menu/AtlasContextMenu';
 import type { AnyAsset, Folder } from '../types';
 import { confirmAction } from '../../../../ui/confirmDialog';

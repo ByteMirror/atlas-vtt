@@ -1,12 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Volume2, Music, Volume, Wind, Droplets, Flame, Trees, CloudRain, Plus, Edit2, X, Folder } from 'lucide-react';
 import { App, Notice, TFile, normalizePath } from 'obsidian';
-import { openContextMenuGlobal } from '../root/ContextMenuContext';
-import type { ContextMenuEntry } from './context-menu/AtlasContextMenu';
 import { AudioService, AudioTrack } from '../../services/AudioService';
 import { GlobalAudioService } from '../../services/GlobalAudioService';
 import { AmbientSoundService, AmbientSound } from '../../services/AmbientSoundService';
-import { getQueueService, QueueTrack } from '../../services/QueueService';
 import { MusicLibrary, MusicFile } from './MusicLibrary';
 import { TrackCard } from './TrackCard';
 import { QueueDisplay } from './QueueDisplay';
@@ -14,7 +11,6 @@ import { AmbientIconSelector } from './AmbientIconSelector';
 import { getDataFilePath } from '../../utils/dataFileMigration';
 import { ensureFolder } from '../../plugin/vaultFolders';
 import { runInBackground } from '../../utils/backgroundTask';
-import { confirmAction } from '../../ui/confirmDialog';
 
 interface MusicPlayerProps {
     app: App;
@@ -34,7 +30,6 @@ export const MusicPlayer: React.FC<MusicPlayerProps> = ({
     collectionPath
 }) => {
     const audioServiceRef = useRef<AudioService | null>(null);
-    const queueService = getQueueService();
     const [soundboardState, setSoundboardState] = useState<SoundboardState>({
         musicTracks: [],
         ambienceTracks: [],
@@ -307,91 +302,6 @@ export const MusicPlayer: React.FC<MusicPlayerProps> = ({
         }
     };
 
-    const handleTrackContextMenu = (e: React.MouseEvent, track: MusicFile) => {
-        e.preventDefault();
-        e.stopPropagation();
-
-        const entries: ContextMenuEntry[] = [
-            {
-                type: 'item',
-                label: 'Play as Music',
-                icon: 'music',
-                onClick: () => handleTrackSelect(track),
-            },
-            {
-                type: 'item',
-                label: 'Add to Queue',
-                icon: 'list-plus',
-                onClick: () => {
-                    const queueTrack: QueueTrack = {
-                        id: track.id,
-                        path: track.path,
-                        name: track.name,
-                        tags: track.tags,
-                        ...(track.duration != null && { duration: track.duration }),
-                    };
-                    queueService.addToQueue(queueTrack);
-                    new Notice(`Added "${track.name}" to queue`);
-                },
-            },
-            {
-                type: 'item',
-                label: 'Play Next',
-                icon: 'skip-forward',
-                onClick: () => {
-                    const queueTrack: QueueTrack = {
-                        id: track.id,
-                        path: track.path,
-                        name: track.name,
-                        tags: track.tags,
-                        ...(track.duration != null && { duration: track.duration }),
-                    };
-                    queueService.playNext(queueTrack);
-                    new Notice(`"${track.name}" will play next`);
-                },
-            },
-            { type: 'separator' },
-            {
-                type: 'item',
-                label: 'Add to Playlist...',
-                icon: 'folder-plus',
-                onClick: () => {
-                },
-            },
-            { type: 'separator' },
-            {
-                type: 'item',
-                label: 'Delete Track',
-                icon: 'trash',
-                destructive: true,
-                onClick: async () => {
-                    const confirmed = await confirmAction({
-                        title: 'Delete track',
-                        message: [`Are you sure you want to delete "${track.name}"?`],
-                        confirmLabel: 'Delete',
-                        destructive: true,
-                    });
-                    if (confirmed) {
-                        try {
-                            const trackFile = app.vault.getFileByPath(track.id);
-                            if (trackFile) await app.fileManager.trashFile(trackFile);
-
-                            // Track metadata lives in the hidden data folder, which the Vault does not index
-                            const metadataPath = getDataFilePath(track.id.replace(/\.[^/.]+$/, '.json'));
-                            if (await app.vault.adapter.exists(metadataPath)) {
-                                await app.vault.adapter.remove(metadataPath);
-                            }
-                        } catch (error) {
-                            console.error('Failed to delete track:', error);
-                        }
-                    }
-                },
-            },
-        ];
-
-        openContextMenuGlobal(entries, { x: e.clientX, y: e.clientY });
-    };
-
     // Ambient soundboard functions using Howler.js
     const loadAmbientSounds = async () => {
         const ambientPath = getDataFilePath(`${collectionPath}/ambient-sounds.json`);
@@ -449,39 +359,6 @@ export const MusicPlayer: React.FC<MusicPlayerProps> = ({
         } catch (error) {
             console.error('Failed to save ambient sounds:', error);
         }
-    };
-
-    const playAmbientSound = (soundId: string, track: MusicFile, volume: number = 1) => {
-        if (!ambientServiceRef.current) return;
-        
-        const ambientTrack = {
-            id: track.id,
-            name: track.name,
-            path: track.path,
-            tags: track.tags
-        };
-        
-        const sound = ambientSounds.find(s => s.id === soundId);
-        if (sound) {
-            // Load and play the sound
-            ambientServiceRef.current.loadAmbientSound({ ...sound, trackId: track.id, volume }, ambientTrack);
-            ambientServiceRef.current.playAmbientSound(soundId);
-            
-            // Update local state
-            setAmbientSounds(prev => prev.map(s => 
-                s.id === soundId ? { ...s, isPlaying: true, trackId: track.id, volume } : s
-            ));
-        }
-    };
-
-    const stopAmbientSound = (soundId: string) => {
-        if (!ambientServiceRef.current) return;
-        
-        ambientServiceRef.current.stopAmbientSound(soundId);
-        
-        setAmbientSounds(prev => prev.map(s => 
-            s.id === soundId ? { ...s, isPlaying: false } : s
-        ));
     };
 
     const toggleAmbientSound = (soundId: string) => {

@@ -1,3 +1,4 @@
+import type * as React from 'react';
 import { useState, useEffect } from 'react';
 import type { AnyAsset, Folder, Tab, SortOption, SortOrder } from '../types';
 import { NavigationHistory } from '../NavigationHistory';

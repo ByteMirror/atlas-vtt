@@ -549,21 +549,6 @@ This folder contains audio files for your Atlas VTT maps.
         }
     };
 
-    const removeTrackFromPlaylist = (trackId: string, playlistId: string) => {
-        const playlist = playlists.find(p => p.id === playlistId);
-        if (playlist) {
-            const updatedPlaylist = {
-                ...playlist,
-                tracks: playlist.tracks.filter(id => id !== trackId)
-            };
-            const updatedPlaylists = playlists.map(p => 
-                p.id === playlistId ? updatedPlaylist : p
-            );
-            setPlaylists(updatedPlaylists);
-            void savePlaylists(updatedPlaylists);
-        }
-    };
-
     const deletePlaylist = async (playlist: Playlist) => {
         const updatedPlaylists = playlists.filter(p => p.id !== playlist.id);
         setPlaylists(updatedPlaylists);

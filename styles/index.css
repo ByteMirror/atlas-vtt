@@ -1,6 +1,4 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* Tailwind layers are injected by postcss.config.cjs before compilation. */
 
 /**
  * shadcn/ui CSS Variable Bridge for Obsidian

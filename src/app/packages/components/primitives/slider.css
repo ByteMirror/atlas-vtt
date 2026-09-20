@@ -38,7 +38,6 @@
 }
 
 .slider-thumb:focus-visible {
-  outline: none;
   outline: 2px solid var(--interactive-accent);
   outline-offset: 2px;
 }
@@ -46,4 +45,4 @@
 .slider-thumb[data-disabled] {
   pointer-events: none;
   opacity: 0.5;
-} 
+}

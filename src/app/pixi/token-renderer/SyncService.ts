@@ -14,17 +14,6 @@ import type { GridSystem } from '../../grid/GridSystem';
 import { EventEmitter } from 'events';
 
 
-interface AnimationState {
-  tokenId: string;
-  targetX: number;
-  targetY: number;
-  startX: number;
-  startY: number;
-  startTime: number;
-  duration: number;
-  currentAnimation?: any;
-}
-
 export class SyncService implements ITokenSyncService {
   private store: StoreApi<ViewAtlasState>;
   private gridSystem: GridSystem;

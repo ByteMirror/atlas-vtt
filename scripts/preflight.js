@@ -63,6 +63,7 @@ if (!exists('dist/main.js')) {
   const blocking = {
     'shell execution (child_process)': /child_process/,
     'eval()': /[^.\w]eval\(/,
+    'runtime script-element creation': /\.createElement\(\s*["']script["']/,
     'source map': /sourceMappingURL=/,
     'absolute local path': /\/Users\/|[A-Z]:\\\\Users\\\\/,
   };

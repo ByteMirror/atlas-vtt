@@ -1,3 +1,4 @@
+import type * as React from 'react';
 import { useState, useCallback } from 'react';
 import type { AnyAsset, Tag } from '../types';
 import type { AssetService } from '../../../../services/AssetService';

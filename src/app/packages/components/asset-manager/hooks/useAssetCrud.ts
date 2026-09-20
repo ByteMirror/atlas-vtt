@@ -1,3 +1,4 @@
+import type * as React from 'react';
 import { useState } from 'react';
 import { TFolder, TFile, App as ObsidianApp } from 'obsidian';
 import type { AnyAsset, TokenAsset, Folder, Tab, InputModalState } from '../types';

@@ -1,3 +1,4 @@
+import type * as React from 'react';
 import { useEffect } from 'react';
 import type { Tab } from '../types';
 import { tabs } from '../types';

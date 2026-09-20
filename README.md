@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/images/atlas-vtt-icon.webp" alt="Atlas VTT icon" width="160" height="160">
+</p>
+
 # Atlas VTT
 
 A game system agnostic virtual tabletop for tabletop RPGs that runs inside [Obsidian](https://obsidian.md). 
@@ -5,6 +9,8 @@ A game system agnostic virtual tabletop for tabletop RPGs that runs inside [Obsi
 I built Atlas as part of my bachelor's thesis to give the TTRPG community a virtual tabletop that's source-available, hackable, and free for noncommercial use. Every file Atlas creates, every token, every map, every world you build, stays yours and stays local. It follows the same philosophy as Obsidian: your work lives on your machine, in formats you control, with no account and no server in between.
 
 TTRPG worlds in my opinion are something very personal and players and DMs get attached to them. That attachment deserves better than a subscription and someone else's database. Atlas makes sure your creative output stays yours, just like a sheet of paper would.
+
+Ease of use matters just as much to me. Atlas aims for a minimal, streamlined interface that feels native to Obsidian, with clear controls and simple workflows that keep your attention on the game.
 
 Atlas VTT is desktop only.
 

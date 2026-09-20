@@ -27,7 +27,7 @@ Atlas VTT is desktop only.
 
 ## Your notes, right on the map
 
-Pin an Obsidian note to a location, then read and edit it in a floating panel without leaving the map. Keep room descriptions, session prep, and character details close at hand, with Obsidian's familiar note linking built in.
+Pin an Obsidian markdown note or even another Atlas map to a location, then read and edit it in a floating panel without leaving the map. Keep room descriptions, session prep, and character details close at hand, with Obsidian's familiar note linking built in.
 
 ![Atlas VTT showing the note picker beside a linked note open on the map, with editing and Obsidian link suggestions](docs/images/note-linking-preview.png)
 

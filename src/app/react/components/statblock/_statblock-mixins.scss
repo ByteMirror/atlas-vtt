@@ -1,0 +1,11 @@
+@use '../../../../../styles/tokens' as *;
+
+/// Small uppercase label used for property names, stat column headers and
+/// vitals tracks, so every label inside a statblock reads the same.
+@mixin atlas-sb-label {
+  color: var(--text-muted);
+  font-size: $font-ui-smaller;
+  font-weight: $font-weight-semibold;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}

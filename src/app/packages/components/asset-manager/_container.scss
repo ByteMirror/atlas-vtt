@@ -1,0 +1,154 @@
+@use '../../../../../styles/tokens' as *;
+@use '../../../../../styles/mixins' as *;
+@use 'variables' as *;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Asset Manager – Shell: overlay, backdrop, window frame and region grid
+// ═══════════════════════════════════════════════════════════════════════════
+// The window is a single elevated surface. The sidebar rail is tinted like an
+// Obsidian side dock; header and content sit flat on the primary background.
+
+.atlas-global-asset-manager-container {
+  position: fixed;
+  inset: 0;
+  z-index: $z-sticky;
+  pointer-events: none;
+
+  .atlas-asset-manager-modal {
+    pointer-events: all;
+    z-index: $z-sticky;
+  }
+}
+
+
+.atlas-asset-manager-modal {
+  position: fixed;
+  inset: 0;
+  z-index: $z-sticky;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto !important;
+  padding: $spacing-2xl;
+
+  @media (max-width: $breakpoint-m) {
+    padding: 0;
+  }
+}
+
+.atlas-asset-manager-backdrop {
+  position: absolute;
+  inset: 0;
+  background-color: color-mix(in oklch, var(--mono-0) 40%, transparent);
+  backdrop-filter: blur(6px);
+  z-index: $z-sticky;
+  pointer-events: auto;
+}
+
+.atlas-asset-manager-container {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: auto 1fr;
+  width: 100%;
+  height: 100%;
+  max-width: 1440px;
+  max-height: 100%;
+  --atlas-am-window-radius: #{$radius-2xl};
+  @include atlas-elevated-surface;
+  border-radius: $window-radius;
+  overflow: hidden;
+  z-index: $z-sticky + 1;
+  pointer-events: auto !important;
+  margin: auto;
+  font-size: $font-ui-small;
+  color: var(--text-normal);
+
+  .atlas-asset-manager-sidebar {
+    grid-column: 1;
+    grid-row: 1 / -1;
+  }
+
+  .atlas-asset-manager-header {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .atlas-asset-manager-body {
+    grid-column: 2;
+    grid-row: 2;
+    min-height: 0;
+  }
+
+  &:has(.atlas-asset-manager-sidebar.atlas-collapsed) {
+    .atlas-asset-manager-body {
+      overflow: visible !important;
+    }
+  }
+
+  @media (max-width: $breakpoint-m) {
+    --atlas-am-window-radius: 0px;
+  }
+
+  @media (max-width: $breakpoint-xs) {
+    grid-template-columns: 1fr;
+
+    .atlas-asset-manager-sidebar {
+      position: absolute;
+      height: 100%;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      grid-row: auto;
+
+      &.atlas-collapsed {
+        width: 0;
+        min-width: 0;
+        max-width: 0;
+        overflow: visible;
+
+        &::after { display: none; }
+        &:hover { width: 0; }
+      }
+    }
+
+    .atlas-asset-manager-header,
+    .atlas-asset-manager-body {
+      grid-column: 1;
+    }
+  }
+
+  * {
+    @include atlas-scrollbar;
+  }
+}
+
+// ── Shared control sizing ───────────────────────────────────────────────────
+// Every toolbar control (icon buttons, search, sort) shares one height so the
+// header reads as a single line.
+
+.atlas-am-icon-btn {
+  @include atlas-control-icon-button;
+}
+
+// ── Reduced motion ──────────────────────────────────────────────────────────
+// Keep opacity and colour transitions; remove movement.
+
+@media (prefers-reduced-motion: reduce) {
+  .atlas-asset-manager-container {
+    .atlas-am-icon-btn,
+    .atlas-asset-manager-create-btn,
+    .atlas-tab-button,
+    .atlas-folder-grid-item,
+    .atlas-tag-button,
+    .atlas-asset-card-thumb,
+    .atlas-asset-card-thumb img,
+    .atlas-asset-card-thumb .atlas-token-image-wrapper,
+    .atlas-asset-manager-create-dropdown-content,
+    .atlas-collection-dropdown-content,
+    .atlas-selection-info {
+      transition-property: opacity, background-color, color, border-color, box-shadow;
+      transform: none !important;
+    }
+  }
+}

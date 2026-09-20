@@ -1,0 +1,54 @@
+// View actions menu that appears on hover
+.atlas-view-actions {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 60px;
+  height: 60px;
+  z-index: 1000;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  padding: 10px;
+  pointer-events: auto;
+}
+
+.atlas-view-actions-btn {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  color: var(--text-normal);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(10px);
+  padding: 0;
+  opacity: 0;
+  transform: scale(0.9);
+  
+  &.visible {
+    opacity: 1;
+    transform: scale(1);
+  }
+  
+  &:hover {
+    background: rgba(0, 0, 0, 0.9);
+    border-color: rgba(255, 255, 255, 0.25);
+  }
+  
+  &:active {
+    transform: scale(0.95);
+  }
+  
+  svg {
+    opacity: 0.8;
+  }
+  
+  &:hover svg {
+    opacity: 1;
+  }
+}

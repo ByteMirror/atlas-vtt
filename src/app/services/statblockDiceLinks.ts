@@ -1,0 +1,230 @@
+/**
+ * Click-to-roll dice notation, routed through Atlas' own dice tool (toast, roll
+ * log).
+ *
+ * Two halves, deliberately separate:
+ *
+ * - `linkDiceIn` rewrites text nodes into clickable spans. It must ONLY be used
+ *   on static DOM that Atlas produced and owns — currently the output of
+ *   Obsidian's MarkdownRenderer, which is rebuilt wholesale on every render.
+ *   Never point it at DOM owned by React or Svelte: those frameworks hold
+ *   references to the text nodes it replaces, and throw on their next update.
+ * - `attachDiceRolling` only listens for clicks, so it is safe on any container.
+ */
+
+import type { App } from 'obsidian';
+import type { DiceRollResult } from '../tools/DiceTool';
+import { ATLAS_VIEW_TYPE } from '../atlas-view';
+
+/**
+ * Dice expressions (`2d8+3`) plus bare attack bonuses (`+4`, `ATK: +4`). A
+ * bare sign must sit directly on its digits and must not open a dice term, so
+ * the dash in "Very Close - 1d12+2" is punctuation rather than a -1 roll.
+ */
+const DICE_PATTERN =
+  /((?<![a-z])\d*d\d+(?:\s*[+-]\s*\d+)*|(?:ATK|Attack)\s*:\s*[+-]\d+|(?<!\w)[+-]\d+(?!\s*d\d))/gi;
+
+/** Bare modifiers are rolled against a d20 unless the text names its own dice. */
+const MODIFIER_BASE_DICE = '1d20';
+
+const LINK_CLASS = 'atlas-dice-link';
+
+/** Elements whose text must never be rewritten. */
+const SKIPPED_TAGS = new Set(['SCRIPT', 'STYLE', 'INPUT', 'TEXTAREA', 'BUTTON']);
+
+export interface DiceRollSource {
+  tokenId?: string | undefined;
+  statblockPath?: string | undefined;
+  tokenName?: string | undefined;
+  tokenImagePath?: string | undefined;
+}
+
+interface DiceToolLike {
+  rollDice(formula: string, source?: DiceRollResult['source']): DiceRollResult;
+}
+
+/**
+ * Resolves Atlas' dice tool from the open map view. Returns null when no map is
+ * open, in which case dice are left as plain text.
+ */
+function resolveDiceTool(app: App): DiceToolLike | null {
+  for (const leaf of app.workspace.getLeavesOfType(ATLAS_VIEW_TYPE)) {
+    const view = leaf.view as unknown as {
+      serviceManager?: { getToolController?: () => { getDiceTool?: () => DiceToolLike } };
+    };
+    const diceTool = view?.serviceManager?.getToolController?.()?.getDiceTool?.();
+    if (diceTool) return diceTool;
+  }
+  return null;
+}
+
+/** Turns matched display text into a formula the dice tool understands. */
+export function toRollFormula(text: string): string {
+  const normalized = text.replace(/\s+/g, '').replace(/^(?:ATK|Attack):/i, '');
+  return /d\d/i.test(normalized) ? normalized : `${MODIFIER_BASE_DICE}${normalized}`;
+}
+
+/** Nearest heading-ish label above the roll, used to title the dice toast. */
+function abilityNameFor(node: Node): string | undefined {
+  const el = node.parentElement?.closest<HTMLElement>(
+    '.atlas-sb-trait, .atlas-sb-property, li, p, tr',
+  );
+  const name = el?.querySelector<HTMLElement>(
+    '.atlas-sb-trait-name, .atlas-sb-property-name, strong, em, b, i',
+  )?.textContent;
+  return name?.trim().replace(/[:.]$/, '') || undefined;
+}
+
+function isSkipped(node: Node): boolean {
+  const parent = node.parentElement;
+  if (!parent) return true;
+  if (parent.closest(`.${LINK_CLASS}`)) return true;
+  return SKIPPED_TAGS.has(parent.tagName);
+}
+
+function linkTextNode(textNode: Text): void {
+  const text = textNode.nodeValue ?? '';
+  DICE_PATTERN.lastIndex = 0;
+  if (!DICE_PATTERN.test(text)) return;
+
+  DICE_PATTERN.lastIndex = 0;
+  const fragment = document.createDocumentFragment();
+  let cursor = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = DICE_PATTERN.exec(text)) !== null) {
+    const [matched] = match;
+    if (match.index > cursor) {
+      fragment.append(text.slice(cursor, match.index));
+    }
+
+    const link = document.createElement('span');
+    link.className = LINK_CLASS;
+    link.textContent = matched;
+    link.dataset.formula = toRollFormula(matched);
+    link.setAttribute('role', 'button');
+    link.setAttribute('tabindex', '0');
+    link.setAttribute('aria-label', `Roll ${link.dataset.formula}`);
+    fragment.append(link);
+
+    cursor = match.index + matched.length;
+  }
+
+  if (cursor < text.length) {
+    fragment.append(text.slice(cursor));
+  }
+  textNode.replaceWith(fragment);
+}
+
+/**
+ * Wraps dice notation in `root` with clickable spans.
+ * Only safe on static, Atlas-owned DOM — see the note at the top of this file.
+ */
+export function linkDiceIn(root: HTMLElement): void {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode: (node) =>
+      isSkipped(node) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT,
+  });
+
+  const targets: Text[] = [];
+  let current = walker.nextNode();
+  while (current) {
+    targets.push(current as Text);
+    current = walker.nextNode();
+  }
+
+  targets.forEach((textNode) => linkTextNode(textNode));
+}
+
+/**
+ * Wires click-to-roll into a container. Listens only — the dice spans
+ * themselves are produced by the renderer (or by `linkDiceIn` on static DOM),
+ * so this never mutates the container. Returns a disposer.
+ */
+export function attachDiceRolling(
+  el: HTMLElement,
+  app: App,
+  getSource: () => DiceRollSource,
+): () => void {
+  const roll = (link: HTMLElement): void => {
+    const formula = link.dataset.formula;
+    if (!formula) return;
+
+    const diceTool = resolveDiceTool(app);
+    if (!diceTool) return;
+
+    const { tokenId, statblockPath, tokenName, tokenImagePath } = getSource();
+    const abilityName = abilityNameFor(link);
+
+    const source: NonNullable<DiceRollResult['source']> = { type: 'statblock' };
+    if (tokenId) source.tokenId = tokenId;
+    if (statblockPath) source.statblockPath = statblockPath;
+    if (tokenName) source.tokenName = tokenName;
+    if (tokenImagePath) source.tokenImagePath = tokenImagePath;
+    if (abilityName) source.abilityName = abilityName;
+
+    diceTool.rollDice(formula, source);
+  };
+
+  const onClick = (event: MouseEvent): void => {
+    const link = (event.target as HTMLElement | null)?.closest<HTMLElement>(`.${LINK_CLASS}`);
+    if (!link) return;
+    event.preventDefault();
+    event.stopPropagation();
+    roll(link);
+  };
+
+  const onKeyDown = (event: KeyboardEvent): void => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    const link = (event.target as HTMLElement | null)?.closest<HTMLElement>(`.${LINK_CLASS}`);
+    if (!link) return;
+    event.preventDefault();
+    roll(link);
+  };
+
+  el.addEventListener('click', onClick);
+  el.addEventListener('keydown', onKeyDown);
+
+  return () => {
+    el.removeEventListener('click', onClick);
+    el.removeEventListener('keydown', onKeyDown);
+  };
+}
+
+/** Shared attributes for a clickable dice span, used by DOM and React paths. */
+export function diceLinkProps(matched: string): {
+  className: string;
+  'data-formula': string;
+  role: string;
+  tabIndex: number;
+  'aria-label': string;
+} {
+  const formula = toRollFormula(matched);
+  return {
+    className: LINK_CLASS,
+    'data-formula': formula,
+    role: 'button',
+    tabIndex: 0,
+    'aria-label': `Roll ${formula}`,
+  };
+}
+
+/** Splits text into plain and dice segments, for renderers that build their own nodes. */
+export function splitDiceSegments(text: string): Array<{ text: string; dice: boolean }> {
+  const segments: Array<{ text: string; dice: boolean }> = [];
+  DICE_PATTERN.lastIndex = 0;
+
+  let cursor = 0;
+  let match: RegExpExecArray | null;
+  while ((match = DICE_PATTERN.exec(text)) !== null) {
+    if (match.index > cursor) {
+      segments.push({ text: text.slice(cursor, match.index), dice: false });
+    }
+    segments.push({ text: match[0], dice: true });
+    cursor = match.index + match[0].length;
+  }
+  if (cursor < text.length) {
+    segments.push({ text: text.slice(cursor), dice: false });
+  }
+  return segments;
+}

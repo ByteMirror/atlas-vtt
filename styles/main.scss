@@ -1,0 +1,836 @@
+/**
+ * Atlas VTT Main Styles
+ * 
+ * All styles are scoped under .atlas-vtt-plugin to prevent conflicts
+ * with Obsidian themes and other plugins.
+ */
+
+// Import tokens at the root level for use throughout
+@use './tokens' as *;
+@use './mixins' as *;
+@use '../src/app/onboarding/onboarding';
+
+// Root namespace for all Atlas VTT styles
+.atlas-vtt-plugin {
+  // Export design tokens as CSS custom properties
+  @include atlas-css-tokens;
+
+  // Ensure proper CSS variable inheritance
+  color: var(--text-normal);
+  font-family: var(--font-interface);
+
+  // Reset box-sizing for all elements within Atlas VTT
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  // Shared mixins — must come before component imports
+  @import './mixins';
+
+  // Import all component styles within the namespace
+  // Using @import is still the best approach for including styles within a scoped context
+  // The deprecation warnings are just warnings and won't break functionality
+  @import '../src/app/react/components/command-palette.scss';
+  @import '../src/app/react/components/grid-settings.scss';
+  @import '../src/app/react/components/grid-alignment.scss';
+  @import '../src/app/react/components/widget-bar.scss';
+  @import '../src/app/react/components/icon-selector.scss';
+  @import '../src/app/packages/components/asset-manager/asset-manager.scss';
+  @import '../src/app/packages/components/asset-manager/token-creator/token-creator.scss';
+  @import '../src/app/packages/components/primitives/context-menu.scss';
+  @import '../src/app/packages/components/primitives/dropdown-menu.scss';
+  @import '../src/app/packages/components/primitives/toggle.scss';
+  @import '../src/app/packages/components/primitives/input-modal.scss';
+  @import '../src/app/packages/components/primitives/close-button.scss';
+  @import '../src/app/react/components/dice/dice-dropdown.scss';
+  @import '../src/app/react/components/character-select-mode.scss';
+  @import '../src/app/packages/token.scss';
+    @import '../src/app/react/components/view-actions-menu.scss';
+  @import '../src/app/react/components/undo-redo-controls.scss';
+  @import '../src/app/react/components/dm-dashboard.scss';
+  @import '../src/app/react/components/linked-note-panel.scss';
+  @import '../src/app/react/components/music-player.scss';
+  @import '../src/app/react/components/music-library.scss';
+  @import '../src/app/react/components/track-card.scss';
+  @import '../src/app/react/components/playlist-modal.scss';
+  @import '../src/app/react/components/standalone-music-player.scss';
+  @import '../src/app/react/components/player-dashboard.scss';
+  @import '../src/app/react/components/dashboard.scss';
+  @import '../src/app/react/components/dice-log/dice-roll-log.scss';
+  @import '../src/app/packages/components/asset-manager/tag-search-modal.scss';
+  @import '../src/app/pixi/token-renderer/edit-token-modal.scss';
+  @import '../src/app/react/components/collection-settings-modal.scss';
+  @import '../src/app/services/note-preview-window.scss';
+  @import '../src/app/services/embedded-leaf.scss';
+  @import '../src/app/react/components/atlas-toast.scss';
+  @import '../src/app/ui/text-input-dialog.scss';
+  @import '../src/app/packages/components/shared/DiceTextInput';
+
+
+  // UI container styles
+  .atlas-vtt-ui {
+    border-radius: $radius-l;
+  }
+
+  // Center the main toolbar independently of the undo/redo controls.
+  .atlas-bottom-toolbar-row {
+    position: fixed;
+    bottom: $spacing-l;
+    left: 0;
+    right: 0;
+    width: max-content;
+    margin-inline: auto;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: $spacing-s;
+    z-index: $z-dropdown;
+    pointer-events: none;
+
+    > .atlas-undo-redo-controls {
+      position: absolute;
+      right: calc(100% + #{$spacing-s});
+    }
+  }
+
+  // Main toolbar - uses elevated surface pattern
+  .atlas-vtt-toolbar {
+    display: flex;
+    align-items: center;
+    gap: $spacing-s;  // Consistent spacing between all toolbar items
+    padding: $spacing-s;
+    pointer-events: auto;
+    @include atlas-elevated-surface;
+  }
+} // End of .atlas-vtt-plugin block
+
+// Note: Obsidian UI styling removed - using default backgrounds
+
+.atlas-vtt-plugin {
+  /* Ensure dropdown menu has the same radius as its content */
+  .atlas-dropdown-menu {
+    border-radius: $radius-xl !important;
+  }
+
+  /* Note pin dropdown styles moved to top-level .atlas-note-pin-dropdown block */
+
+  /* Pin overlay styles - REPLACED WITH PIXI-BASED PIN RENDERER */
+  // .atlas-pin-icon styles removed - now rendered in PIXI
+
+  /* Tab system styles */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+    
+    &::-webkit-scrollbar {
+      display: none;
+    }
+  }
+
+  /* Map picker modal styles */
+  .atlas-map-picker-list {
+    margin-top: 1rem;
+    max-height: 400px;
+    overflow-y: auto;
+  }
+
+  .atlas-map-picker-item {
+    padding: 0.5rem 1rem;
+    margin: 0.25rem 0;
+    border-radius: 4px;
+    cursor: pointer;
+    
+    &:hover {
+      background-color: var(--background-modifier-hover);
+    }
+  }
+
+  /* Make all buttons in toolbar transparent by default */
+  .atlas-vtt-toolbar button.btn,
+  .atlas-vtt-toolbar button.btn--toolbar {
+    background: transparent !important;
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+    transition: transform $transition-press $transition-ease-out,
+                background-color $transition-fast $transition-ease,
+                color $transition-fast $transition-ease;
+
+    &:active:not(:disabled) {
+      transform: scale(0.96);
+    }
+  }
+
+  // Pointer focus stays quiet; keyboard focus gets the shared ring
+  .atlas-vtt-toolbar button.btn:focus,
+  .atlas-vtt-toolbar button.btn--toolbar:focus {
+    outline: none !important;
+    box-shadow: none !important;
+  }
+
+  .atlas-vtt-toolbar button.btn:focus-visible,
+  .atlas-vtt-toolbar button.btn--toolbar:focus-visible {
+    outline: 2px solid var(--interactive-accent) !important;
+    outline-offset: -2px;
+  }
+
+  .atlas-vtt-toolbar button.btn:hover,
+  .atlas-vtt-toolbar button.btn--toolbar:hover {
+    background: var(--background-modifier-hover) !important;
+    color: var(--text-normal) !important;
+  }
+
+  // .btn.is-active outranks the tool group's transparent reset below
+  .atlas-vtt-toolbar button.btn.is-active {
+    background: var(--interactive-accent) !important;
+    color: var(--text-on-accent) !important;
+
+    &:hover {
+      background: var(--interactive-accent-hover) !important;
+      color: var(--text-on-accent) !important;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .atlas-vtt-toolbar button.btn:active {
+      transform: none;
+    }
+  }
+
+  // ToolButton layout (icon button + optional chevron)
+  .atlas-tool-button {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+
+  .atlas-tool-button-chevron svg {
+    width: $icon-xs;
+    height: $icon-xs;
+  }
+
+  .atlas-tool-button--disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+
+  /* -------------------------------------------------
+     Split-button tool group (tool + chevron)
+     ------------------------------------------------- */
+  .atlas-tool-group {
+    position: relative;
+    display: flex;
+    align-items: center;
+    background: var(--background-secondary);
+    border-radius: $radius-l;
+    padding: 0;
+    gap: 0;
+
+    // Remove individual button backgrounds and radii
+    button.btn {
+      border-radius: 0 !important;
+      background: transparent !important;
+    }
+
+    // Restore default styles for buttons inside dropdown menus
+    .atlas-dropdown-content button.btn {
+      border-radius: $radius-l !important;
+      background: transparent !important;
+
+      &:hover {
+        background: var(--background-modifier-hover) !important;
+      }
+
+      &.atlas-dropdown-mode-btn--active {
+        background: transparent !important;
+        color: var(--interactive-accent) !important;
+        border: $border-width-s solid var(--interactive-accent) !important;
+      }
+
+      &.atlas-dropdown-btn--destructive {
+        color: var(--text-error) !important;
+
+        &:hover {
+          background: color-mix(in oklch, var(--background-modifier-error) 15%, transparent) !important;
+        }
+      }
+    }
+
+    // Round only the outer edges of the first button
+    > div:first-child button.btn {
+      border-top-left-radius: $radius-l !important;
+      border-bottom-left-radius: $radius-l !important;
+    }
+
+    // Round only the outer edges of the last element's button
+    > :last-child button.btn,
+    > :last-child.atlas-dropdown-menu button.btn {
+      border-top-right-radius: $radius-l !important;
+      border-bottom-right-radius: $radius-l !important;
+    }
+
+    // Chevron: match parent height and subtle separator
+    .atlas-dropdown-trigger {
+      height: $button-height-l; // match tool button height (40px)
+      border-left: $border-width-s solid var(--divider-color);
+    }
+  }
+
+  /* -------------------------------------------------
+     Button component (using design tokens)
+     ------------------------------------------------- */
+
+  // Base
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: $spacing-s;
+    white-space: nowrap;
+    height: $button-height-l;
+    padding: $spacing-s $spacing-l;
+    border-radius: $radius-l;
+    font-size: $font-ui-small;
+    font-weight: $font-weight-medium;
+    transition: color $transition-normal $transition-ease,
+                background-color $transition-normal $transition-ease;
+
+    &:focus-visible {
+      outline: none;
+      box-shadow: 0 0 0 2px var(--background-modifier-border-focus), 0 0 0 4px var(--background-primary);
+    }
+
+    &:disabled {
+      pointer-events: none;
+      opacity: 0.5;
+    }
+
+    svg {
+      pointer-events: none;
+      width: $icon-s;
+      height: $icon-s;
+      flex-shrink: 0;
+    }
+  }
+
+  // Variants
+  .btn--default {
+    background: var(--interactive-accent);
+    color: var(--text-on-accent);
+
+    &:hover {
+      background: var(--interactive-accent-hover);
+    }
+  }
+
+  .btn--destructive {
+    background: var(--background-modifier-error);
+    color: var(--text-on-accent);
+
+    &:hover {
+      background: var(--background-modifier-error-hover);
+    }
+  }
+
+  .btn--outline {
+    border: $border-width-s solid var(--background-modifier-border);
+    background: var(--background-primary);
+    color: var(--text-normal);
+
+    &:hover {
+      background: var(--interactive-hover);
+      color: var(--text-normal);
+    }
+  }
+
+  .btn--secondary {
+    background: var(--interactive-normal);
+    color: var(--text-normal);
+
+    &:hover {
+      background: var(--interactive-hover);
+    }
+  }
+
+  .btn--ghost {
+    background: transparent;
+    color: inherit;
+    border: none;
+    box-shadow: none;
+
+    &:hover {
+      background: var(--background-modifier-hover);
+      color: var(--text-normal);
+    }
+  }
+
+  /* Toolbar chevron button */
+  .btn--toolbar {
+    background: transparent !important;
+    color: var(--text-muted);
+    width: $icon-m;
+    height: $input-height-m;
+    padding: 0;
+    border: none;
+    outline: none;
+
+    &:hover {
+      background: var(--background-modifier-hover) !important;
+      color: var(--text-normal);
+    }
+
+    &.is-active {
+      color: var(--text-normal);
+    }
+  }
+
+  .btn--link {
+    background: transparent;
+    color: var(--text-accent);
+    text-decoration: underline;
+    text-underline-offset: 4px;
+
+    &:hover {
+      color: var(--text-accent-hover);
+      text-decoration: none;
+    }
+  }
+
+  // Sizes
+  .btn--sm {
+    height: var(--input-height);
+    padding: 0 $spacing-m;
+    border-radius: $radius-m;
+    font-size: $font-ui-small;
+  }
+
+  .btn--lg {
+    height: $input-height-l;
+    padding: 0 $spacing-2xl;
+  }
+
+  .btn--icon {
+    width: $button-height-l;
+    height: $button-height-l;
+    padding: 0;
+  }
+
+  .modal-button-container {
+    display: flex;
+    gap: $spacing-s;
+    justify-content: flex-end;
+    margin-top: $spacing-xl;
+
+    button {
+      padding: $spacing-s $spacing-l;
+      border: none;
+      border-radius: $radius-s;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 0.9rem;
+      
+      &:not(.mod-cta) {
+        background: var(--background-secondary);
+        color: var(--text-normal);
+        border: 1px solid var(--background-modifier-border);
+        
+        &:hover {
+          background: var(--background-modifier-hover);
+        }
+      }
+    }
+  }
+}
+
+// Hide Obsidian's native view header (forward/back nav) in Atlas views
+.workspace-leaf-content[data-type="atlas-vtt"],
+.workspace-leaf-content[data-type="atlas-vtt-player"] {
+  .view-header {
+    display: none !important;
+  }
+
+  // Reclaim header space so view-content fills the leaf
+  .view-content {
+    height: 100% !important;
+  }
+}
+
+// The leaf content elements our views take over as their root
+.workspace-leaf-content.atlas-vtt-view {
+  padding: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.workspace-leaf-content.atlas-dashboard-view {
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+}
+
+// Fallback for a player view whose leaf reported no size on open
+.workspace-leaf-content.atlas-player-view--fill {
+  width: 100%;
+  height: 100%;
+}
+
+// Atlas VTT view styles - scoped to our plugin views only
+.workspace-leaf-content[data-type="atlas-vtt"] .atlas-vtt-view,
+.workspace-leaf-content[data-type="atlas-vtt-player"] .atlas-vtt-view,
+.workspace-leaf-content[data-type="atlas-vtt-dashboard"] .atlas-vtt-view {
+  // Ensure the view maintains proper dimensions
+  min-width: 100%;
+  min-height: 100%;
+  overflow: hidden;
+
+  // Ensure the canvas container doesn't shrink but doesn't cover header
+  canvas {
+    min-width: 100%;
+    min-height: 100%;
+    display: block;
+  }
+}
+
+// Note: Status bar visibility is now handled programmatically in main.ts
+// This ensures proper show/hide behavior when switching between views
+
+// Player view specific styles - properly scoped
+.atlas-vtt-view.atlas-player-view {
+  // Hide all UI elements that shouldn't be visible to players
+  .atlas-main-toolbar,
+  .atlas-context-menu,
+  .atlas-dropdown-menu,
+  .atlas-note-preview,
+  .atlas-asset-manager {
+    display: none !important;
+  }
+  
+  // Hide any pin containers within the plugin
+  .atlas-vtt-plugin .pins {
+    display: none !important;
+  }
+  
+  // Hide selection overlays and tools
+  .selection-overlay,
+  .fog-tool,
+  .measure-tool,
+  .eraser-tool {
+    display: none !important;
+  }
+  
+  // Ensure widget bar is visible in player view
+  .atlas-widget-bar {
+    display: block !important;
+  }
+}
+
+// Header autocomplete suggestion styles - global for editor suggest
+.suggestion-item.atlas-header-suggestion {
+  .atlas-header-level {
+    display: inline-block;
+    font-size: 0.75em;
+    color: var(--text-muted);
+    margin-right: 8px;
+    font-weight: 600;
+    background: var(--background-modifier-border);
+    padding: 2px 6px;
+    border-radius: 4px;
+    min-width: 25px;
+    text-align: center;
+  }
+  
+  .atlas-header-text {
+    color: var(--text-normal);
+  }
+  
+  &.is-selected {
+    .atlas-header-level {
+      background: var(--interactive-accent);
+      color: var(--text-on-accent);
+    }
+  }
+}
+
+// ─── Note Pin Dropdown ─────────────────────────────────────────────
+// Popover: icon palette, search, results and a hint footer. Uniform
+// padding/gap so every section sits on the same rhythm.
+//
+// Corners are concentric and built outwards from the icon button: each surface's
+// radius is the radius of the surface inside it plus the inset between them
+// (padding + border). The shared 12px popover radius cannot hold two nested
+// levels at this padding, so the panel radius is derived instead.
+
+.atlas-note-pin-dropdown {
+  --pin-btn-radius: #{$radius-m};
+  --pin-inset-radius: calc(var(--pin-btn-radius) + #{$spacing-xs} + #{$border-width-s});
+
+  @include atlas-elevated-surface;
+  border-radius: calc(var(--pin-inset-radius) + #{$spacing-m} + #{$border-width-m});
+  @include atlas-flex-col($gap: $spacing-m);
+  position: fixed;
+  z-index: $z-atlas-dropdown;
+  width: fit-content;
+  min-width: 300px;
+  padding: $spacing-m;
+  overflow: hidden;
+  color: var(--text-normal);
+  font-family: var(--font-interface);
+  font-size: $font-ui-small;
+
+  // ── Icon Palette ───────────────────────────────────────────────
+  .pin-icon-row {
+    @include atlas-inset-surface;
+    @include atlas-flex-row($gap: $spacing-xs);
+    padding: $spacing-xs;
+    border-radius: var(--pin-inset-radius);
+  }
+
+  // Each button carries its pin colour in `--pin-color` (set inline by the tool).
+  .pin-icon-btn {
+    @include atlas-icon-button('m');
+    @include atlas-focus-ring;
+    appearance: none;
+    position: relative;
+    flex-shrink: 0;
+    padding: 0;
+    border-radius: var(--pin-btn-radius);
+    background: transparent;
+    box-shadow: none;
+    color: var(--pin-color);
+    transition: background-color $transition-fast $transition-ease,
+                box-shadow $transition-fast $transition-ease,
+                transform $transition-press $transition-ease-out;
+
+    svg {
+      width: var(--icon-m);
+      height: var(--icon-m);
+      opacity: var(--icon-opacity);
+      transition: opacity $transition-fast $transition-ease;
+    }
+
+    .pin-icon-label {
+      font-size: $font-ui-medium;
+      font-weight: $font-weight-bold;
+      line-height: 1;
+    }
+
+    &:hover {
+      background: var(--background-modifier-hover);
+
+      svg {
+        opacity: var(--icon-opacity-hover);
+      }
+    }
+
+    // Hit area fills the gaps and row padding so hover never drops out between
+    // neighbours; half the gap each side keeps adjacent hit areas from overlapping.
+    &::before {
+      content: '';
+      position: absolute;
+      inset: (-$spacing-xs) calc(#{-$spacing-xs} / 2);
+    }
+
+    &:active {
+      transform: scale(0.96);
+    }
+
+    &.is-selected {
+      background: color-mix(in oklch, var(--pin-color) 16%, transparent);
+      box-shadow: inset 0 0 0 $border-width-s color-mix(in oklch, var(--pin-color) 55%, transparent);
+
+      svg {
+        opacity: var(--icon-opacity-active);
+      }
+    }
+  }
+
+  // ── Search ─────────────────────────────────────────────────────
+  .pin-search-wrapper {
+    position: relative;
+    flex-shrink: 0;
+
+    .pin-search-icon {
+      position: absolute;
+      left: $spacing-s;
+      top: 50%;
+      width: $icon-s;
+      height: $icon-s;
+      transform: translateY(-50%);
+      color: var(--text-faint);
+      pointer-events: none;
+
+      svg {
+        width: 100%;
+        height: 100%;
+      }
+    }
+  }
+
+  .pin-search-input {
+    @include atlas-text-input;
+    padding-left: calc(#{$spacing-s} + #{$icon-s} + #{$spacing-s});
+    // Same inset from the panel edge as the icon row, so the same radius
+    border-radius: var(--pin-inset-radius);
+  }
+
+  // ── Results ────────────────────────────────────────────────────
+  .pin-results {
+    @include atlas-flex-col($gap: $spacing-xs);
+    @include atlas-scrollbar;
+    max-height: 240px;
+    overflow-y: auto;
+  }
+
+  .pin-result-item {
+    @include atlas-flex-row($gap: $spacing-s);
+    min-height: var(--input-height);
+    padding: $spacing-s;
+    border-radius: $radius-m;
+    cursor: pointer;
+    color: var(--text-normal);
+    transition: background-color $transition-fast $transition-ease;
+
+    &:hover {
+      background: var(--background-modifier-hover);
+    }
+
+    &:active {
+      background: var(--background-modifier-active-hover);
+    }
+
+    .pin-result-icon {
+      flex-shrink: 0;
+      width: $icon-s;
+      height: $icon-s;
+      color: var(--text-muted);
+
+      svg {
+        width: 100%;
+        height: 100%;
+      }
+    }
+
+    .pin-result-name {
+      flex: 1;
+      min-width: 0;
+      @include atlas-truncate;
+    }
+  }
+
+  // Small pill labels: map badge and heading level.
+  .pin-result-badge,
+  .pin-header-level {
+    @include atlas-flex-row($gap: 0);
+    flex-shrink: 0;
+    height: $icon-m;
+    padding: 0 $spacing-xs;
+    border-radius: $radius-s;
+    font-size: $font-ui-smaller;
+    font-weight: $font-weight-semibold;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .pin-result-badge.is-map {
+    color: var(--color-green);
+    background: color-mix(in oklch, var(--color-green) 14%, transparent);
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+  }
+
+  .pin-header-level {
+    color: var(--text-muted);
+    background: var(--background-modifier-hover);
+  }
+
+  .pin-header-file {
+    flex-shrink: 0;
+    font-size: $font-ui-smaller;
+    color: var(--text-faint);
+  }
+
+  .pin-empty-state {
+    padding: $spacing-m;
+    text-align: center;
+    color: var(--text-faint);
+  }
+
+  // ── Footer ─────────────────────────────────────────────────────
+  .pin-footer {
+    @include atlas-flex-row($gap: $spacing-l);
+    justify-content: center;
+    flex-shrink: 0;
+    padding-top: $spacing-m;
+    border-top: var(--divider-width) solid var(--divider-color);
+
+    .pin-footer-hint {
+      @include atlas-flex-row($gap: $spacing-xs);
+      font-size: $font-ui-smaller;
+      line-height: 1;
+      color: var(--text-muted);
+
+      kbd {
+        display: inline-flex;
+        align-items: center;
+        height: $icon-m;
+        padding: 0 $spacing-xs;
+        border-radius: $radius-s;
+        background: var(--background-modifier-hover);
+        color: var(--text-normal);
+        font-family: inherit;
+        font-size: $font-ui-smaller;
+        font-weight: $font-weight-semibold;
+        line-height: 1;
+      }
+    }
+  }
+}
+
+// Obsidian menus opened from the asset manager must stack above its overlay.
+// Limited to while the overlay is open so other Obsidian menus are untouched.
+body:has(.atlas-asset-manager-modal) > .menu {
+  z-index: $z-atlas-dropdown;
+}
+
+// ─── Plugin shell ──────────────────────────────────────────────────
+// Rules for elements the plugin places on `document.body`, outside
+// `.atlas-vtt-plugin`.
+
+// The status bar would cover the bottom-right corner of a full-bleed Atlas view.
+body.atlas-hide-status-bar .status-bar {
+  display: none;
+}
+
+// File picker input used by "New map from image…"; only ever clicked programmatically.
+.atlas-hidden-file-input {
+  display: none;
+}
+
+// Held on the body while a floating window is being resized.
+body.atlas-no-select {
+  user-select: none;
+}
+
+// Off-screen input that captures typing while a token name is edited on the canvas.
+input.atlas-offscreen-input {
+  position: fixed;
+  left: -9999px;
+  top: -9999px;
+  width: 0;
+  height: 0;
+  opacity: 0;
+  pointer-events: none;
+  border: none;
+  outline: none;
+  background: transparent;
+  z-index: -1;
+}
+
+// Throwaway element used to resolve a CSS colour to its computed value.
+.atlas-color-probe {
+  position: absolute;
+  opacity: 0;
+}

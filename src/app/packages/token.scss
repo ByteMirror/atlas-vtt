@@ -1,0 +1,165 @@
+/* -------------------------------------------------------------------------- */
+/* Token – Obsidian-flavoured stylesheet                                      */
+/* -------------------------------------------------------------------------- */
+
+$edge-color: var(--color-base-60);
+$shadow-tint: var(--mono-0);            // black in dark-mode, white in light
+$accent-hsl: var(--accent-h) var(--accent-s) var(--accent-l);
+
+/* ---------- Base wrapper -------------------------------------------------- */
+.token {
+  position: relative;
+  width: 96px;        // canonical size – Pixi will scale parent container
+  height: 96px;
+  border-radius: 50%; // circle by default
+  background: linear-gradient(
+    to bottom,
+    var(--color-base-25),
+    var(--color-base-40)
+  );
+  border: 2px solid $edge-color;
+  box-shadow: 0 4px 8px color-mix(in oklch, $shadow-tint 2500%, transparent);
+  cursor: pointer;
+  user-select: none;
+  transition:
+    box-shadow .25s ease,
+    transform   .15s ease;
+
+  /* ---------- Shapes ----------------------------------------------------- */
+  &--hex    { clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%); }
+  &--square { border-radius: .5rem; }
+
+  /* ---------- States ----------------------------------------------------- */
+  &--selected {
+    box-shadow:
+      0 0 0 2px hsl($accent-hsl / 100%),
+      0 0 8px 2px hsl($accent-hsl / 60%);
+  }
+
+  &--targeted::after {          // red cross-hair overlay
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    border: 2px solid var(--color-red);
+    background-image:
+      linear-gradient(var(--color-red) 0 0),
+      linear-gradient(var(--color-red) 0 0);
+    background-size: 2px 100%, 100% 2px;
+    background-position: 50% 0, 0 50%;
+    background-repeat: no-repeat;
+  }
+
+  &--defeated {
+    filter: grayscale(1) brightness(.6);
+    &::before {               // dark veil
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, .6);
+      border-radius: inherit;
+    }
+  }
+
+  /* slight lift on hover */
+  &:hover:not(&--defeated) { transform: translateY(-2px); }
+}
+
+/* ---------- Avatar -------------------------------------------------------- */
+.token__avatar {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  overflow: hidden;
+
+  /* glossy lens */
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      to bottom,
+      rgba(255,255,255,.08),
+      rgba(0,0,0,.25)
+    );
+    mix-blend-mode: overlay;
+  }
+}
+
+/* ---------- HP ring (drawn in DOM, optional) ----------------------------- */
+.token__hp-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  mask:                                /* hollow centre mask */
+    radial-gradient(circle 46% at 50% 50%, transparent 98%, #000 100%);
+  background: conic-gradient(
+    var(--color-green) calc(var(--hp-percent,100) * 1%),
+    transparent 0 100%
+  );
+}
+
+/* ---------- Name plate ---------------------------------------------------- */
+.token__nameplate {
+  position: absolute;
+  bottom: -1.25rem;    /* tucks under rim */
+  left: 50%;
+  translate: -50%;
+  width: 80%;
+  height: 26px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-ui-small);
+  font-weight: 600;
+  background: var(--background-primary-alt);
+  border: 1px solid $edge-color;
+  box-shadow:
+    0 1px 2px color-mix(in oklch, $shadow-tint 2500%, transparent) inset,
+    0 -1px 1px color-mix(in oklch, $shadow-tint 2500%, transparent) inset;
+}
+
+/* ---------- Status chips -------------------------------------------------- */
+.token__status-row {
+  position: absolute;
+  top: -6px;
+  left: 50%;
+  translate: -50%;
+  display: flex;
+  gap: 4px;
+
+  .chip {
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: var(--background-secondary);
+    border: 1px solid $edge-color;
+    display: grid;
+    place-items: center;
+    box-shadow: 0 1px 2px color-mix(in oklch, $shadow-tint 200%, transparent) inset;
+    font-size: 10px;
+    color: var(--text-on-accent);
+  }
+}
+
+/* ---------- HP bar (if rendered in DOM) ----------------------------------- */
+.hp-bar {
+  width: 88px;
+  height: 10px;
+  margin: .75rem auto 0;
+  border-radius: 4px;
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+
+  &__fill {
+    height: 100%;
+    border-radius: inherit;
+    width: calc(var(--hp-percent, 100) * 1%);
+    background: linear-gradient(
+      to bottom,
+      var(--color-green),
+      color-mix(in srgb, var(--color-green) 80%, #000)
+    );
+    transition: width .25s ease;
+  }
+}

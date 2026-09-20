@@ -1,0 +1,252 @@
+// Dropdown Menu Styles
+// Uses design tokens from _tokens.scss
+@use '../../../../../styles/tokens' as *;
+
+.atlas-dropdown-menu {
+  position: relative;
+  display: inline-block;
+}
+
+.atlas-dropdown-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color $transition-normal $transition-ease;
+  border-radius: $radius-m;
+
+  &.atlas-is-active {
+    background-color: var(--background-secondary-alt);
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.07);
+  }
+
+  &:hover:not(.atlas-is-active) {
+    background-color: var(--background-modifier-hover);
+  }
+}
+
+.atlas-dropdown-content {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  min-width: 220px;
+  z-index: $z-atlas-dropdown;
+  padding: $spacing-s;
+
+  // Elevated surface styles (consistent with toolbar/modals)
+  background: var(--background-primary);
+  border: $border-width-m solid color-mix(in oklch, var(--mono-100) $border-opacity-default, transparent);
+  border-radius: $radius-xl;
+  box-shadow: $shadow-elevated;
+}
+
+/* Default position - below trigger */
+.atlas-dropdown-content--bottom {
+  top: 100%;
+  margin-top: $spacing-l;
+}
+
+/* Position above trigger */
+.atlas-dropdown-content--top {
+  bottom: 100%;
+  margin-bottom: $spacing-l;
+}
+
+/* Alignment modifiers */
+.atlas-dropdown-content--left {
+  left: -41px; /* Offset to align with the tool button instead of the chevron */
+}
+
+.atlas-dropdown-content--center {
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.atlas-dropdown-content--right {
+  right: 0;
+}
+
+.atlas-dropdown-item {
+  display: block;
+  width: 100%;
+  padding: $spacing-s $spacing-l;
+  color: var(--text-normal);
+  text-align: left;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all $transition-fast $transition-ease;
+  border-radius: $radius-s;
+
+  &:hover {
+    background-color: var(--background-modifier-hover);
+    transform: translateY(-1px);
+    box-shadow: $shadow-sm;
+  }
+
+  &:focus {
+    outline: 2px solid var(--interactive-accent);
+    outline-offset: -2px;
+  }
+}
+
+/* Grid-based menu item — aligns check / icon / label / shortcut across all rows */
+.atlas-dropdown-menu-item {
+  display: grid !important;
+  grid-template-columns: $icon-s $icon-s 1fr auto;
+  column-gap: $spacing-s;
+  align-items: center;
+  width: 100%;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.atlas-dropdown-menu-item__check {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.atlas-dropdown-menu-item__shortcut {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.atlas-dropdown-menu-item__icon-placeholder {
+  width: $icon-s;
+  height: $icon-s;
+  flex-shrink: 0;
+}
+
+/* Toggle row — ensures proper spacing between label and toggle */
+.atlas-dropdown-toggle-row.atlas-dropdown-menu-item {
+  display: flex !important;
+  grid-template-columns: none !important;
+  align-items: center;
+  justify-content: space-between;
+  gap: $spacing-l;
+  padding: $spacing-s $spacing-m;
+  min-height: $button-height-m;
+  box-sizing: border-box;
+
+  // Ensure text doesn't overflow into toggle area
+  > span {
+    flex: 1;
+    min-width: 0;
+    padding-right: $spacing-m;
+  }
+
+  // Toggle should not shrink
+  .atlas-toggle {
+    flex-shrink: 0;
+  }
+}
+
+.atlas-dropdown-separator {
+  height: $border-width-s;
+  margin: $spacing-xs 0;
+  background-color: var(--background-modifier-border);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.05);
+  opacity: 0.8;
+}
+
+/* Section for grouped content */
+.atlas-dropdown-section {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-xs;
+  padding-top: $spacing-s;
+  margin-top: $spacing-s;
+  border-top: $border-width-s solid var(--background-modifier-border);
+
+  &:first-child {
+    padding-top: 0;
+    margin-top: 0;
+    border-top: none;
+  }
+}
+
+/* When a separator already provides the visual break, remove the section's own border */
+.atlas-dropdown-separator + .atlas-dropdown-section {
+  border-top: none;
+  margin-top: 0;
+}
+
+/* Shared statblock options list (header + widget dropdowns) */
+.atlas-statblock-dropdown-options {
+  min-width: 140px;
+}
+
+.atlas-statblock-dropdown-option {
+  justify-content: flex-start;
+}
+
+.atlas-statblock-dropdown-empty {
+  display: block;
+  padding: $spacing-s $spacing-m;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* Icon picker grid (draw tool → icon stamps) */
+.atlas-icon-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: $spacing-xs;
+}
+
+.atlas-icon-grid__item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: $spacing-xs;
+  border: $border-width-s solid transparent;
+  border-radius: $radius-l;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background-color $transition-normal $transition-ease;
+
+  &:hover {
+    background: var(--background-modifier-hover);
+    color: var(--text-normal);
+  }
+
+  &--active {
+    border-color: var(--interactive-accent);
+    color: var(--interactive-accent);
+  }
+}
+
+/* Colour swatch grid (text tool → colour) */
+.atlas-swatch-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: $spacing-xs;
+}
+
+.atlas-swatch {
+  aspect-ratio: 1;
+  // Steps down from the dropdown's own radius.
+  border-radius: $radius-s;
+  border: $border-width-s solid color-mix(in oklch, var(--mono-100) $border-opacity-subtle, transparent);
+  cursor: pointer;
+  // The swatch is small, so the ring sits outside it rather than shrinking the colour.
+  box-shadow: 0 0 0 0 var(--interactive-accent);
+  transition-property: box-shadow, scale;
+  transition-duration: $transition-normal;
+  transition-timing-function: $transition-ease;
+
+  &:hover {
+    scale: 1.08;
+  }
+
+  &:active {
+    scale: 0.96;
+  }
+
+  &--active {
+    box-shadow: 0 0 0 2px var(--interactive-accent);
+  }
+}

@@ -1,0 +1,57 @@
+// Full-window image overlay shown in the player popout (ImageDisplayService.ts).
+// The player display is always dark, so the scrim and controls use fixed
+// black/white tints rather than theme variables. Rooted at the container id so
+// the button rules outrank Obsidian's generic `button` styling.
+#atlas-image-display-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.9);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+  -webkit-user-select: none;
+  user-select: none;
+
+  &.is-dragging {
+    cursor: grabbing;
+  }
+
+  .atlas-image-display__image {
+    max-width: 90%;
+    max-height: 90%;
+    transform-origin: center center;
+    transition: none;
+    pointer-events: none;
+    -webkit-user-drag: none;
+    user-drag: none;
+  }
+
+  .atlas-image-display__close {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: white;
+    font-size: 24px;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    z-index: 10001;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.2);
+      transform: scale(1.1);
+    }
+  }
+}

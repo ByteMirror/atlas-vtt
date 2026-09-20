@@ -1,0 +1,84 @@
+.dice-text-input-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.dice-text-input__autocomplete.atlas-ctx-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  width: 100%;
+  max-height: 168px;
+  z-index: 20;
+  overflow-y: auto;
+}
+
+.dice-text-input__option.atlas-ctx-item {
+  width: 100%;
+  min-height: 28px;
+  background: transparent !important;
+  color: var(--text-normal) !important;
+  border: none !important;
+  box-shadow: none !important;
+
+  &[data-highlighted] {
+    background: var(--background-modifier-hover) !important;
+    color: var(--text-normal) !important;
+  }
+
+  &:hover {
+    background: var(--background-modifier-hover) !important;
+    color: var(--text-normal) !important;
+  }
+}
+
+// ── ContentEditable editor ──────────────────────────────────────────────────
+
+.dice-text-input {
+  width: 100%;
+  background: var(--background-primary);
+  color: var(--text-normal);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  padding: 4px;
+  font-size: var(--font-text-size);
+  font-family: inherit;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  overflow-y: auto;
+  box-sizing: border-box;
+  outline: none;
+
+  &:focus {
+    border-color: var(--interactive-accent);
+    box-shadow: 0 0 0 2px var(--interactive-accent-hover);
+  }
+
+  &[contenteditable="false"] {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  // Placeholder via CSS :empty + data-placeholder
+  &.is-empty::before {
+    content: attr(data-placeholder);
+    color: var(--text-faint);
+    pointer-events: none;
+  }
+}
+
+// ── Stat badge (inline, atomic) ─────────────────────────────────────────────
+
+.dice-stat-badge {
+  display: inline;
+  padding: 1px 4px;
+  margin: 0 1px;
+  border-radius: 3px;
+  background: color-mix(in oklch, var(--interactive-accent) 15%, transparent);
+  color: var(--text-accent);
+  font-weight: 600;
+  font-size: 0.9em;
+  user-select: all; // Select entire badge on click
+  cursor: default;
+}

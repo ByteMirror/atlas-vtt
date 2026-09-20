@@ -1,0 +1,61 @@
+@use '../../../../../styles/tokens' as *;
+
+.atlas-context-menu-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+}
+
+// Note: .atlas-dropdown-content is defined in dropdown-menu.scss with design tokens.
+// Do NOT redefine it here.
+
+@mixin ring-color-button {
+  width: $button-height-m;
+  height: $button-height-m;
+  border-radius: 50%;
+  padding: 0;
+  border: $border-width-l solid color-mix(in oklch, var(--mono-0) 15%, transparent);
+}
+
+.atlas-dropdown-content.ring-colors {
+  display: grid;
+  grid-template-columns: repeat(5, $button-height-m);
+  gap: $spacing-s;
+  min-width: auto;
+  padding: $spacing-s;
+
+  li {
+    margin: 0;
+  }
+
+  .atlas-btn {
+    @include ring-color-button;
+    display: block;
+    background: transparent;
+    &:hover {
+      transform: scale(1.12);
+      background: inherit;
+    }
+    &:active {
+      transform: scale(0.95);
+    }
+    span { display: none; }
+  }
+}
+
+.atlas-ring-grid {
+  display: grid;
+  grid-template-columns: repeat(6, $button-height-m);
+  gap: $spacing-s;
+  padding: $spacing-s 0;
+}
+
+.atlas-ring-swatch {
+  @include ring-color-button;
+  background: transparent;
+  &:hover { transform: scale(1.1); }
+  &.atlas-none {
+    background: transparent;
+    border: $border-width-l dashed color-mix(in oklch, var(--mono-0) 30%, transparent);
+  }
+}

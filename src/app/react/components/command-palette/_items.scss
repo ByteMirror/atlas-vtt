@@ -1,0 +1,164 @@
+@use '../../../../../styles/tokens' as *;
+@use '../../../../../styles/mixins' as *;
+
+// ── Command list ────────────────────────────────────────────────────────────
+// Rows never animate in: the list re-renders on every keystroke and every
+// open, so motion here would only add latency.
+
+.atlas-command-palette-options {
+  @include atlas-scrollbar;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.atlas-command-palette-options-inner {
+  @include atlas-flex-col($spacing-s);
+  padding: $spacing-s;
+}
+
+.atlas-command-palette-section {
+  @include atlas-flex-col(2px);
+
+  // Divider sits centred between the inner gap above and this padding below
+  & + & {
+    padding-top: $spacing-s;
+    border-top: $border-width-s solid var(--divider-color);
+  }
+}
+
+.atlas-command-palette-section-header {
+  padding: $spacing-xs $spacing-s; // aligns the caption with the row's icon inset
+  font-size: $font-ui-smaller;
+  font-weight: $font-weight-medium;
+  color: var(--text-muted);
+}
+
+.atlas-command-item {
+  @include atlas-flex-row($spacing-s);
+  width: 100%;
+  height: auto;
+  margin: 0;
+  padding: $spacing-s;
+  background: transparent;
+  border: none;
+  border-radius: $radius-l;
+  box-shadow: none;
+  appearance: none;
+  color: var(--text-muted);
+  font-size: $font-ui-small;
+  font-weight: $font-weight-normal;
+  line-height: var(--line-height-tight);
+  text-align: left;
+  cursor: pointer;
+  transition: transform $transition-press $transition-ease-out,
+              background-color $transition-fast $transition-ease,
+              color $transition-fast $transition-ease;
+
+  &:hover,
+  &.atlas-focused {
+    background: var(--background-modifier-hover);
+    color: var(--text-normal);
+
+    .atlas-command-item-icon {
+      color: var(--text-normal);
+    }
+
+    .atlas-command-item-submenu-icon {
+      color: var(--text-muted);
+    }
+  }
+
+  // Focus is tracked by the list (.atlas-focused); the input keeps DOM focus
+  &:focus,
+  &:focus-visible {
+    outline: none;
+    box-shadow: none;
+  }
+
+  &:active {
+    background: var(--background-modifier-active-hover);
+    transform: scale(0.98);
+  }
+}
+
+.atlas-command-item-left {
+  @include atlas-flex-row($spacing-s);
+  flex: 1;
+  min-width: 0;
+}
+
+.atlas-command-item-right {
+  @include atlas-flex-row($spacing-s);
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.atlas-command-item-icon,
+.atlas-command-item-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: $icon-m;
+  height: $icon-m;
+  flex-shrink: 0;
+}
+
+.atlas-command-item-icon {
+  color: var(--text-muted);
+  transition: color $transition-fast $transition-ease;
+
+  svg {
+    width: $icon-s;
+    height: $icon-s;
+  }
+}
+
+.atlas-command-item-label {
+  @include atlas-truncate;
+  flex: 1;
+  min-width: 0;
+}
+
+.atlas-command-item-checkbox {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--checkbox-size);
+  height: var(--checkbox-size);
+  border: $border-width-s solid var(--checkbox-border-color);
+  border-radius: var(--checkbox-radius);
+  background: var(--background-modifier-form-field);
+  transition: background-color $transition-fast $transition-ease,
+              border-color $transition-fast $transition-ease;
+
+  &.atlas-active {
+    background: var(--checkbox-color);
+    border-color: var(--checkbox-color);
+  }
+}
+
+.atlas-command-item-check {
+  width: $icon-xs;
+  height: $icon-xs;
+  color: var(--text-on-accent);
+}
+
+.atlas-command-item-submenu-icon {
+  width: $icon-s;
+  height: $icon-s;
+  color: var(--text-faint);
+  transition: color $transition-fast $transition-ease;
+}
+
+.atlas-command-palette-separator {
+  height: $border-width-s;
+  margin: $spacing-xs $spacing-s;
+  background: var(--divider-color);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .atlas-command-item:active {
+    transform: none;
+  }
+}

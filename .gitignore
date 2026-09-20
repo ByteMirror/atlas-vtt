@@ -1,0 +1,73 @@
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+
+# Build outputs
+dist/
+build/
+out/
+.cache/
+*.tsbuildinfo
+
+# Logs
+*.log
+
+# Environment variables
+.env
+.env.local
+
+# Coverage directory
+coverage/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# macOS system files
+**/.DS_Store
+
+# Obsidian workspace files (these change frequently)
+.obsidian/workspace.json
+.obsidian/workspace-mobile.json
+
+# Dev vault data
+.atl_dev/
+
+# Test vault (entire directory - contains large files and test data)
+test-vault/
+test-vault
+
+# Second local test vault
+networking-test-vault/
+
+# Unlicensed raw ambient audio, never commit
+src/app/assets/sounds/
+
+# Local-only data, tooling and non-plugin projects
+/main.js
+data.json
+.env*
+.atlas-data/
+logs/
+benchmarks/
+release/
+atlas-website/
+token-ui-examples/
+party/
+.claude/
+.serena/
+.cursor/
+.mcp.json
+.playwright-mcp/

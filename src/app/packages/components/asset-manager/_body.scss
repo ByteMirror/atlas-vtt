@@ -1,0 +1,125 @@
+@use '../../../../../styles/tokens' as *;
+@use '../../../../../styles/mixins' as *;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Asset Manager – Body, content area, section headers, empty state
+// ═══════════════════════════════════════════════════════════════════════════
+
+.atlas-asset-manager-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+  z-index: 1;
+  min-height: 0;
+  transition: background-color $transition-fast $transition-ease;
+
+  &.atlas-drag-over {
+    background-color: color-mix(in oklch, var(--interactive-accent) 5%, transparent);
+  }
+}
+
+.atlas-asset-manager-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+}
+
+.atlas-asset-manager-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: $spacing-l;
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-l;
+  min-height: 0;
+  pointer-events: auto;
+
+  &.atlas-asset-manager-empty {
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+.atlas-content-section {
+  @include atlas-flex-col($gap: $spacing-m);
+}
+
+// ── Section headers ─────────────────────────────────────────────────────────
+
+.atlas-section-header {
+  @include atlas-flex-row($gap: $spacing-xs);
+  height: 24px;
+  margin: 0 (-$spacing-xs);
+  padding: 0 $spacing-xs;
+  border-radius: $radius-s;
+  cursor: pointer;
+  user-select: none;
+  color: var(--text-muted);
+  transition: background-color $transition-fast $transition-ease, color $transition-fast $transition-ease;
+
+  &:hover {
+    color: var(--text-normal);
+  }
+
+  h3 {
+    margin: 0;
+    font-size: $font-ui-small;
+    font-weight: $font-weight-medium;
+    color: inherit;
+  }
+
+  .atlas-section-count {
+    font-size: $font-ui-smaller;
+    color: var(--text-faint);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .atlas-chevron {
+    width: $icon-xs;
+    height: $icon-xs;
+    color: var(--text-faint);
+    transition: transform $transition-fast $transition-ease;
+
+    &.atlas-collapsed {
+      transform: rotate(-90deg);
+    }
+  }
+}
+
+// ── Empty state ─────────────────────────────────────────────────────────────
+
+.atlas-empty-state {
+  @include atlas-flex-col($gap: $spacing-s);
+  align-items: center;
+  text-align: center;
+  max-width: 320px;
+  pointer-events: none;
+
+  .atlas-empty-icon {
+    width: 40px;
+    height: 40px;
+    color: var(--text-faint);
+    margin-bottom: $spacing-xs;
+  }
+
+  h3 {
+    margin: 0;
+    font-size: $font-ui-medium;
+    font-weight: $font-weight-semibold;
+    color: var(--text-normal);
+  }
+
+  p {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: $font-ui-small;
+    line-height: var(--line-height-normal);
+  }
+}

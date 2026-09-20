@@ -1,0 +1,42 @@
+// Mounted on document.body, so the backdrop itself carries .atlas-vtt-plugin.
+&.atlas-text-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: $z-modal;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--background-modifier-cover);
+}
+
+.atlas-text-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-m;
+  min-width: 300px;
+  padding: $spacing-m;
+  border-radius: $radius-xl;
+  background: var(--background-primary);
+  @include atlas-elevated-surface;
+
+  &--confirm {
+    max-width: 420px;
+  }
+
+  &__title,
+  &__message {
+    margin: 0;
+  }
+
+  &__input {
+    width: 100%;
+    min-height: 60px;
+    resize: vertical;
+  }
+
+  &__actions {
+    display: flex;
+    gap: $spacing-m;
+    justify-content: flex-end;
+  }
+}

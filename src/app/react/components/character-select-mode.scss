@@ -1,0 +1,260 @@
+@use '../../../../styles/tokens' as *;
+
+.atlas-character-select {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-l;
+}
+
+.atlas-character-select__header {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-xs;
+}
+
+.atlas-character-select__title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 650;
+  color: var(--text-normal);
+}
+
+.atlas-character-select__subtitle {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.86rem;
+  line-height: 1.4;
+}
+
+.atlas-character-select__picker {
+  position: relative;
+}
+
+.atlas-character-select__trigger {
+  width: 100%;
+  min-height: $input-height-l;
+  padding: $spacing-m;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: $spacing-m;
+  border: $border-width-s solid color-mix(in oklch, var(--mono-100) $border-opacity-default, transparent);
+  border-radius: $radius-l;
+  background: var(--background-primary);
+  color: var(--text-normal);
+  cursor: pointer;
+  transition: all $transition-fast $transition-ease;
+
+  &:hover:enabled {
+    background: var(--background-modifier-hover);
+    border-color: color-mix(in srgb, var(--interactive-accent) 55%, transparent);
+  }
+
+  &:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+
+  &.is-open {
+    border-color: var(--interactive-accent);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--interactive-accent) 25%, transparent);
+  }
+}
+
+.atlas-character-select__trigger-left {
+  display: inline-flex;
+  align-items: center;
+  gap: $spacing-s;
+  min-width: 0;
+  color: var(--text-muted);
+}
+
+.atlas-character-select__trigger-text {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-muted);
+
+  &.is-selected {
+    color: var(--text-normal);
+  }
+}
+
+.atlas-character-select__trigger-chevron {
+  color: var(--text-muted);
+  transition: transform $transition-fast $transition-ease;
+
+  &.is-open {
+    transform: rotate(180deg);
+  }
+}
+
+.atlas-character-select__dropdown {
+  position: absolute;
+  top: calc(100% + #{$spacing-xs});
+  left: 0;
+  right: 0;
+  z-index: $z-atlas-dropdown;
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-s;
+  padding: $spacing-s;
+  border: $border-width-m solid color-mix(in oklch, var(--mono-100) $border-opacity-default, transparent);
+  border-radius: $radius-xl;
+  background: var(--background-primary);
+  box-shadow: $shadow-elevated;
+}
+
+.atlas-character-select__search-row {
+  display: flex;
+  align-items: center;
+  gap: $spacing-s;
+  padding: $spacing-s $spacing-m;
+  border-radius: $radius-l;
+  background: var(--background-secondary);
+  color: var(--text-muted);
+}
+
+.atlas-character-select__search-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--text-normal);
+  font-size: 0.84rem;
+
+  &::placeholder {
+    color: var(--text-faint);
+  }
+}
+
+.atlas-character-select__list {
+  max-height: 220px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-xs;
+}
+
+.atlas-character-select__empty {
+  margin: 0;
+  padding: $spacing-m;
+  border-radius: $radius-l;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  background: var(--background-secondary);
+}
+
+.atlas-character-select__option {
+  width: 100%;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-xs;
+  padding: $spacing-s $spacing-m;
+  border: $border-width-s solid transparent;
+  border-radius: $radius-l;
+  background: transparent;
+  color: var(--text-normal);
+  cursor: pointer;
+  transition: all $transition-fast $transition-ease;
+
+  &:hover {
+    background: var(--background-modifier-hover);
+    border-color: color-mix(in oklch, var(--mono-100) $border-opacity-subtle, transparent);
+  }
+
+  &.is-selected {
+    border-color: var(--interactive-accent);
+    background: color-mix(in srgb, var(--background-secondary) 72%, var(--interactive-accent) 28%);
+  }
+}
+
+.atlas-character-select__option-name {
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--text-normal);
+}
+
+.atlas-character-select__option-meta {
+  font-size: 0.77rem;
+  color: var(--text-muted);
+}
+
+.atlas-character-select__create-button {
+  width: 100%;
+  height: $button-height-m;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: $spacing-xs;
+  border: $border-width-s dashed color-mix(in oklch, var(--mono-100) $border-opacity-default, transparent);
+  border-radius: $radius-l;
+  background: var(--background-secondary);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all $transition-fast $transition-ease;
+
+  &:hover {
+    color: var(--text-normal);
+    border-color: color-mix(in srgb, var(--interactive-accent) 55%, transparent);
+    background: var(--background-modifier-hover);
+  }
+}
+
+.atlas-character-select__preview {
+  padding: $spacing-m;
+  border-radius: $radius-l;
+  border: $border-width-s solid color-mix(in oklch, var(--mono-100) $border-opacity-default, transparent);
+  background: color-mix(in srgb, var(--background-secondary) 84%, var(--interactive-accent) 16%);
+
+  h4 {
+    margin: 0 0 $spacing-xs 0;
+    font-size: 0.92rem;
+    color: var(--text-normal);
+  }
+
+  p {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+  }
+}
+
+.atlas-character-select__status {
+  padding: $spacing-s $spacing-m;
+  border-radius: $radius-l;
+  border: $border-width-s solid color-mix(in oklch, var(--mono-100) $border-opacity-subtle, transparent);
+  background: var(--background-secondary);
+  color: var(--text-normal);
+  font-size: 0.83rem;
+}
+
+.atlas-character-select__actions {
+  display: flex;
+  gap: $spacing-s;
+}
+
+.atlas-character-select__action-btn {
+  flex: 1;
+  min-width: 0;
+}
+
+.atlas-character-select__action-btn--back {
+  flex: 0 0 auto;
+  min-width: 96px;
+}
+
+@media (max-width: $breakpoint-s) {
+  .atlas-character-select__actions {
+    flex-direction: column;
+  }
+
+  .atlas-character-select__action-btn--back {
+    width: 100%;
+  }
+}
+

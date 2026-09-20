@@ -1,0 +1,53 @@
+@use '../../../../../styles/tokens' as *;
+@use '../../../../../styles/mixins' as *;
+
+// Floating CMD+hover statblock preview. Shared by the React hover preview
+// (initiative tracker) and the imperative token preview window so the two can
+// never drift apart.
+
+/// Fixed-position box that hugs the statblock card. The padding leaves room for
+/// the card's shadow; vertical scrolling is switched on from JS only when the
+/// card is taller than the viewport, so the shadow survives otherwise.
+@mixin atlas-statblock-preview-surface {
+  position: fixed;
+  width: max-content;
+  max-width: min(480px, calc(100vw - #{$spacing-s}));
+  padding: $spacing-s;
+  overflow: visible;
+  box-sizing: border-box;
+  pointer-events: auto;
+  animation: atlas-statblock-preview-in $transition-normal $transition-ease-out;
+  transform-origin: right center;
+  @include atlas-scrollbar;
+
+  @media (min-width: 1600px) {
+    max-width: min(540px, calc(100vw - #{$spacing-s}));
+  }
+}
+
+/// Exit animation; its duration matches the 150ms teardown delay in JS.
+@mixin atlas-statblock-preview-closing {
+  animation: atlas-statblock-preview-out 150ms $transition-ease-out forwards;
+}
+
+@keyframes atlas-statblock-preview-in {
+  from {
+    opacity: 0;
+    transform: translateX(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes atlas-statblock-preview-out {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0;
+    transform: translateX(8px) scale(0.98);
+  }
+}

@@ -1,0 +1,127 @@
+import React, { useState, useRef, useEffect } from 'react';
+import { CloseButton } from './CloseButton';
+import { Button } from './button';
+
+interface InputModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  title: string;
+  placeholder?: string | undefined;
+  defaultValue?: string | undefined;
+  onConfirm: (value: string) => void;
+  validation?: ((value: string) => string | null) | undefined;
+}
+
+const InputModal: React.FC<InputModalProps> = ({
+  isOpen,
+  onClose,
+  title,
+  placeholder = '',
+  defaultValue = '',
+  onConfirm,
+  validation
+}) => {
+  const [value, setValue] = useState(defaultValue);
+  const [error, setError] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      setValue(defaultValue);
+      setError(null);
+      // Focus and select all text when modal opens
+      window.setTimeout(() => {
+        if (inputRef.current) {
+          inputRef.current.focus();
+          inputRef.current.select();
+        }
+      }, 50);
+    }
+  }, [isOpen, defaultValue]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!isOpen) return;
+      
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        handleCancel();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen]);
+
+  const handleCancel = () => {
+    setValue('');
+    setError(null);
+    onClose();
+  };
+
+  const handleConfirm = () => {
+    const trimmedValue = value.trim();
+    
+    if (!trimmedValue) {
+      setError('Value cannot be empty');
+      return;
+    }
+
+    if (validation) {
+      const validationError = validation(trimmedValue);
+      if (validationError) {
+        setError(validationError);
+        return;
+      }
+    }
+
+    onConfirm(trimmedValue);
+    setValue('');
+    setError(null);
+    onClose();
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleConfirm();
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="atlas-modal-overlay" onClick={handleCancel}>
+      <div className="atlas-modal atlas-input-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="atlas-modal-header">
+          <h3>{title}</h3>
+          <CloseButton onClick={handleCancel} />
+        </div>
+        
+        <div className="atlas-modal-body">
+          <input
+            ref={inputRef}
+            type="text"
+            value={value}
+            onChange={(e) => {
+              setValue(e.target.value);
+              setError(null);
+            }}
+            onKeyDown={handleKeyDown}
+            placeholder={placeholder}
+            className="atlas-input"
+          />
+          {error && <div className="atlas-input-error">{error}</div>}
+        </div>
+
+        <div className="atlas-modal-footer">
+          <Button variant="outline" size="sm" onClick={handleCancel}>Cancel</Button>
+          <Button variant="default" size="sm" onClick={handleConfirm}>Confirm</Button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default InputModal;

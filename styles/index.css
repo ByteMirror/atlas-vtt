@@ -1,0 +1,73 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/**
+ * shadcn/ui CSS Variable Bridge for Obsidian
+ *
+ * This maps shadcn's expected CSS variables to Obsidian's native theme variables.
+ * shadcn components will automatically inherit Obsidian's theme without modification.
+ */
+@layer base {
+  :root {
+    /* Core shadcn variables mapped to Obsidian equivalents */
+    --background: var(--background-primary);
+    --foreground: var(--text-normal);
+
+    --card: var(--background-secondary);
+    --card-foreground: var(--text-normal);
+
+    --popover: var(--background-primary);
+    --popover-foreground: var(--text-normal);
+
+    --primary: var(--interactive-accent);
+    --primary-foreground: var(--text-on-accent);
+
+    --secondary: var(--background-secondary);
+    --secondary-foreground: var(--text-normal);
+
+    --muted: var(--background-secondary);
+    --muted-foreground: var(--text-muted);
+
+    --accent: var(--background-modifier-hover);
+    --accent-foreground: var(--text-normal);
+
+    /* Destructive - official shadcn OKLCH values */
+    --destructive: oklch(0.577 0.245 27.325);
+    --destructive-foreground: oklch(0.985 0 0);
+
+    --border: var(--background-modifier-border);
+    --input: var(--background-modifier-border);
+    --ring: var(--interactive-accent);
+
+    /* Radius - use Obsidian's radius tokens */
+    --radius: var(--radius-m);
+
+    /* Chart colors for data visualization */
+    --chart-1: var(--color-blue);
+    --chart-2: var(--color-green);
+    --chart-3: var(--color-orange);
+    --chart-4: var(--color-purple);
+    --chart-5: var(--color-pink);
+  }
+
+  /* Dark mode - official shadcn OKLCH values */
+  .theme-dark {
+    --destructive: oklch(0.704 0.191 22.216);
+    --destructive-foreground: oklch(0.985 0 0);
+  }
+}
+
+/* Scope all Atlas VTT styles under the plugin root class */
+@layer components {
+  .atlas-vtt-plugin {
+    /* Reset box-sizing for all elements within Atlas VTT */
+    & *,
+    & *::before,
+    & *::after {
+      box-sizing: border-box;
+    }
+
+    /* .atlas-vtt-toolbar styles moved to main.scss for design token consistency */
+  }
+}

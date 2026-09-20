@@ -1,0 +1,16 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// Asset Manager – Barrel File
+// ═══════════════════════════════════════════════════════════════════════════
+// Each partial imports its own tokens/mixins via @use.
+// Order matters: container first (layout shell), then UI regions.
+
+@use 'container';
+@use 'modals-tags';
+@use 'header';
+@use 'body';
+@use 'sidebar';
+@use 'sidebar-tags';
+@use 'collections';
+@use 'grid-and-folders';
+@use 'asset-cards';
+@use 'modals';

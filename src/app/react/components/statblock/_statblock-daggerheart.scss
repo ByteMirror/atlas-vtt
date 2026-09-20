@@ -1,0 +1,26 @@
+@use '../../../../../styles/tokens' as *;
+@use 'statblock-mixins' as *;
+
+// Refinements keyed on the `cls` hooks Fantasy Statblocks' built-in
+// "Daggerheart Adversary" layout assigns. Everything else in that layout is
+// covered by the generic block styles.
+.atlas-statblock[data-layout='daggerheart-adversary'] {
+  // "Tier 1 Solo" is an eyebrow under the name, not a stat line.
+  .atlas-sb-item[data-cls~='daggerheart-adversary-tier'] {
+    margin-top: $spacing-xs;
+
+    .atlas-sb-property {
+      @include atlas-sb-label;
+    }
+
+    .atlas-sb-property-name {
+      margin-right: 0.3em;
+    }
+  }
+
+  .atlas-sb-item[data-cls~='daggerheart-adversary-description'] {
+    margin-top: $spacing-s;
+    color: var(--text-muted);
+    font-style: italic;
+  }
+}

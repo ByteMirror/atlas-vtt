@@ -1,0 +1,100 @@
+@use '../../../../../styles/tokens' as *;
+@use '../../../../../styles/mixins' as *;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Asset Manager – Asset grid, folder rows, drag & drop
+// ═══════════════════════════════════════════════════════════════════════════
+
+.atlas-asset-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+  gap: $spacing-s;
+}
+
+// Folders are compact rows so they do not compete with artwork.
+.atlas-folder-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: $spacing-s;
+}
+
+// ── Folder row ──────────────────────────────────────────────────────────────
+
+.atlas-folder-grid-item {
+  position: relative;
+  @include atlas-flex-row($gap: $spacing-s);
+  height: 40px;
+  padding: 0 $spacing-m 0 $spacing-s;
+  border-radius: $radius-m;
+  background: var(--background-secondary);
+  color: var(--text-normal);
+  cursor: pointer;
+  outline: none;
+  transition: background-color $transition-fast $transition-ease,
+              box-shadow $transition-fast $transition-ease,
+              transform $transition-press $transition-ease-out;
+
+  &:hover {
+    background: var(--background-modifier-hover);
+
+    .atlas-folder-icon {
+      color: var(--text-normal);
+    }
+  }
+
+  &:active {
+    background: var(--background-modifier-active-hover);
+    transform: scale(0.98);
+  }
+
+  &:focus-visible {
+    box-shadow: 0 0 0 2px var(--background-modifier-border-focus);
+  }
+
+  &.atlas-selected {
+    background: color-mix(in oklch, var(--interactive-accent) 14%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--interactive-accent) 45%, transparent);
+
+    .atlas-folder-icon {
+      color: var(--text-accent);
+    }
+  }
+
+  .atlas-folder-icon {
+    width: $icon-s;
+    height: $icon-s;
+    color: var(--text-muted);
+    flex-shrink: 0;
+    transition: color $transition-fast $transition-ease;
+  }
+
+  .atlas-folder-name {
+    flex: 1;
+    min-width: 0;
+    font-size: $font-ui-small;
+    font-weight: $font-weight-medium;
+    @include atlas-truncate;
+  }
+
+  // Folders select by click, so the checkbox is not needed here.
+  .atlas-asset-card-checkbox {
+    display: none;
+  }
+}
+
+// ── Drag and drop ───────────────────────────────────────────────────────────
+
+.atlas-asset-card.atlas-dragging,
+.atlas-folder-grid-item.atlas-dragging {
+  opacity: 0.4;
+  cursor: grabbing;
+}
+
+.atlas-folder-grid-item.atlas-drop-target {
+  background: color-mix(in oklch, var(--interactive-accent) 12%, transparent);
+  box-shadow: inset 0 0 0 1.5px var(--interactive-accent);
+
+  .atlas-folder-icon {
+    color: var(--text-accent);
+  }
+}

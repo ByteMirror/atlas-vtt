@@ -1,0 +1,340 @@
+// Dice Roll Log — left-side chat-style panel
+// Mirrors initiative tracker positioning (right side → left side)
+@use '../../../../../styles/tokens' as *;
+@use '../../../../../styles/mixins' as *;
+
+$log-width: 360px;
+
+// ── Panel ────────────────────────────────────────────────────────────────────
+.dice-roll-log {
+  position: fixed;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 80vh;
+  width: $log-width;
+  display: flex;
+  flex-direction: column;
+  padding: $spacing-s;
+  gap: $spacing-s;
+  z-index: $z-dropdown;
+  font-family: var(--font-interface);
+  pointer-events: auto;
+
+  @include atlas-elevated-surface;
+
+  animation: dice-log-slide-in 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes dice-log-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(-50%) translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(-50%) translateX(0);
+  }
+}
+
+// ── Header ───────────────────────────────────────────────────────────────────
+.dice-roll-log__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: $spacing-s;
+  flex-shrink: 0;
+}
+
+.dice-roll-log__title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  padding-left: $spacing-xs;
+}
+
+.dice-roll-log__actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.dice-roll-log__action-btn {
+  width: $button-height-s !important;
+  height: $button-height-s !important;
+
+  svg {
+    width: $icon-xs !important;
+    height: $icon-xs !important;
+  }
+
+  &--active {
+    color: var(--interactive-accent) !important;
+  }
+}
+
+// ── Scrollable List ──────────────────────────────────────────────────────────
+.dice-roll-log__list {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-s;
+  overflow-y: auto;
+  overflow-x: hidden;
+  flex: 1;
+  min-height: 0;
+
+  // Hidden scrollbar (still scrollable)
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+// ── Empty State ──────────────────────────────────────────────────────────────
+.dice-roll-log__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: $spacing-s;
+  padding: $spacing-s;
+  flex: 1;
+  color: var(--text-faint);
+  font-size: 13px;
+}
+
+.dice-roll-log__empty-icon {
+  width: $icon-l;
+  height: $icon-l;
+  opacity: 0.4;
+}
+
+// ── Roll Entry Card ──────────────────────────────────────────────────────────
+.dice-log-entry {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-xs;
+  padding: $spacing-s;
+  background: var(--background-modifier-hover);
+  border: $border-width-s solid color-mix(in oklch, var(--mono-100) $border-opacity-subtle, transparent);
+  border-radius: $radius-l;
+  cursor: pointer;
+  transition: background $transition-fast $transition-ease,
+              border-color $transition-fast $transition-ease;
+
+  &:hover {
+    background: var(--background-modifier-active-hover);
+  }
+
+  // Chat-style: avatar left, content right
+  &--has-avatar {
+    flex-direction: row;
+    gap: $spacing-s;
+  }
+
+  &--new {
+    animation: dice-entry-slide-in 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  &--crit-success {
+    border-color: color-mix(in oklch, var(--color-green) 40%, transparent);
+    background: linear-gradient(
+      135deg,
+      color-mix(in oklch, var(--color-green) 8%, transparent) 0%,
+      var(--background-modifier-hover) 100%
+    );
+  }
+
+  &--crit-fail {
+    border-color: color-mix(in oklch, var(--color-red) 40%, transparent);
+    background: linear-gradient(
+      135deg,
+      color-mix(in oklch, var(--color-red) 8%, transparent) 0%,
+      var(--background-modifier-hover) 100%
+    );
+  }
+}
+
+@keyframes dice-entry-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(-12px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+// Chat-style avatar (left column, top-aligned)
+.dice-log-entry__avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+
+  &--fallback {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--interactive-accent);
+    color: var(--text-on-accent);
+    font-weight: 600;
+    font-size: 18px;
+    user-select: none;
+  }
+}
+
+// Content column (right of avatar)
+.dice-log-entry__body {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-xs;
+  flex: 1;
+  min-width: 0;
+}
+
+.dice-log-entry__token-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-normal);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1;
+}
+
+.dice-log-entry__ability-name {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+// Summary row: formula = total
+.dice-log-entry__summary {
+  display: flex;
+  align-items: center;
+  gap: $spacing-xs;
+}
+
+.dice-log-entry__formula {
+  font-family: var(--font-monospace);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.dice-log-entry__time {
+  position: absolute;
+  top: $spacing-s;
+  right: $spacing-s;
+  font-size: 10px;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+// ── Footer: callout + reroll on same row ────────────────────────────────────
+.dice-log-entry__footer {
+  display: flex;
+  align-items: center;
+  gap: $spacing-s;
+}
+
+.dice-log-entry__callout {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: $spacing-xs;
+}
+
+.dice-log-entry__callout-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-faint);
+}
+
+.dice-log-entry__chevron {
+  width: $icon-xs;
+  height: $icon-xs;
+  flex-shrink: 0;
+  color: var(--text-faint);
+  transition: transform $transition-fast $transition-ease;
+
+  &--open {
+    transform: rotate(180deg);
+  }
+}
+
+// Individual dice results (inside callout)
+.dice-log-entry__details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-xs;
+}
+
+.dice-log-entry__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 22px;
+  padding: 0 $spacing-xs;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: var(--font-monospace);
+  border-radius: $radius-s;
+  background: var(--background-secondary);
+  color: var(--text-normal);
+
+  &--max {
+    background: color-mix(in oklch, var(--color-green) 15%, transparent);
+    color: var(--color-green);
+  }
+
+  &--min {
+    background: color-mix(in oklch, var(--color-red) 15%, transparent);
+    color: var(--color-red);
+  }
+}
+
+.dice-log-entry__eq {
+  font-size: 12px;
+  font-weight: 500;
+  font-family: var(--font-monospace);
+  color: var(--text-faint);
+}
+
+.dice-log-entry__total {
+  font-size: 16px;
+  font-weight: 700;
+  font-family: var(--font-monospace);
+  color: var(--interactive-accent);
+  line-height: 1;
+}
+
+// Reroll button — hidden by default, visible on entry hover
+.dice-log-entry__repeat {
+  margin-left: auto;
+  flex-shrink: 0;
+  width: $button-height-s !important;
+  height: $button-height-s !important;
+  opacity: 0;
+  transition: opacity $transition-fast $transition-ease;
+
+  svg {
+    width: $icon-xs !important;
+    height: $icon-xs !important;
+  }
+}
+
+.dice-log-entry:hover .dice-log-entry__repeat {
+  opacity: 1;
+}

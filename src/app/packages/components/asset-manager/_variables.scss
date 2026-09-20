@@ -1,0 +1,21 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// Asset Manager – Local Variables
+// ═══════════════════════════════════════════════════════════════════════════
+
+@use '../../../../../styles/tokens' as *;
+
+$sidebar-width: 240px;
+$sidebar-collapsed-width: 8px;
+$sidebar-hover-animation: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+$sidebar-content-fade: 100ms ease-in-out;
+
+/// Height of every control in the toolbar (buttons, search, sort). Matches Obsidian inputs.
+$control-height: var(--input-height);
+
+/// The window frame radius, published as a custom property so corner controls
+/// can derive concentric radii and follow the responsive reset to square.
+$window-radius: var(--atlas-am-window-radius);
+
+/// Distance from the window's outer edge to the controls sitting in its
+/// corners: the frame border plus the header / sidebar padding.
+$window-corner-inset: calc(#{$border-width-m} + #{$spacing-m});

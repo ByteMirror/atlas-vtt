@@ -1,0 +1,54 @@
+name: Plugin CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  build-plugin:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Test
+        run: npx vitest run
+
+      # Keep the existing typing backlog visible while typecheck/tests gate CI.
+      - name: ESLint report (advisory)
+        continue-on-error: true
+        run: npm run lint -- --format json --output-file eslint-report.json
+
+      - name: Upload ESLint report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eslint-report
+          path: eslint-report.json
+          if-no-files-found: warn
+
+      - name: Build plugin
+        run: npm run build
+
+      - name: Preflight (community directory review checks)
+        run: npm run preflight
+
+      - name: Validate release assets
+        run: npm run release:validate

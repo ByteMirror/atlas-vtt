@@ -1,0 +1,251 @@
+@use '../../../../../../styles/tokens' as *;
+@use '../../../../../../styles/mixins' as *;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Token Creator – Settings rail
+// ═══════════════════════════════════════════════════════════════════════════
+
+.atlas-token-creator__rail {
+  grid-column: 1;
+  grid-row: 1 / -1;
+  @include atlas-flex-col($gap: $spacing-l);
+  padding: $spacing-l;
+  background: var(--background-secondary);
+  border-right: $border-width-s solid var(--divider-color);
+  overflow-y: auto;
+  min-height: 0;
+  @include atlas-scrollbar;
+}
+
+.atlas-token-creator__section {
+  @include atlas-flex-col($gap: $spacing-s);
+  flex-shrink: 0;
+}
+
+.atlas-token-creator__section-title {
+  @include atlas-flex-row($gap: $spacing-s);
+  justify-content: space-between;
+  height: 24px;
+  font-size: $font-ui-small;
+  font-weight: $font-weight-medium;
+  color: var(--text-muted);
+}
+
+.atlas-token-creator__count {
+  margin-left: $spacing-xs;
+  font-size: $font-ui-smaller;
+  font-weight: $font-weight-normal;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.atlas-token-creator__divider {
+  height: 1px;
+  background: var(--divider-color);
+  flex-shrink: 0;
+}
+
+// ── Drop zone ───────────────────────────────────────────────────────────────
+
+.atlas-token-creator__dropzone {
+  @include atlas-flex-col($gap: $spacing-xs);
+  align-items: center;
+  justify-content: center;
+  padding: $spacing-xl $spacing-l;
+  border: $border-width-m dashed var(--background-modifier-border);
+  border-radius: $radius-l;
+  background: var(--background-primary);
+  text-align: center;
+  cursor: pointer;
+  outline: none;
+  transition: border-color $transition-fast $transition-ease,
+              background-color $transition-fast $transition-ease,
+              transform $transition-press $transition-ease-out;
+
+  &:hover,
+  &:focus-visible {
+    border-color: var(--background-modifier-border-hover);
+  }
+
+  &:active {
+    transform: scale(0.99);
+  }
+
+  &.atlas-dragging {
+    border-color: var(--interactive-accent);
+    background: color-mix(in oklch, var(--interactive-accent) 8%, transparent);
+
+    .atlas-token-creator__dropzone-icon {
+      transform: translateY(-2px);
+    }
+  }
+
+  .atlas-token-creator__dropzone-icon {
+    width: 40px;
+    height: 40px;
+    margin-bottom: $spacing-xs;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: color-mix(in oklch, var(--interactive-accent) 14%, transparent);
+    color: var(--text-accent);
+    transition: transform $transition-normal $transition-ease-out;
+
+    svg {
+      width: $icon-m;
+      height: $icon-m;
+    }
+  }
+
+  .atlas-token-creator__dropzone-title {
+    font-size: $font-ui-small;
+    font-weight: $font-weight-medium;
+    color: var(--text-normal);
+  }
+
+  .atlas-token-creator__dropzone-hint {
+    font-size: $font-ui-smaller;
+    color: var(--text-muted);
+  }
+
+  .atlas-token-creator__dropzone-formats {
+    margin-top: $spacing-xs;
+    font-size: $font-ui-smaller;
+    letter-spacing: 0.02em;
+    color: var(--text-faint);
+  }
+
+  input[type='file'] {
+    display: none;
+  }
+}
+
+// ── Rows ────────────────────────────────────────────────────────────────────
+
+.atlas-token-creator__row {
+  @include atlas-flex-row($gap: $spacing-s);
+
+  > .btn {
+    flex: 1;
+    min-width: 0;
+    padding: 0 $spacing-s;
+  }
+}
+
+.atlas-token-creator__danger.btn {
+  color: var(--text-error);
+
+  &:hover:not(:disabled) {
+    background: color-mix(in oklch, var(--color-red) 12%, transparent);
+    border-color: color-mix(in oklch, var(--color-red) 30%, transparent);
+    color: var(--text-error);
+  }
+}
+
+.atlas-token-creator__label-row {
+  @include atlas-flex-row($gap: $spacing-s);
+  justify-content: space-between;
+  font-size: $font-ui-smaller;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.atlas-token-creator__slider-row {
+  @include atlas-flex-row($gap: $spacing-s);
+
+  .slider-root {
+    flex: 1;
+    min-width: 0;
+  }
+}
+
+// ── Tags ────────────────────────────────────────────────────────────────────
+
+.atlas-token-creator__search {
+  @include atlas-flex-row($gap: $spacing-xs);
+  height: var(--input-height);
+  padding: 0 $spacing-xs 0 $spacing-s;
+  background: var(--background-modifier-form-field);
+  border: $border-width-s solid var(--background-modifier-border);
+  border-radius: $radius-m;
+
+  &:focus-within {
+    border-color: var(--background-modifier-border-focus);
+  }
+
+  > svg {
+    width: $icon-xs;
+    height: $icon-xs;
+    color: var(--text-faint);
+    flex-shrink: 0;
+  }
+
+  input {
+    flex: 1;
+    min-width: 0;
+    height: 100%;
+    padding: 0;
+    background: transparent !important;
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+    color: var(--text-normal);
+    font-size: $font-ui-small;
+
+    &::placeholder {
+      color: var(--text-faint);
+    }
+  }
+}
+
+.atlas-token-creator__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-xs;
+}
+
+.atlas-token-creator__chip {
+  appearance: none;
+  border: none !important;
+  box-shadow: none !important;
+  outline: none;
+  @include atlas-flex-row($gap: $spacing-xs);
+  height: 26px;
+  padding: 0 $spacing-s;
+  border-radius: $radius-full;
+  background: var(--background-primary) !important;
+  color: var(--text-muted);
+  font-size: $font-ui-smaller;
+  font-weight: $font-weight-medium;
+  cursor: pointer;
+  transition: background-color $transition-fast $transition-ease,
+              color $transition-fast $transition-ease,
+              transform $transition-press $transition-ease-out;
+
+  svg {
+    width: $icon-xs;
+    height: $icon-xs;
+    flex-shrink: 0;
+  }
+
+  &:hover {
+    background: var(--background-modifier-hover) !important;
+    color: var(--text-normal);
+  }
+
+  &:active {
+    transform: scale(0.96);
+  }
+
+  &.atlas-selected {
+    background: color-mix(in oklch, var(--interactive-accent) 16%, transparent) !important;
+    color: var(--text-accent);
+  }
+}
+
+.atlas-token-creator__empty-note {
+  font-size: $font-ui-smaller;
+  line-height: var(--line-height-normal);
+  color: var(--text-faint);
+}

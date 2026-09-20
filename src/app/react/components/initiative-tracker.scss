@@ -1,0 +1,361 @@
+// Initiative Tracker - Modern Minimal Design
+// Compact vertical cards: avatar, initiative number, HP bar
+// Panel background matches toolbar styling (atlas-elevated-surface)
+@use '../../../../styles/tokens' as *;
+@use '../../../../styles/mixins' as *;
+
+$tracker-width: 96px;
+
+.initiative-tracker {
+  position: fixed;
+  top: 50%;
+  right: 12px;
+  transform: translateY(-50%);
+  width: $tracker-width;
+  max-height: calc(100vh - 100px);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  padding: 8px;
+  z-index: 50;
+  font-family: var(--font-interface);
+  pointer-events: auto;
+  box-sizing: border-box;
+
+  // Panel background — matches toolbar
+  @include atlas-elevated-surface;
+
+  overflow: hidden;
+}
+
+// Controls — fills panel width, buttons sized to fit
+.initiative-tracker__controls,
+.initiative-tracker__turn-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.initiative-tracker__round {
+  flex: 1;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+  text-align: center;
+  min-width: 0;
+}
+
+.initiative-tracker__btn {
+  flex: 1;
+  height: 36px;
+  padding: 0;
+  border-radius: 8px;
+  transition: all 0.15s ease;
+
+  &:disabled {
+    opacity: 0.4;
+    pointer-events: none;
+  }
+
+  &--end {
+    color: var(--color-red);
+  }
+
+  // Pressed state for hotkey visual feedback
+  &--pressed {
+    transform: scale(0.9);
+    background: var(--interactive-accent);
+    color: var(--text-on-accent);
+  }
+
+  svg {
+    width: 16px;
+    height: 16px;
+  }
+}
+
+// Content area — scrollable, hidden scrollbar
+.initiative-tracker__content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+// Initiative Card — inner element on panel background
+.initiative-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  width: 100%;
+  background: var(--background-modifier-hover);
+  border: 1.5px solid color-mix(in oklch, var(--mono-100) 6%, transparent);
+  border-radius: 8px;
+  cursor: grab;
+  transition: all 0.2s ease;
+  position: relative;
+  box-sizing: border-box;
+
+  &:hover {
+    background: var(--background-modifier-active-hover);
+    border-color: color-mix(in oklch, var(--mono-100) 12%, transparent);
+  }
+
+  &:active {
+    cursor: grabbing;
+    transform: scale(0.96);
+  }
+
+  // Active turn state
+  // Ring and glow are inset: the list scrolls, so anything drawn outside the
+  // card box is clipped on the straight edges and leaves ragged corners.
+  &--active {
+    border-color: var(--interactive-accent);
+    box-shadow:
+      inset 0 0 0 1px var(--interactive-accent),
+      inset 0 0 12px color-mix(in oklch, var(--interactive-accent) 25%, transparent);
+    animation: initiative-pulse 2s ease-in-out infinite;
+  }
+
+  // Defeated state
+  &--defeated {
+    opacity: 0.45;
+    filter: grayscale(70%);
+  }
+
+  // Preview hover state — subtle highlight (different from active turn)
+  &--preview-hover {
+    background: var(--background-modifier-active-hover);
+    border-color: color-mix(in oklch, var(--mono-100) 15%, transparent);
+  }
+
+  // Drop indicators
+  &--drop-above::before,
+  &--drop-below::after {
+    content: '';
+    position: absolute;
+    left: 8px;
+    right: 8px;
+    height: 2px;
+    background: var(--interactive-accent);
+    border-radius: 1px;
+    box-shadow: 0 0 8px var(--interactive-accent);
+  }
+
+  &--drop-above::before {
+    top: -3px;
+  }
+
+  &--drop-below::after {
+    bottom: -3px;
+  }
+}
+
+@keyframes initiative-pulse {
+  50% {
+    box-shadow:
+      inset 0 0 0 1px var(--interactive-accent),
+      inset 0 0 16px color-mix(in oklch, var(--interactive-accent) 45%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .initiative-card--active {
+    animation: none;
+  }
+}
+
+// Hide drag handle
+.initiative-card__drag-handle {
+  display: none;
+}
+
+// Avatar wrapper (allows instance badge to overflow the circular clip)
+.initiative-card__avatar-wrapper {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.initiative-card__instance-badge {
+  position: absolute;
+  bottom: -2px;
+  left: -4px;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 9px;
+  background: #000;
+  border: 1.5px solid #555;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  box-sizing: border-box;
+  z-index: 2;
+  pointer-events: none;
+}
+
+// Avatar
+.initiative-card__avatar {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: var(--background-secondary);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  svg {
+    width: 18px;
+    height: 18px;
+    color: var(--text-muted);
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+  }
+}
+
+.initiative-card__defeated-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+  color: var(--text-muted);
+
+  svg {
+    width: 24px;
+    height: 24px;
+  }
+}
+
+// Initiative number
+.initiative-card__initiative {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-normal);
+  line-height: 1;
+}
+
+// HP Bar — full width
+.initiative-card__hp-bar {
+  width: 100%;
+  height: 4px;
+  background: color-mix(in oklch, var(--mono-100) 10%, transparent);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.initiative-card__hp-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+
+  &--healthy {
+    background: var(--color-green);
+  }
+
+  &--injured {
+    background: var(--color-yellow);
+  }
+
+  &--critical {
+    background: var(--color-red);
+  }
+}
+
+// Note: Statblock preview styles are in statblock-hover-preview.scss (shared component)
+
+// Edit Initiative Popup — minimal floating input
+.initiative-edit-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+}
+
+.initiative-edit-popup {
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  animation: initiative-popup-slide-in 0.15s ease-out;
+
+  &__input {
+    width: 80px;
+    background: color-mix(in srgb, var(--background-primary) 95%, transparent);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 2px solid var(--interactive-accent);
+    border-radius: 12px;
+    padding: 10px;
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text-normal);
+    text-align: center;
+    outline: none;
+    box-shadow:
+      0 0 0 4px color-mix(in oklch, var(--interactive-accent) 15%, transparent),
+      0 8px 24px rgba(0, 0, 0, 0.4);
+    transition: all 0.15s ease;
+
+    &:focus {
+      border-color: var(--interactive-accent);
+    }
+
+    // Hide number input spinners
+    &::-webkit-outer-spin-button,
+    &::-webkit-inner-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+    -moz-appearance: textfield;
+  }
+
+  &__hint {
+    font-size: 10px;
+    color: var(--text-muted);
+    background: color-mix(in srgb, var(--background-primary) 80%, transparent);
+    padding: 4px;
+    border-radius: 4px;
+    white-space: nowrap;
+  }
+}
+
+@keyframes initiative-popup-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(10px) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}

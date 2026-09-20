@@ -1,0 +1,285 @@
+@use '../../../../../styles/tokens' as *;
+@use '../../../../../styles/mixins' as *;
+@use 'statblock-mixins' as *;
+@use 'statblock-interactive';
+@use 'statblock-vitals';
+@use 'statblock-daggerheart';
+
+// Atlas-native statblock. Renders Fantasy Statblocks creature data with the
+// app's own surface, type scale and spacing.
+//
+// The DOM carries no Fantasy Statblocks class names: layout, block type and
+// property hooks live in data attributes (`data-layout`, `data-type`,
+// `data-cls`, `data-prop`), so that plugin's stylesheet can never leak in.
+
+$portrait-size: 72px;
+
+.atlas-statblock {
+  @include atlas-elevated-surface;
+  overflow: hidden;
+  color: var(--text-normal);
+  font-family: var(--font-interface);
+  font-size: $font-ui-small;
+  line-height: var(--line-height-normal);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.atlas-statblock-body {
+  // Contains the floated token portrait.
+  display: flow-root;
+  padding: $spacing-l;
+}
+
+// ── Rhythm ──────────────────────────────────────────────────────────────────
+// Top-level blocks are sections and breathe at the card's own padding. Blocks
+// nested inside a section sit closer, consecutive stat lines read as one list,
+// and a block that ends in a rule hands the rule's own distance to the next.
+.atlas-sb-item {
+  min-width: 0;
+
+  // A block that rendered nothing (e.g. an image block without artwork).
+  &:empty,
+  &:has(> .atlas-sb-javascript[hidden]) {
+    display: none;
+  }
+}
+
+.atlas-statblock-body > .atlas-sb-item + .atlas-sb-item {
+  margin-top: $spacing-l;
+}
+
+.atlas-sb-item > .atlas-sb-item + .atlas-sb-item {
+  margin-top: $spacing-s;
+}
+
+.atlas-sb-item:has(> .atlas-sb-rule) + .atlas-sb-item {
+  margin-top: $spacing-m;
+}
+
+.atlas-sb-item[data-type='property'] + .atlas-sb-item[data-type='property'],
+.atlas-sb-item[data-type='property'] + .atlas-sb-item[data-type='saves'],
+.atlas-sb-item[data-type='saves'] + .atlas-sb-item[data-type='property'],
+.atlas-sb-item[data-type='saves'] + .atlas-sb-item[data-type='saves'] {
+  margin-top: 2px;
+}
+
+.atlas-sb-rule {
+  // Rules span the full card, so they start below the token portrait.
+  clear: right;
+  margin-top: $spacing-m;
+  border-bottom: $border-width-s solid var(--background-modifier-border);
+}
+
+// ── Headings ────────────────────────────────────────────────────────────────
+.atlas-sb-heading-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: $spacing-s;
+}
+
+.atlas-sb-heading {
+  margin: 0;
+  color: var(--text-normal);
+  font-family: var(--font-interface);
+  font-size: $font-ui-large;
+  font-weight: $font-weight-bold;
+  line-height: var(--line-height-tight);
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+.atlas-sb-subheading {
+  margin-top: 2px;
+  color: var(--text-muted);
+  font-style: italic;
+  text-wrap: pretty;
+}
+
+.atlas-sb-section-heading {
+  color: var(--text-accent);
+  font-size: $font-ui-smaller;
+  font-weight: $font-weight-semibold;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+
+  .atlas-sb-rule {
+    margin-top: $spacing-xs;
+    border-color: color-mix(in oklch, var(--text-accent) 30%, transparent);
+  }
+}
+
+// ── Properties ──────────────────────────────────────────────────────────────
+.atlas-sb-property {
+  display: block;
+  font-variant-numeric: tabular-nums;
+  text-wrap: pretty;
+}
+
+.atlas-sb-property-name {
+  @include atlas-sb-label;
+  margin-right: $spacing-s;
+}
+
+.atlas-sb-text {
+  white-space: pre-wrap;
+  text-wrap: pretty;
+}
+
+// ── Traits and spells ───────────────────────────────────────────────────────
+.atlas-sb-traits > * + * {
+  margin-top: $spacing-s;
+}
+
+.atlas-sb-trait {
+  min-width: 0;
+  text-wrap: pretty;
+}
+
+.atlas-sb-trait-name {
+  margin-right: $spacing-s;
+  font-weight: $font-weight-semibold;
+}
+
+.atlas-sb-spells {
+  margin: 0;
+  padding-left: 20px;
+  text-wrap: pretty;
+}
+
+.atlas-sb-spell-level {
+  font-weight: $font-weight-semibold;
+}
+
+// ── Layout blocks ───────────────────────────────────────────────────────────
+// Inline blocks put stats side by side. Each property becomes a column with
+// its label above the value, so "Difficulty · Thresholds" reads as a stat
+// strip rather than a wrapped sentence.
+.atlas-sb-inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-l;
+}
+
+.atlas-sb-inline-item {
+  flex: 1 1 120px;
+  min-width: 0;
+
+  .atlas-sb-property {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .atlas-sb-property-name {
+    margin-right: 0;
+  }
+
+  .atlas-sb-property > :not(.atlas-sb-property-name) {
+    font-size: $font-ui-medium;
+    font-weight: $font-weight-semibold;
+    line-height: var(--line-height-tight);
+  }
+}
+
+.atlas-sb-collapse summary {
+  cursor: pointer;
+  color: var(--text-accent);
+  font-weight: $font-weight-semibold;
+}
+
+// ── Table ───────────────────────────────────────────────────────────────────
+.atlas-sb-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+
+  th {
+    @include atlas-sb-label;
+    padding: 2px $spacing-xs;
+  }
+
+  td {
+    padding: 2px $spacing-xs;
+    font-weight: $font-weight-semibold;
+  }
+}
+
+.atlas-sb-modifier {
+  color: var(--text-muted);
+  font-weight: $font-weight-normal;
+}
+
+// ── Image ───────────────────────────────────────────────────────────────────
+.atlas-sb-image {
+  display: flex;
+  justify-content: center;
+
+  img {
+    max-width: 100%;
+    // Inner radius steps down one level from the card's $radius-xl.
+    border-radius: $radius-l;
+    // Inset so the outline never changes the image's layout size.
+    outline: $border-width-s solid color-mix(in oklch, var(--mono-100) 10%, transparent);
+    outline-offset: -1px;
+  }
+}
+
+// The token, floated top right so the heading and intro text wrap around it.
+.atlas-sb-portrait {
+  float: right;
+  width: $portrait-size;
+  margin: 0 0 $spacing-m $spacing-m;
+}
+
+// The image doubles as the control for assigning a token to the statblock.
+.atlas-sb-image-button {
+  padding: 0;
+  border: none;
+  border-radius: $radius-l;
+  background: none;
+  cursor: pointer;
+  line-height: 0;
+  transition: box-shadow $transition-fast $transition-ease,
+              scale $transition-press $transition-ease-out;
+
+  &:hover {
+    box-shadow: 0 0 0 2px var(--interactive-accent);
+  }
+
+  &:active {
+    scale: 0.96;
+  }
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--interactive-accent);
+  }
+}
+
+// Shown when the statblock has no image yet, so there is still a click target.
+.atlas-sb-image-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  // Comfortably above the 40px minimum hit area.
+  min-width: 96px;
+  min-height: 96px;
+  border: $border-width-s dashed var(--background-modifier-border);
+  border-radius: $radius-l;
+  color: var(--text-muted);
+  font-size: $font-ui-smaller;
+  line-height: var(--line-height-normal);
+}
+
+// Shown in place of a statblock when the plugin or creature is unavailable.
+.atlas-statblock-missing-hint {
+  @include atlas-elevated-surface;
+  padding: $spacing-l;
+  max-width: 320px;
+  color: var(--text-muted);
+  font-size: $font-ui-smaller;
+  text-wrap: pretty;
+}

@@ -1,0 +1,19 @@
+// An Obsidian leaf view re-parented into an Atlas surface (note preview window,
+// DM dashboard): it fills its host, scrolls itself and drops its nav header.
+.atlas-embedded-leaf-view {
+  height: 100%;
+  overflow: auto;
+
+  .view-header {
+    display: none;
+  }
+
+  &--fill-editor .cm-editor {
+    height: 100%;
+  }
+
+  // Held until the view has been scrolled to its heading, to avoid a flash.
+  &--pending-scroll {
+    visibility: hidden;
+  }
+}

@@ -1,0 +1,99 @@
+@use '../../../styles/tokens' as *;
+@use '../../../styles/mixins' as *;
+
+// ── Map Link Preview (tooltip-style card) ────────────────────────────────
+
+.atlas-map-link-preview {
+  position: fixed;
+  z-index: $z-popover;
+  max-width: 350px;
+  overflow: hidden;
+
+  @include atlas-elevated-surface;
+
+  animation: note-preview-slide-in $transition-normal $transition-ease-out;
+}
+
+.atlas-map-link-preview--closing {
+  animation: note-preview-slide-out 0.15s $transition-ease-in forwards;
+}
+
+// ── Thumbnail image ──────────────────────────────────────────────────────
+
+.atlas-map-link-preview__image {
+  display: block;
+  width: 100%;
+  height: auto;
+  // Inner radius = outer ($radius-xl 12px) minus border (~1.5px) ≈ 10.5 → use $radius-l
+  border-radius: $radius-l;
+}
+
+// ── Button overlay ───────────────────────────────────────────────────────
+
+.atlas-map-link-preview__overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  padding: $spacing-l;
+  // Gradient scrim so the button is readable on any thumbnail
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.65) 0%, transparent 100%);
+  pointer-events: none;
+  border-radius: 0 0 $radius-l $radius-l;
+}
+
+.atlas-map-link-preview__button {
+  pointer-events: auto;
+  padding: $spacing-s $spacing-l;
+  border: none;
+  border-radius: $radius-l;
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  font-size: var(--font-ui-small);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color $transition-fast $transition-ease,
+              transform $transition-fast $transition-ease;
+
+  &:hover {
+    background: var(--interactive-accent-hover);
+    transform: translateY(-1px);
+  }
+
+  &:active {
+    transform: translateY(0);
+  }
+}
+
+// ── Placeholder (no thumbnail) ───────────────────────────────────────────
+
+.atlas-map-link-preview__placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: $spacing-s;
+  padding: $spacing-xl;
+  min-height: 160px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.atlas-map-link-preview__placeholder-icon {
+  svg {
+    width: 32px;
+    height: 32px;
+    color: var(--text-faint);
+  }
+}
+
+.atlas-map-link-preview__placeholder-name {
+  font-weight: 500;
+  color: var(--text-normal);
+}
+
+.atlas-map-link-preview__placeholder-desc {
+  font-size: var(--font-ui-smaller);
+}

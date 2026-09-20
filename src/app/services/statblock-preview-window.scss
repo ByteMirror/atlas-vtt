@@ -1,0 +1,17 @@
+@use '../react/components/statblock/statblock-preview-surface' as *;
+
+// Imperative CMD+hover preview window for map tokens (StatblockPreviewWindow.ts).
+.atlas-statblock-preview-window {
+  @include atlas-statblock-preview-surface;
+  z-index: 100;
+
+  // Held while the window is measured for clamping, so it never flashes at
+  // an unclamped position.
+  &--measuring {
+    visibility: hidden;
+  }
+
+  &--closing {
+    @include atlas-statblock-preview-closing;
+  }
+}

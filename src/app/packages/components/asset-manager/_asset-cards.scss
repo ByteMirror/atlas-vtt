@@ -1,0 +1,264 @@
+@use '../../../../../styles/tokens' as *;
+@use '../../../../../styles/mixins' as *;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Asset Manager – Asset card
+// ═══════════════════════════════════════════════════════════════════════════
+// Artwork first: the image fills a square well, the name sits beneath it.
+// The card itself is borderless; hover tints it, selection rings the whole card.
+
+.atlas-asset-card-tooltip {
+  z-index: $z-tooltip;
+}
+
+.atlas-asset-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-xs;
+  padding: $spacing-xs;
+  border-radius: $radius-xl;
+  cursor: pointer;
+  outline: none;
+  color: var(--text-normal);
+  transition: background-color $transition-fast $transition-ease,
+              box-shadow $transition-fast $transition-ease;
+
+  &:hover {
+    background: var(--background-modifier-hover);
+
+    .atlas-asset-card-checkbox {
+      opacity: 1;
+    }
+
+    .atlas-asset-card-name {
+      color: var(--text-normal);
+    }
+  }
+
+  &:active .atlas-asset-card-thumb {
+    transform: scale(0.98);
+  }
+
+  &:focus-visible {
+    box-shadow: 0 0 0 2px var(--background-modifier-border-focus);
+  }
+
+  &.atlas-selected {
+    background: color-mix(in oklch, var(--interactive-accent) 14%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--interactive-accent) 45%, transparent);
+
+    .atlas-asset-card-checkbox {
+      opacity: 1;
+    }
+
+    .atlas-asset-card-name {
+      color: var(--text-normal);
+    }
+  }
+}
+
+// ── Artwork well ────────────────────────────────────────────────────────────
+// Rectangular art (maps, scenes) fills the well. Circular art (tokens,
+// encounters) floats on the card, so the well itself stays invisible and the
+// only highlight is the card's hover / selection tint. The art runs to the
+// well's edge, so these cards take more padding to clear the selection ring.
+
+.atlas-asset-card[data-type='tokens'],
+.atlas-asset-card[data-type='encounters'] {
+  gap: $spacing-s;
+  padding: $spacing-s;
+}
+
+.atlas-asset-card[data-type='tokens'] .atlas-asset-card-thumb,
+.atlas-asset-card[data-type='encounters'] .atlas-asset-card-thumb {
+  background: transparent;
+  overflow: visible;
+}
+
+.atlas-asset-card-thumb {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: $radius-l;
+  background: var(--background-secondary);
+  overflow: hidden;
+  transition: transform $transition-press $transition-ease-out;
+
+  > img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  // Shared TokenPortrait; fills the well unless positioned inline.
+  .atlas-token-portrait {
+    position: absolute;
+  }
+
+  > .atlas-token-portrait {
+    inset: 0;
+  }
+
+  .atlas-asset-placeholder-icon {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: $font-ui-large;
+    font-weight: $font-weight-semibold;
+    color: var(--text-faint);
+    user-select: none;
+  }
+
+  // Encounters: up to three overlapping portraits
+  .atlas-encounter-preview {
+    position: absolute;
+    inset: 0;
+
+    // Opaque backing so transparent art doesn't reveal the portrait beneath
+    .atlas-token-image-wrapper {
+      background: var(--background-secondary);
+    }
+
+    .atlas-encounter-preview-overflow {
+      position: absolute;
+      right: $spacing-s;
+      bottom: $spacing-s;
+      min-width: 22px;
+      height: 22px;
+      padding: 0 $spacing-xs;
+      border-radius: $radius-full;
+      background: var(--background-primary);
+      color: var(--text-muted);
+      font-size: $font-ui-smaller;
+      font-weight: $font-weight-semibold;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: inset 0 0 0 1px var(--background-modifier-border);
+    }
+  }
+}
+
+// ── Name ────────────────────────────────────────────────────────────────────
+
+.atlas-asset-card-name {
+  width: 100%;
+  padding: 0 $spacing-xs;
+  text-align: center;
+  font-size: $font-ui-small;
+  font-weight: $font-weight-medium;
+  line-height: var(--line-height-tight);
+  color: var(--text-muted);
+  @include atlas-truncate;
+  transition: color $transition-fast $transition-ease;
+}
+
+// ── Badges ──────────────────────────────────────────────────────────────────
+
+.atlas-asset-card-checkbox {
+  position: absolute;
+  top: $spacing-s;
+  left: $spacing-s;
+  z-index: 2;
+  opacity: 0;
+  transition: opacity $transition-fast $transition-ease;
+  pointer-events: none;
+
+  input[type='checkbox'] {
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    cursor: pointer;
+    pointer-events: auto;
+    accent-color: var(--interactive-accent);
+  }
+}
+
+.atlas-asset-statblock-indicator {
+  position: absolute;
+  top: $spacing-s;
+  right: $spacing-s;
+  z-index: 2;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 1px 3px color-mix(in oklch, var(--mono-0) 40%, transparent);
+  transition: background-color $transition-fast $transition-ease, transform $transition-fast $transition-ease;
+
+  &:hover {
+    background: var(--interactive-accent-hover);
+    transform: scale(1.1);
+  }
+
+  &:active {
+    transform: scale(0.95);
+  }
+}
+
+.atlas-asset-spawn-badge {
+  position: absolute;
+  top: $spacing-s;
+  right: $spacing-s;
+  z-index: 3;
+  @include atlas-flex-row(0);
+  height: 22px;
+  border-radius: $radius-full;
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  box-shadow: 0 1px 3px color-mix(in oklch, var(--mono-0) 40%, transparent);
+  overflow: hidden;
+
+  .atlas-spawn-btn {
+    all: unset;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 100%;
+    color: inherit;
+    font-size: $font-ui-small;
+    font-weight: $font-weight-bold;
+    cursor: pointer;
+    transition: background-color $transition-fast $transition-ease,
+                transform $transition-press $transition-ease-out;
+
+    &:hover {
+      background: color-mix(in oklch, var(--text-on-accent) 18%, transparent);
+    }
+
+    &:active {
+      background: color-mix(in oklch, var(--text-on-accent) 28%, transparent);
+      transform: scale(0.94);
+    }
+  }
+
+  .atlas-spawn-count {
+    font-size: $font-ui-smaller;
+    font-weight: $font-weight-bold;
+    font-variant-numeric: tabular-nums;
+    min-width: 20px;
+    text-align: center;
+    pointer-events: none;
+    user-select: none;
+  }
+
+  .atlas-spawn-go {
+    width: auto;
+    padding: 0 $spacing-s;
+    font-size: $font-ui-smaller;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    background: color-mix(in oklch, var(--text-on-accent) 14%, transparent);
+  }
+}

@@ -1,0 +1,191 @@
+@use '../../../../../styles/tokens' as *;
+@use '../../../../../styles/mixins' as *;
+
+// ── Widget settings panel: widget list, widget editor, initiative box ──
+
+.atlas-command-palette-widget-list {
+  @include atlas-flex-col($spacing-s);
+  @include atlas-scrollbar;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.atlas-command-palette-widget-item {
+  @include atlas-inset-surface;
+  @include atlas-flex-row($spacing-s);
+  padding: $spacing-s;
+}
+
+.atlas-command-palette-widget-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.atlas-command-palette-widget-name {
+  @include atlas-truncate;
+  font-size: $font-ui-small;
+  font-weight: $font-weight-medium;
+  color: var(--text-normal);
+}
+
+.atlas-command-palette-widget-type {
+  font-size: $font-ui-smaller;
+  color: var(--text-muted);
+  text-transform: capitalize;
+}
+
+.atlas-command-palette-widget-controls {
+  @include atlas-flex-row($spacing-xs);
+  flex-shrink: 0;
+}
+
+.atlas-command-palette-icon-btn {
+  @include atlas-control-icon-button;
+}
+
+.atlas-icon-btn--danger:hover:not(:disabled) {
+  color: var(--text-error);
+}
+
+// ── Widget editor: name, colour and icon picker ─────────────────────────────
+
+.atlas-widget-editor {
+  @include atlas-inset-surface;
+  @include atlas-flex-col($spacing-s);
+  padding: $spacing-s;
+}
+
+.atlas-widget-editor-types,
+.atlas-widget-editor-name-row {
+  @include atlas-flex-row($spacing-s);
+}
+
+.atlas-widget-editor-types .btn {
+  flex: 1;
+}
+
+.atlas-widget-editor-color {
+  flex-shrink: 0;
+  width: var(--input-height);
+  height: var(--input-height);
+  padding: 0;
+  border: $border-width-s solid var(--background-modifier-border);
+  border-radius: $radius-m;
+  background: transparent;
+  overflow: hidden;
+  cursor: pointer;
+
+  &::-webkit-color-swatch-wrapper {
+    padding: 0;
+  }
+
+  &::-webkit-color-swatch {
+    border: none;
+    border-radius: 0;
+  }
+}
+
+// The only scrolling region: settings panels themselves never scroll
+.atlas-widget-editor-icons {
+  @include atlas-scrollbar;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--input-height), 1fr));
+  gap: $spacing-xs;
+  max-height: calc(var(--input-height) * 4 + #{$spacing-xs} * 3);
+  overflow-y: auto;
+}
+
+.atlas-widget-editor-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--input-height);
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: $radius-m;
+  box-shadow: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background-color $transition-fast $transition-ease,
+              color $transition-fast $transition-ease;
+
+  &:hover {
+    background: var(--background-modifier-hover);
+    color: var(--text-normal);
+  }
+
+  &.atlas-active {
+    background: var(--background-modifier-active-hover);
+  }
+}
+
+.atlas-widget-editor-actions {
+  @include atlas-flex-row($spacing-s);
+  justify-content: flex-end;
+}
+
+// ── Collapsible section (initiative tracker) ────────────────────────────────
+
+.atlas-command-palette-collapsible {
+  @include atlas-inset-surface;
+  overflow: hidden;
+}
+
+.atlas-command-palette-collapsible-header {
+  @include atlas-flex-row($spacing-s);
+  justify-content: space-between;
+  width: 100%;
+  height: auto;
+  padding: $spacing-s;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  color: var(--text-normal);
+  font-size: $font-ui-small;
+  font-weight: $font-weight-medium;
+  cursor: pointer;
+  transition: background-color $transition-fast $transition-ease;
+
+  &:hover {
+    background: var(--background-modifier-hover);
+  }
+
+  &:active {
+    background: var(--background-modifier-active-hover);
+  }
+}
+
+.atlas-command-palette-collapsible-title {
+  @include atlas-flex-row($spacing-s);
+
+  svg {
+    width: $icon-s;
+    height: $icon-s;
+    color: var(--text-muted);
+  }
+}
+
+.atlas-command-palette-collapsible-chevron {
+  width: $icon-s;
+  height: $icon-s;
+  color: var(--text-muted);
+  transition: transform $transition-normal $transition-ease-in-out;
+
+  &.atlas-open {
+    transform: rotate(180deg);
+  }
+}
+
+.atlas-command-palette-collapsible-content {
+  @include atlas-flex-col($spacing-s);
+  padding: $spacing-s;
+  border-top: $border-width-s solid var(--divider-color);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .atlas-command-palette-collapsible-chevron {
+    transition: none;
+  }
+}

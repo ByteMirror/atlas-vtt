@@ -1,0 +1,368 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// Collection Settings Modal
+// ═══════════════════════════════════════════════════════════════════════════
+
+@use '../../../../styles/tokens' as *;
+@use '../../../../styles/mixins' as *;
+
+// ── Overlay / Backdrop ─────────────────────────────────────────────────────
+// Portaled to document.body, so the overlay itself carries .atlas-vtt-plugin.
+&.atlas-collection-settings-overlay {
+  @include atlas-modal-overlay($z-atlas-modal);
+}
+
+.atlas-collection-settings-backdrop {
+  position: absolute;
+  inset: 0;
+}
+
+// ── Modal Card ─────────────────────────────────────────────────────────────
+.atlas-collection-settings-modal {
+  @include atlas-elevated-surface;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 620px;
+  max-width: 90vw;
+  height: 500px;
+  max-height: 85vh;
+  overflow: hidden;
+}
+
+// ── Header ─────────────────────────────────────────────────────────────────
+.atlas-collection-settings-header {
+  @include atlas-modal-header;
+
+  h3 {
+    margin: 0;
+    font-size: $font-ui-medium;
+    font-weight: $font-weight-semibold;
+    color: var(--text-normal);
+  }
+
+}
+
+// ── Body (sidebar + content) ───────────────────────────────────────────────
+.atlas-collection-settings-body {
+  display: flex;
+  flex: 1;
+  min-height: 0; // allow flex shrink
+}
+
+// ── Vertical Tab Sidebar ───────────────────────────────────────────────────
+.atlas-collection-settings-sidebar {
+  width: 160px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-s;
+  padding: $spacing-s;
+  border-right: $border-width-s solid var(--background-modifier-border);
+  background: var(--background-secondary);
+}
+
+.atlas-collection-settings-tab {
+  // Override Button component defaults for sidebar tab sizing
+  height: auto;
+  padding: $spacing-s;
+  gap: $spacing-s;
+  justify-content: flex-start;
+  border-radius: $radius-m;
+  color: var(--text-muted);
+  font-size: $font-ui-small;
+  font-weight: $font-weight-medium;
+
+  svg {
+    width: $icon-s;
+    height: $icon-s;
+    flex-shrink: 0;
+  }
+
+  &:hover:not(.atlas-active) {
+    color: var(--text-normal);
+    background: var(--background-modifier-hover) !important;
+  }
+
+  &.atlas-active {
+    background: var(--background-primary) !important;
+    color: var(--text-normal);
+    box-shadow: $shadow-sm;
+  }
+}
+
+// ── Content Area ───────────────────────────────────────────────────────────
+.atlas-collection-settings-content {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  padding: $spacing-l;
+  @include atlas-scrollbar;
+  @include atlas-flex-col($spacing-l);
+}
+
+// ── Footer ─────────────────────────────────────────────────────────────────
+.atlas-collection-settings-footer {
+  @include atlas-modal-footer;
+
+  // Button component handles variant styling; just ensure compact sizing
+  .atlas-csm-cancel,
+  .atlas-csm-save {
+    height: $button-height-m;
+    padding: $spacing-s $spacing-l;
+    font-size: $font-ui-small;
+    font-weight: $font-weight-medium;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Tab-specific content styles
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ── Shared field styles ────────────────────────────────────────────────────
+.atlas-csm-field {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-xs;
+}
+
+.atlas-csm-label {
+  font-size: $font-ui-small;
+  font-weight: $font-weight-medium;
+  color: var(--text-muted);
+}
+
+.atlas-csm-hint {
+  font-size: $font-ui-smaller;
+  color: var(--text-faint);
+  margin: 0;
+}
+
+.atlas-csm-select,
+.atlas-csm-input {
+  width: 100%;
+  height: $input-height-m;
+  padding: $spacing-xs $spacing-s;
+  background: var(--background-primary);
+  border: $border-width-s solid var(--background-modifier-border);
+  border-radius: $radius-l;
+  color: var(--text-normal);
+  font-size: $font-ui-small;
+  @include atlas-input-focus;
+}
+
+.atlas-csm-input--number {
+  width: 80px;
+}
+
+// ── Toggle row (used by Widgets and Measurement mode) ──────────────────────
+.atlas-csm-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: $spacing-s;
+  padding: $spacing-s;
+  border-radius: $radius-l;
+  background: var(--background-secondary);
+  border: $border-width-s solid var(--background-modifier-border);
+}
+
+.atlas-csm-toggle-label {
+  font-size: $font-ui-small;
+  color: var(--text-normal);
+}
+
+// Simple toggle switch
+.atlas-csm-switch {
+  position: relative;
+  width: 36px;
+  height: 20px;
+  flex-shrink: 0;
+
+  input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+    position: absolute;
+  }
+
+  .atlas-csm-switch-track {
+    position: absolute;
+    inset: 0;
+    background: var(--background-modifier-border);
+    border-radius: $radius-full;
+    cursor: pointer;
+    transition: background-color $transition-fast $transition-ease;
+
+    &::after {
+      content: '';
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 16px;
+      height: 16px;
+      background: var(--background-primary);
+      border-radius: 50%;
+      transition: transform $transition-fast $transition-ease;
+    }
+  }
+
+  input:checked + .atlas-csm-switch-track {
+    background: var(--interactive-accent);
+
+    &::after {
+      transform: translateX(16px);
+    }
+  }
+}
+
+// ── Measurement mode segmented control ─────────────────────────────────────
+.atlas-csm-segmented {
+  display: flex;
+  gap: $spacing-xs;
+  padding: $spacing-xs;
+  background: var(--background-modifier-border);
+  border-radius: $radius-l;
+}
+
+.atlas-csm-segment {
+  // Override Button component defaults for segmented control
+  flex: 1;
+  height: auto;
+  padding: $spacing-xs $spacing-s;
+  border-radius: $radius-m;
+  color: var(--text-muted);
+  font-size: $font-ui-small;
+  font-weight: $font-weight-medium;
+
+  &.atlas-active {
+    background: var(--background-primary) !important;
+    color: var(--text-normal);
+    box-shadow: $shadow-sm;
+  }
+}
+
+// ── Range Bands editor ─────────────────────────────────────────────────────
+.atlas-csm-band-list {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-xs;
+}
+
+.atlas-csm-band-row {
+  display: flex;
+  align-items: center;
+  gap: $spacing-s;
+  padding: $spacing-xs $spacing-s;
+  background: var(--background-secondary);
+  border: $border-width-s solid var(--background-modifier-border);
+  border-radius: $radius-l;
+
+  .atlas-csm-input {
+    flex: 1;
+    height: $input-height-s;
+  }
+
+  .atlas-csm-input--number {
+    width: 64px;
+    flex: none;
+  }
+}
+
+.atlas-csm-band-delete {
+  &.btn--icon {
+    width: $button-height-s;
+    height: $button-height-s;
+  }
+
+  color: var(--text-error);
+
+  &:hover {
+    color: var(--text-error);
+    background: color-mix(in oklch, var(--background-modifier-error) 15%, transparent) !important;
+  }
+}
+
+.atlas-csm-add-btn {
+  // Override Button component defaults for compact add button
+  height: auto;
+  align-self: flex-start;
+  gap: $spacing-xs;
+  font-size: $font-ui-small;
+  padding: $spacing-xs $spacing-m;
+  border: $border-width-s solid var(--background-modifier-border) !important;
+  border-radius: $radius-m;
+  color: var(--text-normal);
+
+  &:hover {
+    background: var(--background-modifier-hover) !important;
+  }
+}
+
+// ── Conditions list ────────────────────────────────────────────────────────
+.atlas-csm-condition-list {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-xs;
+}
+
+.atlas-csm-condition-row {
+  display: flex;
+  align-items: center;
+  gap: $spacing-s;
+  padding: $spacing-xs $spacing-s;
+  background: var(--background-secondary);
+  border: $border-width-s solid var(--background-modifier-border);
+  border-radius: $radius-l;
+
+  .atlas-csm-input {
+    flex: 1;
+    height: $input-height-s;
+  }
+}
+
+.atlas-csm-color-swatch {
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+  border-radius: $radius-m;
+  border: $border-width-s solid var(--background-modifier-border);
+  padding: 0;
+  cursor: pointer;
+  overflow: hidden;
+  position: relative;
+
+  input[type="color"] {
+    position: absolute;
+    inset: -4px;
+    width: calc(100% + 8px);
+    height: calc(100% + 8px);
+    border: none;
+    padding: 0;
+    cursor: pointer;
+  }
+}
+
+.atlas-csm-condition-delete {
+  &.btn--icon {
+    width: $button-height-s;
+    height: $button-height-s;
+  }
+
+  color: var(--text-error);
+
+  &:hover {
+    color: var(--text-error);
+    background: color-mix(in oklch, var(--background-modifier-error) 15%, transparent) !important;
+  }
+}
+
+// ── Empty state ────────────────────────────────────────────────────────────
+.atlas-csm-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: $spacing-xl;
+  color: var(--text-faint);
+  font-size: $font-ui-small;
+  font-style: italic;
+}

@@ -1,0 +1,91 @@
+/**
+ * Obsidian extends the DOM prototypes with element helpers (`createEl`,
+ * `createDiv`, `empty`, ...). jsdom has none of them, so this setup file
+ * installs the subset the plugin relies on.
+ */
+
+interface ElementOptions {
+  cls?: string | string[];
+  text?: string;
+  attr?: Record<string, string | number | boolean | null>;
+  title?: string;
+  type?: string;
+  value?: string;
+  placeholder?: string;
+  href?: string;
+}
+
+type ElementSpec = ElementOptions | string | undefined;
+
+function applyOptions(el: HTMLElement, spec: ElementSpec): void {
+  const options: ElementOptions = typeof spec === 'string' ? { cls: spec } : spec ?? {};
+  if (options.cls) el.classList.add(...(Array.isArray(options.cls) ? options.cls : options.cls.split(' ').filter(Boolean)));
+  if (options.text !== undefined) el.textContent = options.text;
+  if (options.title !== undefined) el.title = options.title;
+  for (const [name, value] of Object.entries(options.attr ?? {})) {
+    if (value === null) el.removeAttribute(name);
+    else el.setAttribute(name, String(value));
+  }
+  const input = el as HTMLInputElement;
+  if (options.type !== undefined) input.type = options.type;
+  if (options.value !== undefined) input.value = options.value;
+  if (options.placeholder !== undefined) input.placeholder = options.placeholder;
+  if (options.href !== undefined) (el as HTMLAnchorElement).href = options.href;
+}
+
+function createChild(parent: Node, tag: string, spec: ElementSpec, callback?: (el: HTMLElement) => void): HTMLElement {
+  const el = (parent.ownerDocument ?? document).createElement(tag);
+  applyOptions(el, spec);
+  parent.appendChild(el);
+  callback?.(el);
+  return el;
+}
+
+const helpers: Record<string, (this: HTMLElement, ...args: never[]) => unknown> = {
+  createEl(this: HTMLElement, tag: string, spec?: ElementSpec, callback?: (el: HTMLElement) => void) {
+    return createChild(this, tag, spec, callback);
+  },
+  createDiv(this: HTMLElement, spec?: ElementSpec, callback?: (el: HTMLElement) => void) {
+    return createChild(this, 'div', spec, callback);
+  },
+  createSpan(this: HTMLElement, spec?: ElementSpec, callback?: (el: HTMLElement) => void) {
+    return createChild(this, 'span', spec, callback);
+  },
+  empty(this: HTMLElement) {
+    this.replaceChildren();
+  },
+  setText(this: HTMLElement, text: string) {
+    this.textContent = text;
+  },
+  appendText(this: HTMLElement, text: string) {
+    this.appendChild((this.ownerDocument ?? document).createTextNode(text));
+  },
+  addClass(this: HTMLElement, ...classes: string[]) {
+    this.classList.add(...classes);
+  },
+  removeClass(this: HTMLElement, ...classes: string[]) {
+    this.classList.remove(...classes);
+  },
+  toggleClass(this: HTMLElement, cls: string, value: boolean) {
+    this.classList.toggle(cls, value);
+  },
+  hasClass(this: HTMLElement, cls: string) {
+    return this.classList.contains(cls);
+  },
+  instanceOf(this: HTMLElement, type: new () => unknown) {
+    return this instanceof type;
+  },
+  hide(this: HTMLElement) {
+    this.style.display = 'none';
+  },
+  show(this: HTMLElement) {
+    this.style.removeProperty('display');
+  },
+};
+
+if (typeof Element !== 'undefined') {
+  const prototype = Element.prototype as unknown as Record<string, unknown>;
+  for (const [name, helper] of Object.entries(helpers)) {
+    if (!(name in prototype)) prototype[name] = helper;
+  }
+}

@@ -1,0 +1,78 @@
+name: Plugin Release
+
+on:
+  workflow_dispatch:
+  release:
+    types:
+      - published
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+jobs:
+  build-and-attach-assets:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Verify tag matches manifest version
+        if: github.event_name == 'release'
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          MANIFEST_VERSION=$(node -p "require('./manifest.json').version")
+          if [ "$RELEASE_TAG" != "$MANIFEST_VERSION" ]; then
+            echo "Release tag $RELEASE_TAG does not match manifest version $MANIFEST_VERSION"
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Test
+        run: npx vitest run
+
+      - name: Build plugin
+        run: npm run build:ci
+
+      - name: Preflight
+        run: npm run preflight
+
+      - name: Prepare release assets
+        run: npm run release:prepare
+
+      - name: Attest build provenance
+        if: github.event_name == 'release'
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            release/main.js
+            release/styles.css
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: obsidian-plugin-assets
+          path: release/
+
+      - name: Attach assets to GitHub release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          fail_on_unmatched_files: true
+          files: |
+            release/main.js
+            release/manifest.json
+            release/styles.css

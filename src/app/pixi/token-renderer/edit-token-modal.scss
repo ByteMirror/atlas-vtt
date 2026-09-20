@@ -1,0 +1,57 @@
+@use '../../../../styles/tokens' as *;
+
+.atlas-edit-token-modal {
+  width: 340px;
+  max-width: 90vw;
+
+  .atlas-modal-content {
+    @include atlas-flex-col($spacing-m);
+    padding: $spacing-l;
+  }
+}
+
+.atlas-edit-token__field {
+  @include atlas-flex-col($spacing-xs);
+
+  &--row {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+}
+
+.atlas-edit-token__label {
+  font-size: var(--font-ui-small);
+  color: var(--text-normal);
+  font-weight: 500;
+}
+
+.atlas-edit-token__section-divider {
+  height: 1px;
+  background: var(--background-modifier-border);
+  margin: $spacing-xs 0;
+}
+
+.atlas-edit-token__section-label {
+  font-size: var(--font-ui-small);
+  color: var(--text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.atlas-edit-token__input-row {
+  display: flex;
+  align-items: center;
+  gap: $spacing-xs;
+
+  .atlas-input {
+    flex: 1;
+  }
+}
+
+.atlas-edit-token__clear-btn {
+  flex-shrink: 0;
+  padding: $spacing-xs;
+  line-height: 1;
+}

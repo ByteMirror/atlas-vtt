@@ -1,0 +1,12 @@
+@use './statblock/statblock-preview-surface' as *;
+
+// CMD+hover statblock preview shared by token hover on the map and the
+// initiative tracker. Positioning is computed in StatblockHoverPreview.tsx.
+.statblock-hover-preview {
+  @include atlas-statblock-preview-surface;
+  z-index: 101;
+}
+
+.statblock-hover-preview--closing {
+  @include atlas-statblock-preview-closing;
+}

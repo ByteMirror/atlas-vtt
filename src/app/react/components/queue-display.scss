@@ -1,0 +1,252 @@
+.queue-display {
+    margin-top: 24px;
+    border-top: 1px solid var(--background-modifier-border);
+    padding-top: 16px;
+}
+
+.queue-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+    padding: 0 8px;
+    
+    h3 {
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--text-normal);
+        margin: 0;
+    }
+}
+
+.queue-count {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.queue-controls {
+    margin-bottom: 16px;
+}
+
+.queue-playback-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.queue-mode-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.queue-control-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    color: var(--text-muted);
+    transition: all 0.2s ease;
+
+    &:hover:not(:disabled) {
+        background-color: var(--background-modifier-hover);
+        color: var(--text-normal);
+    }
+
+    &:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+    }
+
+    &.play-button {
+        width: 36px;
+        height: 36px;
+        background-color: var(--interactive-accent);
+        color: var(--text-on-accent);
+
+        &:hover:not(:disabled) {
+            background-color: var(--interactive-accent-hover);
+        }
+    }
+
+    &.active {
+        color: var(--interactive-accent);
+    }
+}
+
+.queue-control-icon {
+    width: 16px;
+    height: 16px;
+
+    .play-button & {
+        width: 18px;
+        height: 18px;
+    }
+
+    &.active {
+        color: var(--interactive-accent);
+    }
+}
+
+.queue-list {
+    max-height: 400px;
+    overflow-y: auto;
+    margin: 0 -8px;
+}
+
+.queue-subsection {
+    margin-bottom: 12px;
+
+    &:last-child {
+        margin-bottom: 0;
+    }
+}
+
+.queue-subsection-header {
+    font-size: 11px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    padding: 4px 16px;
+    font-weight: 500;
+}
+
+.queue-item {
+    display: flex;
+    align-items: center;
+    padding: 6px 8px;
+    gap: 8px;
+    cursor: default;
+    transition: background-color 0.15s ease;
+    font-size: 13px;
+
+    &:hover {
+        background-color: var(--background-modifier-hover);
+
+        .queue-item-remove {
+            opacity: 1;
+        }
+    }
+
+    &.current {
+        background-color: var(--background-modifier-active-hover);
+    }
+
+    &.next-in-queue {
+        background-color: var(--background-primary-alt);
+        border-left: 2px solid var(--interactive-accent);
+        padding-left: 6px;
+    }
+
+    &.dragging {
+        opacity: 0.5;
+        cursor: grabbing;
+    }
+
+    &.drag-over {
+        border-top: 2px solid var(--interactive-accent);
+        margin-top: -2px;
+    }
+}
+
+.queue-item-handle {
+    width: 10px;
+    height: 10px;
+    color: var(--text-faint);
+    cursor: grab;
+    flex-shrink: 0;
+
+    &:active {
+        cursor: grabbing;
+    }
+}
+
+.queue-item-number {
+    width: 18px;
+    text-align: right;
+    font-size: 11px;
+    color: var(--text-muted);
+    flex-shrink: 0;
+}
+
+.playing-indicator {
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 1px;
+    height: 10px;
+
+    span {
+        width: 2px;
+        height: 100%;
+        background-color: var(--interactive-accent);
+        animation: playing 0.8s ease-in-out infinite;
+
+        &:nth-child(1) {
+            animation-delay: -0.3s;
+        }
+
+        &:nth-child(2) {
+            animation-delay: -0.15s;
+        }
+    }
+}
+
+@keyframes playing {
+    0%, 100% {
+        height: 2px;
+    }
+    50% {
+        height: 10px;
+    }
+}
+
+.queue-item-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.queue-item-name {
+    font-size: 12px;
+    color: var(--text-normal);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.queue-item-duration {
+    font-size: 10px;
+    color: var(--text-muted);
+}
+
+.queue-item-remove {
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    background: transparent;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    color: var(--text-muted);
+    opacity: 0;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+
+    &:hover {
+        background-color: var(--background-modifier-hover);
+        color: var(--text-error);
+    }
+}
+
+.queue-item-remove-icon {
+    width: 12px;
+    height: 12px;
+}

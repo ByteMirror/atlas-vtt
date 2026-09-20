@@ -1,0 +1,174 @@
+@use '../../../../../styles/tokens' as *;
+@use '../../../../../styles/mixins' as *;
+@use 'variables' as *;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Asset Manager – Sidebar rail
+// ═══════════════════════════════════════════════════════════════════════════
+// A tinted rail like an Obsidian side dock: flat, no inner panel, one divider.
+
+.atlas-asset-manager-sidebar {
+  width: $sidebar-width;
+  min-width: $sidebar-width;
+  max-width: $sidebar-width;
+  background-color: var(--background-secondary);
+  border-right: $border-width-s solid var(--divider-color);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  flex-shrink: 0;
+  overflow: hidden;
+  z-index: 10;
+  transition: width $sidebar-hover-animation,
+              min-width $sidebar-hover-animation,
+              max-width $sidebar-hover-animation;
+
+  // ── Collapsed: thin grab strip ──
+  &.atlas-collapsed {
+    width: $sidebar-collapsed-width;
+    min-width: $sidebar-collapsed-width;
+    max-width: $sidebar-collapsed-width;
+    cursor: ew-resize;
+    border-right-color: transparent;
+    background-color: transparent;
+    overflow: visible;
+
+    .atlas-asset-manager-sidebar-content {
+      opacity: 0;
+      pointer-events: none;
+      transform: translateX(-8px);
+      transition: opacity $sidebar-content-fade, transform $sidebar-content-fade;
+    }
+
+    &::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: var(--divider-color);
+      transition: background $sidebar-hover-animation;
+    }
+
+    &:hover::after {
+      background: color-mix(in oklch, var(--interactive-accent) 60%, transparent);
+    }
+
+    // ── Flyout while hovering the collapsed strip ──
+    &.atlas-expanded {
+      z-index: $z-atlas-modal !important;
+      cursor: default;
+
+      &::after {
+        opacity: 0;
+      }
+
+      .atlas-asset-manager-sidebar-content {
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: $sidebar-width;
+        opacity: 1 !important;
+        pointer-events: auto !important;
+        transform: translateX(0) !important;
+        transition-delay: 100ms;
+        @include atlas-elevated-surface;
+        border-radius: 0 $radius-xl $radius-xl 0;
+        z-index: $z-atlas-modal;
+
+        * {
+          pointer-events: auto !important;
+        }
+      }
+
+      .atlas-collection-dropdown-content {
+        z-index: $z-atlas-modal + 1;
+        pointer-events: auto !important;
+      }
+    }
+  }
+}
+
+.atlas-sidebar-hover-zone {
+  position: absolute;
+  left: 0;
+  top: 60px;
+  bottom: 0;
+  width: 40px;
+  z-index: $z-sticky + 2;
+  cursor: pointer;
+}
+
+.atlas-asset-manager-sidebar-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: visible;
+  padding: $spacing-m;
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-l;
+  position: relative;
+  z-index: 1;
+  pointer-events: auto;
+  transition: opacity $transition-normal $transition-ease;
+
+  * {
+    pointer-events: auto;
+  }
+}
+
+.atlas-sidebar-spacer {
+  flex: 1;
+}
+
+// ── Section title ───────────────────────────────────────────────────────────
+
+.atlas-asset-manager-sidebar .atlas-section-title {
+  font-size: $font-ui-small;
+  font-weight: $font-weight-medium;
+  color: var(--text-muted);
+  line-height: 1;
+}
+
+// ── Small header-row action buttons ─────────────────────────────────────────
+
+.atlas-collection-header-btn {
+  &.btn,
+  &.btn--icon {
+    width: 24px;
+    height: 24px;
+    border-radius: $radius-s;
+    color: var(--text-faint);
+  }
+
+  svg {
+    width: $icon-xs;
+    height: $icon-xs;
+  }
+
+  &:hover {
+    color: var(--text-normal);
+  }
+}
+
+// ── Manage button (bottom) ──────────────────────────────────────────────────
+
+.atlas-asset-manager-manage-btn {
+  &.btn {
+    width: 100%;
+    height: $control-height;
+    justify-content: center;
+    gap: $spacing-xs;
+    padding: 0 $spacing-s;
+    font-size: $font-ui-small;
+    font-weight: $font-weight-medium;
+    color: var(--text-muted);
+    border-radius: $radius-m;
+    @include atlas-concentric-corner(bottom-left, $window-radius, $window-corner-inset);
+    flex-shrink: 0;
+  }
+
+  svg {
+    width: $icon-xs;
+    height: $icon-xs;
+  }
+}

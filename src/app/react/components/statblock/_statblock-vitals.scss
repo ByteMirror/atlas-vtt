@@ -1,0 +1,193 @@
+@use '../../../../../styles/tokens' as *;
+@use '../../../../../styles/mixins' as *;
+@use 'statblock-mixins' as *;
+
+// HP and stress tracks. The Daggerheart layout's javascript block builds them
+// as `.stat-line` rows of `.stat-name` labels and checkbox `.stat-value`s, the
+// same DOM statblockVitalsSync.ts mirrors token vitals into. Here they become
+// pip tracks in an inset panel at the foot of the card.
+
+$pip-size: 14px;
+$pip-row-height: 24px;
+
+.atlas-sb-javascript .stat-block {
+  @include atlas-inset-surface;
+  padding: $spacing-m;
+}
+
+.atlas-sb-javascript .stat-line {
+  // Rows are separated by <br>, so the row height is the line height.
+  line-height: $pip-row-height;
+
+  & + .stat-line {
+    margin-top: $spacing-s;
+  }
+
+  span {
+    @include atlas-sb-label;
+  }
+
+  .adversary-name {
+    color: var(--text-normal);
+  }
+
+  .stat-name {
+    display: inline-block;
+    min-width: 88px;
+    margin-right: $spacing-xs;
+  }
+
+  input.stat-value {
+    appearance: none;
+    width: $pip-size;
+    height: $pip-size;
+    margin: 0 $spacing-xs 0 0;
+    padding: 0;
+    vertical-align: middle;
+    border: $border-width-m solid color-mix(in oklch, var(--mono-100) 28%, transparent);
+    border-radius: $radius-xs;
+    background: transparent;
+    box-shadow: none;
+    cursor: default;
+    transition: background-color $transition-fast $transition-ease,
+                border-color $transition-fast $transition-ease;
+
+    // Obsidian draws its checkmark in a pseudo-element; pips are plain squares.
+    &::before,
+    &::after {
+      content: none;
+    }
+
+    &:checked {
+      background: var(--interactive-accent);
+      border-color: var(--interactive-accent);
+    }
+
+    // Locked to the token's vitals, but never dimmed: a display, not a form.
+    &:disabled {
+      opacity: 1;
+    }
+  }
+}
+
+// Pips group in threes so a track can be counted at a glance.
+@for $group from 0 through 9 {
+  $last: 3 * $group + 2;
+
+  .atlas-sb-javascript .stat-line input.stat-value:is(.hp-#{$last}, .stress-#{$last}) {
+    margin-right: $spacing-m;
+  }
+}
+
+.atlas-sb-token-list {
+  @include atlas-inset-surface;
+  box-sizing: content-box;
+  margin-top: $spacing-l;
+  min-width: 0;
+
+  &[data-scrollable='true'] {
+    // Measured to three complete entries, including wrapping resource tracks.
+    max-height: 24rem;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+  }
+}
+
+.atlas-sb-token-entry {
+  padding: $spacing-m;
+
+  & + & { border-top: $border-width-s solid var(--background-modifier-border); }
+}
+
+.atlas-sb-token-name.btn {
+  @include atlas-sb-label;
+  display: flex;
+  justify-content: space-between;
+  gap: $spacing-s;
+  width: 100%;
+  height: auto;
+  min-height: $button-height-s;
+  margin-bottom: $spacing-xs;
+  padding: $spacing-xs;
+  color: var(--text-normal);
+  text-align: left;
+  white-space: normal;
+
+  span { min-width: 0; overflow-wrap: anywhere; }
+  svg { flex-shrink: 0; width: $icon-s; height: $icon-s; color: var(--text-muted); }
+  &:hover { background: var(--background-modifier-hover); color: var(--text-accent); }
+  &:focus-visible { outline: $border-width-m solid var(--interactive-accent); outline-offset: $spacing-xs; }
+}
+
+.atlas-sb-token-resource {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: $spacing-xs $spacing-s;
+  min-height: $button-height-s;
+  margin-top: $spacing-xs;
+}
+
+.atlas-sb-token-resource-label {
+  @include atlas-sb-label;
+  flex: 0 0 88px;
+  overflow-wrap: anywhere;
+}
+
+.atlas-sb-token-pips {
+  display: flex;
+  align-items: center;
+  flex: 1 1 100px;
+  flex-wrap: wrap;
+  gap: $spacing-xs;
+
+  input[type='checkbox'] {
+    appearance: none;
+    flex: 0 0 $pip-size;
+    width: $pip-size;
+    height: $pip-size;
+    margin: 0;
+    padding: 0;
+    border: $border-width-m solid var(--background-modifier-border-hover);
+    border-radius: $radius-xs;
+    background: transparent;
+    box-shadow: none;
+    cursor: pointer;
+    &::before, &::after { content: none; }
+    &:nth-child(3n):not(:last-child) { margin-right: $spacing-xs; }
+    &:checked { background: var(--interactive-accent); border-color: var(--interactive-accent); }
+    &:hover { border-color: var(--text-accent); }
+    &:focus-visible { outline: $border-width-m solid var(--interactive-accent); outline-offset: $spacing-xs; }
+  }
+}
+
+.atlas-sb-token-gauge-controls {
+  display: flex;
+  align-items: center;
+  flex: 1 1 140px;
+  gap: $spacing-xs;
+  min-width: 0;
+
+  .btn { flex-shrink: 0; width: $button-height-s; height: $button-height-s; }
+  .btn svg { width: $icon-s; height: $icon-s; }
+}
+
+.atlas-sb-token-gauge {
+  position: relative;
+  flex: 1;
+  overflow: hidden;
+  border-radius: $radius-s;
+  background: var(--background-primary);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  line-height: $button-height-s;
+}
+
+.atlas-sb-token-gauge-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: color-mix(in srgb, var(--interactive-accent) 30%, transparent);
+}
+
+.atlas-sb-token-gauge-value { position: relative; }

@@ -1,0 +1,220 @@
+@import '../../../styles/tokens';
+@import '../../../styles/mixins';
+
+// ── Note Preview Window ──────────────────────────────────────────────────
+
+.atlas-note-preview-window {
+  position: fixed;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  width: 400px;
+  height: 50vh;
+  min-width: 150px;
+  max-width: 90vw;
+  min-height: 75px;
+  max-height: 90vh;
+  padding: $spacing-s;
+  gap: $spacing-s;
+
+  @include atlas-elevated-surface;
+
+  animation: note-preview-slide-in $transition-normal $transition-ease-out;
+}
+
+.atlas-note-preview-window.is-dragging,
+.atlas-note-preview-window.is-dragging .atlas-note-preview-header {
+  cursor: grabbing;
+}
+
+// ── Header (floating bar) ───────────────────────────────────────────────
+
+.atlas-note-preview-header {
+  display: flex;
+  align-items: center;
+  gap: $spacing-s;
+  padding: $spacing-s;
+  background-color: var(--background-secondary);
+  border: $border-width-s solid color-mix(in oklch, var(--mono-100) $border-opacity-subtle, transparent);
+  border-radius: $radius-l;
+  cursor: grab;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.atlas-note-preview-title {
+  flex: 1;
+  font-size: var(--font-ui-small);
+  font-weight: 500;
+  color: var(--text-normal);
+  @include atlas-truncate;
+}
+
+.atlas-note-preview-controls {
+  display: flex;
+  align-items: center;
+  gap: $spacing-xs;
+}
+
+// ── Ghost icon buttons ──────────────────────────────────────────────────
+
+.atlas-note-preview-pin-btn,
+.atlas-note-preview-open-btn,
+.atlas-note-preview-edit-btn,
+.atlas-note-preview-close-btn {
+  appearance: none;
+  border: none !important;
+  box-shadow: none !important;
+  outline: none;
+  @include atlas-ghost-button;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: $button-height-s;
+  height: $button-height-s;
+  padding: 0;
+  cursor: pointer;
+  border-radius: $radius-l;
+  transition: background-color $transition-fast $transition-ease,
+              color $transition-fast $transition-ease;
+
+  svg {
+    width: $icon-s;
+    height: $icon-s;
+  }
+}
+
+.atlas-note-preview-pin-btn.is-pinned {
+  color: var(--interactive-accent);
+
+  &:hover {
+    color: var(--interactive-accent);
+  }
+}
+
+// ── Content ──────────────────────────────────────────────────────────────
+
+.atlas-note-preview-content {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  border-radius: $radius-l;
+  @include atlas-scrollbar;
+}
+
+// Set once a note view or rendered markdown is mounted inside.
+.atlas-note-preview-content--scrollable {
+  overflow: auto;
+}
+
+.atlas-note-preview-edit-area {
+  flex: 1;
+  width: 100%;
+  border: none;
+  padding: $spacing-m $spacing-l;
+  background: var(--background-primary);
+  color: var(--text-normal);
+  font-family: var(--font-monospace);
+  font-size: var(--font-ui-small);
+  resize: none;
+  outline: none;
+}
+
+// ── Resize Handles (invisible hit targets) ──────────────────────────────
+
+.atlas-note-preview-resize-handle {
+  position: absolute;
+  background: transparent;
+  z-index: 20;
+}
+
+// Edge handles — full-length strips
+.atlas-note-preview-resize-handle-n {
+  top: -$spacing-xs;
+  left: 0;
+  right: 0;
+  height: $spacing-s;
+  cursor: ns-resize;
+}
+
+.atlas-note-preview-resize-handle-s {
+  bottom: -$spacing-xs;
+  left: 0;
+  right: 0;
+  height: $spacing-s;
+  cursor: ns-resize;
+}
+
+.atlas-note-preview-resize-handle-e {
+  right: -$spacing-xs;
+  top: 0;
+  bottom: 0;
+  width: $spacing-s;
+  cursor: ew-resize;
+}
+
+.atlas-note-preview-resize-handle-w {
+  left: -$spacing-xs;
+  top: 0;
+  bottom: 0;
+  width: $spacing-s;
+  cursor: ew-resize;
+}
+
+// Corner handles — small squares
+.atlas-note-preview-resize-handle-nw { top: -$spacing-xs; left: -$spacing-xs; width: $spacing-m; height: $spacing-m; cursor: nwse-resize; }
+.atlas-note-preview-resize-handle-ne { top: -$spacing-xs; right: -$spacing-xs; width: $spacing-m; height: $spacing-m; cursor: nesw-resize; }
+.atlas-note-preview-resize-handle-sw { bottom: -$spacing-xs; left: -$spacing-xs; width: $spacing-m; height: $spacing-m; cursor: nesw-resize; }
+.atlas-note-preview-resize-handle-se { bottom: -$spacing-xs; right: -$spacing-xs; width: $spacing-m; height: $spacing-m; cursor: nwse-resize; }
+
+// ── Highlighted Header ──────────────────────────────────────────────────
+
+.atlas-highlighted-header {
+  background-color: var(--text-selection) !important;
+  transition: background-color $transition-slow $transition-ease;
+}
+
+// ── Closing state ────────────────────────────────────────────────────────
+
+.atlas-note-preview-window--closing {
+  animation: note-preview-slide-out 0.15s $transition-ease-in forwards;
+}
+
+// ── Animations ──────────────────────────────────────────────────────────
+
+@keyframes note-preview-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(10px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes note-preview-slide-out {
+  from {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(10px) scale(0.95);
+  }
+}
+
+// The hidden preview leaf lives in Obsidian's workspace, outside the plugin
+// namespace, so these rules have to escape the `.atlas-vtt-plugin` scope.
+@at-root {
+  .workspace-tab-header[data-atlas-preview="true"] {
+    display: none !important;
+  }
+
+  // Hide the whole tab container when every tab in it is a preview tab
+  .workspace-tab-container:has(.workspace-tab-header[data-atlas-preview="true"]):not(:has(.workspace-tab-header:not([data-atlas-preview="true"]))) {
+    display: none !important;
+  }
+}

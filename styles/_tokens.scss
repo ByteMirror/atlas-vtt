@@ -1,0 +1,134 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// Atlas VTT Design Tokens
+// ═══════════════════════════════════════════════════════════════════════════
+// Single source of truth for spacing, sizing, and visual properties.
+// Import this file first in main.scss before mixins and component styles.
+
+// ── Spacing (8px base) ───────────────────────────────────────────────────────
+$spacing-xs: 4px;
+$spacing-s:  8px;
+$spacing-m:  12px;
+$spacing-l:  16px;
+$spacing-xl: 24px;
+$spacing-2xl: 32px;
+
+// ── Border Radius ────────────────────────────────────────────────────────────
+// Snapped to Obsidian's radius scale (--radius-s 4 / -m 8 / -l 12 / -xl 24) so
+// our surfaces match the host UI and follow the active theme.
+// Nesting rule: containers use $radius-xl, inner elements $radius-l.
+$radius-xs: var(--radius-s);   // 4px
+$radius-s:  var(--radius-s);   // 4px  – chips, checkboxes
+$radius-m:  var(--radius-m);   // 8px  – buttons, inputs, cards
+$radius-l:  var(--radius-m);   // 8px  – inner elements inside padded containers
+$radius-xl: var(--radius-l);   // 12px – panels, popovers, dropdowns
+$radius-2xl: var(--radius-xl); // 24px – full modals (matches --modal-radius)
+$radius-full: 9999px;          // For pills and circles
+
+// ── Shadows ──────────────────────────────────────────────────────────────────
+// Subtle shadow for cards and containers
+$shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.1);
+
+// Medium shadow for dropdowns and popovers (Obsidian's menu shadow)
+$shadow-md: var(--shadow-s);
+
+// Elevated shadow for modals and floating panels (Obsidian's modal shadow)
+$shadow-elevated: var(--shadow-l);
+
+// ── Typography ───────────────────────────────────────────────────────────────
+// Obsidian's fixed UI type ramp. Use these instead of rem/px font sizes so the
+// plugin scales with the user's interface font settings.
+$font-ui-smaller: var(--font-ui-smaller); // 12px – captions, counts, shortcuts
+$font-ui-small:   var(--font-ui-small);   // 13px – labels, body UI text
+$font-ui-medium:  var(--font-ui-medium);  // 15px – section titles
+$font-ui-large:   var(--font-ui-large);   // 20px – modal titles
+$font-weight-normal:   var(--font-normal);
+$font-weight-medium:   var(--font-medium);
+$font-weight-semibold: var(--font-semibold);
+$font-weight-bold:     var(--font-bold);
+
+// ── Borders ──────────────────────────────────────────────────────────────────
+$border-width-s: 1px;
+$border-width-m: 1.5px;
+$border-width-l: 2px;
+
+// Theme-aware border tints (use with color-mix())
+// Example: border: $border-width-m solid color-mix(in oklch, var(--mono-100) $border-opacity-subtle, transparent);
+$border-opacity-subtle: 10%;
+$border-opacity-default: 18%;
+$border-opacity-strong: 30%;
+
+// ── Z-Index Layers ───────────────────────────────────────────────────────────
+// Organized from lowest to highest
+$z-base: 1;
+$z-dropdown: 100;
+$z-sticky: 200;
+$z-overlay: 300;
+$z-modal: 400;
+$z-popover: 500;
+$z-tooltip: 600;
+$z-notification: 700;
+
+// Legacy high values for Obsidian compatibility
+$z-atlas-dropdown: 9999;
+$z-atlas-modal: 10000;
+
+// ── Transitions ──────────────────────────────────────────────────────────────
+$transition-fast: 100ms;
+$transition-normal: 200ms;
+$transition-slow: 300ms;
+$transition-ease: cubic-bezier(0.4, 0, 0.2, 1);           // hover / colour changes
+$transition-ease-out: cubic-bezier(0.23, 1, 0.32, 1);     // entering elements, press release
+$transition-ease-in-out: cubic-bezier(0.77, 0, 0.175, 1); // on-screen movement
+$transition-ease-in: cubic-bezier(0.4, 0, 1, 1);          // avoid for UI; exits should still ease-out
+$transition-press: 160ms;                                  // button press feedback
+
+// ── Icon Sizes ───────────────────────────────────────────────────────────────
+$icon-xs: 12px;
+$icon-s:  16px;
+$icon-m:  20px;
+$icon-l:  24px;
+$icon-xl: 32px;
+
+// ── Component Sizes ──────────────────────────────────────────────────────────
+// Button heights
+$button-height-s: 24px;
+$button-height-m: 32px;
+$button-height-l: 40px;
+
+// Input heights
+$input-height-s: 28px;
+$input-height-m: 36px;
+$input-height-l: 44px;
+
+// ── Breakpoints (for responsive layouts) ─────────────────────────────────────
+$breakpoint-xs: 480px;
+$breakpoint-s:  640px;
+$breakpoint-m:  768px;
+$breakpoint-l:  1024px;
+$breakpoint-xl: 1280px;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CSS Custom Properties Export
+// ═══════════════════════════════════════════════════════════════════════════
+// These CSS variables allow tokens to be used in inline styles and JavaScript.
+// They're scoped to .atlas-vtt-plugin for specificity.
+
+@mixin atlas-css-tokens {
+  // Spacing
+  --atlas-spacing-xs: #{$spacing-xs};
+  --atlas-spacing-s: #{$spacing-s};
+  --atlas-spacing-m: #{$spacing-m};
+  --atlas-spacing-l: #{$spacing-l};
+  --atlas-spacing-xl: #{$spacing-xl};
+  --atlas-spacing-2xl: #{$spacing-2xl};
+
+  // Border radius
+  --atlas-radius-s: #{$radius-s};
+  --atlas-radius-m: #{$radius-m};
+  --atlas-radius-l: #{$radius-l};
+  --atlas-radius-xl: #{$radius-xl};
+
+  // Transitions
+  --atlas-transition-fast: #{$transition-fast};
+  --atlas-transition-normal: #{$transition-normal};
+}

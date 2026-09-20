@@ -1,0 +1,245 @@
+@use '../../../../styles/tokens' as *;
+@use '../../../../styles/mixins' as *;
+
+// ── Linked note panel ───────────────────────────────────────────────────────
+// Right-hand pane of the DM dashboard: one elevated surface holding a header
+// (title + actions) and either the note picker or the linked note itself.
+
+.atlas-dm-notes-section {
+  @include atlas-elevated-surface;
+  flex: 1 1 42%; // fill what the statblocks leave
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 340px; // keep notes readable while statblocks stay constrained
+  overflow: hidden;
+  color: var(--text-normal);
+  font-size: $font-ui-small;
+  -webkit-font-smoothing: antialiased;
+
+  @media (max-width: $breakpoint-m) {
+    width: 100%;
+    min-width: 0;
+  }
+}
+
+.atlas-linked-note-header {
+  @include atlas-flex-row($spacing-m);
+  padding: $spacing-m;
+  border-bottom: $border-width-s solid var(--divider-color);
+  flex-shrink: 0;
+}
+
+.atlas-linked-note-header-icon {
+  width: $icon-m;
+  height: $icon-m;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.atlas-linked-note-header-text {
+  @include atlas-flex-col(2px);
+  flex: 1;
+  min-width: 0;
+
+  h3 {
+    @include atlas-truncate;
+    margin: 0;
+    font-size: $font-ui-medium;
+    font-weight: $font-weight-semibold;
+    line-height: var(--line-height-tight);
+    color: var(--text-normal);
+  }
+
+  p {
+    @include atlas-truncate;
+    margin: 0;
+    font-size: $font-ui-smaller;
+    color: var(--text-muted);
+  }
+}
+
+.atlas-linked-note-actions {
+  @include atlas-flex-row($spacing-xs);
+  flex-shrink: 0;
+}
+
+.atlas-linked-note-action {
+  @include atlas-control-icon-button;
+}
+
+.atlas-dm-notes-content {
+  @include atlas-scrollbar;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+// ── Picker ──────────────────────────────────────────────────────────────────
+
+.atlas-linked-note-picker {
+  @include atlas-flex-col($spacing-m);
+  flex: 1;
+  min-height: 0;
+  padding: $spacing-m;
+}
+
+.atlas-linked-note-search {
+  position: relative;
+  flex-shrink: 0;
+
+  input {
+    @include atlas-text-input;
+    padding-left: calc(#{$spacing-s} * 2 + #{$icon-s});
+  }
+}
+
+.atlas-linked-note-search-icon {
+  position: absolute;
+  top: 50%;
+  left: $spacing-s;
+  width: $icon-s;
+  height: $icon-s;
+  transform: translateY(-50%);
+  color: var(--text-faint);
+  pointer-events: none;
+}
+
+.atlas-linked-note-caption {
+  @include atlas-flex-row($spacing-s);
+  justify-content: space-between;
+  padding: 0 $spacing-s; // aligns the caption with the row's icon inset
+  font-size: $font-ui-smaller;
+  font-weight: $font-weight-medium;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.atlas-linked-note-count {
+  font-weight: $font-weight-normal;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+// Rows never animate in: the list re-renders on every keystroke.
+.atlas-linked-note-list {
+  @include atlas-scrollbar;
+  @include atlas-flex-col(2px);
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.atlas-linked-note-item {
+  @include atlas-flex-row($spacing-s);
+  width: 100%;
+  height: auto;
+  margin: 0;
+  padding: $spacing-s;
+  background: transparent;
+  border: none;
+  border-radius: $radius-l;
+  box-shadow: none;
+  appearance: none;
+  flex-shrink: 0;
+  color: var(--text-muted);
+  font-size: $font-ui-small;
+  line-height: var(--line-height-tight);
+  text-align: left;
+  cursor: pointer;
+  transition: transform $transition-press $transition-ease-out,
+              background-color $transition-fast $transition-ease;
+
+  // Highlight follows .atlas-focused (pointer and arrow keys share it)
+  &.atlas-focused {
+    background: var(--background-modifier-hover);
+
+    .atlas-linked-note-item-icon {
+      color: var(--text-normal);
+    }
+  }
+
+  &:focus,
+  &:focus-visible {
+    outline: none;
+    box-shadow: none;
+  }
+
+  &:active {
+    background: var(--background-modifier-active-hover);
+    transform: scale(0.98);
+  }
+}
+
+.atlas-linked-note-item-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: $button-height-m;
+  height: $button-height-m;
+  border-radius: $radius-s;
+  background: var(--background-secondary);
+  color: var(--text-muted);
+  flex-shrink: 0;
+  transition: color $transition-fast $transition-ease;
+
+  svg {
+    width: $icon-s;
+    height: $icon-s;
+  }
+}
+
+.atlas-linked-note-item-text {
+  @include atlas-flex-col(2px);
+  flex: 1;
+  min-width: 0;
+}
+
+.atlas-linked-note-item-name {
+  @include atlas-truncate;
+  font-weight: $font-weight-medium;
+  color: var(--text-normal);
+}
+
+.atlas-linked-note-item-path {
+  @include atlas-truncate;
+  font-size: $font-ui-smaller;
+  color: var(--text-muted);
+}
+
+.atlas-linked-note-item-date {
+  font-size: $font-ui-smaller;
+  color: var(--text-faint);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.atlas-linked-note-empty {
+  @include atlas-flex-col($spacing-s);
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-faint);
+
+  svg {
+    width: $icon-l;
+    height: $icon-l;
+  }
+
+  p {
+    margin: 0;
+    font-size: $font-ui-small;
+    color: var(--text-muted);
+    text-wrap: balance;
+    text-align: center;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .atlas-linked-note-item:active,
+  .atlas-linked-note-action:active {
+    transform: none;
+  }
+}

@@ -1,0 +1,238 @@
+@use '../../../../../styles/tokens' as *;
+@use '../../../../../styles/mixins' as *;
+
+// ── Settings panels (grid / token / widget / local player view) ─────────────
+// One layout shared by every panel the palette expands into.
+
+.atlas-command-palette-panel-header {
+  @include atlas-flex-row($spacing-l);
+  justify-content: space-between;
+  padding: $spacing-l;
+  border-bottom: $border-width-s solid var(--divider-color);
+}
+
+.atlas-command-palette-panel-title {
+  @include atlas-flex-row($spacing-s);
+  min-width: 0;
+}
+
+.atlas-command-palette-panel-title-icon {
+  display: flex;
+  color: var(--text-muted);
+
+  svg {
+    width: $icon-m;
+    height: $icon-m;
+  }
+}
+
+.atlas-command-palette-panel-heading {
+  margin: 0;
+  font-size: $font-ui-medium;
+  font-weight: $font-weight-semibold;
+  line-height: var(--line-height-tight);
+  color: var(--text-normal);
+}
+
+.atlas-command-palette-panel-actions {
+  @include atlas-flex-row($spacing-s);
+  flex-shrink: 0;
+}
+
+.atlas-command-palette-panel {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: $spacing-xl;
+  padding: $spacing-l;
+}
+
+.atlas-command-palette-panel-column {
+  @include atlas-flex-col($spacing-l);
+  min-width: 0;
+}
+
+// ── Setting rows ────────────────────────────────────────────────────────────
+// Name and hint on the left, control on the right. Rows are separated by the
+// column gap alone; no dividers.
+
+.atlas-setting-row {
+  @include atlas-flex-row($spacing-l);
+  justify-content: space-between;
+  min-height: var(--input-height);
+}
+
+.atlas-setting-row-info {
+  @include atlas-flex-col(2px);
+  min-width: 0;
+}
+
+.atlas-setting-row-control {
+  @include atlas-flex-row($spacing-s);
+  flex-shrink: 0;
+  justify-content: flex-end;
+}
+
+// Dropdown trigger rendered by ObsidianMenuDropdown, styled as a form control
+.atlas-setting-dropdown.text-icon-button {
+  @include atlas-flex-row($spacing-xs);
+  justify-content: space-between;
+  min-width: 150px;
+  height: var(--input-height);
+  padding: 0 $spacing-xs 0 $spacing-s;
+  background: var(--background-modifier-form-field);
+  border: $border-width-s solid var(--background-modifier-border);
+  border-radius: $radius-m;
+  color: var(--text-normal);
+  font-size: $font-ui-small;
+  cursor: pointer;
+  transition: border-color $transition-fast $transition-ease,
+              transform $transition-press $transition-ease-out;
+
+  &:hover {
+    border-color: var(--background-modifier-border-hover);
+  }
+
+  &:active {
+    transform: scale(0.98);
+  }
+
+  .text-button-icon {
+    display: flex;
+    color: var(--text-faint);
+
+    svg {
+      width: $icon-xs;
+      height: $icon-xs;
+    }
+  }
+}
+
+.atlas-setting-group {
+  @include atlas-flex-col($spacing-s);
+
+  &--row {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+}
+
+.atlas-setting-label {
+  font-size: $font-ui-small;
+  font-weight: $font-weight-medium;
+  color: var(--text-normal);
+}
+
+.atlas-setting-hint {
+  font-size: $font-ui-smaller;
+  color: var(--text-muted);
+}
+
+.atlas-setting-value {
+  min-width: 40px;
+  text-align: right;
+  font-family: var(--font-monospace);
+  font-size: $font-ui-smaller;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+
+.atlas-setting-slider-group {
+  @include atlas-flex-row($spacing-s);
+  width: 100%;
+}
+
+.atlas-setting-slider {
+  flex: 1;
+}
+
+// Native Obsidian input styling applies; only sizing lives here
+.atlas-setting-input {
+  width: 100%;
+
+  &--sm {
+    width: 80px;
+  }
+
+  &[type='number'] {
+    -moz-appearance: textfield;
+
+    &::-webkit-outer-spin-button,
+    &::-webkit-inner-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+  }
+}
+
+// Full-width accent action at the bottom of a panel column
+.atlas-command-palette-cta.btn {
+  width: 100%;
+  transition: transform $transition-press $transition-ease-out,
+              background-color $transition-fast $transition-ease,
+              color $transition-fast $transition-ease;
+
+  &:active {
+    transform: scale(0.98);
+  }
+}
+
+// ── Colour swatches ─────────────────────────────────────────────────────────
+
+.atlas-command-palette-swatches {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: $spacing-s;
+  width: 100%;
+}
+
+.atlas-command-palette-swatch {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+  margin: 0;
+  padding: 0;
+  border: $border-width-l solid transparent;
+  border-radius: $radius-m;
+  box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--mono-100) 12%, transparent);
+  cursor: pointer;
+  transition: transform $transition-press $transition-ease-out,
+              box-shadow $transition-fast $transition-ease;
+
+  &:active {
+    transform: scale(0.95);
+  }
+
+  &.atlas-active {
+    border-color: var(--background-primary);
+    box-shadow: 0 0 0 $border-width-l var(--interactive-accent);
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    &:hover:not(:active) {
+      transform: scale(1.05);
+    }
+  }
+}
+
+// Neutral badge so the tick reads on any swatch colour
+.atlas-command-palette-swatch-check {
+  width: 16px;
+  height: 16px;
+  padding: 3px;
+  border-radius: $radius-full;
+  background: var(--background-primary);
+  color: var(--text-normal);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .atlas-command-palette-swatch:hover,
+  .atlas-command-palette-swatch:active,
+  .atlas-command-palette-cta.btn:active {
+    transform: none;
+  }
+}

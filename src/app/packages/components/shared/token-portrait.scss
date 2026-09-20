@@ -1,0 +1,32 @@
+// Token portrait: circular art inset 5% under the ring image, matching the
+// canvas ring-to-token ratio (78:70).
+.atlas-token-portrait {
+  position: relative;
+  aspect-ratio: 1;
+}
+
+.atlas-token-ring {
+  position: absolute;
+  inset: 0;
+  // Multiplying the ring image with a colour reproduces the canvas sprite
+  // tint; the mask then restores the ring's own transparency.
+  background: var(--atlas-token-ring-color, #fff) var(--atlas-token-ring-image) center / 100% 100% no-repeat;
+  background-blend-mode: multiply;
+  -webkit-mask: var(--atlas-token-ring-image) center / 100% 100% no-repeat;
+  mask: var(--atlas-token-ring-image) center / 100% 100% no-repeat;
+}
+
+.atlas-token-image-wrapper {
+  position: absolute;
+  inset: 5%;
+  border-radius: 50%;
+  overflow: hidden;
+  box-shadow: 0 2px 6px color-mix(in oklch, var(--mono-0) 35%, transparent);
+
+  img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+}

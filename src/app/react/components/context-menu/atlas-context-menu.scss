@@ -1,0 +1,162 @@
+@use '../../../../../styles/tokens' as *;
+@use '../../../../../styles/mixins' as *;
+
+// ── Menu container ──────────────────────────────────────────────────────────
+
+.atlas-ctx-menu {
+  @include atlas-elevated-surface;
+  box-shadow: $shadow-md;
+  display: flex;
+  flex-direction: column;
+  padding: $spacing-xs;
+  gap: $spacing-xs;
+  min-width: 180px;
+  max-width: 280px;
+  max-height: 70vh;
+  overflow-y: auto;
+  z-index: $z-atlas-dropdown;
+  @include atlas-scrollbar;
+}
+
+// ── Menu item (Radix Item / CheckboxItem / SubTrigger) ──────────────────────
+
+.atlas-ctx-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: $spacing-xs;
+  padding: $spacing-xs $spacing-s;
+  border-radius: $radius-l;
+  background: transparent;
+  color: var(--text-normal);
+  font-size: var(--font-ui-small);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color $transition-fast $transition-ease;
+  width: 100%;
+  text-align: left;
+  box-sizing: border-box;
+  border: none;
+  outline: none;
+
+  // Radix applies [data-highlighted] on hover + keyboard focus
+  &[data-highlighted] {
+    background: var(--background-modifier-hover);
+  }
+
+  &:active {
+    background: var(--background-modifier-active-hover);
+  }
+
+  &[data-disabled] {
+    opacity: 0.4;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+
+  &--destructive {
+    color: var(--text-error);
+
+    .atlas-ctx-icon svg {
+      color: var(--text-error);
+    }
+  }
+
+  &__leading {
+    display: flex;
+    align-items: center;
+    gap: $spacing-s;
+    min-width: 0;
+  }
+
+  &__label {
+    @include atlas-truncate;
+  }
+
+  &__trailing {
+    display: flex;
+    align-items: center;
+    gap: $spacing-xs;
+    margin-left: auto;
+    flex-shrink: 0;
+
+    .atlas-ctx-icon {
+      width: $icon-xs;
+      height: $icon-xs;
+
+      svg {
+        width: $icon-xs;
+        height: $icon-xs;
+      }
+    }
+  }
+}
+
+// ── Icon slots ──────────────────────────────────────────────────────────────
+
+.atlas-ctx-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: $icon-s;
+  height: $icon-s;
+  flex-shrink: 0;
+
+  svg {
+    width: $icon-s;
+    height: $icon-s;
+    color: var(--text-muted);
+  }
+}
+
+.atlas-ctx-icon-spacer {
+  width: $icon-s;
+  height: $icon-s;
+  flex-shrink: 0;
+}
+
+// ── Separator ───────────────────────────────────────────────────────────────
+
+.atlas-ctx-separator {
+  height: 1px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: color-mix(in oklch, var(--mono-100) $border-opacity-subtle, transparent);
+}
+
+// ── Destructive action row (Kill + Delete at bottom) ────────────────────────
+
+.atlas-ctx-destructive-row {
+  display: flex;
+  gap: $spacing-xs;
+}
+
+.atlas-ctx-destructive-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: $spacing-s;
+  padding: $spacing-xs $spacing-s;
+  border: none;
+  border-radius: $radius-l;
+  background: transparent;
+  color: var(--text-error);
+  font-size: var(--font-ui-small);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color $transition-fast $transition-ease;
+
+  svg {
+    flex-shrink: 0;
+    color: var(--text-error);
+  }
+
+  &:hover {
+    background: color-mix(in oklch, var(--color-red) 15%, transparent);
+  }
+
+  &:active {
+    background: color-mix(in oklch, var(--color-red) 25%, transparent);
+  }
+}

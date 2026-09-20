@@ -1,0 +1,34 @@
+@use '../../../../../styles/tokens' as *;
+@use '../../../../../styles/mixins' as *;
+
+// Generic modal chrome shared by InputModal, TagSearchModal and the widget
+// settings modals. The overlay class itself lives with the asset manager modals.
+
+.atlas-modal {
+  @include atlas-modal-window;
+
+  .atlas-modal-header {
+    @include atlas-modal-header;
+  }
+
+  .atlas-modal-content {
+    @include atlas-modal-body;
+  }
+
+  .atlas-modal-footer {
+    @include atlas-modal-footer;
+  }
+
+  .atlas-input {
+    @include atlas-text-input;
+  }
+
+  .atlas-input-error {
+    color: var(--text-error);
+    font-size: $font-ui-smaller;
+  }
+}
+
+.atlas-input-modal {
+  width: 420px;
+}

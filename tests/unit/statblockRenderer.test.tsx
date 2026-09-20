@@ -1,0 +1,314 @@
+import React from 'react';
+import { render } from '@testing-library/react';
+import { describe, expect, it } from 'vitest';
+import { StatblockRenderer } from '../../src/app/react/components/statblock/StatblockRenderer';
+import type {
+  StatblockItem,
+  StatblockLayout,
+} from '../../src/app/react/components/statblock/statblockTypes';
+
+function layoutOf(...blocks: StatblockItem[]): StatblockLayout {
+  return { name: 'Test', id: 'test', blocks };
+}
+
+/** Renders without an `app`, so markdown falls back to plain text. */
+function renderStatblock(layout: StatblockLayout, monster: Record<string, unknown>) {
+  return render(<StatblockRenderer layout={layout} monster={monster} />);
+}
+
+describe('StatblockRenderer', () => {
+  it('renders a heading at the requested level', () => {
+    const { container } = renderStatblock(
+      layoutOf({ type: 'heading', id: 'h', properties: ['name'], size: 2 }),
+      { name: 'Giant Toad' },
+    );
+
+    expect(container.querySelector('h2')?.textContent).toBe('Giant Toad');
+  });
+
+  it('renders a property line with its label and value', () => {
+    const { container } = renderStatblock(
+      layoutOf({ type: 'property', id: 'p', properties: ['ac'], display: 'AC' }),
+      { ac: 12 },
+    );
+
+    expect(container.querySelector('.atlas-sb-property-name')?.textContent).toBe('AC');
+    expect(container.querySelector('.atlas-sb-property')?.textContent).toContain('12');
+  });
+
+  it('falls back to a dash for empty unconditioned properties', () => {
+    const { container } = renderStatblock(
+      layoutOf({ type: 'property', id: 'p', properties: ['ac'], display: 'AC' }),
+      {},
+    );
+
+    expect(container.querySelector('.atlas-sb-property')?.textContent).toContain('-');
+  });
+
+  it('hides conditioned blocks whose properties are absent', () => {
+    const { container } = renderStatblock(
+      layoutOf({ type: 'property', id: 'p', properties: ['ac'], conditioned: true }),
+      {},
+    );
+
+    expect(container.querySelector('.atlas-sb-property')).toBeNull();
+  });
+
+  it('joins subheading properties with the configured separator', () => {
+    const { container } = renderStatblock(
+      layoutOf({
+        type: 'subheading',
+        id: 's',
+        properties: ['size', 'type'],
+        separator: ' — ',
+      }),
+      { size: 'Medium', type: 'Animal' },
+    );
+
+    expect(container.querySelector('.atlas-sb-subheading')?.textContent).toBe('Medium — Animal');
+  });
+
+  it('renders each trait with its name and description', () => {
+    const { container } = renderStatblock(
+      layoutOf({ type: 'traits', id: 't', properties: ['actions'], heading: 'Actions' }),
+      { actions: [{ name: 'Bite', desc: 'Deals 1d4 damage.' }] },
+    );
+
+    expect(container.querySelector('.atlas-sb-section-heading')?.textContent).toContain('Actions');
+    expect(container.querySelector('.atlas-sb-trait-name')?.textContent).toBe('Bite');
+    expect(container.querySelector('.atlas-sb-trait')?.textContent).toContain('1d4');
+  });
+
+  it('computes ability modifiers in table blocks', () => {
+    const { container } = renderStatblock(
+      layoutOf({
+        type: 'table',
+        id: 'tb',
+        properties: ['stats'],
+        headers: ['STR', 'DEX'],
+        calculate: true,
+      }),
+      { stats: [16, 8] },
+    );
+
+    const cells = container.querySelectorAll('td');
+    expect(cells[0]?.textContent).toContain('+3');
+    expect(cells[1]?.textContent).toContain('-1');
+  });
+
+  it('renders only the matching branch of an ifelse block', () => {
+    const { container } = renderStatblock(
+      layoutOf({
+        type: 'ifelse',
+        id: 'ie',
+        conditions: [
+          {
+            condition: 'return monster.legendary === true',
+            nested: [{ type: 'text', id: 'a', properties: [], text: 'Legendary' }],
+          },
+          {
+            condition: '',
+            nested: [{ type: 'text', id: 'b', properties: [], text: 'Ordinary' }],
+          },
+        ],
+      }),
+      { legendary: false },
+    );
+
+    expect(container.textContent).toContain('Ordinary');
+    expect(container.textContent).not.toContain('Legendary');
+  });
+
+  it('lays inline groups out as separate items', () => {
+    const { container } = renderStatblock(
+      layoutOf({
+        type: 'inline',
+        id: 'i',
+        properties: [],
+        nested: [
+          { type: 'property', id: 'i1', properties: ['hp'], display: 'HP' },
+          { type: 'property', id: 'i2', properties: ['ac'], display: 'AC' },
+        ],
+      }),
+      { hp: 9, ac: 12 },
+    );
+
+    expect(container.querySelectorAll('.atlas-sb-inline-item')).toHaveLength(2);
+  });
+
+  it('resolves nested layout blocks through the provided resolver', () => {
+    const nested = layoutOf({ type: 'text', id: 'n', properties: [], text: 'From nested layout' });
+    const { container } = render(
+      <StatblockRenderer
+        layout={layoutOf({ type: 'layout', id: 'l', layout: 'nested' })}
+        monster={{}}
+        resolveLayout={(id) => (id === 'nested' ? nested : null)}
+      />,
+    );
+
+    expect(container.textContent).toContain('From nested layout');
+  });
+
+  it('renders DOM returned by a javascript block', () => {
+    const { container } = renderStatblock(
+      layoutOf({
+        type: 'javascript',
+        id: 'js',
+        code: "const el = document.createElement('div'); el.className = 'stat-line'; el.textContent = monster.name; return el;",
+      }),
+      { name: 'Acid Burrower' },
+    );
+
+    expect(container.querySelector('.stat-line')?.textContent).toBe('Acid Burrower');
+  });
+
+  it('groups spells under their header lines', () => {
+    const { container } = renderStatblock(
+      layoutOf({ type: 'spells', id: 'sp', properties: ['spells'] }),
+      { spells: ['The toad knows:', { '1st level': 'magic missile' }] },
+    );
+
+    expect(container.textContent).toContain('The toad knows:');
+    expect(container.querySelector('.atlas-sb-spell-level')?.textContent).toContain('1st level');
+  });
+
+  it('drops the trailing colon from property labels', () => {
+    const { container } = renderStatblock(
+      layoutOf({ type: 'property', id: 'p', properties: ['difficulty'], display: 'Difficulty:' }),
+      { difficulty: 14 },
+    );
+
+    expect(container.querySelector('.atlas-sb-property-name')?.textContent).toBe('Difficulty');
+  });
+
+  it('omits values a layout callback could not resolve instead of printing undefined', () => {
+    const { container } = renderStatblock(
+      layoutOf({
+        type: 'property',
+        id: 'p',
+        properties: ['attack'],
+        display: 'Attack',
+        callback: 'return monster.attack + " - " + monster.range + " - " + monster.damage;',
+      }),
+      { attack: 'Claws' },
+    );
+
+    expect(container.querySelector('.atlas-sb-property')?.textContent).toBe('AttackClaws');
+  });
+
+  it('renders a rule after groups and inline blocks that ask for one', () => {
+    const { container } = renderStatblock(
+      layoutOf(
+        {
+          type: 'group',
+          id: 'g',
+          properties: [],
+          hasRule: true,
+          nested: [{ type: 'property', id: 'p', properties: ['ac'], display: 'AC' }],
+        },
+        {
+          type: 'inline',
+          id: 'i',
+          properties: [],
+          hasRule: true,
+          nested: [{ type: 'property', id: 'q', properties: ['hp'], display: 'HP' }],
+        },
+      ),
+      { ac: 12, hp: 9 },
+    );
+
+    expect(container.querySelectorAll('.atlas-sb-item > .atlas-sb-rule')).toHaveLength(2);
+  });
+
+  it('exposes layout hooks as data attributes rather than Fantasy Statblocks class names', () => {
+    const { container } = render(
+      <StatblockRenderer
+        layout={{
+          name: 'Daggerheart Adversary',
+          id: 'dh',
+          blocks: [
+            {
+              type: 'group',
+              id: 'g',
+              properties: [],
+              cls: 'daggerheart-adversary-tier',
+              nested: [{ type: 'property', id: 'p', properties: ['tier'], display: 'Tier' }],
+            },
+          ],
+        }}
+        monster={{ tier: 1 }}
+      />,
+    );
+
+    const root = container.querySelector('.atlas-statblock');
+    expect(root?.getAttribute('data-layout')).toBe('daggerheart-adversary');
+    expect(root?.classList.contains('daggerheart-adversary')).toBe(false);
+
+    const group = container.querySelector('[data-cls="daggerheart-adversary-tier"]');
+    expect(group?.getAttribute('data-type')).toBe('group');
+    expect(container.querySelector('.property-container')).toBeNull();
+    expect(container.querySelector('.atlas-sb-property')?.getAttribute('data-prop')).toBe('tier');
+  });
+
+  it('pins the token portrait ahead of the layout blocks', () => {
+    const layout = layoutOf({ type: 'heading', id: 'h', properties: ['name'] });
+    const { container, rerender } = render(
+      <StatblockRenderer
+        layout={layout}
+        monster={{ name: 'Goblin' }}
+        portrait={{ src: 'app://token.png', ringColor: '#ff0000' }}
+      />,
+    );
+
+    const body = container.querySelector('.atlas-statblock-body');
+    const portrait = body?.firstElementChild;
+    expect(portrait?.matches('.atlas-token-portrait.atlas-sb-portrait')).toBe(true);
+    expect(portrait?.querySelector('img')?.getAttribute('src')).toBe('app://token.png');
+    expect(
+      portrait?.querySelector<HTMLElement>('.atlas-token-ring')?.style.getPropertyValue('--atlas-token-ring-color'),
+    ).toBe('#ff0000');
+
+    rerender(<StatblockRenderer layout={layout} monster={{ name: 'Goblin' }} />);
+    expect(container.querySelector('.atlas-sb-portrait')).toBeNull();
+  });
+
+  it('renders dice notation as clickable spans without touching React-owned nodes', () => {
+    const layout = layoutOf({ type: 'property', id: 'p', properties: ['hp'], display: 'HP' });
+    const { container, rerender } = renderStatblock(layout, { hp: '2d8+2' });
+
+    expect(container.querySelector('.atlas-dice-link')?.textContent).toBe('2d8+2');
+
+    // Re-rendering used to throw: dice spans were previously grafted in by
+    // replacing text nodes React still held references to.
+    rerender(<StatblockRenderer layout={layout} monster={{ hp: '3d8+4' }} />);
+
+    expect(container.querySelector('.atlas-dice-link')?.textContent).toBe('3d8+4');
+  });
+});
+
+
+describe('dashboard resource footer', () => {
+  it('replaces the imported adversary tracks while preserving unrelated JavaScript content', () => {
+    const layout = layoutOf({ type: 'javascript', id: 'vitals', code: `
+      const el = document.createElement('div');
+      el.innerHTML = '<div class="stat-block"><div class="adversary-block"><div class="stat-line"><span class="adversary-name">CREATURE #1</span><input class="stat-value" type="checkbox" /></div></div></div><p>Other layout content</p>';
+      return el;
+    ` });
+    const { container } = render(<StatblockRenderer monster={{ name: 'Creature' }} layout={layout}
+      replaceVitals footer={<div>Editable token resources</div>} />);
+    expect(container.querySelector('.adversary-name')).toBeNull();
+    expect(container.textContent).toContain('Other layout content');
+    expect(container.textContent).toContain('Editable token resources');
+  });
+});
+
+it('preserves custom JavaScript gauges when replacing Daggerheart trackers', () => {
+  const layout = layoutOf({ type: 'javascript', id: 'custom', code: `
+    const el = document.createElement('div');
+    el.className = 'stat-block';
+    el.innerHTML = '<progress max="10" value="4"></progress>';
+    return el;
+  ` });
+  const { container } = render(<StatblockRenderer monster={{}} layout={layout} replaceVitals />);
+  expect(container.querySelector('progress')?.value).toBe(4);
+});

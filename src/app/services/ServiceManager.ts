@@ -1,0 +1,313 @@
+import { App, Plugin } from 'obsidian';
+import { EventEmitter } from 'events';
+import { RendererService } from './RendererService';
+import { LayerGraph } from './LayerGraph';
+import { UIOverlay } from './UIOverlay';
+import { MapService } from './MapService';
+import { ToolController } from './ToolController';
+import { GridManager } from './GridManager';
+import { NotePreviewUIManager } from './NotePreviewUIManager';
+import { AssetService } from './AssetService';
+import { SettingsService } from './SettingsService';
+import { MapThumbnailService } from './MapThumbnailService';
+import { WidgetSyncService } from './WidgetSyncService';
+import { GlobalAudioService } from './GlobalAudioService';
+import { getQueueService } from './QueueService';
+import { SoundEffectService } from './SoundEffectService';
+import { DiceToastObserver } from './DiceToastObserver';
+import type { ViewAtlasState } from '../storeFactory';
+import type { StoreApi } from 'zustand';
+
+/**
+ * ServiceManager serves as a central registry for all Atlas services
+ * It provides a single point of access to all services and manages their lifecycle
+ */
+export class ServiceManager {
+  private eventBus: EventEmitter;
+  private rendererService: RendererService;
+  private layerGraph: LayerGraph;
+  private uiOverlay: UIOverlay;
+  private mapService: MapService;
+  private toolController: ToolController;
+  private gridManager: GridManager | null = null;
+  private notePreviewUIManager: NotePreviewUIManager;
+  private assetService: AssetService | null = null;
+  private settingsService: SettingsService;
+  private mapThumbnailService: MapThumbnailService;
+  private widgetSyncService?: WidgetSyncService;
+  private soundEffectService: SoundEffectService;
+  private diceToastObserver: DiceToastObserver;
+  private viewId: string;
+  private thumbnailUnsubs: Array<() => void> = [];
+  private thumbnailGenerationTimeout: number | null = null;
+  
+  constructor(private app: App, private store: StoreApi<ViewAtlasState>, private plugin?: Plugin, viewId?: string) {
+    // Create event bus for inter-service communication
+    this.eventBus = new EventEmitter();
+    this.eventBus.setMaxListeners(30); // Increase max listeners
+
+    // Store viewId
+    this.viewId = viewId || `view-${Date.now()}`;
+
+    // Share the plugin-wide settings service so every view sees the same settings
+    this.settingsService = (plugin as { settingsService?: SettingsService } | undefined)?.settingsService ?? new SettingsService(app);
+
+    // Initialize all services with the view store
+    this.rendererService = new RendererService(app, this.eventBus, store, this.viewId, this.settingsService);
+    this.layerGraph = new LayerGraph(this.eventBus);
+    this.uiOverlay = new UIOverlay(app, this.eventBus, store);
+    this.mapService = new MapService(app, this.eventBus, store);
+    // Initialize SoundEffectService before ToolController
+    this.soundEffectService = new SoundEffectService();
+    this.diceToastObserver = new DiceToastObserver(this.soundEffectService);
+
+    this.toolController = new ToolController(this.eventBus, app, store);
+
+    this.gridManager = new GridManager(this.eventBus);
+
+    this.notePreviewUIManager = new NotePreviewUIManager(app, this.eventBus);
+
+    this.assetService = AssetService.getInstance(app);
+    getQueueService().attachApp(app);
+    this.mapThumbnailService = new MapThumbnailService(app);
+
+    void Promise.all([this.settingsService.initialize(), this.assetService.initialize()]);
+    
+    // Set up thumbnail generation on map save
+    this.setupThumbnailGeneration();
+    
+    // Initialize widget sync service if plugin is available
+    if (plugin) {
+      // Get or create singleton widget sync service from plugin
+      if (!(plugin as any).widgetSyncService) {
+        (plugin as any).widgetSyncService = new WidgetSyncService(plugin);
+      }
+      this.widgetSyncService = (plugin as any).widgetSyncService;
+      
+      // Register this store with widget sync
+      this.widgetSyncService?.registerStore(this.viewId, store);
+    }
+    
+  }
+  
+  /**
+   * Get the renderer service
+   */
+  public getRendererService(): RendererService {
+    return this.rendererService;
+  }
+  
+  /**
+   * Get the layer graph
+   */
+  public getLayerGraph(): LayerGraph {
+    return this.layerGraph;
+  }
+  
+  /**
+   * Get the UI overlay
+   */
+  public getUIOverlay(): UIOverlay {
+    return this.uiOverlay;
+  }
+  
+  /**
+   * Get the map service
+   */
+  public getMapService(): MapService {
+    return this.mapService;
+  }
+  
+  /**
+   * Get the tool controller
+   */
+  public getToolController(): ToolController {
+    return this.toolController;
+  }
+  
+  /**
+   * Get the grid manager (may be null if gridSystem feature is disabled)
+   */
+  public getGridManager(): GridManager | null {
+    return this.gridManager;
+  }
+
+  /**
+   * Get the note preview UI manager
+   */
+  public getNotePreviewUIManager(): NotePreviewUIManager {
+    return this.notePreviewUIManager;
+  }
+
+  /**
+   * Get the asset service (may be null if assetManager feature is disabled)
+   */
+  public getAssetService(): AssetService | null {
+    return this.assetService;
+  }
+
+  /**
+   * Get the settings service
+   */
+  public getSettingsService(): SettingsService {
+    return this.settingsService;
+  }
+  
+  /**
+   * Get the map thumbnail service
+   */
+  public getMapThumbnailService(): MapThumbnailService {
+    return this.mapThumbnailService;
+  }
+  
+  /**
+   * Get the sound effect service
+   */
+  public getSoundEffectService(): SoundEffectService {
+    return this.soundEffectService;
+  }
+  
+  /**
+   * Get the event bus
+   * This allows services to subscribe to events from other services
+   */
+  public getEventBus(): EventEmitter {
+    return this.eventBus;
+  }
+  
+  /**
+   * Get the store instance for this view
+   */
+
+
+
+  public getStore(): StoreApi<ViewAtlasState> {
+    return this.store;
+  }
+  
+  /**
+   * Generate and save a thumbnail for the current map
+   */
+  public async generateMapThumbnail(): Promise<void> {
+    const mapPath = this.store.getState().mapPath;
+    if (!mapPath) {
+      console.warn('[ServiceManager] Cannot generate thumbnail: no map path set');
+      return;
+    }
+    
+    const renderer = this.rendererService.getRenderer();
+    if (!renderer) {
+      console.warn('[ServiceManager] Cannot generate thumbnail: renderer not available');
+      return;
+    }
+    
+    const pixiApp = (renderer as any).app;
+    const viewport = (renderer as any).viewport;
+    
+    if (!pixiApp || !viewport) {
+      console.warn('[ServiceManager] Cannot generate thumbnail: PIXI app or viewport not available');
+      return;
+    }
+    
+    try {
+      await this.mapThumbnailService.generateThumbnail(pixiApp, viewport, mapPath, renderer.getBackgroundSprite());
+    } catch (error) {
+      console.error('[ServiceManager] Error generating map thumbnail:', error);
+    }
+  }
+  
+  /**
+   * Set up automatic thumbnail generation when map state changes
+   */
+  private setupThumbnailGeneration(): void {
+    this.subscribeThumbnailGeneration();
+  }
+
+  private clearThumbnailGenerationSubscriptions(): void {
+    for (const unsubscribe of this.thumbnailUnsubs) {
+      unsubscribe();
+    }
+    this.thumbnailUnsubs = [];
+  }
+
+  private scheduleThumbnailGeneration(): void {
+    const state = this.store.getState();
+    if (!state.persistenceEnabled || !state.mapPath || state.isMapLoading || state.isPlayerView) {
+      return;
+    }
+
+    if (this.thumbnailGenerationTimeout) {
+      window.clearTimeout(this.thumbnailGenerationTimeout);
+    }
+
+    this.thumbnailGenerationTimeout = window.setTimeout(() => {
+      this.generateMapThumbnail().catch(error => {
+        console.error('[ServiceManager] Failed to generate thumbnail:', error);
+      });
+    }, 3000);
+  }
+
+  private subscribeThumbnailGeneration(): void {
+    this.clearThumbnailGenerationSubscriptions();
+
+    if (this.thumbnailGenerationTimeout) {
+      window.clearTimeout(this.thumbnailGenerationTimeout);
+      this.thumbnailGenerationTimeout = null;
+    }
+
+    // React only to persisted map-content signals instead of every store change.
+    this.thumbnailUnsubs.push(this.store.subscribe((state, prevState) => {
+      if (
+        state.persistenceEnabled !== prevState.persistenceEnabled ||
+        state.mapPath !== prevState.mapPath ||
+        state.background !== prevState.background ||
+        state.grid !== prevState.grid ||
+        state.objects !== prevState.objects
+      ) {
+        this.scheduleThumbnailGeneration();
+      }
+    }));
+  }
+  
+  /**
+   * Cleanup all services
+   * This should be called when the view is closed
+   */
+  public destroy(): void {
+    // Unregister from widget sync
+    if (this.widgetSyncService) {
+      this.widgetSyncService.unregisterStore(this.viewId);
+    }
+    
+    // Note: We don't cleanup global audio here since it persists across all maps
+    // Audio cleanup is handled at the plugin level when the plugin is unloaded
+    
+    // Destroy services in reverse order of dependency
+    this.diceToastObserver.destroy();
+    this.soundEffectService.destroy();
+    this.toolController.destroy();
+    this.rendererService.destroy();
+    this.layerGraph.destroy();
+    this.uiOverlay.unmount();
+    this.notePreviewUIManager.destroy();
+
+    // Clean up thumbnail generation subscription
+    this.clearThumbnailGenerationSubscriptions();
+    if (this.thumbnailGenerationTimeout) {
+      window.clearTimeout(this.thumbnailGenerationTimeout);
+      this.thumbnailGenerationTimeout = null;
+    }
+
+    // Remove all event listeners
+    this.eventBus.removeAllListeners();
+    
+  }
+  
+  /**
+   * Cleanup all audio services
+   * Should be called when the plugin is unloaded
+   */
+  public static destroyAllAudio(): void {
+    GlobalAudioService.getInstance().destroy();
+  }
+} 

@@ -1,0 +1,161 @@
+@use '../../../../../styles/tokens' as *;
+@use '../../../../../styles/mixins' as *;
+
+// ── Modal sizing ────────────────────────────────────────────────────────────
+
+.atlas-tag-search-modal {
+  width: 420px;
+  max-width: 90vw;
+  max-height: 70vh;
+}
+
+// ── Subtitle below title ────────────────────────────────────────────────────
+
+.atlas-tag-search__subtitle {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  font-weight: $font-weight-normal;
+}
+
+// ── Search row ──────────────────────────────────────────────────────────────
+
+.atlas-tag-search__search {
+  position: relative;
+  padding: $spacing-s $spacing-l;
+
+  .atlas-tag-search__search-icon {
+    position: absolute;
+    left: calc(#{$spacing-l} + #{$spacing-s});
+    top: 50%;
+    transform: translateY(-50%);
+    width: $icon-xs;
+    height: $icon-xs;
+    color: var(--text-faint);
+    pointer-events: none;
+  }
+
+  .atlas-input {
+    padding-left: $spacing-xl;
+  }
+}
+
+// ── Tag list ────────────────────────────────────────────────────────────────
+
+.atlas-tag-search__list {
+  flex: 1;
+  overflow-y: auto;
+  padding: $spacing-xs $spacing-s;
+  @include atlas-scrollbar;
+}
+
+// ── Tag item ────────────────────────────────────────────────────────────────
+
+.atlas-tag-search__item {
+  display: flex;
+  align-items: center;
+  gap: $spacing-s;
+  padding: $spacing-s $spacing-m;
+  border-radius: $radius-l;
+  cursor: pointer;
+  transition: background-color $transition-fast $transition-ease;
+
+  &:hover {
+    background: var(--background-modifier-hover);
+  }
+
+  &:active {
+    background: var(--background-modifier-active-hover);
+  }
+
+  &--selected {
+    background: color-mix(in oklch, var(--interactive-accent) 8%, transparent);
+
+    .atlas-tag-search__item-icon {
+      color: var(--interactive-accent);
+    }
+
+    .atlas-tag-search__item-name {
+      color: var(--interactive-accent);
+      font-weight: $font-weight-medium;
+    }
+
+    .atlas-tag-search__item-count {
+      color: var(--text-accent);
+    }
+
+    &:hover {
+      background: color-mix(in oklch, var(--interactive-accent) 12%, transparent);
+    }
+  }
+
+  &--partial {
+    background: var(--background-modifier-hover);
+
+    .atlas-tag-search__item-icon {
+      color: var(--text-muted);
+    }
+  }
+}
+
+.atlas-tag-search__item-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: $icon-m;
+  height: $icon-m;
+  flex-shrink: 0;
+  color: var(--text-faint);
+
+  svg {
+    width: $icon-s;
+    height: $icon-s;
+  }
+}
+
+.atlas-tag-search__item-tag-icon {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.atlas-tag-search__item-name {
+  flex: 1;
+  font-size: var(--font-ui-small);
+  color: var(--text-normal);
+  @include atlas-truncate;
+}
+
+.atlas-tag-search__item-count {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: $font-ui-smaller;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+// ── Create tag row ──────────────────────────────────────────────────────────
+
+.atlas-tag-search__create {
+  display: flex;
+  align-items: center;
+  gap: $spacing-s;
+  padding: $spacing-s $spacing-m;
+  border-radius: $radius-l;
+  color: var(--interactive-accent);
+  cursor: pointer;
+  transition: background-color $transition-fast $transition-ease;
+
+  &:hover {
+    background: var(--background-modifier-hover);
+  }
+}
+
+// ── Empty state ─────────────────────────────────────────────────────────────
+
+.atlas-tag-search__empty {
+  text-align: center;
+  color: var(--text-faint);
+  padding: $spacing-2xl $spacing-l;
+  font-size: var(--font-ui-small);
+}

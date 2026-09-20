@@ -1,0 +1,81 @@
+@use '../../../../../styles/tokens' as *;
+
+// Interactive parts of a statblock: click-to-edit values and click-to-roll dice.
+
+// ── Inline editing ──────────────────────────────────────────────────────────
+// Editable values stay visually quiet until hovered, so an editable statblock
+// still reads as a statblock rather than a form.
+.atlas-sb-editable {
+  border-radius: $radius-s;
+  padding: 0 3px;
+  margin: 0 -3px;
+  cursor: text;
+  transition: background-color $transition-fast $transition-ease,
+              box-shadow $transition-fast $transition-ease;
+
+  &:hover {
+    background: color-mix(in oklch, var(--mono-100) 6%, transparent);
+  }
+
+  &:focus-visible {
+    background: color-mix(in oklch, var(--mono-100) 6%, transparent);
+    box-shadow: 0 0 0 2px var(--interactive-accent);
+    outline: none;
+  }
+}
+
+.atlas-sb-editor {
+  width: 100%;
+  min-width: 6ch;
+  border-radius: $radius-s;
+  padding: 0 3px;
+  margin: 0 -3px;
+  background: var(--background-primary-alt);
+  border: none;
+  box-shadow: 0 0 0 2px var(--interactive-accent);
+  color: var(--text-normal);
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  font-variant-numeric: tabular-nums;
+  line-height: inherit;
+  resize: vertical;
+
+  &:focus {
+    outline: none;
+  }
+}
+
+// ── Clickable dice ──────────────────────────────────────────────────────────
+// Rollable notation is set in the accent colour with a faint underline: enough
+// to find, quiet enough not to break up a feature description.
+.atlas-dice-link {
+  cursor: pointer;
+  border-radius: $radius-s;
+  padding: 0 2px;
+  margin: 0 -2px;
+  color: var(--text-accent);
+  font-weight: $font-weight-semibold;
+  font-variant-numeric: tabular-nums;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-decoration-color: color-mix(in oklch, var(--text-accent) 40%, transparent);
+  text-underline-offset: 3px;
+  transition: background-color $transition-fast $transition-ease,
+              text-decoration-color $transition-fast $transition-ease;
+
+  &:hover,
+  &:focus-visible {
+    background: color-mix(in oklch, var(--text-accent) 14%, transparent);
+    text-decoration-color: transparent;
+    outline: none;
+  }
+
+  &:focus-visible {
+    box-shadow: 0 0 0 2px var(--interactive-accent);
+  }
+
+  &:active {
+    background: color-mix(in oklch, var(--text-accent) 24%, transparent);
+  }
+}

@@ -1,0 +1,1030 @@
+// Player Dashboard Widget positioned at center right - using highly specific selector
+div.player-dashboard-widget {
+  position: fixed !important;
+  top: 50% !important;
+  right: 0px !important; // Attached to right edge
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px 0 0 8px; // Only round left corners
+  border-right: none; // No right border since attached to edge
+  padding: 8px;
+  box-shadow: var(--shadow-l);
+  z-index: 100;
+  width: fit-content; // Hug the content instead of fixed width
+  min-width: unset; // Remove minimum width constraint
+  max-width: unset; // Remove maximum width constraint
+  pointer-events: auto; // Ensure mouse events work
+  
+  // Ensure it doesn't overlap with other UI elements
+  @media (max-width: 768px) {
+    right: 10px;
+    padding: 8px;
+  }
+}
+
+// Hover zone for revealing dashboard when hidden - invisible trigger area
+.dashboard-hover-zone {
+  position: fixed;
+  top: 25%;
+  right: 0px;
+  width: 50px; // Extends 50px from edge
+  height: 50%; // Covers middle 50% of screen height
+  z-index: 1000; // Below reveal button but above content
+  pointer-events: auto;
+  // Invisible but interactive
+  background: transparent;
+}
+
+// Reveal button when widget is hidden - iOS-style side handle
+.dashboard-reveal-button {
+  position: fixed;
+  top: 50%;
+  right: 0px; // Flush with screen edge
+  transform: translateY(-50%);
+  z-index: 1001;
+  pointer-events: auto;
+  cursor: pointer;
+  
+  // iOS-style handle appearance - much taller like iOS PiP handle
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-right: none; // No border on screen edge
+  border-radius: 8px 0 0 8px; // Only round left corners
+  padding: 32px 8px; // Twice as tall vertically, wider for larger chevron
+  box-shadow: var(--shadow-s);
+  backdrop-filter: blur(8px);
+  
+  // Chevron styling to match sidebar buttons
+  color: var(--text-muted);
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  
+  // Larger chevron icon
+  svg {
+    width: 18px;
+    height: 18px;
+  }
+  
+  &:hover {
+    color: var(--text-normal);
+    background: var(--background-modifier-hover);
+    transform: translateY(-50%) translateX(-2px); // Slight pull-out on hover
+  }
+}
+
+.player-dashboard-header {
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  
+  h3 {
+    margin: 0;
+    font-size: var(--font-ui-medium);
+    color: var(--text-normal);
+    font-weight: var(--font-semibold);
+    transition: opacity 0.3s ease-in-out;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+  
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+}
+
+.player-dashboard-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr; // Two columns - always 2 characters per row
+  gap: 8px; // More gap between bigger cards
+  width: fit-content; // Let the grid size to its content
+}
+
+// Modern sleek character card
+.player-character-card {
+  background: var(--background-secondary-alt);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  padding: 10px;
+  transition: all 0.2s ease;
+  min-width: 260px; // Ensure wide enough for all content
+  pointer-events: auto; // Ensure clickable
+  
+  // Compact variant
+  &.compact {
+    padding: 4px; // Slightly more padding
+    min-width: unset; // Let content determine width
+    width: 80px; // Much wider for bigger elements
+    min-height: 160px; // Taller for bigger avatar + padding
+  }
+  
+  &.clickable {
+    cursor: pointer;
+    
+    &:hover {
+      border-color: var(--interactive-accent);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      transform: translateY(-2px);
+      background: var(--background-modifier-hover);
+      
+      .remove-item-btn {
+        opacity: 0.7;
+      }
+      
+      .character-name {
+        color: var(--text-accent);
+      }
+      
+      .character-avatar {
+        transform: scale(1.05);
+      }
+    }
+    
+    &:active {
+      transform: translateY(-1px);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+    }
+  }
+  
+  // Non-clickable hover state (fallback)
+  &:not(.clickable):hover {
+    border-color: var(--interactive-accent);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    transform: translateY(-1px);
+    
+    .remove-item-btn {
+      opacity: 0.7;
+    }
+  }
+}
+
+// Dashboard layout with header buttons
+.dashboard-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+// Header buttons row
+.dashboard-header-buttons {
+  display: flex;
+  align-items: center;
+  gap: 8px; // Increased spacing between buttons
+  width: fit-content;
+  margin-left: auto; // Align to right
+}
+
+.header-btn {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--interactive-accent);
+  border: 1px solid var(--interactive-accent);
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: bold;
+  line-height: 1;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  opacity: 0.7;
+  position: relative;
+  
+  &:hover {
+    opacity: 1;
+    background: var(--interactive-accent);
+    color: var(--text-on-accent);
+    transform: scale(1.1);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  }
+  
+  &:active {
+    transform: scale(0.95);
+  }
+  
+  &:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+    
+    &:hover {
+      transform: none;
+      box-shadow: none;
+      background: transparent;
+      color: var(--interactive-accent);
+    }
+  }
+}
+
+.dashboard-content {
+  flex: 0 0 auto; // Don't grow, don't shrink, size to content
+  min-width: 0; // Allow content to shrink
+  width: fit-content; // Hug the content
+}
+
+.dashboard-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px; // Increased spacing between buttons
+  padding-left: 8px;
+  margin-left: 8px;
+  border-left: 1px solid var(--background-modifier-border);
+  align-items: center;
+  justify-content: flex-start;
+  width: 32px; // Fixed width for sidebar
+  flex-shrink: 0;
+}
+
+.sidebar-btn {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--interactive-accent);
+  border: 1px solid var(--interactive-accent);
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: bold;
+  line-height: 1;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  opacity: 0.7;
+  
+  &:hover {
+    opacity: 1;
+    background: var(--interactive-accent);
+    color: var(--text-on-accent);
+    transform: scale(1.1);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  }
+  
+  &:active {
+    transform: scale(0.95);
+  }
+  
+  &:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+    
+    &:hover {
+      transform: none;
+      box-shadow: none;
+      background: transparent;
+      color: var(--interactive-accent);
+    }
+  }
+}
+
+// Compact character layout (horizontal - legacy)
+.compact-character-layout {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+}
+
+// Vertical character layout for space efficiency
+.vertical-character-layout {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  position: relative;
+  padding: 4px; // More padding for bigger elements
+  min-height: 152px; // Taller for bigger avatar
+  width: 72px; // Much wider for bigger avatar and elements
+}
+
+.character-avatar-large {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  background: var(--background-modifier-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+  border: 1px solid var(--background-modifier-border);
+  transition: transform 0.2s ease;
+  
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  
+  svg {
+    color: var(--text-muted);
+    width: 24px;
+    height: 24px;
+  }
+}
+
+.character-stats-compact {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+}
+
+// Vertical avatar styling
+.character-avatar-top {
+  width: 64px;
+  height: 64px;
+  border-radius: 10px;
+  background: var(--background-modifier-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+  border: 1px solid var(--background-modifier-border);
+  transition: transform 0.2s ease;
+  margin-bottom: 8px;
+  
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  
+  svg {
+    color: var(--text-muted);
+    width: 40px;
+    height: 40px;
+  }
+}
+
+// Vertical stats container
+.character-stats-vertical {
+  display: flex;
+  flex-direction: row;
+  gap: 6px; // More spacing between stat columns for bigger elements
+  justify-content: center;
+  align-items: flex-start;
+}
+
+.character-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.character-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  background: var(--background-modifier-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+  border: 1px solid var(--background-modifier-border);
+  transition: transform 0.2s ease;
+  
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  
+  svg {
+    color: var(--text-muted);
+    width: 24px;
+    height: 24px;
+  }
+}
+
+.character-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.character-name {
+  font-size: var(--font-ui-medium);
+  font-weight: var(--font-semibold);
+  color: var(--text-normal);
+  line-height: 1.2;
+  transition: color 0.2s ease;
+  // Allow wrapping for long names
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.character-class {
+  font-size: var(--font-ui-small);
+  color: var(--text-muted);
+  line-height: 1.2;
+  // Allow wrapping for long class/subclass names
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.character-actions {
+  display: flex;
+  gap: 2px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+// Tracker-style stats (matching statblock styling)
+.character-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.stat-tracker {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  
+  // Compact variant - keep icons, remove labels
+  &.compact {
+    gap: 4px; // Small gap for icon + bars
+    justify-content: flex-start;
+    
+    .stat-icon {
+      width: 12px;
+      height: 12px;
+      flex-shrink: 0;
+    }
+    
+    .stat-label {
+      display: none; // Hide labels in compact mode
+    }
+    
+    .tracker-boxes {
+      gap: 1px; // Tighter spacing
+    }
+  }
+  
+  .stat-icon {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+    
+    // HP Icon (Red)
+    &.hp-icon {
+      color: var(--color-red);
+    }
+    
+    // Stress Icon (Purple)
+    &.stress-icon {
+      color: var(--color-purple);
+    }
+    
+    // Hope Icon (Yellow)
+    &.hope-icon {
+      color: var(--color-yellow);
+    }
+  }
+  
+  .tracker-boxes {
+    display: flex;
+    gap: 2px;
+    flex-wrap: wrap;
+  }
+  
+  .tracker-box {
+    width: 12px;
+    height: 12px;
+    border: 1px solid var(--text-muted);
+    border-radius: 2px;
+    background: transparent;
+    transition: all 0.15s ease;
+    cursor: default;
+    
+    &.filled {
+      border-color: var(--interactive-accent);
+      background: var(--interactive-accent);
+    }
+  }
+}
+
+// HP Tracker (matches existing statblock colors)
+.stat-tracker.hp-tracker {
+  .tracker-box {
+    border-color: var(--color-red);
+    
+    &.filled {
+      background: var(--color-red);
+      border-color: var(--color-red);
+    }
+  }
+}
+
+// Stress Tracker (matches existing statblock colors)
+.stat-tracker.stress-tracker {
+  .tracker-box {
+    border-color: var(--color-purple);
+    
+    &.filled {
+      background: var(--color-purple);
+      border-color: var(--color-purple);
+    }
+  }
+}
+
+// Hope Tracker (matches existing statblock colors)
+.stat-tracker.hope-tracker {
+  .tracker-box {
+    border-color: var(--color-yellow);
+    
+    &.filled {
+      background: var(--color-yellow);
+      border-color: var(--color-yellow);
+    }
+  }
+}
+
+// Vertical stat trackers
+.stat-tracker-vertical {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  width: 16px; // Wider columns for bigger elements
+  
+  .stat-icon-vertical {
+    width: 12px;
+    height: 12px;
+    flex-shrink: 0;
+    margin-bottom: 2px;
+    
+    // HP Icon (Red)
+    &.hp-icon {
+      color: var(--color-red);
+    }
+    
+    // Stress Icon (Purple)
+    &.stress-icon {
+      color: var(--color-purple);
+    }
+    
+    // Hope Icon (Yellow)
+    &.hope-icon {
+      color: var(--color-yellow);
+    }
+  }
+  
+  .tracker-boxes-vertical {
+    display: flex;
+    flex-direction: column-reverse; // Fill from bottom up
+    gap: 1px; // Slightly more spacing
+    align-items: center;
+  }
+  
+  .tracker-box-vertical {
+    width: 12px; // Much bigger boxes
+    height: 10px; // Much bigger height
+    border: 1px solid var(--text-muted);
+    border-radius: 2px;
+    background: transparent;
+    transition: all 0.15s ease;
+    cursor: default;
+    
+    &.filled {
+      border-color: var(--interactive-accent);
+      background: var(--interactive-accent);
+    }
+  }
+}
+
+// HP Tracker Vertical
+.stat-tracker-vertical.hp-tracker {
+  .tracker-box-vertical {
+    border-color: var(--color-red);
+    
+    &.filled {
+      background: var(--color-red);
+      border-color: var(--color-red);
+    }
+  }
+}
+
+// Stress Tracker Vertical
+.stat-tracker-vertical.stress-tracker {
+  .tracker-box-vertical {
+    border-color: var(--color-purple);
+    
+    &.filled {
+      background: var(--color-purple);
+      border-color: var(--color-purple);
+    }
+  }
+}
+
+// Hope Tracker Vertical
+.stat-tracker-vertical.hope-tracker {
+  .tracker-box-vertical {
+    border-color: var(--color-yellow);
+    
+    &.filled {
+      background: var(--color-yellow);
+      border-color: var(--color-yellow);
+    }
+  }
+}
+
+.stat-label {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  margin-left: 4px;
+  white-space: nowrap;
+}
+
+// Scale up tracker boxes on larger screens
+@media (min-width: 1200px) {
+  .tracker-box {
+    width: 16px;
+    height: 16px;
+  }
+  .tracker-boxes {
+    gap: 4px;
+  }
+}
+
+@media (min-width: 1600px) {
+  .tracker-box {
+    width: 18px;
+    height: 18px;
+  }
+  .tracker-boxes {
+    gap: 5px;
+  }
+}
+
+// Button styles copied from compact-statblock.scss for consistency
+.player-dashboard-widget {
+  .add-badge-btn {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--interactive-accent);
+    border: 1px solid var(--interactive-accent);
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: bold;
+    line-height: 1;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    opacity: 0.7;
+    
+    &:hover {
+      opacity: 1;
+      background: var(--interactive-accent);
+      color: var(--text-on-accent);
+      transform: scale(1.1);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    }
+    
+    &:active {
+      transform: scale(0.95);
+    }
+  }
+  
+  .remove-item-btn {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--text-muted);
+    border: 1px solid var(--text-muted);
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: bold;
+    line-height: 1;
+    padding: 0;
+    margin-left: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    opacity: 0;
+    flex-shrink: 0;
+    
+    // Compact variant - positioned absolutely
+    &.compact {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      width: 16px;
+      height: 16px;
+      font-size: 10px;
+      margin-left: 0;
+    }
+    
+    // Vertical variant - positioned absolutely
+    &.vertical {
+      position: absolute;
+      top: 2px;
+      right: 2px;
+      width: 14px;
+      height: 14px;
+      font-size: 9px;
+      margin-left: 0;
+    }
+    
+    &:hover {
+      color: var(--text-error);
+      border-color: var(--text-error);
+      background: rgba(255, 0, 0, 0.1);
+      transform: scale(1.1);
+    }
+    
+    &:active {
+      transform: scale(0.95);
+    }
+  }
+}
+
+// Removed .icon-button styles - no longer using external link buttons
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+// Keyframe animations removed - using Framer Motion instead
+
+// Spinning animation for refresh button
+.spinning {
+  animation: spin 1s linear infinite;
+}
+
+// Sync status indicators
+.sync-queue-indicator {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  border-radius: 50%;
+  width: 14px;
+  height: 14px;
+  font-size: 9px;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  min-width: 14px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.sync-status-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  color: var(--text-muted);
+  opacity: 0.7;
+  
+  svg {
+    animation: pulse 2s ease-in-out infinite;
+  }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+
+// Character card sync status
+.character-card-sync-status {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  
+  &.syncing {
+    background: var(--color-yellow);
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+  
+  &.synced {
+    background: var(--color-green);
+  }
+  
+  &.error {
+    background: var(--color-red);
+  }
+  
+  &.stale {
+    background: var(--text-muted);
+    opacity: 0.5;
+  }
+}
+
+// AddCharacterModal specific styling improvements
+.atlas-modal {
+  width: 500px;
+  max-width: 90vw;
+  
+  // Improve form group spacing
+  .atlas-form-group {
+    margin-bottom: 16px;
+    
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-size: var(--font-ui-small);
+      font-weight: var(--font-medium);
+      color: var(--text-normal);
+    }
+    
+    // Token picker input styling for consistency
+    .token-picker-search-input {
+      width: 100%;
+      box-sizing: border-box;
+    }
+  }
+  
+  // Help text styling
+  .atlas-help-text {
+    font-size: var(--font-ui-smaller);
+    color: var(--text-muted);
+    line-height: 1.4;
+    margin-top: 8px;
+  }
+  
+  // Error message styling
+  .atlas-error-message {
+    margin-top: 6px;
+    font-size: var(--font-ui-smaller);
+    color: var(--text-error);
+  }
+}
+
+// Character name display for local characters
+.vertical-character-layout {
+  .character-name {
+    position: absolute;
+    bottom: -16px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 10px;
+    color: var(--text-muted);
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    max-width: 70px;
+    text-align: center;
+    background: var(--background-secondary);
+    padding: 0 4px;
+    border-radius: 2px;
+  }
+}
+
+// Offline state
+.player-dashboard-widget {
+  &.offline {
+    .offline-message {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 1rem;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      
+      svg {
+        opacity: 0.6;
+      }
+    }
+  }
+  
+  .no-players-message {
+    grid-column: 1 / -1;
+    text-align: center;
+    color: var(--text-muted);
+    padding: 2rem 1rem;
+    font-size: 0.9rem;
+  }
+  
+  .no-stats-message {
+    padding: 10px;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 10px;
+    font-style: italic;
+  }
+  
+  // Spawn token button
+  .spawn-token-btn {
+    position: absolute;
+    bottom: 2px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--interactive-accent);
+    color: var(--text-on-accent);
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    
+    svg {
+      width: 14px;
+      height: 14px;
+    }
+    
+    &:hover {
+      transform: translateX(-50%) scale(1.1);
+      box-shadow: 0 3px 6px rgba(0, 0, 0, 0.3);
+    }
+    
+    &:active {
+      transform: translateX(-50%) scale(0.95);
+    }
+  }
+  
+  // Show spawn button on character card hover
+  .player-character-card:hover {
+    .spawn-token-btn {
+      opacity: 1;
+    }
+  }
+  
+  // Character action buttons container
+  .character-actions {
+    position: absolute;
+    bottom: 2px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 4px;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+  
+  // Show action buttons on character card hover
+  .player-character-card:hover {
+    .character-actions {
+      opacity: 1;
+    }
+  }
+  
+  // Link token button
+  .link-token-btn {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--color-purple);
+    color: var(--text-on-accent);
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    
+    svg {
+      width: 14px;
+      height: 14px;
+    }
+    
+    &:hover {
+      transform: scale(1.1);
+      box-shadow: 0 3px 6px rgba(0, 0, 0, 0.3);
+    }
+    
+    &:active {
+      transform: scale(0.95);
+    }
+  }
+}

@@ -25,6 +25,12 @@ Atlas VTT is desktop only.
 - **Dice and initiative:** Roll dice, review the roll log, track turns, and keep counters and timers close at hand.
 - **Music and controls:** Play audio from your vault, customise map hotkeys, and undo or redo map edits.
 
+## Your notes, right on the map
+
+Pin an Obsidian note to a location, then read and edit it in a floating panel without leaving the map. Keep room descriptions, session prep, and character details close at hand, with Obsidian's familiar note linking built in.
+
+![Atlas VTT showing the note picker beside a linked note open on the map, with editing and Obsidian link suggestions](docs/images/note-linking-preview.png)
+
 ## Organise your campaign
 
 Keep scenes, maps, encounters, and characters together in collections. Use folders and tags to find what you need, then bring it onto the map.

@@ -109,6 +109,7 @@ export function useAssetManagerEffects({
       if (
         t.closest('.atlas-onboarding-overlay') || t.closest('.menu') || t.closest('.atlas-ctx-menu') ||
         t.closest('.modal-container') || t.closest('.modal') ||
+        t.closest('.atlas-text-dialog-backdrop') ||
         t.closest('.atlas-collection-settings-overlay')
       ) return;
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {

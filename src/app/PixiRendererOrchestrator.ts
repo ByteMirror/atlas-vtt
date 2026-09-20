@@ -89,7 +89,7 @@ export class PixiRendererOrchestrator { // Renamed class
   private viewId: string;
   private keyboardHandler: ((e: KeyboardEvent) => void) | null = null;
   private getViewportPositionHandler: ((e: Event) => void) | null = null;
-  private waitForTokensLoadedHandler: ((callback: () => void) => void) | null = null;
+  private eventBusUnsubscribers: Array<() => void> = [];
   private gridInitRetryTimeout: number | null = null;
 
   private getSourceLeaf(): WorkspaceLeaf | null {
@@ -1339,6 +1339,9 @@ export class PixiRendererOrchestrator { // Renamed class
   destroy(): void {
     if (this._isDestroyed) return;
     this._isDestroyed = true;
+    // The event bus survives map switches; detach before destroying graphics.
+    for (const unsubscribe of this.eventBusUnsubscribers) unsubscribe();
+    this.eventBusUnsubscribers = [];
     this._unsubscribeFromToolChanges?.();
     delete this._unsubscribeFromToolChanges;
     
@@ -1415,12 +1418,6 @@ export class PixiRendererOrchestrator { // Renamed class
       this.eventBus.emit('background-sprite-updated', undefined);
     }
 
-    // Remove event bus listeners
-    if (this.waitForTokensLoadedHandler) {
-      this.eventBus.off('wait-for-tokens-loaded', this.waitForTokensLoadedHandler);
-      this.waitForTokensLoadedHandler = null;
-    }
-    
     this.pixiAppManager.destroy();
 
     // Remove viewport position handler
@@ -1432,10 +1429,12 @@ export class PixiRendererOrchestrator { // Renamed class
   }
 
   private setupEventBusListeners(): void {
-    
-    
-    // Store the listener function so we can remove it later
-    this.waitForTokensLoadedHandler = (callback: () => void) => {
+    const on = <Args extends unknown[]>(event: string, handler: (...args: Args) => void): void => {
+      this.eventBus.on(event, handler);
+      this.eventBusUnsubscribers.push(() => this.eventBus.off(event, handler));
+    };
+
+    on('wait-for-tokens-loaded', (callback: () => void) => {
       if (this.tokenRenderer) {
         // Force sync tokens before checking if they're loaded
         if ((this.tokenRenderer as any).forceSyncTokens) {
@@ -1449,24 +1448,21 @@ export class PixiRendererOrchestrator { // Renamed class
         // No token renderer, just call the callback
         callback();
       }
-    };
-    
-    // Listen for token loading completion request
-    this.eventBus.on('wait-for-tokens-loaded', this.waitForTokensLoadedHandler);
+    });
 
     // Listen for wall tool settings changes from toolbar UI
-    this.eventBus.on('wall-submode-changed', (subMode: string) => {
+    on('wall-submode-changed', (subMode: string) => {
       this.wallTool?.setSubMode(subMode as 'draw' | 'place-light');
     });
-    this.eventBus.on('wall-type-changed', (type: string) => {
+    on('wall-type-changed', (type: string) => {
       this.wallTool?.setWallType(type as any);
     });
-    this.eventBus.on('wall-mode-changed', (mode: string) => {
+    on('wall-mode-changed', (mode: string) => {
       this.wallTool?.setMode(mode as 'point-to-point' | 'freeform');
     });
 
     // Listen for wall segment creation from WallTool
-    this.eventBus.on('wall-segment-created', (data: { p1: { x: number; y: number }; p2: { x: number; y: number }; type: string; chainId: string }) => {
+    on('wall-segment-created', (data: { p1: { x: number; y: number }; p2: { x: number; y: number }; type: string; chainId: string }) => {
       const id = this.store.getState().addWall({
         type: data.type as any,
         p1: data.p1,
@@ -1483,19 +1479,19 @@ export class PixiRendererOrchestrator { // Renamed class
     });
 
     // Wall chain start: show preview anchor at the first placed point
-    this.eventBus.on('wall-chain-start', (data: { x: number; y: number }) => {
+    on('wall-chain-start', (data: { x: number; y: number }) => {
       this.currentChainWallIds = [];
       this.wallRenderer?.setPreviewAnchor(data);
     });
 
     // Wall chain finish: clear preview, keep the walls (they're committed)
-    this.eventBus.on('wall-chain-finish', () => {
+    on('wall-chain-finish', () => {
       this.currentChainWallIds = [];
       this.wallRenderer?.clearPreview();
     });
 
     // Wall drawing cancelled (Escape): delete all segments from this chain
-    this.eventBus.on('wall-drawing-cancelled', () => {
+    on('wall-drawing-cancelled', () => {
       if (this.currentChainWallIds.length > 0) {
         this.store.getState().deleteWalls(this.currentChainWallIds);
         this.currentChainWallIds = [];

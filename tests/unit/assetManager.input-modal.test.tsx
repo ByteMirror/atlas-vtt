@@ -3,13 +3,18 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, expect, it, vi } from 'vitest';
 import InputModal from '../../src/app/packages/components/primitives/InputModal';
 import { useAssetManagerEffects } from '../../src/app/packages/components/asset-manager/hooks/useAssetManagerEffects';
+import { confirmAction } from '../../src/app/ui/confirmDialog';
 
 type EffectDeps = Parameters<typeof useAssetManagerEffects>[0];
 
 // Keep the real dialog and manager event listeners together, with the dialog
 // outside the manager container just as it is in AssetManager's ModalLayer.
-function Harness({ onClose, onConfirm }: { onClose: () => void; onConfirm: (value: string) => void }) {
-  const [inputOpen, setInputOpen] = useState(true);
+function Harness({ onClose, onConfirm, initialInputOpen = true }: {
+  onClose: () => void;
+  onConfirm: (value: string) => void;
+  initialInputOpen?: boolean;
+}) {
+  const [inputOpen, setInputOpen] = useState(initialInputOpen);
   const modalRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   useAssetManagerEffects({
@@ -40,12 +45,15 @@ function Harness({ onClose, onConfirm }: { onClose: () => void; onConfirm: (valu
   );
 }
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  document.querySelectorAll('.atlas-text-dialog-backdrop').forEach((element) => element.remove());
+});
 
-function setup() {
+function setup(initialInputOpen = true) {
   const onClose = vi.fn();
   const onConfirm = vi.fn();
-  render(<Harness onClose={onClose} onConfirm={onConfirm} />);
+  render(<Harness onClose={onClose} onConfirm={onConfirm} initialInputOpen={initialInputOpen} />);
   return { onClose, onConfirm };
 }
 
@@ -94,6 +102,29 @@ it('backdrop clicks dismiss only the child dialog and outside clicks work afterw
   clickWithMouseDown(screen.getByRole('textbox').closest('.atlas-modal-overlay')!);
   expect(onClose).not.toHaveBeenCalled();
   expect(screen.queryByRole('textbox')).toBeNull();
+  fireEvent.mouseDown(document.body);
+  expect(onClose).toHaveBeenCalledTimes(1);
+});
+
+it.each([
+  ['Delete', true],
+  ['Cancel', false],
+  ['backdrop', false],
+] as const)('%s dismisses only the delete confirmation and preserves outside-click dismissal afterward', async (action, confirmed) => {
+  const { onClose } = setup(false);
+  const result = confirmAction({
+    title: 'Delete item', message: ['Are you sure you want to delete "H"?'],
+    confirmLabel: 'Delete', destructive: true,
+  });
+
+  clickWithMouseDown(action === 'backdrop'
+    ? document.querySelector('.atlas-text-dialog-backdrop')!
+    : screen.getByRole('button', { name: action }));
+
+  await expect(result).resolves.toBe(confirmed);
+  expect(onClose).not.toHaveBeenCalled();
+  expect(screen.queryByText('Delete item')).toBeNull();
+
   fireEvent.mouseDown(document.body);
   expect(onClose).toHaveBeenCalledTimes(1);
 });

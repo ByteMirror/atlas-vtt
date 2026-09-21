@@ -1,0 +1,36 @@
+name: CLA Assistant
+
+on:
+  issue_comment:
+    types: [created]
+  # Runs in the base repository's context so it can record signatures for
+  # pull requests from forks. It never checks out or runs pull request code.
+  pull_request_target:
+    types: [opened, closed, synchronize]
+
+permissions:
+  actions: write
+  contents: write
+  pull-requests: write
+  statuses: write
+
+jobs:
+  cla:
+    runs-on: ubuntu-latest
+    if: >-
+      github.event_name == 'pull_request_target' ||
+      (github.event.issue.pull_request &&
+      (github.event.comment.body == 'recheck' ||
+      github.event.comment.body == 'I have read the CLA Document and I hereby sign the CLA'))
+    steps:
+      - name: Check CLA signatures
+        uses: contributor-assistant/github-action@ca4a40a7d1004f18d9960b404b97e5f30a505a08 # v2.6.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          path-to-document: https://github.com/ByteMirror/atlas-vtt/blob/main/CLA.md
+          path-to-signatures: signatures/version1/cla.json
+          # Kept off main so signatures neither clutter its history nor trigger CI.
+          branch: cla-signatures
+          allowlist: ByteMirror,T3 Code,dependabot[bot],github-actions[bot]
+          lock-pullrequest-aftermerge: false

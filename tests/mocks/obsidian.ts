@@ -29,7 +29,16 @@ export class View {
   }
 }
 
-export class FileView extends View {
+export class ItemView extends View {
+  contentEl: HTMLElement;
+
+  constructor(leaf: WorkspaceLeaf) {
+    super(leaf);
+    this.contentEl = document.createElement('div');
+  }
+}
+
+export class FileView extends ItemView {
   file: TFile | null;
 
   constructor(leaf: WorkspaceLeaf) {

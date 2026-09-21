@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useId, useState } from 'react';
 import { Check, Minus, MoveHorizontal, Plus, Trash2, X } from 'lucide-react';
 import { Button } from '../../primitives/button';
 import { Slider } from '../../primitives/slider';
+import { LabelTooltip } from '../../primitives/tooltip';
 import { CollectionSelect } from './CollectionSelect';
 import { TagPicker } from './TagPicker';
 import { UploadDropzone } from './UploadDropzone';
@@ -29,6 +30,7 @@ interface TokenCreatorRailProps {
 export function TokenCreatorRail(props: TokenCreatorRailProps): React.JSX.Element {
   const { mode, isEditing, isDragging, previews, onFiles, collection, collections, onCollectionChange, availableTags, selectedTags, onToggleTag } = props;
   const [batchScale, setBatchScale] = useState(1);
+  const zoomLabelId = useId();
 
   const count = previews.previews.length;
   const selectedCount = previews.selectedIds.length;
@@ -66,10 +68,12 @@ export function TokenCreatorRail(props: TokenCreatorRailProps): React.JSX.Elemen
               <X />
               <span>None</span>
             </Button>
-            <Button variant="outline" size="sm" className="atlas-token-creator__danger" onClick={previews.removeSelected} disabled={selectedCount === 0} title="Remove selected">
-              <Trash2 />
-              <span>Remove</span>
-            </Button>
+            <LabelTooltip label="Remove selected">
+              <Button variant="outline" size="sm" className="atlas-token-creator__danger" onClick={previews.removeSelected} disabled={selectedCount === 0}>
+                <Trash2 />
+                <span>Remove</span>
+              </Button>
+            </LabelTooltip>
           </div>
         </section>
       )}
@@ -89,24 +93,28 @@ export function TokenCreatorRail(props: TokenCreatorRailProps): React.JSX.Elemen
             <span>Batch <span className="atlas-token-creator__count">{selectedCount} selected</span></span>
           </div>
           <div className="atlas-token-creator__label-row">
-            <span>Zoom</span>
+            <span id={zoomLabelId}>Zoom</span>
             <span>{Math.round(batchScale * 100)}%</span>
           </div>
           <div className="atlas-token-creator__slider-row">
-            <Button variant="ghost" size="icon" className="atlas-collection-header-btn" onClick={() => applyBatchScale(batchScale - ZOOM_STEP)} aria-label="Zoom out selected" disabled={batchScale <= ZOOM_MIN}>
-              <Minus />
-            </Button>
+            <LabelTooltip label="Zoom out selected">
+              <Button variant="ghost" size="icon" className="atlas-collection-header-btn" onClick={() => applyBatchScale(batchScale - ZOOM_STEP)} disabled={batchScale <= ZOOM_MIN}>
+                <Minus />
+              </Button>
+            </LabelTooltip>
             <Slider
               value={[batchScale]}
               min={ZOOM_MIN}
               max={ZOOM_MAX}
               step={0.01}
               onValueChange={(v) => applyBatchScale(v[0] ?? batchScale)}
-              aria-label="Zoom selected"
+              aria-labelledby={zoomLabelId}
             />
-            <Button variant="ghost" size="icon" className="atlas-collection-header-btn" onClick={() => applyBatchScale(batchScale + ZOOM_STEP)} aria-label="Zoom in selected" disabled={batchScale >= ZOOM_MAX}>
-              <Plus />
-            </Button>
+            <LabelTooltip label="Zoom in selected">
+              <Button variant="ghost" size="icon" className="atlas-collection-header-btn" onClick={() => applyBatchScale(batchScale + ZOOM_STEP)} disabled={batchScale >= ZOOM_MAX}>
+                <Plus />
+              </Button>
+            </LabelTooltip>
           </div>
           <Button variant="outline" size="sm" onClick={() => previews.updateSelected({ imageScale: 1, imagePosition: { x: 0, y: 0 } })}>
             <MoveHorizontal />

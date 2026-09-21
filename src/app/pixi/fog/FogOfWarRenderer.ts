@@ -9,7 +9,7 @@
 import * as PIXI from 'pixi.js';
 import type { Viewport } from 'pixi-viewport';
 import type { StoreApi } from 'zustand';
-import type { EventEmitter } from 'eventemitter3';
+import type { EventEmitter } from 'events';
 import { Menu } from 'obsidian';
 import type { ViewAtlasState } from '../../storeFactory';
 import type { FogBounds, FogOperation } from '../../types/fogTypes';
@@ -808,7 +808,7 @@ export class FogOfWarRenderer {
       this.lassoGraphics.clear();
     } else if (this.fogMode === 'rectangle' && this.isDrawing && this.rectStart) {
       this.isDrawing = false;
-      const bounds = this.getRectBoundsFromPreview();
+      const bounds = this.lastRectBounds;
       if (bounds && bounds.width > 0 && bounds.height > 0) {
         this.store.getState().addFogOperation({
           type: 'rectangle',
@@ -820,6 +820,7 @@ export class FogOfWarRenderer {
         });
       }
       this.rectStart = null;
+      this.lastRectBounds = null;
       this.rectPreviewGraphics.clear();
     } else if (this.fogMode === 'brush' && this.isDrawing) {
       this.isDrawing = false;
@@ -895,15 +896,11 @@ export class FogOfWarRenderer {
     const w = Math.abs(currentPos.x - this.rectStart.x);
     const h = Math.abs(currentPos.y - this.rectStart.y);
 
-    (this.rectPreviewGraphics as any).__lastRect = { x, y, width: w, height: h };
+    this.lastRectBounds = { x, y, width: w, height: h };
 
     this.rectPreviewGraphics.rect(x, y, w, h);
     this.rectPreviewGraphics.stroke({ width: 2, color, alpha: 0.6 });
     this.rectPreviewGraphics.fill({ color, alpha: 0.15 });
-  }
-
-  private getRectBoundsFromPreview(): { x: number; y: number; width: number; height: number } | null {
-    return (this.rectPreviewGraphics as any).__lastRect ?? null;
   }
 
   // ═══════════════════════════════════════════════════════════════════
@@ -1012,14 +1009,10 @@ export class FogOfWarRenderer {
   }
 
   private isTexturedDisplayObject(node: PIXI.Container): boolean {
-    const candidate = node as any;
-    const texture = candidate?.texture;
-    if (!texture || texture === PIXI.Texture.EMPTY) {
+    if (!('texture' in node) || !node.texture || node.texture === PIXI.Texture.EMPTY) {
       return false;
     }
-    const width = candidate?.width;
-    const height = candidate?.height;
-    return typeof width === 'number' && width > 0 && typeof height === 'number' && height > 0;
+    return node.width > 0 && node.height > 0;
   }
 
   private calculateFogOpsBoundsCandidate():
@@ -1107,6 +1100,7 @@ export class FogOfWarRenderer {
     this.currentBrushPoints = [];
     this.lassoPoints = [];
     this.rectStart = null;
+    this.lastRectBounds = null;
     this.clearPreviewGraphics();
   }
 

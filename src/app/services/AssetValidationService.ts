@@ -1,8 +1,15 @@
-import { App, Notice, TFile } from 'obsidian';
+import { App, Notice, TFile, normalizePath } from 'obsidian';
+import type { MapFile } from './MapPersistence';
+
+/** The parts of a map that reference vault images; satisfied by a MapFile and by the live store state. */
+export interface MapAssetReferences {
+    background: MapFile['background'];
+    objects: Pick<MapFile['objects'], 'tokens'>;
+}
 
 export interface MissingAsset {
     id: string;
-    type: 'token' | 'map' | 'pin';
+    type: 'token' | 'map';
     path: string;
     objectId: string;
     objectName?: string;
@@ -11,7 +18,6 @@ export interface MissingAsset {
 export interface AssetValidationResult {
     valid: boolean;
     missingAssets: MissingAsset[];
-    warnings: string[];
 }
 
 export class AssetValidationService {
@@ -57,7 +63,7 @@ export class AssetValidationService {
         }
 
         try {
-            const file = this.plugin.app.vault.getAbstractFileByPath(path);
+            const file = this.plugin.app.vault.getAbstractFileByPath(normalizePath(path));
             const exists = file instanceof TFile;
             this.validationCache.set(path, exists);
             return exists;
@@ -67,56 +73,33 @@ export class AssetValidationService {
         }
     }
 
-    async validateMapAssets(mapData: any): Promise<AssetValidationResult> {
+    async validateMapAssets(mapData: MapAssetReferences): Promise<AssetValidationResult> {
         const result: AssetValidationResult = {
             valid: true,
-            missingAssets: [],
-            warnings: []
+            missingAssets: []
         };
 
-        // Validate background image
-        if (mapData.background?.imagePath) {
-            const isValid = await this.validateAsset(mapData.background.imagePath);
-            if (!isValid) {
+        if (mapData.background && !(await this.validateAsset(mapData.background))) {
+            result.valid = false;
+            result.missingAssets.push({
+                id: 'background',
+                type: 'map',
+                path: mapData.background,
+                objectId: 'background',
+                objectName: 'Map Background'
+            });
+        }
+
+        for (const [tokenId, token] of Object.entries(mapData.objects.tokens)) {
+            if (token.imagePath && !(await this.validateAsset(token.imagePath))) {
                 result.valid = false;
                 result.missingAssets.push({
-                    id: 'background',
-                    type: 'map',
-                    path: mapData.background.imagePath,
-                    objectId: 'background',
-                    objectName: 'Map Background'
+                    id: tokenId,
+                    type: 'token',
+                    path: token.imagePath,
+                    objectId: tokenId,
+                    objectName: (token.kind === 'character' && token.name) || tokenId
                 });
-            }
-        }
-
-        // Validate tokens
-        if (mapData.tokens) {
-            for (const [tokenId, token] of Object.entries(mapData.tokens)) {
-                if ((token as any).imagePath) {
-                    const isValid = await this.validateAsset((token as any).imagePath);
-                    if (!isValid) {
-                        result.valid = false;
-                        result.missingAssets.push({
-                            id: tokenId,
-                            type: 'token',
-                            path: (token as any).imagePath,
-                            objectId: tokenId,
-                            objectName: (token as any).name || tokenId
-                        });
-                    }
-                }
-            }
-        }
-
-        // Validate pins
-        if (mapData.pins) {
-            for (const [pinId, pin] of Object.entries(mapData.pins)) {
-                if ((pin as any).iconPath) {
-                    const isValid = await this.validateAsset((pin as any).iconPath);
-                    if (!isValid) {
-                        result.warnings.push(`Pin ${pinId} has missing icon: ${(pin as any).iconPath}`);
-                    }
-                }
             }
         }
 
@@ -132,12 +115,10 @@ export class AssetValidationService {
 
         const tokenCount = missingAssets.filter(a => a.type === 'token').length;
         const mapCount = missingAssets.filter(a => a.type === 'map').length;
-        const pinCount = missingAssets.filter(a => a.type === 'pin').length;
 
         let message = 'Missing assets detected:\n';
         if (tokenCount > 0) message += `- ${tokenCount} token image${tokenCount > 1 ? 's' : ''}\n`;
         if (mapCount > 0) message += `- ${mapCount} map background${mapCount > 1 ? 's' : ''}\n`;
-        if (pinCount > 0) message += `- ${pinCount} pin icon${pinCount > 1 ? 's' : ''}\n`;
         
         message += '\nMissing assets will display as placeholders.';
 
@@ -164,56 +145,5 @@ export class AssetValidationService {
         }
 
         return similarFiles;
-    }
-
-    async relocateAsset(oldPath: string, newPath: string, mapData: any): Promise<boolean> {
-        let updated = false;
-
-        // Update background
-        if (mapData.background?.imagePath === oldPath) {
-            mapData.background.imagePath = newPath;
-            updated = true;
-        }
-
-        // Update tokens
-        if (mapData.tokens) {
-            for (const token of Object.values(mapData.tokens)) {
-                if ((token as any).imagePath === oldPath) {
-                    (token as any).imagePath = newPath;
-                    updated = true;
-                }
-            }
-        }
-
-        // Update pins
-        if (mapData.pins) {
-            for (const pin of Object.values(mapData.pins)) {
-                if ((pin as any).iconPath === oldPath) {
-                    (pin as any).iconPath = newPath;
-                    updated = true;
-                }
-            }
-        }
-
-        return updated;
-    }
-
-    async cleanupOrphanedReferences(mapData: any): Promise<number> {
-        let removedCount = 0;
-        const validation = await this.validateMapAssets(mapData);
-
-        // Remove tokens with missing assets
-        if (mapData.tokens && validation.missingAssets.length > 0) {
-            const tokensToRemove = validation.missingAssets
-                .filter(a => a.type === 'token')
-                .map(a => a.objectId);
-
-            for (const tokenId of tokensToRemove) {
-                delete mapData.tokens[tokenId];
-                removedCount++;
-            }
-        }
-
-        return removedCount;
     }
 }

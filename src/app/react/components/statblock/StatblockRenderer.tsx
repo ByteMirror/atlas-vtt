@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { App } from 'obsidian';
 import type { StatblockItem, StatblockLayout, StatblockMonster } from './statblockTypes';
-import { isVisible, runCallback, slugify } from './statblockUtils';
+import { runCallback } from './layoutCallbacks';
+import { isVisible, slugify } from './statblockUtils';
 import { StatblockEditContext, type StatblockEditApi } from './statblockEditContext';
 import {
   HeadingBlock,

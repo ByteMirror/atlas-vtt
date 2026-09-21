@@ -1,0 +1,114 @@
+@use '../../../styles/tokens' as *;
+
+.atlas-vtt-plugin.atlas-changelog-modal {
+  width: min(640px, 90vw);
+
+  .atlas-changelog-title {
+    display: flex;
+    align-items: center;
+    gap: $spacing-m;
+  }
+
+  .atlas-changelog-icon {
+    width: $button-height-l;
+    height: $button-height-l;
+    flex-shrink: 0;
+    object-fit: contain;
+  }
+
+  .atlas-changelog-content {
+    display: flex;
+    flex-direction: column;
+    gap: $spacing-l;
+  }
+
+  .atlas-changelog-intro {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: $font-ui-small;
+  }
+
+  .atlas-changelog-history {
+    display: flex;
+    flex-direction: column;
+    gap: $spacing-s;
+  }
+
+  .atlas-changelog-entry {
+    border: $border-width-s solid var(--background-modifier-border);
+    border-radius: $radius-l;
+    overflow: hidden;
+  }
+
+  .atlas-changelog-heading { margin: 0; }
+
+  .atlas-changelog-trigger {
+    width: 100%;
+    height: auto;
+    padding: $spacing-l;
+    gap: $spacing-l;
+    justify-content: space-between;
+    text-align: left;
+    white-space: normal;
+    border-radius: 0;
+    box-shadow: none;
+
+    &:focus-visible {
+      outline: 2px solid var(--background-modifier-border-focus);
+      outline-offset: -3px;
+      box-shadow: none;
+    }
+  }
+
+  .atlas-changelog-release-label {
+    display: flex;
+    flex-direction: column;
+    gap: $spacing-xs;
+  }
+
+  .atlas-changelog-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: $spacing-s;
+    color: var(--text-muted);
+    font-size: $font-ui-smaller;
+    font-weight: $font-weight-normal;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .atlas-changelog-release-title { font-size: $font-ui-medium; }
+  .atlas-changelog-new { color: var(--text-accent); font-size: $font-ui-smaller; }
+  .atlas-changelog-chevron { width: $icon-s; height: $icon-s; flex-shrink: 0; }
+  .atlas-changelog-trigger[aria-expanded='true'] .atlas-changelog-chevron { transform: rotate(180deg); }
+
+  .atlas-changelog-panel {
+    padding: $spacing-l;
+    border-top: $border-width-s solid var(--background-modifier-border);
+  }
+
+  .atlas-changelog-markdown {
+    font-size: $font-ui-small;
+    line-height: var(--line-height-normal);
+    h2 { font-size: $font-ui-medium; margin-top: $spacing-l; }
+    > :first-child { margin-top: 0; }
+    > :last-child { margin-bottom: 0; }
+    li + li { margin-top: $spacing-s; }
+  }
+
+  .atlas-changelog-fallback { white-space: pre-wrap; font-family: var(--font-interface); }
+  .atlas-changelog-footer {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: $spacing-l;
+  }
+  .atlas-changelog-preference {
+    display: flex;
+    align-items: center;
+    gap: $spacing-s;
+    font-size: $font-ui-small;
+    cursor: pointer;
+    input { margin: 0; }
+  }
+}

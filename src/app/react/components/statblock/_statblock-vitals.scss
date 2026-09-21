@@ -155,7 +155,8 @@ $pip-row-height: 24px;
     box-shadow: none;
     cursor: pointer;
     &::before, &::after { content: none; }
-    &:nth-child(3n):not(:last-child) { margin-right: $spacing-xs; }
+    // of-type: each pip is followed by its hidden tooltip label span.
+    &:nth-of-type(3n):not(:last-of-type) { margin-right: $spacing-xs; }
     &:checked { background: var(--interactive-accent); border-color: var(--interactive-accent); }
     &:hover { border-color: var(--text-accent); }
     &:focus-visible { outline: $border-width-m solid var(--interactive-accent); outline-offset: $spacing-xs; }

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Check } from 'lucide-react';
 import { cn } from '../../../../utils/cn';
+import { LabelTooltip } from '../../../packages/components/primitives/tooltip';
 import { ObsidianMenuDropdown } from '../ObsidianMenuDropdown';
 import { SettingRow, SettingSliderRow, SettingToggleRow } from './SettingRows';
 import type { AtlasView } from '../../../atlas-view';
@@ -64,6 +65,7 @@ export function GridSettingsPanel({
   debouncedOpacityUpdate,
   debouncedLineWidthUpdate,
 }: GridSettingsPanelProps): React.ReactElement {
+  const colourLabelId = React.useId();
   const currentGrid = view?.atlasStore?.getState()?.grid;
   const currentType: string = currentGrid?.type ?? 'square';
   const currentColor: string = currentGrid?.color ?? '#00FFFF';
@@ -152,24 +154,23 @@ export function GridSettingsPanel({
 
       <div className="atlas-command-palette-panel-column">
       <div className="atlas-setting-group">
-        <span className="atlas-setting-label">Colour</span>
-        <div className="atlas-command-palette-swatches" role="radiogroup" aria-label="Grid colour">
+        <span id={colourLabelId} className="atlas-setting-label">Colour</span>
+        <div className="atlas-command-palette-swatches" role="radiogroup" aria-labelledby={colourLabelId}>
           {GRID_COLORS.map((color) => {
             const isActive = currentColor === color.value;
             return (
-              <button
-                key={color.value}
-                type="button"
-                className={cn('atlas-command-palette-swatch', isActive && 'atlas-active')}
-                onClick={() => patchGrid({ color: color.value })}
-                title={color.label}
-                aria-label={color.label}
-                role="radio"
-                aria-checked={isActive}
-                style={{ backgroundColor: color.value }}
-              >
-                {isActive && <Check className="atlas-command-palette-swatch-check" />}
-              </button>
+              <LabelTooltip key={color.value} label={color.label}>
+                <button
+                  type="button"
+                  className={cn('atlas-command-palette-swatch', isActive && 'atlas-active')}
+                  onClick={() => patchGrid({ color: color.value })}
+                  role="radio"
+                  aria-checked={isActive}
+                  style={{ backgroundColor: color.value }}
+                >
+                  {isActive && <Check className="atlas-command-palette-swatch-check" />}
+                </button>
+              </LabelTooltip>
             );
           })}
         </div>

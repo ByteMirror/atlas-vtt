@@ -23,30 +23,26 @@ import { HotkeyHelp } from '../keyboard/HotkeyHelp';
 
 // Import the new context and hook
 import { AtlasUIContext, AtlasUIContextValue } from './root/AtlasUIContext';
-import { useCurrentMapData } from './root/useCurrentMapData';
 import { ContextMenuProvider } from './root/ContextMenuContext';
 import type { AtlasView } from '../atlas-view';
 import { runInBackground } from '../utils/backgroundTask';
 
 interface UIRootProps {
   app: App;
-  view: AtlasView; // TODO: Add specific type for AtlasView
+  view: AtlasView;
   pixiApp: Application | null;
-  mapData: any; // Initial map data
 }
 
 /**
  * Root component for the Atlas VTT UI
  * Provides a context with core objects to all child components
  */
-export const UIRoot: React.FC<UIRootProps> = ({ app, view, pixiApp, mapData }) => {
+export const UIRoot: React.FC<UIRootProps> = ({ app, view, pixiApp }) => {
   const settings = SettingsService.forApp(app);
   const [hotkeyHelpOpen, setHotkeyHelpOpen] = useState(false);
 
   // Get the store directly from context
   const store = useViewStoreHook();
-  
-  const [, setViewport] = useState<any>(null);
 
   // Per-view UI visibility — driven by the store, not local state
   const isGridSettingsOpen = useAtlasStore(s => s.isGridSettingsOpen);
@@ -58,33 +54,6 @@ export const UIRoot: React.FC<UIRootProps> = ({ app, view, pixiApp, mapData }) =
   const isDiceLogOpen = useAtlasStore(s => s.isDiceLogOpen);
   const setDiceLogOpen = useAtlasStore(s => s.setDiceLogOpen);
 
-  // Use the custom hook to manage map data state
-  const currentMapData = useCurrentMapData(view, mapData);
-  
-  // Get viewport from renderer
-  useEffect(() => {
-    const updateViewport = () => {
-      if (view?.renderer?.getViewportInstance) {
-        const vp = view.renderer.getViewportInstance();
-        setViewport(vp);
-      }
-    };
-    
-    // Initial viewport setup
-    updateViewport();
-    
-    // Listen for viewport reinitialization (happens when switching maps)
-    const handleViewportReinitialized = () => {
-      updateViewport();
-    };
-    
-    window.addEventListener('atlas-viewport-reinitialized', handleViewportReinitialized);
-    
-    return () => {
-      window.removeEventListener('atlas-viewport-reinitialized', handleViewportReinitialized);
-    };
-  }, [view]);
-  
   // Map navigation keyboard shortcuts (Shift+1: fit map, Shift+2: zoom to selected token)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -114,13 +83,11 @@ export const UIRoot: React.FC<UIRootProps> = ({ app, view, pixiApp, mapData }) =
       } else if (matchesMapHotkey(e, 'fitToken', settings)) {
         // Shift+2: Zoom to selected token with smooth animation
         e.preventDefault();
-        const currentSelectedIds = store.getState().selectedIds || [];
-        const currentTokens = store.getState().objects?.tokens || {};
+        const { selectedIds, objects } = store.getState();
+        const tokenId = selectedIds[0];
+        if (tokenId === undefined) return;
 
-        if (currentSelectedIds.length === 0) return;
-
-        const tokenId = currentSelectedIds[0];
-        const token = currentTokens[tokenId];
+        const token = objects.tokens[tokenId];
         if (!token || !view) return;
 
         const vp = view?.renderer?.getViewportInstance?.();
@@ -150,10 +117,8 @@ export const UIRoot: React.FC<UIRootProps> = ({ app, view, pixiApp, mapData }) =
       view,
       pixiApp,
       renderer: view?.renderer ?? null,
-      mapData: currentMapData,
-      layerMgr: null,
     }),
-    [app, view, pixiApp, currentMapData]
+    [app, view, pixiApp]
   );
 
   // Check if this is a player view - use store state which is authoritative
@@ -163,10 +128,6 @@ export const UIRoot: React.FC<UIRootProps> = ({ app, view, pixiApp, mapData }) =
   const isMapLoading = useAtlasStore(state => state.isMapLoading);
   const mapLoadingProgress = useAtlasStore(state => state.mapLoadingProgress);
   const mapLoadingMessage = useAtlasStore(state => state.mapLoadingMessage);
-  
-  // Debug logging for loading state
-  useEffect(() => {
-  }, [isMapLoading, mapLoadingMessage]);
   
   // Get background directly from store (for streamed maps)
   const storeBackground = useAtlasStore(state => state.background);
@@ -225,10 +186,7 @@ export const UIRoot: React.FC<UIRootProps> = ({ app, view, pixiApp, mapData }) =
       <ContextMenuProvider>
         {hotkeyHelpOpen && <HotkeyHelp settings={settings} isPlayerView={isPlayerView} onClose={() => setHotkeyHelpOpen(false)} />}
         <div className="atlas-ui" style={{ position: 'relative', width: '100%', height: '100%' }}>
-          {/* Render BackgroundSprite - use store background (for streamed maps) or currentMapData background */} 
-          {(storeBackground || currentMapData?.background) && (
-            <BackgroundSprite imagePath={storeBackground || currentMapData.background} />
-          )}
+          {storeBackground && <BackgroundSprite imagePath={storeBackground} />}
 
           {/* Navigation controls - only for DM view when not loading */}
 

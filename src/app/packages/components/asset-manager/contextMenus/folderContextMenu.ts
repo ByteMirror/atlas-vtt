@@ -1,12 +1,12 @@
 import type * as React from 'react';
 import type { ContextMenuEntry } from '../../../../react/components/context-menu/AtlasContextMenu';
-import type { AnyAsset, Folder } from '../types';
+import type { AnyAsset, Folder, InputModalState } from '../types';
 import { confirmAction } from '../../../../ui/confirmDialog';
 
 export interface FolderContextMenuDeps {
   folders: Folder[];
   assets: AnyAsset[];
-  setInputModalState: (state: any) => void;
+  setInputModalState: (state: InputModalState) => void;
   setFolders: React.Dispatch<React.SetStateAction<Folder[]>>;
   setAssets: React.Dispatch<React.SetStateAction<AnyAsset[]>>;
   setSelectedFolderIds: React.Dispatch<React.SetStateAction<string[]>>;

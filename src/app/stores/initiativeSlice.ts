@@ -3,7 +3,7 @@
  * Provides initiative actions that can be spread into the main store
  */
 
-import type { Character } from '../types';
+import type { TokenEntity } from '../types';
 import type { InitiativeState, InitiativeEntry, InitiativeConfig } from '../types/initiativeTypes';
 import { createDefaultInitiativeState } from '../types/initiativeTypes';
 
@@ -41,7 +41,7 @@ interface InitiativeStoreState {
   initiative: InitiativeState;
   initiativeTrackerOpen: boolean;
   objects: {
-    tokens: Record<string, any>;
+    tokens: Record<string, TokenEntity>;
   };
 }
 
@@ -307,18 +307,18 @@ export function createInitiativeActions(
     syncInitiativeWithTokens: () => set((draft) => {
       // Update initiative entries with current token HP values
       draft.initiative.entries.forEach(entry => {
-        const token = draft.objects.tokens[entry.tokenId] as Character | undefined;
+        const token = draft.objects.tokens[entry.tokenId];
         if (!token) return;
 
-        // Update HP from token
-        if (typeof token.hp === 'object' && token.hp !== null) {
-          entry.hp = { current: token.hp.current, max: token.hp.max };
-        } else if (typeof token.hp === 'number') {
-          entry.hp = { current: token.hp, max: token.hp };
-        }
+        if (token.kind === 'character') {
+          // Update HP from token
+          if (typeof token.hp === 'object' && token.hp !== null) {
+            entry.hp = { current: token.hp.current, max: token.hp.max };
+          } else if (typeof token.hp === 'number') {
+            entry.hp = { current: token.hp, max: token.hp };
+          }
 
-        // Update stress if present
-        if (token.stress !== undefined) {
+          // Update stress if present
           if (typeof token.stress === 'object' && token.stress !== null) {
             entry.stress = { current: token.stress.current, max: token.stress.max };
           } else if (typeof token.stress === 'number') {

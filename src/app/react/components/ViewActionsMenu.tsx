@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { MoreVertical } from 'lucide-react';
-import { App, Notice } from 'obsidian';
+import { App, FileView, Notice } from 'obsidian';
 import { getActiveWorkspaceLeaf } from '../../utils/embeddedLeafFocus';
 import { openContextMenuGlobal, type ContextMenuEntry } from '../root/ContextMenuContext';
+import { LabelTooltip } from '../../packages/components/primitives/tooltip';
 
 interface ViewActionsMenuProps {
   app: App;
@@ -24,10 +25,7 @@ export const ViewActionsMenu: React.FC<ViewActionsMenuProps> = ({ app, filePath 
 
     if (filePath && activeLeaf) {
       const leaves = app.workspace.getLeavesOfType('atlas-vtt');
-      const matchingLeaf = leaves.find(leaf => {
-        const view = leaf.view as any;
-        return view?.file?.path === filePath;
-      });
+      const matchingLeaf = leaves.find(leaf => leaf.view instanceof FileView && leaf.view.file?.path === filePath);
       if (matchingLeaf) activeLeaf = matchingLeaf;
     }
 
@@ -47,7 +45,7 @@ export const ViewActionsMenu: React.FC<ViewActionsMenuProps> = ({ app, filePath 
           type: 'item', label: 'Reveal in file explorer', icon: 'folder-open',
           onClick: async () => {
             const file = app.vault.getAbstractFileByPath(filePath);
-            if (file) await (app as any).showInFolder(file.path);
+            if (file) app.showInFolder(file.path);
           },
         },
         {
@@ -67,12 +65,7 @@ export const ViewActionsMenu: React.FC<ViewActionsMenuProps> = ({ app, filePath 
           type: 'item', label: 'Rename...', icon: 'pencil',
           onClick: async () => {
             const file = app.vault.getAbstractFileByPath(filePath);
-            if (file) {
-              const fileManager = app.fileManager as any;
-              if (typeof fileManager.promptForFileRename === 'function') {
-                fileManager.promptForFileRename(file);
-              }
-            }
+            if (file) app.fileManager.promptForFileRename?.(file);
           },
         },
         {
@@ -100,13 +93,14 @@ export const ViewActionsMenu: React.FC<ViewActionsMenuProps> = ({ app, filePath 
       onMouseEnter={() => setIsVisible(true)}
       onMouseLeave={() => setIsVisible(false)}
     >
-      <button
-        className={`atlas-view-actions-btn clickable-icon view-action ${isVisible ? 'visible' : ''}`}
-        onClick={showMenu}
-        title="More options"
-      >
-        <MoreVertical size={16} />
-      </button>
+      <LabelTooltip label="More options">
+        <button
+          className={`atlas-view-actions-btn clickable-icon view-action ${isVisible ? 'visible' : ''}`}
+          onClick={showMenu}
+        >
+          <MoreVertical size={16} />
+        </button>
+      </LabelTooltip>
     </div>
   );
 }

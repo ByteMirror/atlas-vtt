@@ -109,7 +109,7 @@ export async function resolveCreatureFromFence(
       : null;
 
   let fromNote: Record<string, unknown> = {};
-  const note = Array.isArray(params.note) ? params.note.flat(Infinity).pop() : params.note;
+  const note: unknown = Array.isArray(params.note) ? params.note.flat(Infinity).pop() : params.note;
   if (typeof note === 'string' && note.length) {
     const linkpath = note.replace(/(^\[\[|\]\]$)/g, '').split('|')[0] ?? '';
     const file = app.metadataCache.getFirstLinkpathDest(linkpath, sourcePath);

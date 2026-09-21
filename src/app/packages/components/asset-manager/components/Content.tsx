@@ -1,13 +1,15 @@
 import React from 'react';
 import { Folder, ChevronDown, PackageOpen } from 'lucide-react';
+import type { App } from 'obsidian';
 import type {
-  Tab, AnyAsset, Folder as FolderType,
+  Tab, AnyAsset, Folder as FolderType, SelectionEvent,
 } from '../types';
 import { getTabDisplayName } from '../types';
 import { AssetCard } from './AssetCard';
 import { TooltipProvider } from '../../primitives/tooltip';
 import type { AssetService } from '../../../../services/AssetService';
 import type { AtlasView } from '../../../../atlas-view';
+import type { ViewAtlasState } from '../../../../storeFactory';
 
 export interface ContentProps {
   activeTab: Tab;
@@ -16,10 +18,10 @@ export interface ContentProps {
   selectedAssetIds: string[];
   selectedFolderIds: string[];
   selectedFolderId: string | null;
-  onAssetSelect: (assetId: string, event?: React.MouseEvent, toggle?: boolean) => void;
+  onAssetSelect: (assetId: string, event?: SelectionEvent, toggle?: boolean) => void;
   onAssetContextMenu: (asset: AnyAsset, event: React.MouseEvent) => void;
   onFolderSelect: (folderId: string | null) => void;
-  onFolderSelection: (folderId: string, event?: React.MouseEvent) => void;
+  onFolderSelection: (folderId: string, event?: SelectionEvent) => void;
   onFolderContextMenu: (folder: FolderType, event: React.MouseEvent) => void;
   onFolderDoubleClick: (folderId: string) => void;
   onContentContextMenu: (event: React.MouseEvent) => void;
@@ -33,9 +35,9 @@ export interface ContentProps {
   setDropTarget: React.Dispatch<React.SetStateAction<string | null>>;
   onDrop: (targetFolderId: string | null) => void;
   view: AtlasView | null;
-  addToken: (data: any) => string;
+  addToken: ViewAtlasState['addToken'];
   setSelection: (ids: string[]) => void;
-  app: any;
+  app: App;
   assetService: AssetService | null;
   spawnCounts: Record<string, number>;
   onSpawnCountChange: (assetId: string, delta: number) => void;
@@ -146,7 +148,7 @@ export function Content({
 
     const keyHandler = (e: React.KeyboardEvent): void => {
       if (e.key === 'Enter' || e.key === ' ') {
-        if (e.shiftKey) onFolderSelection(folder.id, e as any);
+        if (e.shiftKey) onFolderSelection(folder.id, e);
         else onFolderDoubleClick(folder.id);
       }
     };

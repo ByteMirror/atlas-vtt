@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Flame, Sparkles, Lightbulb, GripHorizontal } from 'lucide-react';
+import { Flame, Sparkles, Lightbulb, GripHorizontal, type LucideIcon } from 'lucide-react';
 import { createRoot } from 'react-dom/client';
 import type { StoreApi } from 'zustand';
 import type { ViewAtlasState } from '../../storeFactory';
@@ -8,8 +8,9 @@ import type { LightSource, LightStyle } from '../../types/wallTypes';
 
 import './light-config-panel.scss';
 import { CloseButton } from '../../packages/components/primitives/CloseButton';
+import { LabelTooltip } from '../../packages/components/primitives/tooltip';
 
-const LIGHT_STYLE_OPTIONS: Array<{ value: LightStyle; label: string; icon: React.ComponentType<any> }> = [
+const LIGHT_STYLE_OPTIONS: Array<{ value: LightStyle; label: string; icon: LucideIcon }> = [
   { value: 'torch', label: 'Torch', icon: Flame },
   { value: 'magic', label: 'Magic', icon: Sparkles },
   { value: 'steady', label: 'Steady', icon: Lightbulb },
@@ -154,7 +155,6 @@ function LightConfigPanelInner({ light, store, screenX, screenY, onClose }: Ligh
                 key={opt.value}
                 className={`atlas-light-config__style-btn ${isActive ? 'atlas-light-config__style-btn--active' : ''}`}
                 onClick={() => setLightStyle(opt.value)}
-                title={opt.label}
               >
                 <Icon size={16} />
                 <span>{opt.label}</span>
@@ -167,13 +167,13 @@ function LightConfigPanelInner({ light, store, screenX, screenY, onClose }: Ligh
         <div className="atlas-light-config__section-label">Color</div>
         <div className="atlas-light-config__color-row">
           {COLOR_PRESETS.map((preset) => (
-            <button
-              key={preset.value}
-              className={`atlas-light-config__color-swatch ${color === preset.value ? 'atlas-light-config__color-swatch--active' : ''}`}
-              style={{ backgroundColor: preset.value }}
-              onClick={() => setColor(preset.value)}
-              title={preset.label}
-            />
+            <LabelTooltip key={preset.value} label={preset.label}>
+              <button
+                className={`atlas-light-config__color-swatch ${color === preset.value ? 'atlas-light-config__color-swatch--active' : ''}`}
+                style={{ backgroundColor: preset.value }}
+                onClick={() => setColor(preset.value)}
+              />
+            </LabelTooltip>
           ))}
         </div>
 

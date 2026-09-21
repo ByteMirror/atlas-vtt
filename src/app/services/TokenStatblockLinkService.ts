@@ -1,12 +1,39 @@
 import { App, TFile, Notice, Modal } from 'obsidian';
 import { EventEmitter } from 'events';
-import { AssetService } from './AssetService';
+import { AssetService, type TokenAsset } from './AssetService';
 import { loadStatblockOverrides } from '../packages/components/asset-manager/utils/statblockLoader';
 import { parseResourceValue } from './statblockResources';
+import { isPersistedMapEnvelope } from './MapPersistence';
+import type { BaseToken, Character } from '../types';
 
 export interface TokenStatblockLink {
   tokenImagePath: string;
   statblockPath: string;
+}
+
+/**
+ * The statblock-derived fields of a token as stored in a map file. Linking
+ * writes them onto the token whatever its `kind`, so all are optional here.
+ */
+type StoredStatblockFields = Pick<BaseToken, 'imagePath' | 'showNameplate'>
+  & Partial<Pick<Character, 'name' | 'hp' | 'stress' | 'maxStress' | 'difficulty' | 'statblockPath' | 'statblockName'>>
+  & {
+    /** Written by older versions and never read; still stripped on unlink. */
+    maxHp?: number;
+  };
+
+/** A frontmatter scalar usable as text; YAML may hold a name or tier as a number. */
+function frontmatterLabel(value: unknown): string | undefined {
+  if (typeof value === 'number') return String(value);
+  return typeof value === 'string' && value !== '' ? value : undefined;
+}
+
+function setOrDelete<T, K extends keyof T>(target: T, key: K, value: T[K] | undefined): void {
+  if (value === undefined) {
+    delete target[key];
+  } else {
+    target[key] = value;
+  }
 }
 
 export interface LinkChangeEvent {
@@ -46,84 +73,10 @@ export class TokenStatblockLinkService extends EventEmitter {
   }
   
   /**
-   * Links a character to a statblock, ensuring one-to-one relationship.
-   * This will unlink any other characters that were using this statblock.
-   */
-  async linkCharacterToStatblock(
-    characterId: string,
-    statblockPath: string,
-    options: { 
-      showConfirmation?: boolean;
-      updateStatblockAvatar?: boolean;
-    } = {}
-  ): Promise<boolean> {
-    const { showConfirmation = true, updateStatblockAvatar = true } = options;
-    
-    // Get the statblock file
-    const statblockFile = this.app.vault.getAbstractFileByPath(statblockPath);
-    if (!(statblockFile instanceof TFile)) {
-      new Notice(`Statblock not found: ${statblockPath}`);
-      return false;
-    }
-    
-    // Check if this statblock is already linked to another character
-    const existingCharacter = await this.getCharacterLinkedToStatblock(statblockPath);
-    if (existingCharacter && existingCharacter.id !== characterId) {
-      if (showConfirmation) {
-        const confirmed = await this.showConfirmationDialog(
-          'Statblock Already Linked',
-          `This statblock is already linked to another character. Do you want to unlink it and link to this character instead?`
-        );
-        if (!confirmed) return false;
-      }
-      
-      // Unlink the existing character
-      await this.unlinkCharacter(existingCharacter.id, { updateStatblockAvatar: false });
-    }
-    
-    // Update the character asset in AssetService
-    try {
-      const character = await this.assetService.getAssetById(characterId);
-      if (character && character.type === 'character') {
-        await this.assetService.updateAsset(characterId, {
-          statblockPath: statblockPath
-        });
-        
-        // Update the statblock's token-image field if requested
-        if (updateStatblockAvatar && (character as any).imagePath) {
-          await this.updateStatblockImage(statblockPath, (character as any).imagePath);
-        }
-        
-        // Force the AssetService to reload its metadata
-        await this.assetService.refreshMetadata();
-        
-        // Emit event
-        this.emit('link-changed', {
-          type: 'linked',
-          tokenImagePath: (character as any).imagePath || '',
-          statblockPath,
-        });
-        
-        // Update all spawned tokens on all maps
-        if ((character as any).imagePath) {
-          await this.updateAllSpawnedTokens((character as any).imagePath, statblockPath);
-        }
-        
-        new Notice(`Character linked to statblock successfully`);
-        return true;
-      }
-    } catch (error) {
-      console.error('[TokenStatblockLinkService] Failed to link character:', error);
-      new Notice('Failed to link character to statblock');
-    }
-    
-    return false;
-  }
-
-  /**
-   * Links a token to a statblock, ensuring one-to-one relationship.
-   * This will unlink any other tokens that were using this statblock.
-   * @deprecated Use linkCharacterToStatblock for new implementations
+   * Links the token asset identified by its image path to a statblock, keeping
+   * the relationship one-to-one: a token previously using this statblock is
+   * unlinked, as is this token's previous statblock. Map tokens spawned from
+   * the image are updated too.
    */
   async linkTokenToStatblock(
     tokenImagePath: string, 
@@ -171,10 +124,7 @@ export class TokenStatblockLinkService extends EventEmitter {
     if (asset) {
       // Use the asset's canonical imagePath for consistency
       finalTokenPath = asset.imagePath;
-      await this.assetService.updateAsset(asset.id, {
-        ...asset,
-        statblockPath: statblockPath
-      });
+      await this.assetService.updateAsset(asset.id, { statblockPath });
       
       // Update the statblock's token-image field if requested
       if (updateStatblockAvatar) {
@@ -231,11 +181,9 @@ export class TokenStatblockLinkService extends EventEmitter {
     if (!statblockPath) return true; // Already unlinked
     
     // Update the asset service
-    const allAssets = await this.assetService.getAssets();
-    const tokenAssets = allAssets.filter(asset => 
-      asset.type === 'token' && asset.imagePath === tokenImagePath
-    );
-    
+    const tokenAssets = (await this.assetService.getTokenAssets())
+      .filter(asset => asset.imagePath === tokenImagePath);
+
     for (const asset of tokenAssets) {
       // Explicitly set statblockPath to undefined to trigger removal
       await this.assetService.updateAsset(asset.id, { statblockPath: undefined });
@@ -282,17 +230,9 @@ export class TokenStatblockLinkService extends EventEmitter {
    * Gets the statblock linked to a token.
    */
   async getStatblockLinkedToToken(tokenImagePath: string): Promise<string | null> {
-    const allAssets = await this.assetService.getAssets();
-    const tokenAssets = allAssets.filter(asset => 
-      asset.type === 'token' && (asset as any).imagePath === tokenImagePath
-    );
-    
-    for (const asset of tokenAssets) {
-      if ((asset as any).statblockPath) {
-        return (asset as any).statblockPath;
-      }
-    }
-    return null;
+    const tokenAssets = await this.assetService.getTokenAssets();
+    const linked = tokenAssets.find(asset => asset.imagePath === tokenImagePath && asset.statblockPath);
+    return linked?.statblockPath ?? null;
   }
   
   /**
@@ -300,14 +240,10 @@ export class TokenStatblockLinkService extends EventEmitter {
    */
   async getTokenLinkedToStatblock(statblockPath: string): Promise<string | null> {
     // First check if any token assets have this statblock linked
-    const allAssets = await this.assetService.getAssets();
-    const linkedTokenAssets = allAssets.filter(asset => 
-      asset.type === 'token' && (asset as any).statblockPath === statblockPath
-    );
-    
-    if (linkedTokenAssets.length > 0) {
-      const firstLinkedToken = linkedTokenAssets[0] as any;
-      return firstLinkedToken.imagePath;
+    const tokenAssets = await this.assetService.getTokenAssets();
+    const linkedToken = tokenAssets.find(asset => asset.statblockPath === statblockPath);
+    if (linkedToken) {
+      return linkedToken.imagePath;
     }
     
     // Otherwise fall back to the image recorded in the statblock's frontmatter.
@@ -384,104 +320,11 @@ export class TokenStatblockLinkService extends EventEmitter {
    * so statblocks linked before the migration keep working.
    */
   public readStatblockImage(file: TFile): string | null {
-    const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
+    const frontmatter: Record<string, unknown> | undefined = this.app.metadataCache.getFileCache(file)?.frontmatter;
     const image = frontmatter?.image ?? frontmatter?.['token-image'];
     return typeof image === 'string' && image.length ? image : null;
   }
 
-  /**
-   * Gets the character linked to a statblock.
-   */
-  async getCharacterLinkedToStatblock(statblockPath: string): Promise<any> {
-    const allAssets = await this.assetService.getAssets(undefined, 'character');
-    const linkedCharacters = allAssets.filter(asset => 
-      (asset as any).statblockPath === statblockPath
-    );
-    
-    if (linkedCharacters.length > 0) {
-      const firstLinkedCharacter = linkedCharacters[0];
-      return firstLinkedCharacter;
-    }
-    
-    return null;
-  }
-
-  /**
-   * Gets the statblock linked to a character.
-   */
-  async getStatblockLinkedToCharacter(characterId: string): Promise<string | null> {
-    try {
-      const character = await this.assetService.getAssetById(characterId);
-      if (character && character.type === 'character') {
-        return (character as any).statblockPath || null;
-      }
-    } catch (error) {
-      console.error('[TokenStatblockLinkService] Failed to get character:', error);
-    }
-    return null;
-  }
-
-  /**
-   * Unlinks a character from its statblock.
-   */
-  async unlinkCharacter(
-    characterId: string,
-    options: { 
-      updateStatblockAvatar?: boolean;
-    } = {}
-  ): Promise<boolean> {
-    const { updateStatblockAvatar = true } = options;
-    
-    try {
-      const character = await this.assetService.getAssetById(characterId);
-      if (!character || character.type !== 'character') {
-        new Notice('Character not found');
-        return false;
-      }
-      
-      const statblockPath = (character as any).statblockPath;
-      
-      // Update the character to remove statblock link
-      await this.assetService.updateAsset(characterId, {
-        statblockPath: null
-      });
-      
-      // Update the statblock's token-image field if requested
-      if (updateStatblockAvatar && statblockPath) {
-        await this.updateStatblockImage(statblockPath, null);
-      }
-      
-      // Force the AssetService to reload its metadata
-      await this.assetService.refreshMetadata();
-      
-      // Emit event
-      if (statblockPath) {
-        this.emit('link-changed', {
-          type: 'unlinked',
-          tokenImagePath: (character as any).imagePath || '',
-          statblockPath: null,
-          previousStatblockPath: statblockPath
-        });
-        
-        // Update all spawned tokens on all maps
-        if ((character as any).imagePath) {
-          await this.updateAllSpawnedTokens((character as any).imagePath, null);
-        }
-      }
-      
-      new Notice(`Character unlinked from statblock successfully`);
-      return true;
-      
-    } catch (error) {
-      console.error('[TokenStatblockLinkService] Failed to unlink character:', error);
-      new Notice('Failed to unlink character from statblock');
-      return false;
-    }
-  }
-  
-  /**
-   * Updates the token-image field in a statblock's frontmatter.
-   */
   /**
    * Writes the token image into the statblock's frontmatter.
    *
@@ -495,7 +338,7 @@ export class TokenStatblockLinkService extends EventEmitter {
     if (!(file instanceof TFile)) return;
 
     try {
-      await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
+      await this.app.fileManager.processFrontMatter(file, (frontmatter: Record<string, unknown>) => {
         if (tokenImagePath) {
           frontmatter.image = tokenImagePath;
         } else {
@@ -516,26 +359,25 @@ export class TokenStatblockLinkService extends EventEmitter {
 
     /** Returns the rewritten map JSON, or null when no token on the map uses the image. */
     const rewriteMap = (content: string): string | null => {
-      const mapData = JSON.parse(content) as Record<string, any>;
-      
-      if (!mapData.state?.objects?.tokens) return null;
-      
+      const mapData: unknown = JSON.parse(content);
+      if (!isPersistedMapEnvelope(mapData)) return null;
+
+      const tokens = mapData.state?.objects?.tokens;
+      if (!tokens) return null;
+
       let modified = false;
-      const tokens = mapData.state.objects.tokens;
-      
-      for (const tokenId in tokens) {
-        const token = tokens[tokenId];
-        if (token.imagePath === tokenImagePath || token.asset === tokenImagePath) {
+
+      for (const token of Object.values<StoredStatblockFields>(tokens)) {
+        if (token.imagePath === tokenImagePath) {
           if (statblockPath) {
             token.statblockPath = statblockPath;
 
             if (statblockData) {
               token.name = statblockData.name;
               token.hp = statblockData.hp;
-              token.maxHp = statblockData.maxHp;
-              token.stress = statblockData.stress;
-              token.maxStress = statblockData.maxStress;
-              token.difficulty = statblockData.difficulty;
+              setOrDelete(token, 'stress', statblockData.stress);
+              setOrDelete(token, 'maxStress', statblockData.maxStress);
+              setOrDelete(token, 'difficulty', statblockData.difficulty);
             }
           } else {
             // Unlink from statblock - clear ALL statblock-derived data
@@ -571,8 +413,7 @@ export class TokenStatblockLinkService extends EventEmitter {
    */
   private async extractStatblockData(statblockPath: string): Promise<{
     name: string;
-    hp: { current: number; max: number } | number;
-    maxHp: number;
+    hp: { current: number; max: number };
     stress?: number;
     maxStress?: number;
     difficulty?: string;
@@ -583,16 +424,17 @@ export class TokenStatblockLinkService extends EventEmitter {
     const metadata = this.app.metadataCache.getFileCache(file);
     const overrides = await loadStatblockOverrides(this.app, statblockPath);
     if (!metadata?.frontmatter && !overrides.name) return null;
-    const fm = metadata?.frontmatter ?? {};
+    const fm: Record<string, unknown> = metadata?.frontmatter ?? {};
     const hp = overrides.hp ?? parseResourceValue(fm.hp ?? fm.Health ?? fm.health) ?? { current: 10, max: 10 };
     const stress = parseResourceValue(fm.stress, true);
+    const difficulty = overrides.difficulty ?? frontmatterLabel(fm.tier) ?? frontmatterLabel(fm.difficulty);
     return {
-      name: overrides.name ?? fm.name ?? 'Unknown',
+      name: overrides.name ?? frontmatterLabel(fm.name) ?? 'Unknown',
       hp,
-      maxHp: hp.max,
-      ...(overrides.stress !== undefined ? { stress: overrides.stress, maxStress: overrides.maxStress } :
-        stress ? { stress: stress.current, maxStress: stress.max } : {}),
-      difficulty: overrides.difficulty ?? fm.tier ?? fm.difficulty,
+      ...(overrides.stress !== undefined
+        ? { stress: overrides.stress, ...(overrides.maxStress !== undefined && { maxStress: overrides.maxStress }) }
+        : stress ? { stress: stress.current, maxStress: stress.max } : {}),
+      ...(difficulty !== undefined && { difficulty }),
     };
   }
   
@@ -709,14 +551,11 @@ export class TokenStatblockLinkService extends EventEmitter {
   /**
    * Finds an asset by any path format (resource URL or file path).
    */
-  private async findAssetByAnyPath(path: string): Promise<any> {
-    // Get all token assets and search for matching paths
-    const allAssets = await this.assetService.getAssets(undefined, 'token');
+  private async findAssetByAnyPath(path: string): Promise<TokenAsset | null> {
+    const tokenAssets = await this.assetService.getTokenAssets();
     const normalizedSearchPath = this.normalizeResourcePath(path);
     
-    for (const assetData of allAssets) {
-      // Cast to TokenAsset since we filtered for token type
-      const tokenAsset = assetData as any;
+    for (const tokenAsset of tokenAssets) {
       if (tokenAsset.imagePath) {
         const assetNormalized = this.normalizeResourcePath(tokenAsset.imagePath);
         // Try both direct path match and normalized path match

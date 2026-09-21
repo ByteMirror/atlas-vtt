@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, Check } from 'lucide-react';
 import { CloseButton } from '../../packages/components/primitives/CloseButton';
+import { LabelTooltip } from '../../packages/components/primitives/tooltip';
 
 interface PlaylistModalProps {
     isOpen: boolean;
@@ -50,22 +51,24 @@ export const PlaylistModal: React.FC<PlaylistModalProps> = ({
                         autoFocus
                     />
                     <div className="atlas-playlist-modal-actions">
-                        <button
-                            type="button"
-                            className="atlas-playlist-modal-button atlas-cancel"
-                            onClick={handleClose}
-                            title="Cancel"
-                        >
-                            <X size={20} />
-                        </button>
-                        <button
-                            type="submit"
-                            className="atlas-playlist-modal-button atlas-confirm"
-                            disabled={!playlistName.trim()}
-                            title="Create Playlist"
-                        >
-                            <Check size={20} />
-                        </button>
+                        <LabelTooltip label="Cancel">
+                            <button
+                                type="button"
+                                className="atlas-playlist-modal-button atlas-cancel"
+                                onClick={handleClose}
+                            >
+                                <X size={20} />
+                            </button>
+                        </LabelTooltip>
+                        <LabelTooltip label="Create Playlist">
+                            <button
+                                type="submit"
+                                className="atlas-playlist-modal-button atlas-confirm"
+                                disabled={!playlistName.trim()}
+                            >
+                                <Check size={20} />
+                            </button>
+                        </LabelTooltip>
                     </div>
                 </form>
             </div>

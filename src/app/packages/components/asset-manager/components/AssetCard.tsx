@@ -1,34 +1,32 @@
-import React, { useRef } from 'react';
+import React, { useId, useRef } from 'react';
 import { Map as MapIcon, Link } from 'lucide-react';
-import type {
-  AnyAsset,
-  MapAsset,
-} from '../types';
+import type { AnyAsset, SelectionEvent } from '../types';
 import {
   spawnTokenAsset,
   spawnEncounterTokens,
   type SpawnContext,
 } from '../utils/tokenSpawnService';
 import type { AssetService } from '../../../../services/AssetService';
-import { Notice, TFile } from 'obsidian';
+import { Notice, TFile, type App } from 'obsidian';
 import { runInBackground } from '../../../../utils/backgroundTask';
 import { TokenPortrait } from '../../shared/TokenPortrait';
-import { Tooltip, TooltipContent, TooltipTrigger } from '../../primitives/tooltip';
+import { LabelTooltip, Tooltip, TooltipContent, TooltipTrigger } from '../../primitives/tooltip';
 import type { AtlasView } from '../../../../atlas-view';
+import type { ViewAtlasState } from '../../../../storeFactory';
 
 export interface AssetCardProps {
   asset: AnyAsset;
   isSelected: boolean;
-  onSelect: (assetId: string, event?: React.MouseEvent, toggle?: boolean) => void;
+  onSelect: (assetId: string, event?: SelectionEvent, toggle?: boolean) => void;
   onContextMenu: (asset: AnyAsset, event: React.MouseEvent) => void;
   onClose: () => void;
   draggedItems: { type: 'asset' | 'folder'; ids: string[] } | null;
   setDraggedItems: React.Dispatch<React.SetStateAction<{ type: 'asset' | 'folder'; ids: string[] } | null>>;
   selectedAssetIds: string[];
   view: AtlasView | null;
-  addToken: (data: any) => string;
+  addToken: ViewAtlasState['addToken'];
   setSelection: (ids: string[]) => void;
-  app: any;
+  app: App;
   assetService: AssetService | null;
   spawnCount: number;
   onSpawnCountChange: (assetId: string, delta: number) => void;
@@ -66,13 +64,14 @@ export function AssetCard({
   spawnCount,
   onSpawnCountChange,
 }: AssetCardProps): React.JSX.Element {
+  const nameId = useId();
   const spawnCountRef = useRef(spawnCount);
   spawnCountRef.current = spawnCount;
 
   const resolveVaultImageUrl = (path?: string): string | null => {
     if (!path) return null;
     try {
-      const file = app?.vault?.getAbstractFileByPath?.(path);
+      const file = app.vault.getAbstractFileByPath(path);
       if (file instanceof TFile) {
         return app.vault.getResourcePath(file);
       }
@@ -91,7 +90,7 @@ export function AssetCard({
     .slice(0, 3);
   const encounterOverflowCount = Math.max(0, encounterTokens.length - encounterPreviewUrls.length);
 
-  const handleClick = (event: React.MouseEvent): void => {
+  const handleClick = (event: SelectionEvent): void => {
     onSelect(asset.id, event);
   };
 
@@ -103,18 +102,11 @@ export function AssetCard({
     const spawnCtx: SpawnContext = { app, view, addToken, setSelection, assetService };
 
     if (asset.type === 'maps') {
-      try {
-        const mapAsset = asset as MapAsset;
-        const backgroundPath =
-          (mapAsset as any).mapFilePath ?? (mapAsset as any).imagePath ?? (mapAsset as any).imageUrl ?? null;
-        window.dispatchEvent(
-          new CustomEvent('create-scene-from-map', {
-            detail: { map: mapAsset, backgroundPath, defaultName: mapAsset.name },
-          })
-        );
-      } catch (error) {
-        console.error('[AssetCard] Error dispatching create-scene-from-map:', error);
-      }
+      window.dispatchEvent(
+        new CustomEvent('create-scene-from-map', {
+          detail: { backgroundPath: asset.mapFilePath, defaultName: asset.name },
+        })
+      );
       return;
     }
 
@@ -130,7 +122,7 @@ export function AssetCard({
         const serviceAsset = await assetService.getAssetById(asset.id);
         if (serviceAsset?.type === 'scene' && serviceAsset.data?.mapPath) {
           const file = app.vault.getAbstractFileByPath(serviceAsset.data.mapPath);
-          if (file) {
+          if (file instanceof TFile) {
             const leaf = app.workspace.getLeaf(false);
             await leaf.openFile(file);
             onClose();
@@ -210,7 +202,7 @@ export function AssetCard({
           role="button"
           tabIndex={0}
           aria-selected={isSelected}
-          aria-label={asset.name}
+          aria-labelledby={nameId}
           draggable
           onDragStart={(e) => {
             setDraggedItems({
@@ -220,54 +212,59 @@ export function AssetCard({
             e.dataTransfer.effectAllowed = 'move';
           }}
           onDragEnd={() => setDraggedItems(null)}
-          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleClick(e as any); }}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleClick(e); }}
         >
           <div className="atlas-asset-card-thumb">
             {renderArtwork()}
 
             <div className="atlas-asset-card-checkbox" onClick={handleCheckboxClick}>
-              <input type="checkbox" checked={isSelected} onChange={() => {}} aria-label={`Select ${asset.name}`} />
+              <LabelTooltip label={`Select ${asset.name}`}>
+                <input type="checkbox" checked={isSelected} onChange={() => {}} />
+              </LabelTooltip>
             </div>
 
             {statblockPath && spawnCount <= 1 && (
-              <div
-                className="atlas-asset-statblock-indicator"
-                title="Statblock linked – click to open"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (app) app.workspace.openLinkText('', statblockPath, true);
-                }}
-              >
-                <Link size={12} />
-              </div>
+              <LabelTooltip label="Statblock linked – click to open">
+                <div
+                  className="atlas-asset-statblock-indicator"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void app.workspace.openLinkText('', statblockPath, true);
+                  }}
+                >
+                  <Link size={12} />
+                </div>
+              </LabelTooltip>
             )}
 
             {spawnCount > 1 && (
               <div className="atlas-asset-spawn-badge" onDoubleClick={(e) => e.stopPropagation()}>
-                <button
-                  type="button"
-                  className="atlas-spawn-btn"
-                  onClick={(e) => { e.stopPropagation(); onSpawnCountChange(asset.id, -1); }}
-                  aria-label="Decrease spawn count"
-                >−</button>
+                <LabelTooltip label="Decrease spawn count">
+                  <button
+                    type="button"
+                    className="atlas-spawn-btn"
+                    onClick={(e) => { e.stopPropagation(); onSpawnCountChange(asset.id, -1); }}
+                  >−</button>
+                </LabelTooltip>
                 <span className="atlas-spawn-count">×{spawnCount}</span>
-                <button
-                  type="button"
-                  className="atlas-spawn-btn"
-                  onClick={(e) => { e.stopPropagation(); onSpawnCountChange(asset.id, 1); }}
-                  aria-label="Increase spawn count"
-                >+</button>
-                <button
-                  type="button"
-                  className="atlas-spawn-btn atlas-spawn-go"
-                  onClick={(e) => { e.stopPropagation(); void handleDoubleClick(e); }}
-                  aria-label={`Spawn ${spawnCount} tokens`}
-                  title={`Spawn ${spawnCount} tokens`}
-                >Go</button>
+                <LabelTooltip label="Increase spawn count">
+                  <button
+                    type="button"
+                    className="atlas-spawn-btn"
+                    onClick={(e) => { e.stopPropagation(); onSpawnCountChange(asset.id, 1); }}
+                  >+</button>
+                </LabelTooltip>
+                <LabelTooltip label={`Spawn ${spawnCount} tokens`}>
+                  <button
+                    type="button"
+                    className="atlas-spawn-btn atlas-spawn-go"
+                    onClick={(e) => { e.stopPropagation(); void handleDoubleClick(e); }}
+                  >Go</button>
+                </LabelTooltip>
               </div>
             )}
           </div>
-          <span className="atlas-asset-card-name">{asset.name}</span>
+          <span id={nameId} className="atlas-asset-card-name">{asset.name}</span>
         </div>
       </TooltipTrigger>
       <TooltipContent className="atlas-asset-card-tooltip" side="top" sideOffset={10}>

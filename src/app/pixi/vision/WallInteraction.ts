@@ -164,7 +164,7 @@ export class WallInteraction {
   setSelectedDirection(direction: 'left' | 'right' | undefined): void {
     const state = this.store.getState();
     for (const id of this.selectedWallIds) {
-      state.updateWall(id, { direction } as any);
+      state.updateWall(id, { direction });
     }
     this.wallRenderer.forceRedraw();
   }

@@ -4,6 +4,7 @@ import type { ViewAtlasState } from '../storeFactory';
 import { App, TFile, setIcon, type WorkspaceLeaf } from 'obsidian';
 import type { StoreApi } from 'zustand';
 import { runInBackground } from '../utils/backgroundTask';
+import type { PinActionEventDetail } from '../types/atlasWindowEvents';
 
 interface NotePinDropdownResult {
   accepted: boolean;
@@ -22,7 +23,8 @@ export class NotePinTool {
   private store: StoreApi<ViewAtlasState>;
   private currentPreviewIcon: string = 'pin';
   private storeUnsubscribe: (() => void) | null = null;
-  private pinActionHandler: EventListener | null = null;
+  private pinActionHandler: ((e: CustomEvent<PinActionEventDetail>) => void) | null = null;
+  private outsideClickHandler: ((e: MouseEvent) => void) | null = null;
 
   constructor(
     private readonly eventBus: EventEmitter,
@@ -72,8 +74,8 @@ export class NotePinTool {
     });
     
     // Listen for pin action events from the PixiRenderer
-    this.pinActionHandler = ((e: Event) => {
-      const { action, pin } = (e as CustomEvent).detail;
+    this.pinActionHandler = (e): void => {
+      const { action, pin } = e.detail;
       
       if (action === 'open') {
         // Explicitly tell NotePreviewUIManager to hide any preview for this pin's notePath
@@ -83,7 +85,7 @@ export class NotePinTool {
         // Show the note selection dropdown at the pin's position
         runInBackground(this.showNotePinDropdownForExistingPin(pin), 'Opening the note pin editor');
       }
-    });
+    };
     window.addEventListener('atlas-pin-action', this.pinActionHandler);
   }
   
@@ -428,7 +430,7 @@ export class NotePinTool {
           resolve({ accepted: false });
         }
       };
-      (dropdown as any)._outsideClickHandler = handleOutsideClick;
+      this.outsideClickHandler = handleOutsideClick;
       window.setTimeout(() => {
         document.addEventListener('mousedown', handleOutsideClick, true);
       }, 100);
@@ -446,11 +448,9 @@ export class NotePinTool {
    */
   private closeDropdown(): void {
     if (this.pinDropdown) {
-      // Remove any outside click handlers
-      const handlers = (this.pinDropdown as any)._outsideClickHandler;
-      if (handlers) {
-        document.removeEventListener('mousedown', handlers, true);
-        delete (this.pinDropdown as any)._outsideClickHandler;
+      if (this.outsideClickHandler) {
+        document.removeEventListener('mousedown', this.outsideClickHandler, true);
+        this.outsideClickHandler = null;
       }
       
       this.pinDropdown.remove();

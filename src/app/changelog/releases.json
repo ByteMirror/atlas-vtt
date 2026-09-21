@@ -1,0 +1,35 @@
+{
+  "version": "0.1.6",
+  "releases": [
+    {
+      "version": "0.1.6",
+      "date": "2026-09-20",
+      "title": "Scene settings and reliable map switching",
+      "markdown": "## Improved\n\n- Switch command-palette tabs with Tab and Shift+Tab. Keyboard navigation inside settings panels continues to work as usual.\n- Creating a scene no longer asks you to select an unused campaign.\n\n## Fixed\n\n- Grid and token settings now update the active scene correctly.\n- Pending map changes are saved before switching scenes.\n\n## Important changes\n\n- Removed the legacy generic-token command. Use the token tools in the asset manager instead."
+    },
+    {
+      "version": "0.1.5",
+      "date": "2026-09-20",
+      "title": "Creating scenes in collections",
+      "markdown": "## Fixed\n\n- Creating a scene in a named collection now uses the correct collection folder, including on Windows and when the collection name contains spaces.\n- New scenes use the selected collection's grid defaults consistently.\n- If scene creation fails, Atlas displays a notice explaining that it could not create the scene."
+    },
+    {
+      "version": "0.1.4",
+      "date": "2026-09-20",
+      "title": "Compatibility and dependency maintenance",
+      "markdown": "## Improved\n\n- Updated dependencies and adjusted the plugin bundle for Obsidian's community-plugin requirements.\n- ZIP import and export remain available with the updated bundle."
+    },
+    {
+      "version": "0.1.3",
+      "date": "2026-09-20",
+      "title": "Map switching and asset-manager dialogs",
+      "markdown": "## Fixed\n\n- Leaving a map clears its old interaction handlers so they cannot respond after switching scenes.\n- Confirming or cancelling a deletion keeps the asset manager open."
+    },
+    {
+      "version": "0.1.2",
+      "date": "2026-09-20",
+      "title": "Atlas VTT for Obsidian",
+      "markdown": "## New\n\n- Run tabletop sessions with battle maps, square and hex grids, tokens, fog of war, note pins, drawing, measuring, dice, initiative and music.\n- Present your game in a separate player window.\n\n## Important changes\n\n- Atlas requires Obsidian 1.8.7 or newer on desktop."
+    }
+  ]
+}

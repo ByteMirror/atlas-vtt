@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { renderEntries, type ContextMenuEntry } from '../components/context-menu/AtlasContextMenu';
 import { useAtlasStore } from '../ViewStoreContext';
+import { LabelTooltip } from '../../packages/components/primitives/tooltip';
 
 // Re-export the entry type so consumers only import from this file
 export type { ContextMenuEntry } from '../components/context-menu/AtlasContextMenu';
@@ -150,24 +151,23 @@ export function RingColorGrid({ tokenId, closeMenu }: { tokenId: string; closeMe
       {colors.map((c) => {
         const hex = resolveHex(c.cssVar, c.fallback);
         return (
-          <button
-            key={c.name}
-            type="button"
-            className="atlas-ring-swatch"
-            title={`Ring colour ${c.name}`}
-            aria-label={`Ring colour ${c.name}`}
-            style={{ background: hex }}
-            onClick={() => handleSelect(hex)}
-          />
+          <LabelTooltip key={c.name} label={`Ring colour ${c.name}`}>
+            <button
+              type="button"
+              className="atlas-ring-swatch"
+              style={{ background: hex }}
+              onClick={() => handleSelect(hex)}
+            />
+          </LabelTooltip>
         );
       })}
-      <button
-        type="button"
-        className="atlas-ring-swatch atlas-none"
-        title="Clear ring"
-        aria-label="Clear ring"
-        onClick={() => handleSelect(null)}
-      />
+      <LabelTooltip label="Clear ring">
+        <button
+          type="button"
+          className="atlas-ring-swatch atlas-none"
+          onClick={() => handleSelect(null)}
+        />
+      </LabelTooltip>
     </div>
   );
 }

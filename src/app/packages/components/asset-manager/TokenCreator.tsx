@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { ImageIcon, Loader2, Save, Upload } from 'lucide-react';
 import { Platform } from 'obsidian';
 import { cn } from '../../../../utils/cn';
@@ -38,6 +38,7 @@ export function TokenCreator({ isOpen, onClose, mode = 'token', selectedCollecti
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const dragDepthRef = useRef(0);
+  const titleId = useId();
   const windowRef = useRef<HTMLDivElement>(null);
 
   const { reset } = previews;
@@ -150,7 +151,7 @@ export function TokenCreator({ isOpen, onClose, mode = 'token', selectedCollecti
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
-        aria-label={title}
+        aria-labelledby={titleId}
         onClick={(e) => e.stopPropagation()}
         onDragEnter={handleDragEnter}
         onDragLeave={handleDragLeave}
@@ -175,7 +176,7 @@ export function TokenCreator({ isOpen, onClose, mode = 'token', selectedCollecti
 
         <header className="atlas-token-creator__header">
           <h2>
-            {title}
+            <span id={titleId}>{title}</span>
             {count > 0 && <span className="atlas-token-creator__subtitle">{count} {noun}</span>}
           </h2>
           <CloseButton onClick={onClose} />

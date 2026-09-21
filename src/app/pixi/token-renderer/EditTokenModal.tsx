@@ -5,6 +5,7 @@ import type { StoreApi } from 'zustand';
 import type { ViewAtlasState } from '../../storeFactory';
 import { WALLS_AND_LIGHTING_ENABLED } from '../../featureFlags';
 import { CloseButton } from '../../packages/components/primitives/CloseButton';
+import { LabelTooltip } from '../../packages/components/primitives/tooltip';
 
 interface EditTokenModalProps {
   name: string;
@@ -143,13 +144,14 @@ function EditTokenModalInner({
                     min={0}
                   />
                   {visionInnerInput !== '' && (
-                    <button
-                      className="atlas-button atlas-button-ghost atlas-edit-token__clear-btn"
-                      onClick={() => setVisionInnerInput('')}
-                      title="Reset to collection default"
-                    >
-                      <X size={12} />
-                    </button>
+                    <LabelTooltip label="Reset to collection default">
+                      <button
+                        className="atlas-button atlas-button-ghost atlas-edit-token__clear-btn"
+                        onClick={() => setVisionInnerInput('')}
+                      >
+                        <X size={12} />
+                      </button>
+                    </LabelTooltip>
                   )}
                 </div>
               </div>
@@ -166,13 +168,14 @@ function EditTokenModalInner({
                     min={0}
                   />
                   {visionOuterInput !== '' && (
-                    <button
-                      className="atlas-button atlas-button-ghost atlas-edit-token__clear-btn"
-                      onClick={() => setVisionOuterInput('')}
-                      title="Reset to collection default"
-                    >
-                      <X size={12} />
-                    </button>
+                    <LabelTooltip label="Reset to collection default">
+                      <button
+                        className="atlas-button atlas-button-ghost atlas-edit-token__clear-btn"
+                        onClick={() => setVisionOuterInput('')}
+                      >
+                        <X size={12} />
+                      </button>
+                    </LabelTooltip>
                   )}
                 </div>
               </div>
@@ -229,7 +232,7 @@ export function openEditTokenModal(
       showNameplate,
       visionInnerRadius,
       visionOuterRadius,
-    } as any);
+    });
     cleanup();
   };
 

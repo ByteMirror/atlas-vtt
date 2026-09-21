@@ -1,7 +1,7 @@
 import { View, type Workspace, type WorkspaceLeaf } from 'obsidian';
 
 type WorkspaceWithSetActiveLeaf = {
-  setActiveLeaf?: ((leaf: WorkspaceLeaf | null, options?: { focus?: boolean }) => void) | undefined;
+  setActiveLeaf?: ((leaf: WorkspaceLeaf, options?: { focus?: boolean }) => void) | undefined;
 };
 
 /** The leaf that currently owns workspace focus, whatever its view type. */

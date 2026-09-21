@@ -1,5 +1,6 @@
 import { WorkspaceLeaf, TFile } from "obsidian";
 import { AtlasView } from "./atlas-view";
+import type AtlasVTTPlugin from "../../main";
 
 export const PLAYER_VIEW_TYPE = "atlas-vtt-player";
 
@@ -14,7 +15,7 @@ export class PlayerView extends AtlasView {
   private playerLastContainerHeight: number = 0;
   private widgetSettingsUnsubscribe: (() => void) | null = null;
   
-  constructor(leaf: WorkspaceLeaf, plugin?: any) {
+  constructor(leaf: WorkspaceLeaf, plugin?: AtlasVTTPlugin) {
     // Pass isPlayerView=true to parent constructor
     super(leaf, plugin, true);
     
@@ -101,10 +102,7 @@ export class PlayerView extends AtlasView {
       
       // Force the viewport to enable drag after a short delay
       window.setTimeout(() => {
-        const viewport = rendererService.getViewport();
-        if (viewport && (viewport as any).plugins) {
-          (viewport as any).plugins.resume('drag');
-        }
+        rendererService.getViewport()?.plugins.resume('drag');
       }, 100);
       
       // Observe container for split-view resize support
@@ -197,10 +195,7 @@ export class PlayerView extends AtlasView {
     
     // Force viewport drag to be enabled after map loads
     window.setTimeout(() => {
-      const viewport = rendererService.getViewport();
-      if (viewport && (viewport as any).plugins) {
-        (viewport as any).plugins.resume('drag');
-      }
+      rendererService.getViewport()?.plugins.resume('drag');
     }, 200);
   }
 }

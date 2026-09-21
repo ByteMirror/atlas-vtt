@@ -126,14 +126,10 @@ export function useAssetManagerEffects({
   }, [isOpen, onClose, isAnySubModalOpen]);
 
   useEffect(() => {
-    const handler = (event: CustomEvent): void => {
-      if (!event.detail?.map) return;
-      crud.openCreateSceneModalFromMap({
-        backgroundPath: event.detail.backgroundPath ?? null,
-        defaultName: event.detail.defaultName ?? event.detail.map.name,
-      });
+    const handler = (event: WindowEventMap['create-scene-from-map']): void => {
+      crud.openCreateSceneModalFromMap(event.detail);
     };
-    window.addEventListener('create-scene-from-map', handler as EventListener);
-    return () => window.removeEventListener('create-scene-from-map', handler as EventListener);
+    window.addEventListener('create-scene-from-map', handler);
+    return () => window.removeEventListener('create-scene-from-map', handler);
   }, []);
 }

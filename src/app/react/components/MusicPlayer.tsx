@@ -8,6 +8,7 @@ import { MusicLibrary, MusicFile } from './MusicLibrary';
 import { TrackCard } from './TrackCard';
 import { QueueDisplay } from './QueueDisplay';
 import { AmbientIconSelector } from './AmbientIconSelector';
+import { LabelTooltip } from '../../packages/components/primitives/tooltip';
 import { getDataFilePath } from '../../utils/dataFileMigration';
 import { ensureFolder } from '../../plugin/vaultFolders';
 import { runInBackground } from '../../utils/backgroundTask';
@@ -786,13 +787,14 @@ export const MusicPlayer: React.FC<MusicPlayerProps> = ({
                             >
                                 {isEditing ? (
                                     <>
-                                        <button
-                                            className="atlas-ambient-icon-button"
-                                            onClick={() => setShowIconSelector(sound.id)}
-                                            title="Change icon"
-                                        >
-                                            {getAmbientIcon(sound.icon)}
-                                        </button>
+                                        <LabelTooltip label="Change icon">
+                                            <button
+                                                className="atlas-ambient-icon-button"
+                                                onClick={() => setShowIconSelector(sound.id)}
+                                            >
+                                                {getAmbientIcon(sound.icon)}
+                                            </button>
+                                        </LabelTooltip>
                                         <input
                                             type="text"
                                             className="atlas-ambient-name-input"
@@ -811,67 +813,71 @@ export const MusicPlayer: React.FC<MusicPlayerProps> = ({
                                             }}
                                             autoFocus
                                         />
-                                        <button
-                                            className="atlas-ambient-file-button"
-                                            onClick={() => runInBackground(handleFilePickerForAmbient(sound.id), 'Choosing an ambient sound file')}
-                                            title="Choose audio file"
-                                        >
-                                            <Folder size={14} />
-                                        </button>
-                                        <button
-                                            className="atlas-ambient-delete-button"
-                                            onClick={() => {
-                                                if (ambientServiceRef.current) {
-                                                    ambientServiceRef.current.removeAmbientSound(sound.id);
-                                                }
-                                                setAmbientSounds(prev => prev.filter(s => s.id !== sound.id));
-                                                setEditingAmbientId(null);
-                                            }}
-                                            title="Delete"
-                                        >
-                                            <X size={14} />
-                                        </button>
+                                        <LabelTooltip label="Choose audio file">
+                                            <button
+                                                className="atlas-ambient-file-button"
+                                                onClick={() => runInBackground(handleFilePickerForAmbient(sound.id), 'Choosing an ambient sound file')}
+                                            >
+                                                <Folder size={14} />
+                                            </button>
+                                        </LabelTooltip>
+                                        <LabelTooltip label="Delete">
+                                            <button
+                                                className="atlas-ambient-delete-button"
+                                                onClick={() => {
+                                                    if (ambientServiceRef.current) {
+                                                        ambientServiceRef.current.removeAmbientSound(sound.id);
+                                                    }
+                                                    setAmbientSounds(prev => prev.filter(s => s.id !== sound.id));
+                                                    setEditingAmbientId(null);
+                                                }}
+                                            >
+                                                <X size={14} />
+                                            </button>
+                                        </LabelTooltip>
                                     </>
                                 ) : (
                                     <>
-                                        <div
-                                            className="atlas-ambient-main-area"
-                                            onMouseDown={(e) => {
-                                                if (hasTrack) {
-                                                    handleAmbientMouseDown(e, sound.id);
-                                                }
-                                            }}
-                                            onDragOver={(e) => {
-                                                e.preventDefault();
-                                                e.currentTarget.classList.add('drag-over');
-                                            }}
-                                            onDragLeave={(e) => {
-                                                e.currentTarget.classList.remove('drag-over');
-                                            }}
-                                            onDrop={(e) => {
-                                                e.preventDefault();
-                                                e.currentTarget.classList.remove('drag-over');
-                                                const trackData = e.dataTransfer.getData('musicTrack');
-                                                if (trackData) {
-                                                    const track = JSON.parse(trackData) as unknown as MusicFile;
-                                                    assignTrackToAmbient(sound.id, track);
-                                                }
-                                            }}
-                                            title={track ? `${track.name} - Click to play/stop, drag up/down for volume` : 'Drop a track here to assign'}
-                                        >
-                                            {getAmbientIcon(sound.icon)}
-                                            <span className="atlas-ambient-label">{sound.name}</span>
-                                        </div>
-                                        <button
-                                            className="atlas-ambient-edit-button"
-                                            onClick={() => {
-                                                setEditingAmbientId(sound.id);
-                                                setEditingAmbientName(sound.name);
-                                            }}
-                                            title="Edit"
-                                        >
-                                            <Edit2 size={12} />
-                                        </button>
+                                        <LabelTooltip label={track ? `${track.name} - Click to play/stop, drag up/down for volume` : 'Drop a track here to assign'}>
+                                            <div
+                                                className="atlas-ambient-main-area"
+                                                onMouseDown={(e) => {
+                                                    if (hasTrack) {
+                                                        handleAmbientMouseDown(e, sound.id);
+                                                    }
+                                                }}
+                                                onDragOver={(e) => {
+                                                    e.preventDefault();
+                                                    e.currentTarget.classList.add('drag-over');
+                                                }}
+                                                onDragLeave={(e) => {
+                                                    e.currentTarget.classList.remove('drag-over');
+                                                }}
+                                                onDrop={(e) => {
+                                                    e.preventDefault();
+                                                    e.currentTarget.classList.remove('drag-over');
+                                                    const trackData = e.dataTransfer.getData('musicTrack');
+                                                    if (trackData) {
+                                                        const track = JSON.parse(trackData) as unknown as MusicFile;
+                                                        assignTrackToAmbient(sound.id, track);
+                                                    }
+                                                }}
+                                            >
+                                                {getAmbientIcon(sound.icon)}
+                                                <span className="atlas-ambient-label">{sound.name}</span>
+                                            </div>
+                                        </LabelTooltip>
+                                        <LabelTooltip label="Edit">
+                                            <button
+                                                className="atlas-ambient-edit-button"
+                                                onClick={() => {
+                                                    setEditingAmbientId(sound.id);
+                                                    setEditingAmbientName(sound.name);
+                                                }}
+                                            >
+                                                <Edit2 size={12} />
+                                            </button>
+                                        </LabelTooltip>
                                     </>
                                 )}
                                 
@@ -893,26 +899,27 @@ export const MusicPlayer: React.FC<MusicPlayerProps> = ({
                         );
                     })}
                     
-                    <button
-                        className="atlas-ambient-button atlas-ambient-add"
-                        onClick={() => {
-                            const newSound: AmbientSound = {
-                                id: `ambient-${Date.now()}`,
-                                trackId: '',
-                                name: 'New Sound',
-                                icon: 'Music',
-                                volume: 0.5,
-                                isPlaying: false
-                            };
-                            setAmbientSounds(prev => [...prev, newSound]);
-                            // Automatically enter edit mode for the new sound
-                            setEditingAmbientId(newSound.id);
-                            setEditingAmbientName(newSound.name);
-                        }}
-                        title="Add ambient sound"
-                    >
-                        <Plus size={18} />
-                    </button>
+                    <LabelTooltip label="Add ambient sound">
+                        <button
+                            className="atlas-ambient-button atlas-ambient-add"
+                            onClick={() => {
+                                const newSound: AmbientSound = {
+                                    id: `ambient-${Date.now()}`,
+                                    trackId: '',
+                                    name: 'New Sound',
+                                    icon: 'Music',
+                                    volume: 0.5,
+                                    isPlaying: false
+                                };
+                                setAmbientSounds(prev => [...prev, newSound]);
+                                // Automatically enter edit mode for the new sound
+                                setEditingAmbientId(newSound.id);
+                                setEditingAmbientName(newSound.name);
+                            }}
+                        >
+                            <Plus size={18} />
+                        </button>
+                    </LabelTooltip>
                 </div>
             </div>
         </div>

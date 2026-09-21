@@ -7,10 +7,11 @@ import { useAtlasStore } from '../ViewStoreContext';
 import { useAtlasUI } from '../root/AtlasUIContext';
 import { TokenEntity } from '../../types';
 import { App, TFile, Component, WorkspaceLeaf } from 'obsidian';
-import { getActiveWorkspaceLeaf } from '../../utils/embeddedLeafFocus';
+import { getActiveWorkspaceLeaf, suppressActiveLeaf } from '../../utils/embeddedLeafFocus';
 import FantasyStatblock from './FantasyStatblock';
 import LinkedNotePicker from './LinkedNotePicker';
 import { Button } from '../../packages/components/primitives/button';
+import { LabelTooltip } from '../../packages/components/primitives/tooltip';
 import { addTokenHighlight, zoomToTokenWithHighlight } from '../../pixi/utils/tokenHighlight';
 import { toTokenVitals } from '../../services/statblockVitalsSync';
 import { findCreatureForNotePath } from '../../services/FantasyStatblocksService';
@@ -54,25 +55,19 @@ const NoteContent: React.FC<NoteContentProps> = ({ notePath, app, onFocus }) => 
           leafRef.current = null;
         }
 
-        const ws = app.workspace as any;
+        const ws = app.workspace;
 
-        // Temporarily suppress setActiveLeaf during leaf creation + file opening
+        // setActiveLeaf is suppressed during leaf creation + file opening
         // so Obsidian never switches away from the atlas canvas view.
-        const origSetActiveLeaf = app.workspace.setActiveLeaf.bind(app.workspace);
-        const suppressActiveLeaf = (): void => {
-          app.workspace.setActiveLeaf = (() => {});
-        };
-        const restoreActiveLeaf = (): void => {
-          app.workspace.setActiveLeaf = origSetActiveLeaf;
-        };
+        let restoreActiveLeaf: () => void = () => {};
 
         // Strategy 1: Try Obsidian's popover helpers
         if (typeof ws.getLeafPopover === 'function' && typeof ws.openPopover === 'function') {
           try {
-            const currentActiveLeaf = getActiveWorkspaceLeaf(app.workspace);
+            const currentActiveLeaf = getActiveWorkspaceLeaf(ws);
 
-            suppressActiveLeaf();
-            leafRef.current = ws.getLeafPopover();
+            restoreActiveLeaf = suppressActiveLeaf(ws);
+            leafRef.current = ws.getLeafPopover() ?? null;
 
             if (leafRef.current) {
               await leafRef.current.openFile(file, { active: false });
@@ -104,15 +99,12 @@ const NoteContent: React.FC<NoteContentProps> = ({ notePath, app, onFocus }) => 
 
         // Suppress setActiveLeaf during leaf creation so Obsidian never
         // switches away from the atlas canvas view (prevents flash).
-        suppressActiveLeaf();
+        restoreActiveLeaf = suppressActiveLeaf(ws);
         leafRef.current = app.workspace.getLeaf(true);
 
         if (leafRef.current) {
-          (leafRef.current as any).containerEl.setAttribute('data-dm-dashboard-preview', 'true');
-          const tabHeader = (leafRef.current as any).tabHeaderEl;
-          if (tabHeader) {
-            tabHeader.setAttribute('data-dm-dashboard-preview', 'true');
-          }
+          leafRef.current.containerEl.setAttribute('data-dm-dashboard-preview', 'true');
+          leafRef.current.tabHeaderEl?.setAttribute('data-dm-dashboard-preview', 'true');
 
           leafRef.current.detach();
         }
@@ -223,6 +215,10 @@ interface LoadedStatblock {
   tokens: TokenEntity[];
 }
 
+function getStatblockPath(token: TokenEntity): string | undefined {
+  return token.kind === 'character' ? token.statblockPath : undefined;
+}
+
 export default function DMDashboard({ isOpen, onClose }: DMDashboardProps) {
   const tokens = useAtlasStore((state) => state.objects?.tokens || {});
   const linkedNotePath = useAtlasStore((state) => state.dmNotePath);
@@ -287,9 +283,8 @@ export default function DMDashboard({ isOpen, onClose }: DMDashboardProps) {
       // Extract just the statblock paths from tokens to check if we need to reload
       const currentStatblockPaths = new Set<string>();
       tokensArray.forEach((token) => {
-        if ((token as any).statblockPath) {
-          currentStatblockPaths.add((token as any).statblockPath);
-        }
+        const path = getStatblockPath(token);
+        if (path) currentStatblockPaths.add(path);
       });
 
       // Check if statblock paths have changed
@@ -304,13 +299,8 @@ export default function DMDashboard({ isOpen, onClose }: DMDashboardProps) {
 
           // Redistribute tokens
           tokensArray.forEach((token) => {
-            if ((token as any).statblockPath) {
-              const path = (token as any).statblockPath;
-              const existing = updatedMap.get(path);
-              if (existing) {
-                existing.tokens.push(token);
-              }
-            }
+            const path = getStatblockPath(token);
+            if (path) updatedMap.get(path)?.tokens.push(token);
           });
 
           return updatedMap;
@@ -325,12 +315,11 @@ export default function DMDashboard({ isOpen, onClose }: DMDashboardProps) {
       // Group tokens by statblock path
       const tokensByStatblock = new Map<string, TokenEntity[]>();
       tokensArray.forEach((token) => {
-        if ((token as any).statblockPath) {
-          const path = (token as any).statblockPath;
-          const existing = tokensByStatblock.get(path) || [];
-          existing.push(token);
-          tokensByStatblock.set(path, existing);
-        }
+        const path = getStatblockPath(token);
+        if (!path) return;
+        const existing = tokensByStatblock.get(path) || [];
+        existing.push(token);
+        tokensByStatblock.set(path, existing);
       });
 
       // Old Atlas notes can still be linked to tokens, but are not Fantasy
@@ -559,28 +548,28 @@ export default function DMDashboard({ isOpen, onClose }: DMDashboardProps) {
               </div>
               {linkedNotePath && (
                 <div className="atlas-linked-note-actions">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="atlas-linked-note-action"
-                    title="Open note in new tab"
-                    aria-label="Open note in new tab"
-                    onClick={() => runInBackground(app.workspace.openLinkText('', linkedNotePath, true), `Opening ${linkedNotePath}`, 'Could not open the note')}
-                  >
-                    <ExternalLink />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="atlas-linked-note-action"
-                    title="Link a different note"
-                    aria-label="Link a different note"
-                    onClick={() => setLinkedNotePath(null)}
-                  >
-                    <Replace />
-                  </Button>
+                  <LabelTooltip label="Open note in new tab">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="atlas-linked-note-action"
+                      onClick={() => runInBackground(app.workspace.openLinkText('', linkedNotePath, true), `Opening ${linkedNotePath}`, 'Could not open the note')}
+                    >
+                      <ExternalLink />
+                    </Button>
+                  </LabelTooltip>
+                  <LabelTooltip label="Link a different note">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="atlas-linked-note-action"
+                      onClick={() => setLinkedNotePath(null)}
+                    >
+                      <Replace />
+                    </Button>
+                  </LabelTooltip>
                 </div>
               )}
             </div>

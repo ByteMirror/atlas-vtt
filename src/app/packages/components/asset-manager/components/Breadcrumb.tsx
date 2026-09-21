@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useId } from 'react';
 import { ChevronRight, Folder } from 'lucide-react';
 import type { Tab, Folder as FolderType } from '../types';
 import { getTabDisplayName } from '../types';
@@ -15,9 +15,11 @@ export function Breadcrumb({
   activeTab, selectedFolderId, getFolderPath, onNavigateToFolder,
 }: BreadcrumbProps): React.JSX.Element {
   const path = getFolderPath(selectedFolderId);
+  const labelId = useId();
 
   return (
-    <nav className="atlas-asset-manager-breadcrumb" aria-label="Folder path">
+    <nav className="atlas-asset-manager-breadcrumb" aria-labelledby={labelId}>
+      <span id={labelId} hidden>Folder path</span>
       <button type="button" className="atlas-breadcrumb-btn" onClick={() => onNavigateToFolder(null)}>
         <span>{getTabDisplayName(activeTab)}</span>
       </button>

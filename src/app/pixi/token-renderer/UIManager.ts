@@ -9,7 +9,7 @@ import type { LayerVisibility } from '../playerSafeFrame';
 
 import { Container } from 'pixi.js';
 import { Viewport } from 'pixi-viewport';
-import type { ITokenUIManager } from './types';
+import type { ITokenUIManager, TokenGroupContainer } from './types';
 import type { TokenEntity } from '../../types';
 import type { ViewAtlasState, ViewAtlasStore } from '../../storeFactory';
 import { TokenUIRenderer } from '../TokenUIRenderer';
@@ -103,7 +103,7 @@ export class UIManager implements ITokenUIManager {
     );
   }
 
-  createTokenUI(tokenId: string, container: Container, token: TokenEntity): TokenUIRenderer | null {
+  createTokenUI(tokenId: string, container: TokenGroupContainer, token: TokenEntity): TokenUIRenderer | null {
     // Only create UI for character tokens
     if (token.kind !== 'character') {
       return null;
@@ -117,7 +117,7 @@ export class UIManager implements ITokenUIManager {
     this.uiContainer.addChild(uiElement);
     
     // Get token size from container metadata
-    const tokenSize = (container as any).tokenSize || 70;
+    const tokenSize = container.tokenSize || 70;
     const gridSize = this.store.getState().grid?.size || 70;
     const tokenSizeInCells = token.size || 1;
     const tokenDiameterInCells = (2 * tokenSizeInCells - 1);
@@ -144,7 +144,7 @@ export class UIManager implements ITokenUIManager {
     }
     
     // Get sprite dimensions
-    const sprite = tokenSprite.getChildByLabel('tokenSprite') as any;
+    const sprite = tokenSprite.getChildByLabel('tokenSprite');
     const spriteWidth = sprite?.width || 70;
     const gridSize = this.store.getState().grid?.size || 70;
     const tokenSizeInCells = token.size || 1;
@@ -161,7 +161,7 @@ export class UIManager implements ITokenUIManager {
         if (tokenId) {
           const tokenSprite = this.getTokenSprite(tokenId);
           if (tokenSprite) {
-            const sprite = tokenSprite.getChildByLabel('tokenSprite') as any;
+            const sprite = tokenSprite.getChildByLabel('tokenSprite');
             const tokenSize = sprite?.width || 70;
             this.tokenControlsUI.show(
               tokenId,
@@ -183,7 +183,7 @@ export class UIManager implements ITokenUIManager {
         if (tokenId) {
           const tokenSprite = this.getTokenSprite(tokenId);
           if (tokenSprite) {
-            const sprite = tokenSprite.getChildByLabel('tokenSprite') as any;
+            const sprite = tokenSprite.getChildByLabel('tokenSprite');
             const tokenSize = sprite?.width || 70;
             this.tokenRotationUI.show(tokenId, tokenSize);
           }
@@ -200,7 +200,7 @@ export class UIManager implements ITokenUIManager {
         if (tokenId) {
           const tokenSprite = this.getTokenSprite(tokenId);
           if (tokenSprite) {
-            const sprite = tokenSprite.getChildByLabel('tokenSprite') as any;
+            const sprite = tokenSprite.getChildByLabel('tokenSprite');
             const tokenSize = sprite?.width || 70;
             this.tokenResizeUI.show(tokenId, tokenSize);
           }
@@ -229,7 +229,7 @@ export class UIManager implements ITokenUIManager {
   }
 
   showTokenControls(tokenId: string, container: Container): void {
-    const sprite = container.getChildByLabel('tokenSprite') as any;
+    const sprite = container.getChildByLabel('tokenSprite');
     const tokenSize = sprite?.width || 70;
     
     if (this.tokenControlsUI) {
@@ -355,20 +355,6 @@ export class UIManager implements ITokenUIManager {
     }
   }
 
-  hideUIForToken(tokenId: string): void {
-    const ui = this.tokenUIs[tokenId];
-    if (ui) {
-      (ui as any).onRotationStarted(new CustomEvent('atlas-token-rotation-started', { detail: { tokenIds: [tokenId] } }));
-    }
-  }
-
-  showUIForToken(tokenId: string): void {
-    const ui = this.tokenUIs[tokenId];
-    if (ui) {
-      (ui as any).onRotationEnded(new CustomEvent('atlas-token-rotation-ended', { detail: { tokenIds: [tokenId] } }));
-    }
-  }
-
   private setupUIHoverHandlers(tokenId: string, tokenGroup: Container): void {
     const ui = this.tokenUIs[tokenId];
     if (!ui) return;
@@ -422,7 +408,7 @@ export class UIManager implements ITokenUIManager {
     }
   }
 
-  private getTokenSprite(tokenId: string): Container | null {
+  private getTokenSprite(tokenId: string): TokenGroupContainer | null {
     // This will need to be provided by TokenRenderer
     // For now, return null - will be fixed in integration
     return null;
@@ -430,7 +416,7 @@ export class UIManager implements ITokenUIManager {
 
   // Public API for TokenRenderer integration
 
-  setTokenSpriteProvider(provider: (tokenId: string) => Container | null): void {
+  setTokenSpriteProvider(provider: (tokenId: string) => TokenGroupContainer | null): void {
     this.getTokenSprite = provider;
   }
 
@@ -455,7 +441,7 @@ export class UIManager implements ITokenUIManager {
         this.playerUIContainer.addChild(ui.getContainer());
       }
       ui.conditionDefsProvider = this.conditionDefsProvider;
-      ui.update(token, (sprite as Container & { tokenSize?: number }).tokenSize || 70,
+      ui.update(token, sprite.tokenSize || 70,
         1, state.grid?.size || 70, settings);
       ui.getContainer().position.copyFrom(sprite.position);
       ui.getContainer().renderable = sprite.visible && !token.isHidden;
@@ -484,18 +470,5 @@ export class UIManager implements ITokenUIManager {
 
   getResizeUI(): TokenResizeUI | undefined {
     return this.tokenResizeUI;
-  }
-
-  setPixiApp(app: any): void {
-    // Pass PIXI app to UI components that need it
-    if (this.tokenControlsUI) {
-      (this.tokenControlsUI as any).pixiApp = app;
-    }
-    if (this.tokenRotationUI) {
-      (this.tokenRotationUI as any).pixiApp = app;
-    }
-    if (this.tokenResizeUI) {
-      (this.tokenResizeUI as any).pixiApp = app;
-    }
   }
 }

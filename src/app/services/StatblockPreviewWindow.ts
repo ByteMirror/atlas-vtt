@@ -3,6 +3,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { App as ObsidianApp } from 'obsidian';
 import FantasyStatblock from '../react/components/FantasyStatblock';
 import { toTokenVitals } from './statblockVitalsSync';
+import type { NotePreviewUIManager, TokenPreviewAnchor } from './NotePreviewUIManager';
 import './statblock-preview-window.scss';
 
 /**
@@ -11,16 +12,20 @@ import './statblock-preview-window.scss';
 export class StatblockPreviewWindow {
   public notePath: string;
   public element: HTMLElement | null = null;
-  public originatingToken: any = null;
-  public originatingPin?: any;
-  private manager: any;
+  public originatingPin: TokenPreviewAnchor;
+  private manager: NotePreviewUIManager;
   private initialPos?: { x: number; y: number } | undefined;
   private reactRoot: Root | null = null;
   private resizeObserver: ResizeObserver | null = null;
 
-  constructor(private app: ObsidianApp, notePath: string, originatingToken: any, manager: any, initialPos?: { x: number; y: number }) {
+  constructor(
+    private app: ObsidianApp,
+    notePath: string,
+    originatingToken: TokenPreviewAnchor,
+    manager: NotePreviewUIManager,
+    initialPos?: { x: number; y: number },
+  ) {
     this.notePath = notePath;
-    this.originatingToken = originatingToken;
     this.originatingPin = originatingToken;
     this.manager = manager;
     this.initialPos = initialPos;
@@ -33,7 +38,7 @@ export class StatblockPreviewWindow {
     }
 
     // The pin carries the hovered token's vitals; the statblock mirrors them.
-    const vitals = originatingToken ? [toTokenVitals(originatingToken)] : [];
+    const vitals = [toTokenVitals(originatingToken)];
     this.reactRoot = createRoot(this.element);
     this.reactRoot.render(
       React.createElement(FantasyStatblock, {
@@ -130,9 +135,7 @@ export class StatblockPreviewWindow {
       this.element = null;
     }
 
-    if (this.manager && this.manager.handleStatblockPreviewClosed) {
-      this.manager.handleStatblockPreviewClosed(this.notePath, this.originatingToken);
-    }
+    this.manager.handlePreviewClosed(this.notePath, this.originatingPin);
   }
 
   getIsPinned(): boolean {

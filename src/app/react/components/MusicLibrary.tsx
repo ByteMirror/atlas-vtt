@@ -1,15 +1,18 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Search, Music, FolderOpen, Tag, Plus, X, Volume2, Play, Pause, ChevronRight, ChevronDown } from 'lucide-react';
 import { TFile, TFolder, Notice, Modal, App, normalizePath } from 'obsidian';
+import type { FileExplorerView, View, WorkspaceLeaf } from 'obsidian';
 import { openContextMenuGlobal } from '../root/ContextMenuContext';
 import type { ContextMenuEntry } from './context-menu/AtlasContextMenu';
 import { PlaylistModal } from './PlaylistModal';
 import { Slider } from '../../packages/components/primitives/slider';
+import { LabelTooltip } from '../../packages/components/primitives/tooltip';
 import { getDataFilePath } from '../../utils/dataFileMigration';
 import { ensureFolder } from '../../plugin/vaultFolders';
 import './music-library-modals.scss';
 import { runInBackground } from '../../utils/backgroundTask';
 import { confirmAction } from '../../ui/confirmDialog';
+import { describeError } from '../../utils/errors';
 
 export interface MusicFile {
     id: string;
@@ -151,9 +154,19 @@ class RenamePlaylistModal extends Modal {
     }
 }
 
+function isFileExplorerView(view: View): view is FileExplorerView {
+    return 'revealInFolder' in view && typeof view.revealInFolder === 'function';
+}
+
+function revealInFileExplorer(leaf: WorkspaceLeaf | undefined, file: TFile): void {
+    if (leaf && isFileExplorerView(leaf.view)) {
+        leaf.view.revealInFolder(file);
+    }
+}
+
 interface MusicLibraryProps {
     collectionPath: string;
-    app: any;
+    app: App;
     onTrackSelect: (track: MusicFile) => void;
     onTracksLoaded?: (tracks: MusicFile[]) => void;
     onTrackDeleted?: (trackId: string) => void;
@@ -678,9 +691,9 @@ This folder contains audio files for your Atlas VTT maps.
                             if (onTrackDeleted) {
                                 onTrackDeleted(track.id);
                             }
-                        } catch (error: any) {
+                        } catch (error) {
                             console.error('Failed to rename track:', error);
-                            new Notice(`Failed to rename track: ${error.message || error}`);
+                            new Notice(`Failed to rename track: ${describeError(error)}`);
                         }
                     });
 
@@ -709,31 +722,22 @@ This folder contains audio files for your Atlas VTT maps.
                         }
 
                         const fileExplorer = app.workspace.getLeavesOfType('file-explorer')[0];
-                        if (fileExplorer && fileExplorer.view) {
-                            app.workspace.revealLeaf(fileExplorer);
-                            if (fileExplorer.view.revealInFolder) {
-                                fileExplorer.view.revealInFolder(file);
-                            }
+                        if (fileExplorer) {
+                            await app.workspace.revealLeaf(fileExplorer);
+                            revealInFileExplorer(fileExplorer, file);
                         } else {
-                            await app.workspace.getLeftLeaf(false).setViewState({
-                                type: 'file-explorer',
-                            });
+                            const leftLeaf = app.workspace.getLeftLeaf(false);
+                            if (!leftLeaf) throw new Error('File explorer is unavailable');
+                            await leftLeaf.setViewState({ type: 'file-explorer' });
                             window.setTimeout(() => {
-                                const newFileExplorer = app.workspace.getLeavesOfType('file-explorer')[0];
-                                if (
-                                    newFileExplorer &&
-                                    newFileExplorer.view &&
-                                    newFileExplorer.view.revealInFolder
-                                ) {
-                                    newFileExplorer.view.revealInFolder(file);
-                                }
+                                revealInFileExplorer(app.workspace.getLeavesOfType('file-explorer')[0], file);
                             }, 100);
                         }
 
                         new Notice(`Revealed "${track.name}" in file explorer`);
-                    } catch (error: any) {
+                    } catch (error) {
                         console.error('Failed to show track in file explorer:', error);
-                        new Notice(`Failed to show track in file explorer: ${error.message}`);
+                        new Notice(`Failed to show track in file explorer: ${describeError(error)}`);
                     }
                 },
             },
@@ -916,9 +920,9 @@ This folder contains audio files for your Atlas VTT maps.
                                 } else {
                                     await app.vault.createBinary(filePath, arrayBuffer);
                                 }
-                            } catch (error: any) {
+                            } catch (error) {
                                 console.error(`Failed to add file ${file.name}:`, error);
-                                new Notice(`Failed to add ${file.name}: ${error.message}`);
+                                new Notice(`Failed to add ${file.name}: ${describeError(error)}`);
                             }
                         }
 
@@ -938,9 +942,11 @@ This folder contains audio files for your Atlas VTT maps.
         <div className="atlas-music-library">
             <div className="atlas-music-library-header">
                 <h3>Your Library</h3>
-                <button className="atlas-library-add-button" onClick={handleAddButtonClick} title="Add new...">
-                    <Plus size={24} />
-                </button>
+                <LabelTooltip label="Add new...">
+                    <button className="atlas-library-add-button" onClick={handleAddButtonClick}>
+                        <Plus size={24} />
+                    </button>
+                </LabelTooltip>
             </div>
 
             <div className="atlas-library-filters">
@@ -961,20 +967,23 @@ This folder contains audio files for your Atlas VTT maps.
             </div>
 
             <div className="atlas-library-controls">
-                <button 
-                    className={`atlas-search-button ${showSearch ? 'active' : ''}`} 
-                    onClick={() => setShowSearch(!showSearch)}
-                    title="Search"
-                >
-                    <Search size={16} />
-                </button>
+                <LabelTooltip label="Search">
+                    <button 
+                        className={`atlas-search-button ${showSearch ? 'active' : ''}`} 
+                        onClick={() => setShowSearch(!showSearch)}
+                    >
+                        <Search size={16} />
+                    </button>
+                </LabelTooltip>
                 <div className="atlas-sort-controls">
                     <span className="atlas-sort-label">Recents</span>
-                    <button className="atlas-sort-button" title="Sort options">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M3 18h6v-2H3v2zM3 6v2h18V6H3zm0 7h12v-2H3v2z"/>
-                        </svg>
-                    </button>
+                    <LabelTooltip label="Sort options">
+                        <button className="atlas-sort-button">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M3 18h6v-2H3v2zM3 6v2h18V6H3zm0 7h12v-2H3v2z"/>
+                            </svg>
+                        </button>
+                    </LabelTooltip>
                 </div>
             </div>
 
@@ -1178,13 +1187,14 @@ This folder contains audio files for your Atlas VTT maps.
                     />
                     <span className="atlas-volume-percentage">{Math.round(masterVolume * 100)}%</span>
                 </div>
-                <button
-                    className="atlas-master-play-pause"
-                    onClick={onMasterPlayPause}
-                    title={isPlaying ? 'Pause All' : 'Play All'}
-                >
-                    {isPlaying ? <Pause size={20} /> : <Play size={20} />}
-                </button>
+                <LabelTooltip label={isPlaying ? 'Pause All' : 'Play All'}>
+                    <button
+                        className="atlas-master-play-pause"
+                        onClick={onMasterPlayPause}
+                    >
+                        {isPlaying ? <Pause size={20} /> : <Play size={20} />}
+                    </button>
+                </LabelTooltip>
             </div>
             
             <PlaylistModal

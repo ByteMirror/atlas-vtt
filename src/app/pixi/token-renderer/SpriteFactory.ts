@@ -5,7 +5,7 @@
  */
 
 import { Container, Graphics, Sprite, Circle, Texture, CanvasSource, Assets } from 'pixi.js';
-import type { ITokenSpriteFactory } from './types';
+import type { ITokenSpriteFactory, TokenGroupContainer } from './types';
 import type { TokenEntity } from '../../types';
 import type { GridSystem } from '../../grid/GridSystem';
 import tokenRingImageUrl from '../../assets/token-ring.webp';
@@ -27,17 +27,20 @@ export class SpriteFactory implements ITokenSpriteFactory {
     this.isPlayerView = isPlayerView;
   }
 
-  async createTokenSprite(token: TokenEntity, texture: Texture): Promise<Container> {
-    // Create main container
-    const tokenGroup = new Container();
+  async createTokenSprite(token: TokenEntity, texture: Texture): Promise<TokenGroupContainer> {
+    const { tokenSize, strokeWidth } = this.calculateTokenSize(token);
+
+    const tokenGroup: TokenGroupContainer = Object.assign(new Container(), {
+      tokenId: token.id,
+      tokenData: token,
+      tokenSize,
+      strokeWidth,
+    });
     tokenGroup.label = 'tokenGroup';
     tokenGroup.sortableChildren = true;
     tokenGroup.position.set(token.x, token.y);
     tokenGroup.eventMode = 'passive';
     tokenGroup.interactiveChildren = false;
-
-    // Calculate token size
-    const { tokenSize, strokeWidth } = this.calculateTokenSize(token);
 
     // Create the token sprite
     const sprite = new Sprite(texture);
@@ -80,12 +83,6 @@ export class SpriteFactory implements ITokenSpriteFactory {
     // Add glass dome overlay for polished look
     this.createGlassOverlay(tokenGroup, tokenSize);
 
-    // Store metadata on container for later use
-    (tokenGroup as any).tokenId = token.id;
-    (tokenGroup as any).tokenData = token;
-    (tokenGroup as any).tokenSize = tokenSize;
-    (tokenGroup as any).strokeWidth = strokeWidth;
-
     // Create token ring with default or specified color
     const defaultRingColor = '#ffffff';
     const ringColor = token.ringColor || defaultRingColor;
@@ -94,7 +91,7 @@ export class SpriteFactory implements ITokenSpriteFactory {
     return tokenGroup;
   }
 
-  updateTokenSize(tokenId: string, container: Container, size: number): void {
+  updateTokenSize(tokenId: string, container: TokenGroupContainer, size: number): void {
     const { tokenSize, strokeWidth } = this.calculateTokenSizeFromMultiplier(size);
     
     // Update sprite size
@@ -136,8 +133,8 @@ export class SpriteFactory implements ITokenSpriteFactory {
     }
 
     // Store updated size metadata
-    (container as any).tokenSize = tokenSize;
-    (container as any).strokeWidth = strokeWidth;
+    container.tokenSize = tokenSize;
+    container.strokeWidth = strokeWidth;
   }
 
   updateTokenPosition(container: Container, x: number, y: number): void {
@@ -168,7 +165,7 @@ export class SpriteFactory implements ITokenSpriteFactory {
     if (!tokenRingTextureLoadPromise) {
       tokenRingTextureLoadPromise = (async () => {
         try {
-          const loadedTexture = await Assets.load({
+          const loadedTexture = await Assets.load<Texture>({
             src: tokenRingImageUrl,
             loadParser: 'loadTextures',
             data: {
@@ -196,7 +193,7 @@ export class SpriteFactory implements ITokenSpriteFactory {
     return tokenRingTextureLoadPromise;
   }
 
-  createTokenRing(container: Container, ringColor: string | null, tokenSizeOverride?: number): Sprite | Graphics | null {
+  createTokenRing(container: TokenGroupContainer, ringColor: string | null, tokenSizeOverride?: number): Sprite | Graphics | null {
     // Remove all existing ring layers before recreating.
     // This prevents stale/doubled shadows when a ring is refreshed.
     for (let i = container.children.length - 1; i >= 0; i--) {
@@ -213,9 +210,9 @@ export class SpriteFactory implements ITokenSpriteFactory {
 
     const tokenSize = typeof tokenSizeOverride === 'number' && Number.isFinite(tokenSizeOverride) && tokenSizeOverride > 0
       ? tokenSizeOverride
-      : ((container as any).tokenSize || 70);
-    const baseTokenSize = (container as any).tokenSize || tokenSize;
-    const strokeWidth = (container as any).strokeWidth || computeTokenStrokeWidth(this.gridSystem.getOptions().size);
+      : (container.tokenSize || 70);
+    const baseTokenSize = container.tokenSize || tokenSize;
+    const strokeWidth = container.strokeWidth || computeTokenStrokeWidth(this.gridSystem.getOptions().size);
     const ringScale = baseTokenSize > 0 ? tokenSize / baseTokenSize : 1;
     const ringSize = getTokenRingOuterDiameter(tokenSize, strokeWidth, ringScale);
     const parsedColor = Number.parseInt(ringColor.replace('#', ''), 16);

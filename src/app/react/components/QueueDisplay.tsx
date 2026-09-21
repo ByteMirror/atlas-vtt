@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { getQueueService, QueueState, RepeatMode } from '../../services/QueueService';
 import { GlobalAudioService } from '../../services/GlobalAudioService';
+import { LabelTooltip } from '../../packages/components/primitives/tooltip';
 import './queue-display.scss';
 import { runInBackground } from '../../utils/backgroundTask';
 
@@ -169,62 +170,68 @@ export const QueueDisplay: React.FC = () => {
 
             <div className="queue-controls">
                 <div className="queue-playback-controls">
-                    <button 
-                        className="queue-control-button"
-                        onClick={() => runInBackground(handlePrevious(), 'Playing the previous track')}
-                        disabled={totalTracks === 0}
-                        aria-label="Previous track"
-                    >
-                        <SkipBack className="queue-control-icon" />
-                    </button>
+                    <LabelTooltip label="Previous track">
+                        <button 
+                            className="queue-control-button"
+                            onClick={() => runInBackground(handlePrevious(), 'Playing the previous track')}
+                            disabled={totalTracks === 0}
+                        >
+                            <SkipBack className="queue-control-icon" />
+                        </button>
+                    </LabelTooltip>
                     
-                    <button 
-                        className="queue-control-button play-button"
-                        onClick={() => runInBackground(handlePlayPause(), 'Toggling queue playback')}
-                        disabled={totalTracks === 0}
-                        aria-label={isPlaying ? "Pause" : "Play"}
-                    >
-                        {isPlaying ? 
-                            <Pause className="queue-control-icon" /> : 
-                            <Play className="queue-control-icon" />
-                        }
-                    </button>
+                    <LabelTooltip label={isPlaying ? "Pause" : "Play"}>
+                        <button 
+                            className="queue-control-button play-button"
+                            onClick={() => runInBackground(handlePlayPause(), 'Toggling queue playback')}
+                            disabled={totalTracks === 0}
+                        >
+                            {isPlaying ? 
+                                <Pause className="queue-control-icon" /> : 
+                                <Play className="queue-control-icon" />
+                            }
+                        </button>
+                    </LabelTooltip>
                     
-                    <button 
-                        className="queue-control-button"
-                        onClick={() => runInBackground(handleNext(), 'Playing the next track')}
-                        disabled={totalTracks === 0}
-                        aria-label="Next track"
-                    >
-                        <SkipForward className="queue-control-icon" />
-                    </button>
+                    <LabelTooltip label="Next track">
+                        <button 
+                            className="queue-control-button"
+                            onClick={() => runInBackground(handleNext(), 'Playing the next track')}
+                            disabled={totalTracks === 0}
+                        >
+                            <SkipForward className="queue-control-icon" />
+                        </button>
+                    </LabelTooltip>
                 </div>
 
                 <div className="queue-mode-controls">
-                    <button 
-                        className={`queue-control-button ${queueState.shuffle ? 'active' : ''}`}
-                        onClick={handleShuffle}
-                        aria-label="Toggle shuffle"
-                    >
-                        <Shuffle className="queue-control-icon" />
-                    </button>
+                    <LabelTooltip label="Toggle shuffle">
+                        <button 
+                            className={`queue-control-button ${queueState.shuffle ? 'active' : ''}`}
+                            onClick={handleShuffle}
+                        >
+                            <Shuffle className="queue-control-icon" />
+                        </button>
+                    </LabelTooltip>
                     
-                    <button 
-                        className="queue-control-button"
-                        onClick={handleRepeat}
-                        aria-label={`Repeat mode: ${queueState.repeatMode}`}
-                    >
-                        {getRepeatIcon()}
-                    </button>
+                    <LabelTooltip label={`Repeat mode: ${queueState.repeatMode}`}>
+                        <button 
+                            className="queue-control-button"
+                            onClick={handleRepeat}
+                        >
+                            {getRepeatIcon()}
+                        </button>
+                    </LabelTooltip>
                     
-                    <button 
-                        className="queue-control-button"
-                        onClick={handleClearQueue}
-                        disabled={totalTracks === 0}
-                        aria-label="Clear queue"
-                    >
-                        <Trash2 className="queue-control-icon" />
-                    </button>
+                    <LabelTooltip label="Clear queue">
+                        <button 
+                            className="queue-control-button"
+                            onClick={handleClearQueue}
+                            disabled={totalTracks === 0}
+                        >
+                            <Trash2 className="queue-control-icon" />
+                        </button>
+                    </LabelTooltip>
                 </div>
             </div>
 
@@ -253,13 +260,14 @@ export const QueueDisplay: React.FC = () => {
                                         </div>
                                     )}
                                 </div>
-                                <button
-                                    className="queue-item-remove"
-                                    onClick={() => handleRemoveFromNextInQueue(index)}
-                                    aria-label="Remove from queue"
-                                >
-                                    <X className="queue-item-remove-icon" />
-                                </button>
+                                <LabelTooltip label="Remove from queue">
+                                    <button
+                                        className="queue-item-remove"
+                                        onClick={() => handleRemoveFromNextInQueue(index)}
+                                    >
+                                        <X className="queue-item-remove-icon" />
+                                    </button>
+                                </LabelTooltip>
                             </div>
                         ))}
                     </div>
@@ -303,13 +311,14 @@ export const QueueDisplay: React.FC = () => {
                                             </div>
                                         )}
                                     </div>
-                                    <button
-                                        className="queue-item-remove"
-                                        onClick={() => handleRemoveTrack(index)}
-                                        aria-label="Remove from queue"
-                                    >
-                                        <X className="queue-item-remove-icon" />
-                                    </button>
+                                    <LabelTooltip label="Remove from queue">
+                                        <button
+                                            className="queue-item-remove"
+                                            onClick={() => handleRemoveTrack(index)}
+                                        >
+                                            <X className="queue-item-remove-icon" />
+                                        </button>
+                                    </LabelTooltip>
                                 </div>
                             );
                         })}

@@ -30,7 +30,6 @@ describe('assetFormatters folder paths', () => {
 
     const formatted = formatServiceAsset(
       encounter,
-      'encounters',
       'atlas-vtt/collections/default/encounters',
       app
     ) as any;

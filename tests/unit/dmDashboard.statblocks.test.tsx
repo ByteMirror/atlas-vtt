@@ -1,5 +1,5 @@
 import React from 'react';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { TFile } from 'obsidian';
 
@@ -51,7 +51,7 @@ const state = {
 
 function showDashboard(paths: string[], onClose = vi.fn()) {
   state.objects.tokens = Object.fromEntries(paths.map((statblockPath, index) => [index, {
-    id: String(index), x: index * 100, y: 50, instanceNumber: index, name: index === 0 ? 'Sunborne Beacon' : 'Acid Burrower', statblockPath,
+    id: String(index), kind: 'character', x: index * 100, y: 50, instanceNumber: index, name: index === 0 ? 'Sunborne Beacon' : 'Acid Burrower', statblockPath,
   }]));
   Object.assign(window, { FantasyStatblocks: {
     getBestiaryCreatures: () => [creature],
@@ -94,7 +94,7 @@ describe('dashboard token actions', () => {
   it('persists an independent resource update through the map store', async () => {
     showDashboard([legacyPath, creaturePath, creaturePath]);
     const entry = await screen.findByRole('group', { name: 'Acid Burrower #2' });
-    fireEvent.click(entry.querySelector('button[aria-label="Decrease HP"]')!);
+    fireEvent.click(within(entry).getByRole('button', { name: 'Decrease HP' }));
     expect(state.updateToken).toHaveBeenLastCalledWith('2', { hp: { current: 7, max: 8 } });
     expect(screen.getAllByRole('group')).toHaveLength(2);
   });

@@ -20,7 +20,6 @@ export class PinRenderer {
   private _unsubscribeFromStore?: () => void;
   private _notePinToolViewportListener: ((e: FederatedPointerEvent) => void) | null = null;
   private _viewportPinClickListener: ((e: FederatedPointerEvent) => void) | null = null;
-  private _contextMenuListener: ((e: CustomEvent) => void) | null = null;
   private isPlayerView: boolean;
   private store: ViewAtlasStore;
   private iconTextureCache: Map<string, Texture> = new Map();
@@ -146,15 +145,6 @@ export class PinRenderer {
     
     // Set up preview pin event listeners
     this.setupPreviewPinListeners();
-    
-    // Listen for context menu events from the React overlay
-    this._contextMenuListener = (e: CustomEvent) => {
-      if (e.detail.action === 'context-menu' && e.detail.pin) {
-        const pin = e.detail.pin;
-        this.showPinContextMenu(pin, { x: e.detail.clientX, y: e.detail.clientY });
-      }
-    };
-    window.addEventListener('atlas-pin-action', this._contextMenuListener as any);
   }
   
   private async initializeIconTextures(): Promise<void> {
@@ -335,12 +325,6 @@ export class PinRenderer {
 
     if (e.button === 0) {
       // Left-click: start drag (same logic as inline handler)
-      const isLocked = (pin as any).isLocked || false;
-      if (isLocked) {
-        this.dispatchPinAction('open', pin);
-        return;
-      }
-
       let isDragging = false;
       let hasMoved = false;
       const dragThreshold = 5;
@@ -700,10 +684,6 @@ export class PinRenderer {
     if (this._viewportPinClickListener && this.viewport) {
         this.viewport.off('pointerdown', this._viewportPinClickListener);
         this._viewportPinClickListener = null;
-    }
-    if (this._contextMenuListener) {
-        window.removeEventListener('atlas-pin-action', this._contextMenuListener as any);
-        this._contextMenuListener = null;
     }
     
     // Clean up theme observer

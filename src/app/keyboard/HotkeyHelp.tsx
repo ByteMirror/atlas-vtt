@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useId, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { CloseButton } from '../packages/components/primitives/CloseButton';
 import type { SettingsService } from '../services/SettingsService';
@@ -10,12 +10,13 @@ export function HotkeyHelp({ settings: explicit, onClose, isPlayerView = false }
   const settings = useAtlasSettings(explicit);
   const bindings = settings?.getHotkeys() ?? DEFAULT_MAP_HOTKEYS;
   const ref = useRef<HTMLDivElement>(null);
+  const titleId = useId();
   useDialogFocus(ref, onClose);
   const actions = availableHotkeys(isPlayerView);
   return createPortal(<div className="atlas-vtt-plugin atlas-vtt-root atlas-hotkey-help" onClick={onClose}>
-    <div ref={ref} className="atlas-hotkey-help-card" role="dialog" aria-modal="true" aria-label="Map keyboard shortcuts" onClick={e => e.stopPropagation()}>
+    <div ref={ref} className="atlas-hotkey-help-card" role="dialog" aria-modal="true" aria-labelledby={titleId} onClick={e => e.stopPropagation()}>
       <div className="atlas-hotkey-help-header">
-        <h2>Map keyboard shortcuts</h2>
+        <h2 id={titleId}>Map keyboard shortcuts</h2>
         <CloseButton onClick={onClose} aria-label="Close keyboard shortcuts" />
       </div>
       <p>Active only while viewing an Atlas map. Change these in Obsidian Settings → Atlas VTT → Map hotkeys.</p>

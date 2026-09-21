@@ -1,6 +1,6 @@
 import type * as React from 'react';
 import { useState, useEffect } from 'react';
-import type { AnyAsset, Folder, Tab, SortOption, SortOrder } from '../types';
+import type { AnyAsset, Folder, Tab, SortOption, SortOrder, SelectionEvent } from '../types';
 import { NavigationHistory } from '../NavigationHistory';
 
 export interface SelectionState {
@@ -21,9 +21,9 @@ export interface SelectionState {
   setSortBy: React.Dispatch<React.SetStateAction<SortOption>>;
   setSortOrder: React.Dispatch<React.SetStateAction<SortOrder>>;
   // Handlers
-  handleAssetSelect: (assetId: string, event?: React.MouseEvent) => void;
+  handleAssetSelect: (assetId: string, event?: SelectionEvent, toggle?: boolean) => void;
   handleFolderSelect: (folderId: string | null) => void;
-  handleFolderSelection: (folderId: string, event?: React.MouseEvent) => void;
+  handleFolderSelection: (folderId: string, event?: SelectionEvent) => void;
   handleFolderDoubleClick: (folderId: string) => void;
   handleNavigateBack: () => void;
   handleNavigateForward: () => void;
@@ -60,7 +60,7 @@ export function useSelectionHandlers(
 
   // ── Handlers ──────────────────────────────────────────────────
 
-  const handleAssetSelect = (assetId: string, event?: React.MouseEvent, toggle = false): void => {
+  const handleAssetSelect = (assetId: string, event?: SelectionEvent, toggle = false): void => {
     const isShiftKey = event?.shiftKey;
 
     if (!isShiftKey && !toggle) {
@@ -102,7 +102,7 @@ export function useSelectionHandlers(
     setSelectedFolderIds([]);
   };
 
-  const handleFolderSelection = (folderId: string, event?: React.MouseEvent): void => {
+  const handleFolderSelection = (folderId: string, event?: SelectionEvent): void => {
     setSelectedFolderIds((prev) => {
       const isShift = event?.shiftKey;
       const isCheckbox = event && (event.target as HTMLElement).tagName === 'INPUT';

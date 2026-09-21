@@ -4,6 +4,7 @@ import module from 'module';
 import path from 'path';
 import fs from 'fs';
 import { desktopDependencies } from './vite/desktop-dependencies.mts';
+import { changelog } from './vite/changelog.mts';
 
 const isProduction = process.env.NODE_ENV === 'production';
 const copyToTestVault = process.env.COPY_ON_CHANGE === 'true';
@@ -98,6 +99,7 @@ function copyFilesPlugin(): Plugin {
 
 export default defineConfig({
   plugins: [
+    changelog(),
     desktopDependencies(),
     react(), // Enable React support
     copyFilesPlugin() // Add our custom plugin
@@ -141,9 +143,9 @@ export default defineConfig({
         ...module.builtinModules,
       ],
       output: {
-        banner: `/*! Atlas VTT — PolyForm Noncommercial License 1.0.0
- * https://polyformproject.org/licenses/noncommercial/1.0.0
- * Required Notice: Copyright (c) 2025-2026 Fabian Urbanek
+        banner: `/*! Atlas VTT — Copyright (C) 2025-2026 Fabian Urbanek
+ * SPDX-License-Identifier: AGPL-3.0-only
+ * Source code and licence: https://github.com/ByteMirror/atlas-vtt
  * Third-party components retain their own licenses:
  * https://github.com/ByteMirror/atlas-vtt/blob/main/THIRD_PARTY_NOTICES.md
  */`,
@@ -159,6 +161,7 @@ export default defineConfig({
   },
   // Define global constants if needed (e.g., for process.env)
   define: {
+    '__ATLAS_RELEASE_BUILD__': JSON.stringify(isProduction && !copyToTestVault),
     'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development'),
     // Maintainer-only dev tooling (e.g. the statblock template/layout editor).
     // `build`, so the literal resolves to `false` and the guarded code is

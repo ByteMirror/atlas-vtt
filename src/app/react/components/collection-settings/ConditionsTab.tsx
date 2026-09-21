@@ -5,6 +5,7 @@
 import React from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { Button } from '../../../packages/components/primitives/button';
+import { LabelTooltip } from '../../../packages/components/primitives/tooltip';
 import type { ConditionDefinition } from '../../../types/collectionSettingsTypes';
 
 interface ConditionsTabProps {
@@ -62,12 +63,13 @@ export function ConditionsTab({
                 className="atlas-csm-color-swatch"
                 style={{ backgroundColor: cond.color }}
               >
-                <input
-                  type="color"
-                  value={cond.color}
-                  onChange={(e) => updateCondition(i, { color: e.target.value })}
-                  title="Pick condition colour"
-                />
+                <LabelTooltip label="Pick condition colour">
+                  <input
+                    type="color"
+                    value={cond.color}
+                    onChange={(e) => updateCondition(i, { color: e.target.value })}
+                  />
+                </LabelTooltip>
               </div>
               <input
                 type="text"
@@ -76,15 +78,16 @@ export function ConditionsTab({
                 value={cond.name}
                 onChange={(e) => updateCondition(i, { name: e.target.value })}
               />
-              <Button
-                variant="ghost"
-                size="icon"
-                className="atlas-csm-condition-delete"
-                onClick={() => removeCondition(i)}
-                title="Remove condition"
-              >
-                <Trash2 />
-              </Button>
+              <LabelTooltip label="Remove condition">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="atlas-csm-condition-delete"
+                  onClick={() => removeCondition(i)}
+                >
+                  <Trash2 />
+                </Button>
+              </LabelTooltip>
             </div>
           ))}
         </div>

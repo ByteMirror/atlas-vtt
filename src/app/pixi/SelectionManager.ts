@@ -150,7 +150,7 @@ export class SelectionManager {
     } else {
       // Fallback to display-tree walking
       const target = e.target;
-      if (target && this.isTargetPartOfToken(target)) {
+      if (target instanceof Container && this.isTargetPartOfToken(target)) {
         return;
       }
     }
@@ -315,15 +315,15 @@ export class SelectionManager {
   }
 
   // Helper method to check if a target is part of a token hierarchy
-  private isTargetPartOfToken(target: any): boolean {
+  private isTargetPartOfToken(target: Container): boolean {
     // Fallback: walk the display hierarchy (used if hitTestTokensProvider is not set)
-    let current = target;
+    let current: Container | null = target;
     let depth = 0;
     const maxDepth = 10;
     
     while (current && depth < maxDepth) {
-      if (current.name === 'tokenGroup') return true;
-      if (current.parent?.name === 'tokenGroup') return true;
+      if (current.label === 'tokenGroup') return true;
+      if (current.parent?.label === 'tokenGroup') return true;
       current = current.parent;
       depth++;
     }
@@ -381,7 +381,7 @@ export class SelectionManager {
           // Check if token has HP/stress bars and extend selection to include them
           const token = this.store.getState().objects.tokens[id];
           if (token) {
-            const hasStatblock = token.kind === 'character' && !!(token.statblockPath || (token as any).statblock);
+            const hasStatblock = token.kind === 'character' && !!token.statblockPath;
             const hasHP = token.kind === 'character' && hasStatblock && token.hp !== undefined;
             const hasStress = token.kind === 'character' && hasStatblock && token.stress !== undefined;
             

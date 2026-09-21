@@ -4,7 +4,8 @@
 
 .tooltip-content {
   position: relative;
-  z-index: 50;
+  /* Above every Atlas panel and dropdown (highest is 99999); Radix copies this onto its portal wrapper. */
+  z-index: 100000;
   overflow: hidden;
   border-radius: 12px;
   border: 1.5px solid color-mix(in oklch, var(--mono-100) 18%, transparent);

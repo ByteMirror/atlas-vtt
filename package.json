@@ -14,9 +14,12 @@
     "build:ci": "cross-env COPY_ON_CHANGE=false vite build",
     "postbuild": "node scripts/copy-plugin.js",
     "test": "vitest",
+    "changelog:generate": "node scripts/changelog.js",
+    "changelog:check": "node scripts/changelog.js --check",
     "release:prepare": "node scripts/prepare-release-assets.js",
     "release:validate": "node scripts/prepare-release-assets.js --validate-only",
-    "version": "node -e \"const fs=require('fs');const v=process.env.npm_package_version;const m=require('./manifest.json');m.version=v;fs.writeFileSync('manifest.json',JSON.stringify(m,null,2)+'\\n');const vs=require('./versions.json');vs[v]=m.minAppVersion;fs.writeFileSync('versions.json',JSON.stringify(vs,null,2)+'\\n')\" && git add manifest.json versions.json",
+    "version": "node scripts/sync-version.js && git add manifest.json versions.json CHANGELOG.md src/app/changelog/releases.json",
+    "version:check": "node scripts/release-channel.js",
     "lint": "eslint main.ts src",
     "preflight": "node scripts/preflight.js"
   },
@@ -28,7 +31,7 @@
     "battle-map"
   ],
   "author": "Fabian Urbanek",
-  "license": "PolyForm-Noncommercial-1.0.0",
+  "license": "AGPL-3.0-only",
   "description": "Virtual tabletop for tabletop RPGs inside Obsidian.",
   "dependencies": {
     "@radix-ui/react-dropdown-menu": "^2.1.16",
@@ -64,7 +67,7 @@
     "eslint": "^9.39.5",
     "eslint-plugin-obsidianmd": "^0.4.2",
     "jsdom": "^26.1.0",
-    "obsidian": "1.8.7",
+    "obsidian": "^1.13.1",
     "postcss": "^8.5.3",
     "postcss-nesting": "^13.0.1",
     "sass": "^1.87.0",

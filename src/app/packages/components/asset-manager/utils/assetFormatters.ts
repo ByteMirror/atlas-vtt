@@ -1,124 +1,94 @@
 import { TFile, App as ObsidianApp } from 'obsidian';
-import type { AnyAsset, Tab } from '../types';
-import type {
-  Asset as ServiceAsset,
-} from '../../../../services/AssetService';
+import type { AnyAsset, Asset } from '../types';
+import type { AssetOfType } from '../../../../services/AssetService';
+
+/** The stored asset types the asset manager shows, one per tab. */
+export type TabServiceAsset = AssetOfType<'token' | 'map' | 'scene' | 'encounter'>;
+
+function resourceUrl(app: ObsidianApp, path: string | undefined): string {
+  const file = path ? app.vault.getAbstractFileByPath(path) : null;
+  return file instanceof TFile ? app.vault.getResourcePath(file) : '';
+}
+
+function sceneThumbnailUrl(app: ObsidianApp, mapPath: string | undefined): string {
+  if (!mapPath) return '';
+  const thumbnailUrl = resourceUrl(app, mapPath.replace('.atlasmap', '.thumb.jpg'));
+  if (thumbnailUrl) return thumbnailUrl;
+
+  const mapFile = app.vault.getAbstractFileByPath(mapPath);
+  const isImage = mapFile instanceof TFile
+    && ['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(mapFile.extension.toLowerCase());
+  return isImage ? app.vault.getResourcePath(mapFile) : '';
+}
+
+/** Derives the folder id from where the asset's file lives below the tab's base path. */
+function folderIdFor(assetPath: string | undefined, tabBasePath: string): string | null {
+  if (assetPath && assetPath.startsWith(tabBasePath + '/')) {
+    const relativePath = assetPath.substring(tabBasePath.length + 1);
+    const lastSlash = relativePath.lastIndexOf('/');
+    if (lastSlash > 0) {
+      return `folder-${tabBasePath}/${relativePath.substring(0, lastSlash)}`;
+    }
+  }
+  return null;
+}
 
 /**
  * Converts a single AssetService record into the UI-layer AnyAsset shape,
  * resolving vault resource paths for thumbnails / images.
  */
 export function formatServiceAsset(
-  asset: ServiceAsset,
-  activeTab: Tab,
+  asset: TabServiceAsset,
   tabBasePath: string,
   app: ObsidianApp
 ): AnyAsset {
-  let thumbnailUrl = '';
-  let imageUrl = '';
-  const assetFilePath = asset.filePath;
-
-  // ── Token ──────────────────────────────────────────────────────
-  if (asset.type === 'token') {
-    const file = app.vault.getAbstractFileByPath(asset.imagePath);
-    if (file instanceof TFile) {
-      thumbnailUrl = app.vault.getResourcePath(file);
-      imageUrl = thumbnailUrl;
-    }
-  }
-
-  // ── Map ────────────────────────────────────────────────────────
-  if (asset.type === 'map') {
-    const mapFile = app.vault.getAbstractFileByPath(asset.mapFilePath);
-    if (mapFile instanceof TFile) {
-      imageUrl = app.vault.getResourcePath(mapFile);
-      thumbnailUrl = imageUrl;
-    }
-    if (asset.thumbnailPath) {
-      const thumbFile = app.vault.getAbstractFileByPath(asset.thumbnailPath);
-      if (thumbFile instanceof TFile) {
-        thumbnailUrl = app.vault.getResourcePath(thumbFile);
-      }
-    }
-  }
-
-  // ── Scene ──────────────────────────────────────────────────────
-  if (asset.type === 'scene') {
-    const sceneAsset = asset as ServiceAsset & { data?: { mapPath?: string } };
-    if (sceneAsset.data?.mapPath) {
-      const thumbnailPath = sceneAsset.data.mapPath.replace('.atlasmap', '.thumb.jpg');
-      const thumbFile = app.vault.getAbstractFileByPath(thumbnailPath);
-      if (thumbFile instanceof TFile) {
-        thumbnailUrl = app.vault.getResourcePath(thumbFile);
-        imageUrl = thumbnailUrl;
-      } else {
-        const mapFile = app.vault.getAbstractFileByPath(sceneAsset.data.mapPath);
-        if (mapFile instanceof TFile) {
-          const ext = mapFile.extension.toLowerCase();
-          if (['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(ext)) {
-            imageUrl = app.vault.getResourcePath(mapFile);
-            thumbnailUrl = imageUrl;
-          }
-        }
-      }
-    }
-  }
-
-  // ── Encounter ──────────────────────────────────────────────────
-  if (asset.type === 'encounter') {
-    const encounterAsset = asset as ServiceAsset & { thumbnailUrl?: string };
-    if (encounterAsset.thumbnailUrl) {
-      thumbnailUrl = encounterAsset.thumbnailUrl;
-      imageUrl = encounterAsset.thumbnailUrl;
-    }
-  }
-
-  // ── Derive folderId from file location ────────────────────────
-  const folderId = ((): string | null => {
-    const assetPath =
-      asset.type === 'token'
-        ? asset.imagePath
-        : assetFilePath ?? null;
-    if (assetPath && assetPath.startsWith(tabBasePath + '/')) {
-      const relativePath = assetPath.substring(tabBasePath.length + 1);
-      const lastSlash = relativePath.lastIndexOf('/');
-      if (lastSlash > 0) {
-        const folderVaultPath = tabBasePath + '/' + relativePath.substring(0, lastSlash);
-        return `folder-${folderVaultPath}`;
-      }
-    }
-    return null;
-  })();
-
-  return {
+  const assetPath = asset.type === 'token' ? asset.imagePath : asset.filePath;
+  const base: Omit<Asset, 'type' | 'thumbnailUrl'> = {
     id: asset.id,
     name: asset.name,
-    type: activeTab,
-    thumbnailUrl,
-    imageUrl,
     tags: asset.tags,
-    filePath: assetFilePath,
-    folderId,
-    // Token-specific fields
-    ...(asset.type === 'token' && {
-      statblockPath: (asset as ServiceAsset & { statblockPath?: string }).statblockPath,
-      imagePath: asset.imagePath,
-    }),
-    // Encounter-specific fields
-    ...(asset.type === 'encounter' && {
-      tokens:
-        asset.tokens ||
-        (asset as ServiceAsset & { data?: { tokens?: any[] } }).data?.tokens ||
-        [],
-      description:
-        (asset as any).description ||
-        (asset as ServiceAsset & { data?: { description?: string } }).data?.description,
-      difficulty:
-        asset.difficulty ||
-        (asset as ServiceAsset & { data?: { difficulty?: string } }).data?.difficulty,
-      formation:
-        asset.formation ||
-        (asset as ServiceAsset & { data?: { formation?: unknown } }).data?.formation,
-    }),
-  } as AnyAsset;
+    folderId: folderIdFor(assetPath, tabBasePath),
+    ...(asset.filePath !== undefined && { filePath: asset.filePath }),
+  };
+
+  switch (asset.type) {
+    case 'token': {
+      const imageUrl = resourceUrl(app, asset.imagePath);
+      return {
+        ...base,
+        type: 'tokens',
+        thumbnailUrl: imageUrl,
+        imageUrl,
+        imagePath: asset.imagePath,
+        ...(asset.statblockPath !== undefined && { statblockPath: asset.statblockPath }),
+      };
+    }
+    case 'map': {
+      const imageUrl = resourceUrl(app, asset.mapFilePath);
+      return {
+        ...base,
+        type: 'maps',
+        thumbnailUrl: resourceUrl(app, asset.thumbnailPath) || imageUrl,
+        imageUrl,
+        mapFilePath: asset.mapFilePath,
+      };
+    }
+    case 'scene':
+      return { ...base, type: 'scenes', thumbnailUrl: sceneThumbnailUrl(app, asset.data?.mapPath) };
+    case 'encounter': {
+      // Older encounters keep these only inside their JSON payload.
+      const description = asset.data?.description;
+      const difficulty = asset.difficulty || asset.data?.difficulty;
+      const formation = asset.formation || asset.data?.formation;
+      return {
+        ...base,
+        type: 'encounters',
+        thumbnailUrl: asset.thumbnailUrl ?? '',
+        tokens: asset.tokens || asset.data?.tokens || [],
+        ...(description !== undefined && { description }),
+        ...(difficulty !== undefined && { difficulty }),
+        ...(formation !== undefined && { formation }),
+      };
+    }
+  }
 }

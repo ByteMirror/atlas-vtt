@@ -1,6 +1,10 @@
 import type { PersistStorage, StorageValue } from 'zustand/middleware';
-import { App, TFile } from 'obsidian';
-import type { TokenEntity, TextElement, DrawingStroke } from '../types';
+import { App, Notice, TFile } from 'obsidian';
+import type { TokenEntity, TextElement, DrawingStroke, NotePin } from '../types';
+import type { WallSegment, LightSource } from '../types/wallTypes';
+import type { WidgetSettings } from '../types/widgetTypes';
+import type AtlasVTTPlugin from '../../../main';
+import { debounce, type DebouncedFunction } from '../../utils/debounce';
 import { migrateWidgetsToCollection, needsWidgetMigration } from '../utils/widgetMigration';
 import { normalizeImagePath } from '../utils/pathUtils';
 import { fixMapTokenPaths } from '../utils/fixMapPaths';
@@ -37,7 +41,7 @@ import type { FogOperation } from '../types/fogTypes';
 
 // Placeholder types until properly defined elsewhere
 export type FogPatch = FogOperation;
-export type Pin = any;
+export type Pin = NotePin;
 
 // Add constants for schema identification and versioning
 export const ATLAS_SCHEMA = 'atlas-vtt' as const;
@@ -49,6 +53,8 @@ export const ATLAS_VERSION = 4;
 export interface MapFile {
   schema: typeof ATLAS_SCHEMA;
   version: number; // bump on breaking change
+  /** Human-readable map name, written when the map is created (absent in older files) */
+  name?: string;
   background: string | null;
   grid: GridState | null;
   objects: {
@@ -57,41 +63,84 @@ export interface MapFile {
     pins: Record<string, Pin>;
     texts: Record<string, TextElement>;
     drawings: Record<string, DrawingStroke>;
-    walls: Record<string, any>;
-    lights: Record<string, any>;
+    walls: Record<string, WallSegment>;
+    lights: Record<string, LightSource>;
   };
   camera: CameraState;
 }
 
-// Debounce helper
-function debounce<T extends (...args: any[]) => any>(func: T, wait: number): T & { flush: () => void } {
-  let timeout: number | null = null;
-  let lastArgs: Parameters<T> | null = null;
-  
-  const debounced = (...args: Parameters<T>) => {
-    lastArgs = args;
-    if (timeout) window.clearTimeout(timeout);
-    
-    timeout = window.setTimeout(() => {
-      timeout = null;
-      if (lastArgs) {
-        func(...lastArgs);
-      }
-    }, wait);
+/** A token as found in older map files, where conditions were still called `statuses`. */
+export type LegacyToken = TokenEntity & { statuses?: string[] };
+
+/** Grid settings as found in older map files ('daggerheart' was renamed to 'abstract'). */
+export type LegacyGridState = Omit<GridState, 'measurementType'> & {
+  measurementType?: NonNullable<GridState['measurementType']> | 'daggerheart';
+};
+
+/**
+ * Map data as read from disk before migration: any field may be missing and
+ * some still use an older format.
+ */
+export interface LegacyMapFile extends Partial<Omit<MapFile, 'objects' | 'grid' | 'camera'>> {
+  grid?: LegacyGridState | null;
+  camera?: CameraState | null;
+  objects?: (Partial<Omit<MapFile['objects'], 'tokens' | 'fog'>> & {
+    tokens?: Record<string, LegacyToken>;
+    /** Validated separately by `migrateFogData`; several incompatible formats existed. */
+    fog?: unknown;
+  }) | null;
+}
+
+/** The zustand `persist` envelope as stored in the map data file, before migration. */
+export interface PersistedMapEnvelope {
+  version?: number;
+  state?: LegacyMapFile & {
+    mapPath?: string | null;
+    widgetSettings?: Partial<WidgetSettings>;
+    widgetValues?: Record<string, number>;
   };
-  
-  // Add flush method to force immediate execution
-  debounced.flush = () => {
-    if (timeout) {
-      window.clearTimeout(timeout);
-      timeout = null;
-      if (lastArgs) {
-        func(...lastArgs);
-      }
-    }
-  };
-  
-  return debounced as T & { flush: () => void };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isOptionalRecord(value: unknown): boolean {
+  return value === undefined || value === null || isRecord(value);
+}
+
+/**
+ * Trust boundary for parsed map JSON: checks that the containers the migrations
+ * walk into are objects. Field-level upgrades are left to `migrateMapFile`.
+ */
+export function isLegacyMapFile(value: unknown): value is LegacyMapFile {
+  if (!isRecord(value)) return false;
+  const { objects, grid, camera } = value;
+  if (!isOptionalRecord(objects) || !isOptionalRecord(camera) || !isOptionalRecord(grid)) return false;
+  return !isRecord(objects) || isOptionalRecord(objects.tokens);
+}
+
+/** Trust boundary for the persisted envelope (`{ state, version }`) read from a map data file. */
+export function isPersistedMapEnvelope(value: unknown): value is PersistedMapEnvelope {
+  if (!isRecord(value)) return false;
+  const { state, version } = value;
+  if (version !== undefined && typeof version !== 'number') return false;
+  return state === undefined || isLegacyMapFile(state);
+}
+
+/**
+ * Keeps a copy of a map data file that cannot be loaded. The store starts empty in
+ * that case and its next save replaces the file, which would otherwise destroy
+ * whatever the user could still have recovered from it.
+ */
+async function preserveUnreadableMapData(app: App, file: TFile, reason: string): Promise<void> {
+  const backupPath = `${file.path}.${Date.now()}.bak`;
+  try {
+    await app.vault.copy(file, backupPath);
+    new Notice(`Atlas VTT could not read ${file.name} (${reason}). A copy was kept at ${backupPath}.`, 0);
+  } catch (error) {
+    console.error(`[AtlasStorage] Could not back up ${file.path}:`, error);
+  }
 }
 
 export type AtlasPersistStorage<S> = PersistStorage<S> & { flush: () => Promise<void> };
@@ -107,10 +156,10 @@ export type AtlasPersistStorage<S> = PersistStorage<S> & { flush: () => Promise<
 export function createAtlasStorage<T extends { mapPath: string | null }, S = unknown>(
   app: App, 
   store: { getState: () => T },
-  plugin?: any
+  plugin?: AtlasVTTPlugin
 ): AtlasPersistStorage<S> {
   // Create a map of debounced save functions per file path
-  const debouncedSavers = new Map<string, ReturnType<typeof debounce>>();
+  const debouncedSavers = new Map<string, DebouncedFunction<[path: string, value: StorageValue<S>]>>();
   
   return {
     /**
@@ -134,53 +183,61 @@ export function createAtlasStorage<T extends { mapPath: string | null }, S = unk
         const content = await app.vault.read(mapFile);
         // Attempt to parse to ensure it's valid JSON before returning
         try {
-          let parsed = JSON.parse(content);
-        
-        // Check if widget migration is needed
-        if (plugin && needsWidgetMigration(parsed)) {
-          // Get collection ID from the map path (e.g., atlas-vtt/collections/default/maps/...)
-          const pathParts = mapPath.split('/');
-          const collectionIndex = pathParts.indexOf('collections');
-          const collectionId = (collectionIndex >= 0 && pathParts[collectionIndex + 1]) ? pathParts[collectionIndex + 1] : 'default';
-          
-          try {
-            parsed = await migrateWidgetsToCollection(plugin, parsed, collectionId!);
-            // Save the migrated data back to the file
-            const dataPath = getDataFilePath(mapPath);
-            const fileToModify = app.vault.getAbstractFileByPath(dataPath);
-            if (fileToModify instanceof TFile) {
-              const serializedData = JSON.stringify(parsed);
-              if (serializedData) {
-                await app.vault.process(fileToModify, () => serializedData);
+          const raw: unknown = JSON.parse(content);
+          if (!isPersistedMapEnvelope(raw)) {
+            console.error(`[AtlasStorage] Map data in ${mapPath} has an unexpected structure`);
+            await preserveUnreadableMapData(app, mapFile, 'unexpected structure');
+            return null;
+          }
+          let parsed = raw;
+
+          if (plugin && needsWidgetMigration(parsed)) {
+            try {
+              parsed = migrateWidgetsToCollection(parsed);
+              // Save the migrated data back to the file
+              const dataPath = getDataFilePath(mapPath);
+              const fileToModify = app.vault.getAbstractFileByPath(dataPath);
+              if (fileToModify instanceof TFile) {
+                const serializedData = JSON.stringify(parsed);
+                if (serializedData) {
+                  await app.vault.process(fileToModify, () => serializedData);
+                }
               }
+            } catch (error) {
+              console.error(`[AtlasStorage] Error migrating widgets:`, error);
             }
-          } catch (error) {
-            console.error(`[AtlasStorage] Error migrating widgets:`, error);
           }
-        }
-          
+
           // v3 → v4 migration: add walls and lights if missing
-          if (parsed?.state?.objects && !parsed.state.objects.walls) {
-            parsed.state.objects.walls = {};
+          const state = parsed.state;
+          if (state?.objects && !state.objects.walls) {
+            state.objects.walls = {};
           }
-          if (parsed?.state?.objects && !parsed.state.objects.lights) {
-            parsed.state.objects.lights = {};
+          if (state?.objects && !state.objects.lights) {
+            state.objects.lights = {};
           }
-          if (parsed?.state?.version && parsed.state.version < 4) {
-            parsed.state.version = 4;
+          if (state?.version && state.version < ATLAS_VERSION) {
+            state.version = ATLAS_VERSION;
+          }
+          // The state was upgraded in place above. zustand discards any state whose
+          // envelope version differs from the store's, which would load the map empty.
+          if (parsed.version !== undefined && parsed.version < ATLAS_VERSION) {
+            parsed.version = ATLAS_VERSION;
           }
 
           // Verify the loaded data belongs to this map
           // This prevents loading stale data from wrong maps
-          if (parsed?.state?.mapPath && parsed.state.mapPath !== mapPath) {
-            console.warn(`[AtlasStorage] Loaded data has wrong mapPath. Expected: ${mapPath}, Got: ${parsed.state.mapPath}`);
+          if (state?.mapPath && state.mapPath !== mapPath) {
+            console.warn(`[AtlasStorage] Loaded data has wrong mapPath. Expected: ${mapPath}, Got: ${state.mapPath}`);
             console.warn(`[AtlasStorage] Rejecting mismatched data to prevent cross-map contamination`);
             return null;
           }
-          
+
+          // Validated above; `S` is the caller's view of the same persisted envelope.
           return parsed as StorageValue<S>;
         } catch (parseError) {
           console.error(`[AtlasStorage] Failed to parse JSON from ${mapPath}:`, parseError);
+          await preserveUnreadableMapData(app, mapFile, 'invalid JSON');
           return null; // Don't return corrupted data
         }
       } catch (error) {
@@ -208,7 +265,7 @@ export function createAtlasStorage<T extends { mapPath: string | null }, S = unk
 
       // Get or create a debounced saver for this path
       if (!debouncedSavers.has(mapPath)) {
-        const saveFunction = async (path: string, value: StorageValue<S>) => {
+        const saveFunction = async (path: string, value: StorageValue<S>): Promise<void> => {
           try {
             const data = JSON.stringify(value);
 
@@ -272,10 +329,8 @@ export function createAtlasStorage<T extends { mapPath: string | null }, S = unk
     async flush(): Promise<void> {
       // Flush ALL pending saves, not just the current map path
       // This is important when switching maps to ensure old map saves complete
-      for (const [, debouncedSave] of debouncedSavers.entries()) {
-        if (debouncedSave && typeof debouncedSave.flush === 'function') {
-          debouncedSave.flush();
-        }
+      for (const debouncedSave of debouncedSavers.values()) {
+        debouncedSave.flush();
       }
     },
   };
@@ -285,11 +340,11 @@ export function createAtlasStorage<T extends { mapPath: string | null }, S = unk
 /**
  * Migrate tokens to use relative paths instead of app:// URLs
  */
-function migrateTokenPaths(tokens: Record<string, TokenEntity>): Record<string, TokenEntity> {
+function migrateTokenPaths(tokens: Record<string, LegacyToken>): Record<string, TokenEntity> {
   const migratedTokens: Record<string, TokenEntity> = {};
   
   for (const [id, token] of Object.entries(tokens)) {
-    const migratedToken = { ...token };
+    const { statuses, ...migratedToken } = token;
 
     // Normalize the image path (handles app:// URLs and absolute paths)
     if (migratedToken.imagePath) {
@@ -300,9 +355,8 @@ function migrateTokenPaths(tokens: Record<string, TokenEntity>): Record<string, 
     }
 
     // Migrate legacy 'statuses' field to 'conditions'
-    if ((migratedToken as any).statuses && !migratedToken.conditions) {
-      migratedToken.conditions = (migratedToken as any).statuses;
-      delete (migratedToken as any).statuses;
+    if (statuses && !migratedToken.conditions) {
+      migratedToken.conditions = statuses;
     }
 
     migratedTokens[id] = migratedToken;
@@ -340,10 +394,16 @@ function migrateFogData(fogData: unknown): Record<string, FogOperation> {
   return {};
 }
 
+function migrateGrid(grid: LegacyGridState): GridState {
+  const { measurementType, ...rest } = grid;
+  if (measurementType === undefined) return rest;
+  return { ...rest, measurementType: measurementType === 'daggerheart' ? 'abstract' : measurementType };
+}
+
 /**
  * Migrate persisted state from older versions to current MapFile shape.
  */
-export function migrateMapFile(persisted: any, version: number): MapFile {
+export function migrateMapFile(persisted: unknown): MapFile {
   // Provide a base initial MapFile
   const initial: MapFile = {
     schema: ATLAS_SCHEMA,
@@ -362,17 +422,17 @@ export function migrateMapFile(persisted: any, version: number): MapFile {
     camera: { x: 0, y: 0, scale: 1 }
   };
 
-  if (!persisted) return initial;
-  
+  if (!isLegacyMapFile(persisted)) return initial;
+
   // Fix any duplicated path segments first
   fixMapTokenPaths(persisted);
   // Migrate token paths from app:// URLs to relative paths
-  const migratedTokens = persisted.objects?.tokens 
+  const migratedTokens = persisted.objects?.tokens
     ? migrateTokenPaths(persisted.objects.tokens)
     : {};
-  
+
   // Merge persisted over initial, ensuring all fields present
-  const result = {
+  return {
     ...initial,
     ...persisted,
     schema: ATLAS_SCHEMA,
@@ -387,14 +447,7 @@ export function migrateMapFile(persisted: any, version: number): MapFile {
       walls: persisted.objects?.walls || {},
       lights: persisted.objects?.lights || {},
     },
-    grid: persisted.grid || initial.grid,
+    grid: persisted.grid ? migrateGrid(persisted.grid) : initial.grid,
     camera: persisted.camera || initial.camera
   };
-  
-  // Migrate legacy 'daggerheart' -> 'abstract'
-  if ((result.grid?.measurementType as string) === 'daggerheart') {
-    (result.grid as GridState).measurementType = 'abstract';
-  }
-  
-  return result;
-} 
+}

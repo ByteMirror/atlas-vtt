@@ -1,6 +1,6 @@
 import { App as ObsidianApp, Modal } from 'obsidian';
-import type { TokenStateSnapshot } from '../../../types';
-import type { CellCoord, EncounterFormation } from '../../../encounters/encounterFormation';
+import type { KeyboardEvent, MouseEvent } from 'react';
+import type { EncounterAsset as StoredEncounterAsset } from '../../../services/AssetService';
 
 // ─── Tab / View Constants ───────────────────────────────────────────
 
@@ -20,22 +20,19 @@ export type SortOption = 'name' | 'date' | 'type';
 export type SortOrder = 'asc' | 'desc';
 
 // ─── Asset Types ────────────────────────────────────────────────────
+//
+// View models of the records stored by AssetService (the source of truth),
+// produced by `formatServiceAsset`: `type` is the tab the asset is shown on and
+// the `*Url` fields are resolved vault resource URLs.
 
 export interface Asset {
   id: string;
   name: string;
-  type: Tab | 'characters';
+  type: Tab;
   thumbnailUrl?: string;
   filePath?: string;
   folderId?: string | null;
   tags?: string[];
-}
-
-export interface ImageAsset extends Asset {
-  type: 'maps' | 'scenes';
-  imageUrl: string;
-  width?: number;
-  height?: number;
 }
 
 export interface TokenAsset extends Asset {
@@ -49,54 +46,24 @@ export interface TokenAsset extends Asset {
 export interface MapAsset extends Asset {
   type: 'maps';
   imageUrl: string;
-  gridSize?: number;
-  dimensions?: { width: number; height: number };
+  /** Vault path of the map image. */
+  mapFilePath: string;
 }
 
 export interface SceneAsset extends Asset {
   type: 'scenes';
-  mapId?: string;
-  description?: string;
-}
-
-export interface CharacterAsset extends Asset {
-  type: 'characters';
-  tokenImageUrl?: string;
-  isStatblock?: boolean;
-  notePath?: string;
 }
 
 export interface EncounterAsset extends Asset {
   type: 'encounters';
   description?: string;
-  tokens: {
-    id: string;
-    name: string;
-    imagePath: string;
-    x?: number;
-    y?: number;
-    statblockPath?: string;
-    size?: number;
-    /** Cell offset from the encounter's anchor token (see EncounterFormation). */
-    cell?: CellCoord;
-    /** Pitch-normalised world offset from the anchor token. */
-    offset?: { x: number; y: number };
-    /** Full token state at save time (HP, conditions, statblock link, ...). Restored verbatim on spawn. */
-    state?: TokenStateSnapshot;
-  }[];
+  tokens: StoredEncounterAsset['tokens'];
   /** Grid the token layout was captured on. Absent for encounters saved without positions. */
-  formation?: EncounterFormation;
-  difficulty?: 'easy' | 'medium' | 'hard' | 'deadly';
-  thumbnailUrl?: string;
+  formation?: StoredEncounterAsset['formation'];
+  difficulty?: StoredEncounterAsset['difficulty'];
 }
 
-export type AnyAsset =
-  | ImageAsset
-  | TokenAsset
-  | MapAsset
-  | SceneAsset
-  | CharacterAsset
-  | EncounterAsset;
+export type AnyAsset = TokenAsset | MapAsset | SceneAsset | EncounterAsset;
 
 // ─── Folder ─────────────────────────────────────────────────────────
 
@@ -118,6 +85,11 @@ export interface Tag {
 // ─── Constants ──────────────────────────────────────────────────────
 
 export const ATLAS_VTT_DIR = 'atlas-vtt';
+
+// ─── Selection ──────────────────────────────────────────────────────
+
+/** The click or key press that selects an item; only modifier keys and the target are read. */
+export type SelectionEvent = MouseEvent | KeyboardEvent;
 
 // ─── Input Modal State ──────────────────────────────────────────────
 

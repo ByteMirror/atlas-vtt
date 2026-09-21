@@ -9,6 +9,7 @@
 @use './tokens' as *;
 @use './mixins' as *;
 @use '../src/app/onboarding/onboarding';
+@use '../src/app/changelog/changelog';
 
 // Root namespace for all Atlas VTT styles
 .atlas-vtt-plugin {

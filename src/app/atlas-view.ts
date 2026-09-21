@@ -4,15 +4,40 @@ import { createViewAtlasStore, ViewAtlasStore } from './storeFactory';
 import { getHistoryStore, type HistoryState } from './stores/history';
 import { createTabMetaStore, type TabMetaStore } from './stores/tabMetaStore';
 import type { SceneTab } from './types/sceneTabTypes';
+import type AtlasVTTPlugin from '../../main';
 import { claimWorkspaceLeafFocus } from './utils/activeLeafGuard';
 
 export const ATLAS_VIEW_TYPE = "atlas-vtt";
 
+interface TabViewportState {
+  centerX: number;
+  centerY: number;
+  scale: number;
+}
+
 interface AtlasViewState {
   mapFilePath: string | null;
-  tabs?: Array<{ id: string; filePath: string; displayName: string; isLoaded: boolean; isDirty: boolean }>;
+  tabs?: SceneTab[];
   activeTabId?: string | null;
   [key: string]: unknown;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isSceneTab(value: unknown): value is SceneTab {
+  return isRecord(value)
+    && typeof value.id === 'string'
+    && typeof value.filePath === 'string'
+    && typeof value.displayName === 'string';
+}
+
+function isTabViewportState(value: unknown): value is TabViewportState {
+  return isRecord(value)
+    && typeof value.centerX === 'number'
+    && typeof value.centerY === 'number'
+    && typeof value.scale === 'number';
 }
 
 /**
@@ -30,10 +55,10 @@ export class AtlasView extends FileView {
   private store: ViewAtlasStore;
   public tabMetaStore: TabMetaStore;
   private temporalCache: Map<string, Pick<HistoryState, 'pastStates' | 'futureStates'>> = new Map();
-  private viewportCache: Map<string, { centerX: number; centerY: number; scale: number }> = new Map();
+  private viewportCache: Map<string, TabViewportState> = new Map();
   public readonly viewId: string;
   private isSwitching: boolean = false;
-  private plugin: any;
+  private plugin: AtlasVTTPlugin | undefined;
   private resizeObserver: ResizeObserver | null = null;
   private lastContainerWidth: number = 0;
   private lastContainerHeight: number = 0;
@@ -43,7 +68,7 @@ export class AtlasView extends FileView {
   private boundClaimLeafFocus: (() => void) | null = null;
   private boundHeaderLeafActivation: ((event: MouseEvent) => void) | null = null;
 
-  constructor(leaf: WorkspaceLeaf, plugin?: any, isPlayerView: boolean = false) {
+  constructor(leaf: WorkspaceLeaf, plugin?: AtlasVTTPlugin, isPlayerView: boolean = false) {
     super(leaf);
 
     // Store plugin reference
@@ -65,25 +90,31 @@ export class AtlasView extends FileView {
 
   // --- State Management ---
 
-  async setState(state: any, result: ViewStateResult): Promise<void> {
+  async setState(state: unknown, result: ViewStateResult): Promise<void> {
     const rendererService = this._serviceManager.getRendererService();
 
+    // Workspace state comes from workspace.json, so every field is validated before use
+    const persisted = isRecord(state) ? state : {};
+    const stateFilePath = typeof persisted.file === 'string' ? persisted.file : null;
+
     // Restore tabs from persisted state if present
-    if (state?.tabs && Array.isArray(state.tabs) && state.tabs.length > 0) {
-      const restoredTabs: SceneTab[] = state.tabs.map((t: SceneTab) => ({
+    const persistedTabs = Array.isArray(persisted.tabs) ? persisted.tabs.filter(isSceneTab) : [];
+    const firstTab = persistedTabs[0];
+    if (firstTab) {
+      const restoredTabs: SceneTab[] = persistedTabs.map((t) => ({
         ...t,
         isLoaded: false,
         isDirty: false,
       }));
-      this.tabMetaStore.getState().setTabs(restoredTabs, state.activeTabId ?? restoredTabs[0]!.id);
+      const activeTabId = typeof persisted.activeTabId === 'string' ? persisted.activeTabId : firstTab.id;
+      this.tabMetaStore.getState().setTabs(restoredTabs, activeTabId);
     }
 
     // Restore per-tab viewport positions from persisted state
-    if (state?.viewportPerTab && typeof state.viewportPerTab === 'object') {
-      for (const [tabId, camera] of Object.entries(state.viewportPerTab)) {
-        const cam = camera as { centerX: number; centerY: number; scale: number };
-        if (cam && typeof cam.centerX === 'number') {
-          this.viewportCache.set(tabId, cam);
+    if (isRecord(persisted.viewportPerTab)) {
+      for (const [tabId, camera] of Object.entries(persisted.viewportPerTab)) {
+        if (isTabViewportState(camera)) {
+          this.viewportCache.set(tabId, camera);
         }
       }
     }
@@ -92,8 +123,8 @@ export class AtlasView extends FileView {
     // view-swap cycle again (which would call `onClose`/`onOpen`). Instead we
     // update our own file reference and load the map.
     if (rendererService.isInitialized()) {
-      if (typeof state?.file === 'string') {
-        (this as any).file = this.app.vault.getAbstractFileByPath(normalizePath(state.file));
+      if (stateFilePath !== null) {
+        this.file = this.app.vault.getFileByPath(normalizePath(stateFilePath));
       }
 
       if (this.file instanceof TFile) {
@@ -108,12 +139,12 @@ export class AtlasView extends FileView {
       const tabState = this.tabMetaStore.getState();
       const activeTab = tabState.tabs.find((t: SceneTab) => t.id === tabState.activeTabId);
       if (activeTab) {
-        const activeFile = this.app.vault.getAbstractFileByPath(normalizePath(activeTab.filePath));
-        if (activeFile instanceof TFile) {
-          (this as any).file = activeFile;
+        const activeFile = this.app.vault.getFileByPath(normalizePath(activeTab.filePath));
+        if (activeFile) {
+          this.file = activeFile;
         }
-      } else if (typeof state?.file === 'string') {
-        (this as any).file = this.app.vault.getAbstractFileByPath(normalizePath(state.file));
+      } else if (stateFilePath !== null) {
+        this.file = this.app.vault.getFileByPath(normalizePath(stateFilePath));
       }
 
       await this.onOpen();
@@ -132,7 +163,7 @@ export class AtlasView extends FileView {
     }
 
     // Build a plain object of viewport positions per tab for persistence
-    const viewportPerTab: Record<string, { centerX: number; centerY: number; scale: number }> = {};
+    const viewportPerTab: Record<string, TabViewportState> = {};
     for (const [tabId, camera] of this.viewportCache) {
       viewportPerTab[tabId] = camera;
     }
@@ -227,7 +258,7 @@ export class AtlasView extends FileView {
             doRestore();
           } else {
             this.mapLoadingUnsubscribe?.();
-            this.mapLoadingUnsubscribe = this.store.subscribe((state: any) => {
+            this.mapLoadingUnsubscribe = this.store.subscribe((state) => {
               if (!state.isMapLoading) {
                 this.mapLoadingUnsubscribe?.();
                 this.mapLoadingUnsubscribe = null;
@@ -327,7 +358,7 @@ export class AtlasView extends FileView {
       }
 
       // Update FileView's internal file reference
-      (this as any).file = abstractFile;
+      this.file = abstractFile;
 
       // Pre-set currentMapFilePath so performSceneLoad does NOT recreate the renderer.
       // The single store stays subscribed — PIXI renderers react to state changes naturally.
@@ -382,7 +413,7 @@ export class AtlasView extends FileView {
 
   /** Save the current viewport position/zoom for a tab. */
   private saveViewportState(tabId: string): void {
-    const viewport = this._serviceManager.getRendererService().getViewport() as any;
+    const viewport = this._serviceManager.getRendererService().getViewport();
     if (!viewport) return;
     this.viewportCache.set(tabId, {
       centerX: viewport.center.x,
@@ -395,7 +426,7 @@ export class AtlasView extends FileView {
   private restoreViewportState(tabId: string): void {
     const cached = this.viewportCache.get(tabId);
     if (!cached) return;
-    const viewport = this._serviceManager.getRendererService().getViewport() as any;
+    const viewport = this._serviceManager.getRendererService().getViewport();
     if (!viewport) return;
     // setZoom MUST come before moveCenter — moveCenter calculates viewport.x/y
     // using the current scale, so the scale must already be correct.
@@ -452,7 +483,7 @@ export class AtlasView extends FileView {
 
     if (this.currentMapFilePath === oldPath) {
       this.currentMapFilePath = newPath;
-      (this as any).file = this.app.vault.getAbstractFileByPath(newPath);
+      this.file = this.app.vault.getFileByPath(newPath);
     }
   }
 
@@ -694,13 +725,6 @@ export class AtlasView extends FileView {
    */
   public setMeasurePersistence(persist: boolean): void {
     this._serviceManager.getToolController().setMeasurePersistence(persist);
-  }
-
-  /**
-   * Open the asset manager with an optional initial tab
-   */
-  public openAssetManager(tab?: 'scenes' | 'maps' | 'campaigns' | 'characters' | 'tokens'): void {
-    this.store.getState().openAssetManager(tab as any);
   }
 
   /**

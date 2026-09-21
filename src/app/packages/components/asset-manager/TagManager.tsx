@@ -4,6 +4,7 @@ import { openContextMenuGlobal, type ContextMenuEntry } from '../../../react/roo
 import { isShortcutScopeActive } from '../../../utils/activeLeafGuard';
 import { CloseButton } from '../primitives/CloseButton';
 import { Button } from '../primitives/button';
+import { LabelTooltip } from '../primitives/tooltip';
 
 interface TagManagerProps {
   isOpen: boolean;
@@ -316,16 +317,17 @@ const TagManager: React.FC<TagManagerProps> = ({
                 onContextMenu={(e) => handleItemContextMenu(item, e)}
               >
                 <div className="atlas-selection-checkbox">
-                  <input 
-                    type="checkbox" 
-                    checked={selectedItems.has(item)} 
-                    onChange={() => {}} 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleItemSelect(item);
-                    }}
-                    aria-label={`Select ${item}`}
-                  />
+                  <LabelTooltip label={`Select ${item}`}>
+                    <input 
+                      type="checkbox" 
+                      checked={selectedItems.has(item)} 
+                      onChange={() => {}} 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleItemSelect(item);
+                      }}
+                    />
+                  </LabelTooltip>
                 </div>
 
                 {editingItem === item ? (
@@ -344,12 +346,16 @@ const TagManager: React.FC<TagManagerProps> = ({
                       }}
                       className="atlas-edit-input"
                     />
-                    <Button variant="ghost" size="icon" className="atlas-collection-header-btn atlas-save-button" onClick={handleSaveEdit} aria-label="Save">
-                      <Check />
-                    </Button>
-                    <Button variant="ghost" size="icon" className="atlas-collection-header-btn" onClick={handleCancelEdit} aria-label="Cancel">
-                      <X />
-                    </Button>
+                    <LabelTooltip label="Save">
+                      <Button variant="ghost" size="icon" className="atlas-collection-header-btn atlas-save-button" onClick={handleSaveEdit}>
+                        <Check />
+                      </Button>
+                    </LabelTooltip>
+                    <LabelTooltip label="Cancel">
+                      <Button variant="ghost" size="icon" className="atlas-collection-header-btn" onClick={handleCancelEdit}>
+                        <X />
+                      </Button>
+                    </LabelTooltip>
                   </div>
                 ) : (
                   <>
@@ -358,15 +364,16 @@ const TagManager: React.FC<TagManagerProps> = ({
                       {item}
                     </span>
                     <div className="atlas-item-actions">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="atlas-collection-header-btn"
-                        onClick={(e) => { e.stopPropagation(); handleItemContextMenu(item, e); }}
-                        aria-label="More actions"
-                      >
-                        <MoreVertical />
-                      </Button>
+                      <LabelTooltip label="More actions">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="atlas-collection-header-btn"
+                          onClick={(e) => { e.stopPropagation(); handleItemContextMenu(item, e); }}
+                        >
+                          <MoreVertical />
+                        </Button>
+                      </LabelTooltip>
                     </div>
                   </>
                 )}

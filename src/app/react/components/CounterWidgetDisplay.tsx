@@ -2,11 +2,13 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useStore } from 'zustand';
 import { Plus, Minus } from 'lucide-react';
 import type { CounterWidget } from '../../types/widgetTypes';
+import type { ViewAtlasState, ViewAtlasStore } from '../../storeFactory';
 import { WidgetIconGlyph } from './WidgetIconGlyph';
+import { LabelTooltip } from '../../packages/components/primitives/tooltip';
 
 interface CounterWidgetDisplayProps {
   widget: CounterWidget;
-  store: any;
+  store: ViewAtlasStore;
   isActive: boolean;
   isPulsing: boolean;
   pulseIntensity: number;
@@ -25,14 +27,14 @@ export function clampCounterValue(widget: Pick<CounterWidget, 'min' | 'max'>, va
 }
 
 /** Current value of a counter: the undo-tracked `widgetValues` entry wins over the definition's copy. */
-export function readCounterValue(state: any, widget: CounterWidget): number {
+export function readCounterValue(state: Pick<ViewAtlasState, 'widgetValues'>, widget: CounterWidget): number {
   const value = state.widgetValues?.[widget.id] ?? widget.value;
   return typeof value === 'number' ? value : 0;
 }
 
-export function stepCounter(store: any, widgetId: string, delta: number): void {
+export function stepCounter(store: ViewAtlasStore, widgetId: string, delta: number): void {
   const state = store.getState();
-  const widget = state.widgetSettings?.widgets?.[widgetId] as CounterWidget | undefined;
+  const widget = state.widgetSettings?.widgets?.[widgetId];
   if (!widget || widget.type !== 'counter') return;
   state.setWidgetValue(widgetId, clampCounterValue(widget, readCounterValue(state, widget) + delta));
 }
@@ -49,7 +51,7 @@ export function CounterWidgetDisplay({
   onInteraction,
   onValueChange,
 }: CounterWidgetDisplayProps): React.ReactElement {
-  const value: number = useStore(store, (state: any) => readCounterValue(state, widget));
+  const value = useStore(store, (state) => readCounterValue(state, widget));
   const [isEditing, setIsEditing] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const previousValue = useRef(value);
@@ -98,9 +100,11 @@ export function CounterWidgetDisplay({
       </div>
       <div className="atlas-widget-content">
         <div className="atlas-widget-value-row">
-          <button onClick={() => step(-1)} className="atlas-widget-btn" title="Decrease">
-            <Minus />
-          </button>
+          <LabelTooltip label="Decrease">
+            <button onClick={() => step(-1)} className="atlas-widget-btn">
+              <Minus />
+            </button>
+          </LabelTooltip>
           {isEditing ? (
             <input
               ref={inputRef}
@@ -127,9 +131,11 @@ export function CounterWidgetDisplay({
               {value}
             </span>
           )}
-          <button onClick={() => step(1)} className="atlas-widget-btn" title="Increase">
-            <Plus />
-          </button>
+          <LabelTooltip label="Increase">
+            <button onClick={() => step(1)} className="atlas-widget-btn">
+              <Plus />
+            </button>
+          </LabelTooltip>
         </div>
         <div className="atlas-widget-label">
           <span className="atlas-widget-label-text">{widget.label}</span>

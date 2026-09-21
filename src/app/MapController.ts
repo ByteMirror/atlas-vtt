@@ -1,6 +1,7 @@
 import { App } from 'obsidian';
 import { Sprite } from 'pixi.js';
 import { MapLoader } from './MapLoader';
+import type { MapFile } from './services/MapPersistence';
 import { PixiRendererOrchestrator } from './PixiRendererOrchestrator';
 import type { GridOptions } from './grid/GridSystem';
 
@@ -13,7 +14,7 @@ async function loadAndDisplay(
   renderer: PixiRendererOrchestrator,
   filePath: string,
   restoreCamera: boolean = true,
-): Promise<any /* mapData */> {
+): Promise<MapFile> {
   const { mapData, texture } = await MapLoader.load(app, filePath);
 
   // Set background texture (will be placeholder if no real background)

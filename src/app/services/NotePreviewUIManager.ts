@@ -1,44 +1,37 @@
-import { App, WorkspaceLeaf, TFile, MarkdownRenderer, Component, setIcon, EventRef } from 'obsidian';
-import { getActiveWorkspaceLeaf } from '../utils/embeddedLeafFocus';
+import { App, WorkspaceLeaf, TFile, ItemView, MarkdownRenderer, Component, setIcon, EventRef } from 'obsidian';
+import { getActiveWorkspaceLeaf, suppressActiveLeaf } from '../utils/embeddedLeafFocus';
 import { EventEmitter } from 'events';
+import type { FederatedPointerEvent } from 'pixi.js';
 import type { NotePin } from '../types';
+import type { TokenVitals } from './statblockVitalsSync';
 import { StatblockPreviewWindow } from './StatblockPreviewWindow';
 import { findCreatureForNotePath } from './FantasyStatblocksService';
 import { MapLinkPreview } from './MapLinkPreview';
 import { runInBackground } from '../utils/backgroundTask';
 
+/**
+ * A hovered token presented to the preview system like a pin on its linked
+ * statblock note. The vitals travel with it so the statblock preview can mirror them.
+ */
+export interface TokenPreviewAnchor extends TokenVitals {
+  id: string;
+  notePath: string;
+  x: number;
+  y: number;
+  type: 'token';
+}
+
+/** What a hover preview is anchored to: a map pin or a token. */
+export type PreviewAnchor = NotePin | TokenPreviewAnchor;
+
 // Common interface for preview windows
 interface IPreviewWindow {
   notePath: string;
   element: HTMLElement | null;
-  originatingPin?: any;
+  originatingPin?: PreviewAnchor | null;
   setPosition(x: number, y: number): void;
   getIsPinned(): boolean;
   hide(force?: boolean): void;
-}
-
-// Shim for internal Obsidian API parts
-declare module 'obsidian' {
-  interface Workspace {
-    /**
-     * Retrieves a special, detached leaf meant for popover-style views.
-     * This leaf is not part of any main workspace split.
-     * This is an unofficial extension to the Workspace type.
-     */
-    getLeafPopover?: () => WorkspaceLeaf | undefined;
-
-    /**
-     * Renders a given leaf's content into a specified container element,
-     * effectively turning that container into a popover view for the leaf.
-     * This is an unofficial extension to the Workspace type.
-     */
-    openPopover?(
-      leaf: WorkspaceLeaf,
-      container: HTMLElement | ShadowRoot,
-      options?: { focus?: boolean }
-    ): void;
-
-  }
 }
 
 // Styles imported via styles/main.scss → note-preview-window.scss
@@ -60,17 +53,17 @@ export class NotePreviewWindow {
   private parentComponent: Component;
   private isPinned: boolean = false;
   private pinButton: HTMLButtonElement | null = null;
-  public originatingPin: NotePin | null = null;
+  public originatingPin: PreviewAnchor | null = null;
   private isDragging: boolean = false;
   private dragStartX: number = 0;
   private dragStartY: number = 0;
   private dragStartLeft: number = 0;
   private dragStartTop: number = 0;
   private leaf: WorkspaceLeaf | null = null;
-  private previousActiveLeaf: WorkspaceLeaf | null = null;
   public static openWindows: Map<string, NotePreviewWindow> = new Map();
   private manager: NotePreviewUIManager;
-  private shadowHost: ShadowRoot | null = null;
+  /** True when Obsidian's popover helpers own the leaf's DOM placement. */
+  private usesPopover = false;
   private wrapperEl: HTMLDivElement | null = null;
   private preferredActiveLeaf: WorkspaceLeaf | null = null;
   private mountRootEl: HTMLElement | null = null;
@@ -88,7 +81,7 @@ export class NotePreviewWindow {
   constructor(
     app: App,
     notePath: string,
-    originatingPin: NotePin,
+    originatingPin: PreviewAnchor,
     manager: NotePreviewUIManager,
     initialPos?: { x: number, y: number },
     preferredActiveLeaf?: WorkspaceLeaf | null,
@@ -259,7 +252,7 @@ export class NotePreviewWindow {
       this.titleElement.setText(displayTitle);
     }
     
-    const ws = this.app.workspace as any;
+    const ws = this.app.workspace;
     const contentContainer = this.element?.querySelector('#atlas-note-preview-leaf-container') as HTMLElement | null;
     if (!contentContainer) {
       console.error("[NotePreviewWindow] Content container not found in rendered element.");
@@ -282,20 +275,14 @@ export class NotePreviewWindow {
     // so Obsidian never switches away from the atlas canvas view. Without this,
     // getLeaf(true) / getLeafPopover() + openFile() briefly activate the new
     // leaf, causing a visible flash of the note view behind the canvas.
-    const origSetActiveLeaf = this.app.workspace.setActiveLeaf.bind(this.app.workspace);
-    const suppressActiveLeaf = (): void => {
-      this.app.workspace.setActiveLeaf = (() => {});
-    };
-    const restoreActiveLeaf = (): void => {
-      this.app.workspace.setActiveLeaf = origSetActiveLeaf;
-    };
+    let restoreActiveLeaf: () => void = () => {};
 
     if (typeof ws.getLeafPopover === 'function' && typeof ws.openPopover === 'function') {
       try {
         const currentActiveLeaf = this.preferredActiveLeaf ?? getActiveWorkspaceLeaf(this.app.workspace);
 
-        suppressActiveLeaf();
-        this.leaf = ws.getLeafPopover();
+        restoreActiveLeaf = suppressActiveLeaf(ws);
+        this.leaf = ws.getLeafPopover() ?? null;
 
         if (this.leaf) {
           await this.leaf.openFile(file, { active: false });
@@ -319,7 +306,7 @@ export class NotePreviewWindow {
 
           // Mark that we used the pop-over pathway so _forceHide()
           // doesn't try to manually yank the containerEl later on.
-          this.shadowHost = (contentContainer as unknown) as ShadowRoot;
+          this.usesPopover = true;
 
           // Ensure the original leaf stays active
           if (currentActiveLeaf) {
@@ -340,22 +327,17 @@ export class NotePreviewWindow {
     }
 
     // Strategy 2: Create a hidden leaf for full functionality
-    this.previousActiveLeaf = this.preferredActiveLeaf ?? getActiveWorkspaceLeaf(this.app.workspace);
-
     const originalActiveLeaf = this.preferredActiveLeaf ?? getActiveWorkspaceLeaf(this.app.workspace);
 
     // Suppress active-leaf switching during leaf creation + file loading
-    suppressActiveLeaf();
+    restoreActiveLeaf = suppressActiveLeaf(ws);
 
     // Create the leaf
     this.leaf = this.app.workspace.getLeaf(true);
 
     if (this.leaf) {
-      (this.leaf as any).containerEl?.setAttribute('data-atlas-preview', 'true');
-      const tabHeader = (this.leaf as any).tabHeaderEl as HTMLElement | undefined;
-      if (tabHeader) {
-        tabHeader.setAttribute('data-atlas-preview', 'true');
-      }
+      this.leaf.containerEl?.setAttribute('data-atlas-preview', 'true');
+      this.leaf.tabHeaderEl?.setAttribute('data-atlas-preview', 'true');
 
       // Move the leaf out of the main split to prevent it from affecting the view
       this.leaf.detach();
@@ -743,14 +725,11 @@ export class NotePreviewWindow {
       // Use the same key format when removing (with original path including header)
       const windowKey = this.originatingPin ? `${this.originalNotePath}::${this.originatingPin.id}` : this.originalNotePath;
       NotePreviewWindow.openWindows.delete(windowKey);
-      if (this.originatingPin && (this.originatingPin as any).clearPreviewInstance) {
-         (this.originatingPin as any).clearPreviewInstance();
-      }
       this.parentComponent.unload();
     }
     if (this.leaf) {
       try {
-        if (!this.shadowHost && this.leaf.view && this.leaf.view.containerEl && this.leaf.view.containerEl.parentElement) {
+        if (!this.usesPopover && this.leaf.view && this.leaf.view.containerEl && this.leaf.view.containerEl.parentElement) {
           this.leaf.view.containerEl.remove();
         }
         this.leaf.detach();
@@ -759,7 +738,7 @@ export class NotePreviewWindow {
       }
       this.leaf = null;
     }
-    this.shadowHost = null; 
+    this.usesPopover = false;
   }
   static closePreview(notePath: string, forceClosePinned: boolean = false) {
     // Look for any windows with this note path
@@ -850,9 +829,10 @@ export class NotePreviewWindow {
         }
         
         // Check if the view has rendered content
-        const contentLength1 = (this.leaf?.view as any)?.contentEl?.textContent?.length || 0;
-        const contentLength2 = this.leaf?.view?.containerEl?.querySelector('.markdown-preview-view')?.textContent?.length || 0;
-        const contentLength3 = this.leaf?.view?.containerEl?.querySelector('.cm-content')?.textContent?.length || 0;
+        const view = this.leaf.view;
+        const contentLength1 = view instanceof ItemView ? view.contentEl.textContent?.length || 0 : 0;
+        const contentLength2 = view.containerEl?.querySelector('.markdown-preview-view')?.textContent?.length || 0;
+        const contentLength3 = view.containerEl?.querySelector('.cm-content')?.textContent?.length || 0;
         
         const hasContent = contentLength1 > 0 || contentLength2 > 0 || contentLength3 > 0;
         
@@ -972,10 +952,10 @@ export class NotePreviewUIManager {
 
   private initializeGlobalListeners(): void {
     this.eventBus.on('pin-hover-preview', (data: {
-      pin: NotePin;
+      pin: PreviewAnchor;
       screenX: number;
       screenY: number;
-      pixiEvent?: any;
+      pixiEvent?: FederatedPointerEvent;
       sourceLeaf?: WorkspaceLeaf | null;
     }) => {
       // Always update last hovered ID for proper cleanup
@@ -998,7 +978,7 @@ export class NotePreviewUIManager {
       );
     });
 
-    this.eventBus.on('pin-hide-preview', (data: { pin: NotePin }) => {
+    this.eventBus.on('pin-hide-preview', (data: { pin: PreviewAnchor }) => {
       if (this.lastHoveredPinId === data.pin.id) {
           this.lastHoveredPinId = null; // Clear last hovered if mouse moves off it
       }
@@ -1053,7 +1033,7 @@ export class NotePreviewUIManager {
     }
   }
   
-  public handlePreviewClosed(notePath: string, originatingPin?: NotePin): void {
+  public handlePreviewClosed(notePath: string, originatingPin?: PreviewAnchor): void {
     // Find and remove the specific preview instance
     if (originatingPin) {
       // We need to use the original pin.notePath (with header) for the key
@@ -1071,13 +1051,8 @@ export class NotePreviewUIManager {
     }
   }
   
-  public handleStatblockPreviewClosed(notePath: string, originatingToken?: any): void {
-    // Same logic as handlePreviewClosed
-    this.handlePreviewClosed(notePath, originatingToken);
-  }
-
   public async showOrCreatePreview(
-    pin: NotePin,
+    pin: PreviewAnchor,
     screenX: number,
     screenY: number,
     sourceLeaf?: WorkspaceLeaf | null,
@@ -1131,7 +1106,7 @@ export class NotePreviewUIManager {
       // Notes backed by a Fantasy Statblocks creature → rich statblock preview for tokens
       const isStatblock = findCreatureForNotePath(file.path) !== null;
 
-      if (isStatblock && (pin as any).type === 'token') {
+      if (isStatblock && 'type' in pin && pin.type === 'token') {
         const statblockPreview = new StatblockPreviewWindow(
           this.app, 
           pin.notePath, 

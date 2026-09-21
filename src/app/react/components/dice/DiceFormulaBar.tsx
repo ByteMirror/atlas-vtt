@@ -1,6 +1,7 @@
 import React from 'react';
 import { Dices, X } from 'lucide-react';
 import { Button } from '../../../packages/components/primitives/button';
+import { LabelTooltip } from '../../../packages/components/primitives/tooltip';
 
 interface DiceSelection {
   [die: string]: number;
@@ -29,25 +30,27 @@ export function DiceFormulaBar({ selection, onClear, onRoll }: DiceFormulaBarPro
         {hasSelection ? formula : 'Select dice to roll'}
       </span>
       <div className="atlas-dice-formula-actions">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={onClear}
-          title="Clear selection"
-          disabled={!hasSelection}
-        >
-          <X size={14} />
-        </Button>
-        <Button
-          variant="default"
-          size="sm"
-          onClick={onRoll}
-          title="Roll dice"
-          disabled={!hasSelection}
-        >
-          <Dices size={14} />
-          Roll
-        </Button>
+        <LabelTooltip label="Clear selection">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onClear}
+            disabled={!hasSelection}
+          >
+            <X size={14} />
+          </Button>
+        </LabelTooltip>
+        <LabelTooltip label="Roll dice">
+          <Button
+            variant="default"
+            size="sm"
+            onClick={onRoll}
+            disabled={!hasSelection}
+          >
+            <Dices size={14} />
+            Roll
+          </Button>
+        </LabelTooltip>
       </div>
     </div>
   );

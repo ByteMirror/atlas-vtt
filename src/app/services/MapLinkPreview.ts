@@ -1,5 +1,5 @@
 import { App, TFile, setIcon } from 'obsidian';
-import type { NotePreviewUIManager } from './NotePreviewUIManager';
+import type { NotePreviewUIManager, PreviewAnchor } from './NotePreviewUIManager';
 import './map-link-preview.scss';
 import { runInBackground } from '../utils/backgroundTask';
 
@@ -10,7 +10,7 @@ import { runInBackground } from '../utils/backgroundTask';
  */
 export class MapLinkPreview {
   public notePath: string;
-  public originatingPin: any;
+  public originatingPin: PreviewAnchor;
   private app: App;
   private file: TFile;
   private manager: NotePreviewUIManager;
@@ -24,7 +24,7 @@ export class MapLinkPreview {
   /** Delay (ms) before the preview hides after mouse leaves. */
   private static readonly HIDE_DELAY = 150;
 
-  constructor(app: App, file: TFile, pin: any, manager: NotePreviewUIManager, position: { x: number; y: number }) {
+  constructor(app: App, file: TFile, pin: PreviewAnchor, manager: NotePreviewUIManager, position: { x: number; y: number }) {
     this.app = app;
     this.file = file;
     this.notePath = file.path;

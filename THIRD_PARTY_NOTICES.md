@@ -5,7 +5,7 @@
 - Widget icons come from [game-icons.net](https://game-icons.net) by Lorc, Delapouite, Skoll, sbed and Carl Olsen, licensed under [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/). The black background was removed and the glyphs recoloured.
 - Dice result sounds are built from the "Impact Sounds" and "Casino Audio" packs by [Kenney](https://kenney.nl), released under [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) and converted from OGG to MP3.
 - Interface icons are [Lucide](https://lucide.dev) (ISC), provided by Obsidian and the bundled lucide-react package.
-- The token ring and the timer sound are original works by the Atlas VTT author and are covered by this repository's [PolyForm Noncommercial License 1.0.0](LICENSE).
+- The token ring and the timer sound are original works by the Atlas VTT author and are covered by this repository's [GNU Affero General Public License v3.0](LICENSE).
 
 ## Bundled packages
 

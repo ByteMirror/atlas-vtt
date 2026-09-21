@@ -21,6 +21,9 @@ import { HeaderAutocompleteSuggest } from './src/app/plugin/HeaderAutocompleteSu
 import { registerCommands } from './src/app/plugin/registerCommands';
 import { runStartupMigration } from './src/app/plugin/startupMigration';
 import { registerStatusBarVisibility } from './src/app/plugin/statusBarVisibility';
+import { ChangelogService } from './src/app/changelog/ChangelogService';
+
+declare const __ATLAS_RELEASE_BUILD__: boolean;
 
 export default class AtlasVTTPlugin extends Plugin {
   /** Read by each view's ServiceManager so all views share one settings instance. */
@@ -28,26 +31,37 @@ export default class AtlasVTTPlugin extends Plugin {
   /** Created lazily by the first view's ServiceManager and shared by all views. */
   public widgetSyncService: WidgetSyncService | undefined;
 
-  private globalAssetManager!: GlobalAssetManagerService;
+  /** Opened by each view for its scene browser. */
+  public globalAssetManager!: GlobalAssetManagerService;
   private globalMusicPlayer!: GlobalMusicPlayerService;
   private imageDisplayService!: ImageDisplayService;
+  private changelogService: ChangelogService | undefined;
 
   async onload(): Promise<void> {
     // Views first, so workspace restore can resolve persisted Atlas tabs
     // before the slower startup path finishes.
     this.registerAtlasViews();
 
+    // Capture this before migrations/services can create Atlas's storage folder.
+    const existingInstallation = await this.app.vault.adapter.exists('atlas-vtt');
+
     await initializeAtlasStorage(this.app);
     await runStartupMigration(this.app);
 
     this.settingsService = new SettingsService(this.app);
     await this.settingsService.initialize();
+    this.changelogService = new ChangelogService(this.app, this.settingsService, {
+      installedVersion: this.manifest.version,
+      existingInstallation,
+      releaseBuild: __ATLAS_RELEASE_BUILD__,
+    });
+    this.addCommand({ id: 'view-changelog', name: 'View changelog', callback: () => this.changelogService?.open() });
 
     this.globalAssetManager = new GlobalAssetManagerService(this.app);
     this.globalMusicPlayer = new GlobalMusicPlayerService(this.app);
     this.imageDisplayService = new ImageDisplayService(this.app);
 
-    this.addSettingTab(new AtlasSettingTab(this.app, this, this.settingsService));
+    this.addSettingTab(new AtlasSettingTab(this.app, this, this.settingsService, this.changelogService));
     this.registerEditorSuggest(new HeaderAutocompleteSuggest(this.app));
     registerAtlasLeafSync(this);
     registerCommands(this, {
@@ -61,10 +75,12 @@ export default class AtlasVTTPlugin extends Plugin {
       registerColorSwatchIcons();
       this.imageDisplayService.registerContextMenu();
       registerStatusBarVisibility(this);
+      this.changelogService?.showUpdates();
     });
   }
 
   onunload(): void {
+    this.changelogService?.destroy();
     void this.settingsService?.saveSettingsNow();
     this.widgetSyncService?.destroy();
     this.widgetSyncService = undefined;

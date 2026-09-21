@@ -200,7 +200,7 @@ export interface UseStatblockHoverPreviewOptions {
 /**
  * State returned by useStatblockHoverPreview hook
  */
-export interface StatblockHoverPreviewState {
+export interface StatblockHoverPreviewState<TEntry> {
   /** Whether the preview is currently visible */
   isVisible: boolean;
   /** Whether the preview is in closing animation */
@@ -209,8 +209,8 @@ export interface StatblockHoverPreviewState {
   notePath: string | null;
   /** The statblock file */
   statblockFile: TFile | null;
-  /** The current hovered entry (generic, can be token or initiative entry) */
-  hoveredEntry: any;
+  /** The current hovered entry (whatever the caller previews: a token, an initiative entry, ...) */
+  hoveredEntry: TEntry | null;
   /** The anchor rect for positioning */
   anchorRect: DOMRect | null;
   /** Position point for positioning */
@@ -220,9 +220,9 @@ export interface StatblockHoverPreviewState {
 /**
  * Actions returned by useStatblockHoverPreview hook
  */
-export interface StatblockHoverPreviewActions {
+export interface StatblockHoverPreviewActions<TEntry> {
   /** Show preview for an entry with a statblock path */
-  showPreview: (entry: any, statblockPath: string, anchorElement?: HTMLElement, position?: { x: number; y: number }) => void;
+  showPreview: (entry: TEntry, statblockPath: string, anchorElement?: HTMLElement, position?: { x: number; y: number }) => void;
   /** Close the preview with animation */
   closePreview: () => void;
   /** Clear all state immediately (no animation) */
@@ -233,12 +233,12 @@ export interface StatblockHoverPreviewActions {
  * Hook for managing statblock hover preview state.
  * Handles CMD+hover logic and animation states.
  */
-export function useStatblockHoverPreview(
+export function useStatblockHoverPreview<TEntry>(
   options: UseStatblockHoverPreviewOptions
-): [StatblockHoverPreviewState, StatblockHoverPreviewActions] {
+): [StatblockHoverPreviewState<TEntry>, StatblockHoverPreviewActions<TEntry>] {
   const { app } = options;
 
-  const [hoveredEntry, setHoveredEntry] = useState<any>(null);
+  const [hoveredEntry, setHoveredEntry] = useState<TEntry | null>(null);
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
   const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
   const [notePath, setNotePath] = useState<string | null>(null);
@@ -250,7 +250,7 @@ export function useStatblockHoverPreview(
   const isVisible = hoveredEntry !== null && notePath !== null;
 
   const showPreview = useCallback((
-    entry: any,
+    entry: TEntry,
     statblockPath: string,
     anchorElement?: HTMLElement,
     positionPoint?: { x: number; y: number }
@@ -321,7 +321,7 @@ export function useStatblockHoverPreview(
     return () => window.removeEventListener('keyup', handleKeyUp);
   }, [closePreview]);
 
-  const state: StatblockHoverPreviewState = {
+  const state: StatblockHoverPreviewState<TEntry> = {
     isVisible,
     isClosing,
     notePath,
@@ -331,7 +331,7 @@ export function useStatblockHoverPreview(
     position,
   };
 
-  const actions: StatblockHoverPreviewActions = {
+  const actions: StatblockHoverPreviewActions<TEntry> = {
     showPreview,
     closePreview,
     clearPreview,

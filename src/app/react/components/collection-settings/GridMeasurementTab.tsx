@@ -6,6 +6,7 @@
 import React from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { Button } from '../../../packages/components/primitives/button';
+import { LabelTooltip } from '../../../packages/components/primitives/tooltip';
 import type {
   CollectionGridDefaults,
   GridUnitType,
@@ -133,15 +134,16 @@ export function GridMeasurementTab({
                       if (!Number.isNaN(val)) updateBand(i, { maxSquares: Math.max(1, val) });
                     }}
                   />
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="atlas-csm-band-delete"
-                    onClick={() => removeBand(i)}
-                    title="Remove band"
-                  >
-                    <Trash2 />
-                  </Button>
+                  <LabelTooltip label="Remove band">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="atlas-csm-band-delete"
+                      onClick={() => removeBand(i)}
+                    >
+                      <Trash2 />
+                    </Button>
+                  </LabelTooltip>
                 </div>
               ))}
             </div>

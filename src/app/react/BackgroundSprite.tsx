@@ -3,6 +3,37 @@ import { Assets, Texture, Sprite } from 'pixi.js';
 import { useAtlasUI } from './root/AtlasUIContext';
 import { useViewStoreHook } from './ViewStoreContext';
 import { toError } from '../utils/errors';
+import type { GridOptions } from '../grid/GridSystem';
+import type { GridState } from '../services/MapPersistence';
+
+const FALLBACK_GRID_OPTIONS: GridOptions = {
+  type: 'square',
+  size: 70,
+  offsetX: 0,
+  offsetY: 0,
+  color: 0xFFFFFF,
+  alpha: 0.3,
+  lineType: 'dotted',
+  lineWidth: 1,
+  enabled: true,
+};
+
+/** The store keeps the grid colour as a CSS hex string and its alpha as `opacity`; the GridSystem wants a number and `alpha`. */
+function toGridOptions(grid: GridState): GridOptions {
+  return {
+    size: grid.size,
+    offsetX: grid.offsetX,
+    offsetY: grid.offsetY,
+    color: parseInt(grid.color.replace('#', '0x')),
+    alpha: grid.opacity,
+    enabled: grid.enabled,
+    ...(grid.type !== undefined ? { type: grid.type } : {}),
+    ...(grid.lineType !== undefined ? { lineType: grid.lineType } : {}),
+    ...(grid.lineWidth !== undefined ? { lineWidth: grid.lineWidth } : {}),
+    ...(grid.scale !== undefined ? { scale: grid.scale } : {}),
+    ...(grid.mapScale !== undefined ? { mapScale: grid.mapScale } : {}),
+  };
+}
 
 interface BackgroundSpriteProps {
   imagePath: string;
@@ -24,7 +55,7 @@ export const BackgroundSprite: React.FC<BackgroundSpriteProps> = ({ imagePath })
     loadAbortControllerRef.current = abortController;
     
     // Load the image texture
-    const loadTexture = async () => {
+    const loadTexture = async (): Promise<void> => {
       if (!imagePath) return;
       
       // Mark as loading
@@ -199,20 +230,8 @@ export const BackgroundSprite: React.FC<BackgroundSpriteProps> = ({ imagePath })
     const gridSystem = renderer.getGridSystem();
     if (!gridSystem) {
       // Get current grid settings from the store (for streamed maps)
-      const currentState = store.getState();
-      const gridOptions = currentState.grid || {
-        enabled: true,
-        visible: true,
-        type: 'square',
-        size: 70,
-        offsetX: 0,
-        offsetY: 0,
-        color: 0xFFFFFF,
-        opacity: 0.3,
-        lineType: 'dotted',
-        lineWidth: 1
-      };
-      renderer.initGrid(gridOptions, sprite);
+      const grid = store.getState().grid;
+      renderer.initGrid(grid ? toGridOptions(grid) : FALLBACK_GRID_OPTIONS, sprite);
     }
     
     // Explicitly sort children after adding the background

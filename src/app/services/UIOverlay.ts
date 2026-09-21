@@ -1,8 +1,8 @@
 import { App } from 'obsidian';
+import type { Application } from 'pixi.js';
 import { mountUI, unmountUI } from '../react/index';
 import { EventEmitter } from 'events';
-import type { ViewAtlasState } from '../storeFactory';
-import type { StoreApi } from 'zustand';
+import type { ViewAtlasStore } from '../storeFactory';
 import type { AtlasView } from '../atlas-view';
 
 export class UIOverlay {
@@ -12,7 +12,7 @@ export class UIOverlay {
   private mountObserver: MutationObserver | null = null;
   private remountTimeout: number | null = null;
 
-  constructor(private app: App, eventBus: EventEmitter, private store: StoreApi<ViewAtlasState>) {
+  constructor(private app: App, eventBus: EventEmitter, private store: ViewAtlasStore) {
     this.eventBus = eventBus;
   }
 
@@ -22,7 +22,7 @@ export class UIOverlay {
    * @param view The AtlasView instance
    * @param pixiApp The PixiJS application instance
    */
-  public mount(containerEl: HTMLElement, view: AtlasView, pixiApp: any): void {
+  public mount(containerEl: HTMLElement, view: AtlasView, pixiApp: Application | null): void {
     if (this.uiContainer) {
       this.unmount();
     }
@@ -63,7 +63,7 @@ export class UIOverlay {
     this.mountObserver = observer;
     
     // Pass the obtained PixiApp instance, renderer, and store to mountUI
-    mountUI(this.app, this.uiContainer, null, view, pixiApp, this.store);
+    mountUI(this.app, this.uiContainer, view, pixiApp, this.store);
     
     this.eventBus.emit('ui-mounted', this.uiContainer);
   }
@@ -107,21 +107,6 @@ export class UIOverlay {
     return this.uiContainer !== null;
   }
 
-  /**
-   * Update data for the UI
-   * @param type The event type
-   * @param data The data to update
-   */
-  public updateUI(type: string, data: any): void {
-    window.dispatchEvent(
-      new CustomEvent(`atlas-${type}`, {
-        detail: data,
-      })
-    );
-  }
-
-
-  
   /**
    * Force remount the React UI overlay
    * Used when switching maps to ensure clean state

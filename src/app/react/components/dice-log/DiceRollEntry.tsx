@@ -3,6 +3,7 @@ import { ChevronDown, RotateCw } from 'lucide-react';
 import { cn } from '../../../../utils/cn';
 import type { DiceRollResult } from '../../../tools/DiceTool';
 import { useDiceAvatarUrl } from '../dice/useDiceAvatarUrl';
+import { LabelTooltip } from '../../../packages/components/primitives/tooltip';
 
 interface DiceRollEntryProps {
   result: DiceRollResult;
@@ -93,13 +94,14 @@ export function DiceRollEntry({ result, isNew, onRepeat }: DiceRollEntryProps): 
             <ChevronDown className={cn('dice-log-entry__chevron', isExpanded && 'dice-log-entry__chevron--open')} />
             <span className="dice-log-entry__callout-label">Details</span>
           </div>
-          <button
-            className="btn btn--ghost btn--icon dice-log-entry__repeat"
-            onClick={(e) => { e.stopPropagation(); onRepeat(); }}
-            title="Roll again"
-          >
-            <RotateCw />
-          </button>
+          <LabelTooltip label="Roll again">
+            <button
+              className="btn btn--ghost btn--icon dice-log-entry__repeat"
+              onClick={(e) => { e.stopPropagation(); onRepeat(); }}
+            >
+              <RotateCw />
+            </button>
+          </LabelTooltip>
         </div>
 
         {/* Expanded dice detail */}
@@ -113,7 +115,6 @@ export function DiceRollEntry({ result, isNew, onRepeat }: DiceRollEntryProps): 
                   roll.value === roll.max && 'dice-log-entry__badge--max',
                   roll.value === 1 && 'dice-log-entry__badge--min',
                 )}
-                title={roll.die}
               >
                 {roll.die}: {roll.value}
               </span>

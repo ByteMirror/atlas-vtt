@@ -5,12 +5,16 @@ import type { StoreApi } from 'zustand';
 import { getTokenRingCenterRadius } from './token-renderer/tokenRingMetrics';
 import { computeTokenPixelSize, computeTokenStrokeWidth } from './token-renderer/tokenSizing';
 import { toError } from '../utils/errors';
+import type { TokenGestureEventDetail } from '../types/atlasWindowEvents';
+import type { TokenHandleContainer } from './token-renderer/types';
+import { findTokenGroup } from './token-renderer/findTokenGroup';
+import type { TokenResizeUI } from './TokenResizeUI';
 
 export class TokenRotationUI {
   private viewport: Viewport;
   private store: StoreApi<ViewAtlasState>;
-  private rotationHandles: Map<string, Container> = new Map();
-  private tokenResizeUI: any; // Reference to resize UI for getting temporary sizes
+  private rotationHandles: Map<string, TokenHandleContainer> = new Map();
+  private tokenResizeUI: TokenResizeUI | undefined; // Reference to resize UI for getting temporary sizes
   
   // Handle appearance - matching status badge style
   private readonly HANDLE_SIZE = 20; // Same as status badges
@@ -47,9 +51,9 @@ export class TokenRotationUI {
     });
     
     // Listen for rotation events to update handle positions
-    window.addEventListener('atlas-tokens-rotation-update', this.onRotationUpdate as EventListener);
-    window.addEventListener('atlas-tokens-drag-update', this.onTokenDragUpdate as EventListener);
-    window.addEventListener('atlas-token-size-changing', this.onTokenSizeChanging as EventListener);
+    window.addEventListener('atlas-tokens-rotation-update', this.onRotationUpdate);
+    window.addEventListener('atlas-tokens-drag-update', this.onTokenDragUpdate);
+    window.addEventListener('atlas-token-size-changing', this.onTokenSizeChanging);
     
     // Listen for resize events to hide/show handles
     window.addEventListener('atlas-token-resize-started', this.onResizeStarted);
@@ -66,7 +70,7 @@ export class TokenRotationUI {
   /**
    * Set reference to resize UI for getting temporary sizes
    */
-  public setResizeUI(resizeUI: any): void {
+  public setResizeUI(resizeUI: TokenResizeUI): void {
     this.tokenResizeUI = resizeUI;
   }
   
@@ -233,22 +237,22 @@ export class TokenRotationUI {
   /**
    * Create a rotation handle graphic
    */
-  private createRotationHandle(): Container {
-    const handle = new Container();
+  private createRotationHandle(): TokenHandleContainer {
+    // Get theme colors - matching status badges
+    const isDarkMode = document.body.classList.contains('theme-dark');
+    const bg = new Graphics();
+    const handle: TokenHandleContainer = Object.assign(new Container(), { bg, isDarkMode });
     handle.eventMode = 'static';
     handle.interactive = true;
     handle.cursor = 'grab';
     // Set a circular hit area for the handle - this should be precise to avoid blocking token
     handle.hitArea = new Circle(0, 0, this.HANDLE_SIZE / 2);
     
-    // Get theme colors - matching status badges
-    const isDarkMode = document.body.classList.contains('theme-dark');
     const bgColor = isDarkMode ? 0x2a2a2a : 0xe3e3e3;
     const strokeColor = isDarkMode ? 0xffffff : 0x000000;
     const strokeAlpha = isDarkMode ? 0.4 : 0.3;
     
     // Create background circle - matching status badge style
-    const bg = new Graphics();
     bg.circle(0, 0, this.HANDLE_SIZE / 2);
     bg.fill({ color: bgColor, alpha: 0.95 });
     bg.stroke({ width: 0.5, color: strokeColor, alpha: strokeAlpha });
@@ -265,12 +269,7 @@ export class TokenRotationUI {
       iconSprite.scale.set(this.HANDLE_SIZE * 0.6 / canvasSize); // 60% of badge size
       iconSprite.position.set(0, 0);
       handle.addChild(iconSprite);
-      (handle as any).iconSprite = iconSprite;
     }
-    
-    // Store references
-    (handle as any).bg = bg;
-    (handle as any).isDarkMode = isDarkMode;
     
     // Add hover effects - subtle like status badges
     handle.on('pointerover', () => {
@@ -469,15 +468,15 @@ export class TokenRotationUI {
       }
     }
     
+    // Store the token IDs before clearing rotation state
+    const rotatedTokenIds = [...this.rotatingTokenIds];
+    
     this.isRotating = false;
     this.rotatingTokenIds = [];
     this.initialRotations = {};
     this.startRotations = {};
     this.hasRotated = false;
     this.temporaryRotations = {};
-    
-    // Store the token IDs before clearing rotation state
-    const rotatedTokenIds = [...this.rotatingTokenIds];
     
     // Show other UI elements again after rotation completes
     window.dispatchEvent(new CustomEvent('atlas-token-rotation-ended', {
@@ -490,18 +489,16 @@ export class TokenRotationUI {
       handle.cursor = 'grab';
       
       // Reset handle appearance
-      const bg = (handle as any).bg as Graphics;
-      const isDarkMode = (handle as any).isDarkMode || document.body.classList.contains('theme-dark');
-      if (bg) {
-        const bgColor = isDarkMode ? 0x2a2a2a : 0xe3e3e3;
-        const strokeColor = isDarkMode ? 0xffffff : 0x000000;
-        const strokeAlpha = isDarkMode ? 0.4 : 0.3;
-        
-        bg.clear();
-        bg.circle(0, 0, this.HANDLE_SIZE / 2);
-        bg.fill({ color: bgColor, alpha: 0.95 });
-        bg.stroke({ width: 0.5, color: strokeColor, alpha: strokeAlpha });
-      }
+      const { bg } = handle;
+      const isDarkMode = handle.isDarkMode || document.body.classList.contains('theme-dark');
+      const bgColor = isDarkMode ? 0x2a2a2a : 0xe3e3e3;
+      const strokeColor = isDarkMode ? 0xffffff : 0x000000;
+      const strokeAlpha = isDarkMode ? 0.4 : 0.3;
+      
+      bg.clear();
+      bg.circle(0, 0, this.HANDLE_SIZE / 2);
+      bg.fill({ color: bgColor, alpha: 0.95 });
+      bg.stroke({ width: 0.5, color: strokeColor, alpha: strokeAlpha });
     }
     
     // Remove event listeners
@@ -513,7 +510,7 @@ export class TokenRotationUI {
   /**
    * Handle rotation update events
    */
-  private onRotationUpdate = (e: CustomEvent): void => {
+  private onRotationUpdate = (): void => {
     // Update handle positions when tokens rotate
     this.updateHandlePositions();
   };
@@ -521,7 +518,7 @@ export class TokenRotationUI {
   /**
    * Handle token drag update events
    */
-  private onTokenDragUpdate = (e: CustomEvent): void => {
+  private onTokenDragUpdate = (): void => {
     // Update handle positions when tokens are dragged
     this.updateHandlePositions();
   };
@@ -529,10 +526,10 @@ export class TokenRotationUI {
   /**
    * Handle token size changing events
    */
-  private onTokenSizeChanging = (e: CustomEvent): void => {
+  private onTokenSizeChanging = (e: CustomEvent<TokenGestureEventDetail>): void => {
     // Update handle positions when tokens are being resized
     if (this.tokenResizeUI) {
-      const tokenIds = e.detail?.tokenIds || [];
+      const tokenIds = e.detail.tokenIds;
       const tempSizes: Record<string, number> = {};
       for (const tokenId of tokenIds) {
         const tempSize = this.tokenResizeUI.getTemporarySize(tokenId);
@@ -547,9 +544,8 @@ export class TokenRotationUI {
   /**
    * Handle resize started events - hide rotation handles for specific tokens
    */
-  private onResizeStarted = (e: Event): void => {
-    const customEvent = e as CustomEvent;
-    const resizingTokenIds = customEvent.detail?.tokenIds || [];
+  private onResizeStarted = (e: CustomEvent<TokenGestureEventDetail>): void => {
+    const resizingTokenIds = e.detail.tokenIds;
     
     // Hide handles only for tokens being resized
     for (const tokenId of resizingTokenIds) {
@@ -564,9 +560,8 @@ export class TokenRotationUI {
   /**
    * Handle resize ended events - allow rotation handles to show again
    */
-  private onResizeEnded = (e: Event): void => {
-    const customEvent = e as CustomEvent;
-    const resizedTokenIds = customEvent.detail?.tokenIds || [];
+  private onResizeEnded = (e: CustomEvent<TokenGestureEventDetail>): void => {
+    const resizedTokenIds = e.detail.tokenIds;
     
     // Remove tokens from hidden set - they can now show rotation handles again
     for (const tokenId of resizedTokenIds) {
@@ -585,7 +580,7 @@ export class TokenRotationUI {
     if (tokenIds.length > 0) {
       const containers: Record<string, Container> = {};
       for (const id of tokenIds) {
-        const c = this.findTokenContainer(id);
+        const c = findTokenGroup(this.viewport, id);
         if (c) containers[id] = c;
       }
       this.showHandles(tokenIds, containers);
@@ -602,9 +597,9 @@ export class TokenRotationUI {
     this.hiddenDuringResize.clear();
     
     // Remove event listeners
-    window.removeEventListener('atlas-tokens-rotation-update', this.onRotationUpdate as EventListener);
-    window.removeEventListener('atlas-tokens-drag-update', this.onTokenDragUpdate as EventListener);
-    window.removeEventListener('atlas-token-size-changing', this.onTokenSizeChanging as EventListener);
+    window.removeEventListener('atlas-tokens-rotation-update', this.onRotationUpdate);
+    window.removeEventListener('atlas-tokens-drag-update', this.onTokenDragUpdate);
+    window.removeEventListener('atlas-token-size-changing', this.onTokenSizeChanging);
     window.removeEventListener('atlas-token-resize-started', this.onResizeStarted);
     window.removeEventListener('atlas-token-resize-ended', this.onResizeEnded);
     
@@ -624,7 +619,7 @@ export class TokenRotationUI {
    */
   public show(tokenId: string, tokenSize: number): void {
     // Find the token container in the viewport
-    const tokenContainer = this.findTokenContainer(tokenId);
+    const tokenContainer = findTokenGroup(this.viewport, tokenId);
     if (tokenContainer) {
       this.showHandles([tokenId], { [tokenId]: tokenContainer });
     } else {
@@ -632,22 +627,6 @@ export class TokenRotationUI {
     }
   }
   
-  private findTokenContainer(tokenId: string): Container | null {
-    // Look through viewport children for the token container
-    for (const child of this.viewport.children) {
-      if (child.label === 'tokenContainer') {
-        // Search through token container's children
-        for (const tokenGroup of child.children) {
-          if ((tokenGroup as any).tokenId === tokenId || 
-              (tokenGroup as any).tokenData?.id === tokenId) {
-            return tokenGroup;
-          }
-        }
-      }
-    }
-    return null;
-  }
-
   /**
    * Compatibility method for UIManager - hides all handles
    */

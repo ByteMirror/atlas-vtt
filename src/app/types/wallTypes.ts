@@ -6,7 +6,7 @@ export interface WallSegment {
   type: WallType;
   p1: { x: number; y: number };
   p2: { x: number; y: number };
-  direction?: 'left' | 'right';   // Light pass-through side (undefined = blocks both sides)
+  direction?: 'left' | 'right' | undefined;   // Light pass-through side (undefined = blocks both sides)
   closed?: boolean;               // Doors/secret doors: true = blocks vision (default true)
   chainId?: string;               // Groups segments from same draw action
 }

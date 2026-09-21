@@ -4,14 +4,15 @@ import { Sprite, Container, Graphics, Circle, Texture, Application, FederatedPoi
 import { Viewport } from "pixi-viewport";
 import { App as ObsidianApp, TFile, parseYaml } from 'obsidian';
 import type { TokenEntity } from "../types";
+import type { TokenGestureEventDetail } from '../types/atlasWindowEvents';
 import type { GridSystem } from "../grid/GridSystem";
 import { getDrawingBounds } from "./drawingGeometry";
-import type { ViewAtlasStore } from '../storeFactory';
+import type { TokenUpdates, ViewAtlasStore } from '../storeFactory';
 import { EventEmitter } from 'events';
 import { StatblockDialogService } from '../services/StatblockDialogService';
 import { AssetService } from '../services/AssetService';
 import { AssetValidationService } from '../services/AssetValidationService';
-import { TokenStatblockLinkService } from '../services/TokenStatblockLinkService';
+import { TokenStatblockLinkService, type LinkChangeEvent } from '../services/TokenStatblockLinkService';
 import { SpriteFactory } from './token-renderer/SpriteFactory';
 import { computeTokenPixelSize } from './token-renderer/tokenSizing';
 import { TextureCache } from './token-renderer/TextureCache';
@@ -19,6 +20,8 @@ import { UIManager } from './token-renderer/UIManager';
 import { InteractionController } from './token-renderer/InteractionController';
 import { SyncService } from './token-renderer/SyncService';
 import { updateInstanceBadge } from './token-renderer/InstanceBadge';
+import { buildStatblockLinkUpdates, readStatblockVitals } from './token-renderer/statblockFrontmatter';
+import type { TokenGroupContainer } from './token-renderer/types';
 import type { ConditionDefinition } from '../types/collectionSettingsTypes';
 import { setCanvasCursor } from './utils/canvasCursor';
 import { markHandled, resetHandled } from './utils/handledEvents';
@@ -29,7 +32,7 @@ export class TokenRenderer {
   private viewport: Viewport;
   private gridSystem: GridSystem;
   private tokenContainer: Container;
-  private tokenSprites: Record<string, Container | null> = {};
+  private tokenSprites: Record<string, TokenGroupContainer | null> = {};
   private tokenRings: Record<string, Graphics | Sprite> = {};
   private _unsubscribeFromStore?: () => void;
   private _unsubscribeFromViewport?: () => void;
@@ -60,14 +63,14 @@ export class TokenRenderer {
   private viewId: string;
   private themeObserver: MutationObserver | null = null;
   private isLocalPlayerMode: boolean = false;
+  private isDestroyed = false;
 
   // Store event handlers for proper cleanup
   private _handleGridTypeChange?: EventListener;
-  private _handleRotationUpdate?: EventListener;
-  private _handleResizeUpdate?: EventListener;
+  private _handleRotationUpdate?: (event: CustomEvent<TokenGestureEventDetail>) => void;
+  private _handleResizeUpdate?: (event: CustomEvent<TokenGestureEventDetail>) => void;
   private _handleRotationEnded?: EventListener;
   private _handleResizeEnded?: EventListener;
-  private _handleAssetPathChanged?: EventListener;
 
   // Fog provider pattern — wired by PixiRendererOrchestrator
   private fogHitTestProvider?: (worldX: number, worldY: number) => string | null;
@@ -210,12 +213,6 @@ export class TokenRenderer {
     // Set up viewport-level event handlers for token hit testing
     this.setupViewportEventHandlers();
     
-    // Method to force sync tokens during loading (called before hiding loading screen)
-    (this as any).forceSyncTokens = () => {
-      this.syncService.forceSyncTokens();
-    };
-    
-    
     // Only sync tokens if we have a valid map path
     // This prevents syncing with stale tokens from previous maps
     const currentMapPath = this.store.getState().mapPath;
@@ -298,14 +295,14 @@ export class TokenRenderer {
     this.eventBus.on('map-loaded', handleMapLoaded);
     
     // Listen for grid type changes to re-snap tokens
-    this._handleGridTypeChange = ((event: CustomEvent) => {
+    this._handleGridTypeChange = (): void => {
       this.resnapAllTokens();
-    }) as EventListener;
+    };
 
     window.addEventListener('atlas-grid-type-changed', this._handleGridTypeChange);
     
     // Listen for rotation updates during drag
-    this._handleRotationUpdate = ((event: CustomEvent) => {
+    this._handleRotationUpdate = (event): void => {
       const tokenIds = event.detail?.tokenIds || [];
       const tokens = this.store.getState().objects.tokens;
 
@@ -317,7 +314,7 @@ export class TokenRenderer {
           runInBackground(this.syncTokens({ [tokenId]: token }, { [tokenId]: token }), `Token sync for ${tokenId}`);
         }
       }
-    }) as EventListener;
+    };
 
     window.addEventListener('atlas-tokens-rotation-update', this._handleRotationUpdate);
     
@@ -329,7 +326,7 @@ export class TokenRenderer {
 
       if (!isPlayerView && selectedIds.length > 0) {
         // Show resize handles for all selected tokens
-        this.uiManager.getResizeUI()?.showHandles(selectedIds, this.tokenSprites as Record<string, Container>);
+        this.uiManager.getResizeUI()?.showHandles(selectedIds, this.getTokenSprites());
       }
     });
 
@@ -341,7 +338,7 @@ export class TokenRenderer {
 
       if (!isPlayerView && selectedIds.length > 0) {
         // Show rotation handles for all selected tokens
-        this.uiManager.getRotationUI()?.showHandles(selectedIds, this.tokenSprites as Record<string, Container>);
+        this.uiManager.getRotationUI()?.showHandles(selectedIds, this.getTokenSprites());
       }
     });
 
@@ -349,7 +346,7 @@ export class TokenRenderer {
     window.addEventListener('atlas-token-resize-ended', this._handleResizeEnded);
     
     // Listen for resize updates during drag
-    this._handleResizeUpdate = ((event: CustomEvent) => {
+    this._handleResizeUpdate = (event): void => {
       const tokenIds = event.detail?.tokenIds || [];
       const tokens = this.store.getState().objects.tokens;
 
@@ -403,14 +400,13 @@ export class TokenRenderer {
 
                 // Always refresh ring, even when token has no explicit ringColor,
                 // so default ring tokens stay in sync with renderer updates.
-                const ringColor = (token as any).ringColor;
-                this.updateTokenRing(tokenId, tokenGroup, tokenSize, ringColor);
+                this.updateTokenRing(tokenId, tokenGroup, tokenSize, token.ringColor);
               }
             }
           }
         }
       }
-    }) as EventListener;
+    };
 
     window.addEventListener('atlas-tokens-resize-update', this._handleResizeUpdate);
     
@@ -462,86 +458,65 @@ export class TokenRenderer {
         }
         
         // Update tokens on the current map that are linked to this statblock with new data
+        const vitals = readStatblockVitals(metadata.frontmatter);
         const tokens = this.store.getState().objects.tokens;
         for (const [tokenId, token] of Object.entries(tokens)) {
-          const character = token as any;
-          if (character.statblockPath === statblockPath) {
-            // Update token with fresh data from the statblock
-            let updates: any = {};
-            
-            const frontmatter = metadata.frontmatter;
-            if (frontmatter) {
-              // Extract HP - handle both formats
-              if (typeof frontmatter.hp === 'number') {
-                updates.hp = { current: character.hp?.current ?? frontmatter.hp, max: frontmatter.hp };
-              } else if (typeof frontmatter.hp === 'object' && frontmatter.hp !== null) {
-                updates.hp = {
-                  current: character.hp?.current ?? frontmatter.hp.current ?? frontmatter.hp.max ?? 0,
-                  max: frontmatter.hp.max || frontmatter.hp.current || 0
-                };
-              }
-              
-              // Update other attributes (but preserve current values like stress)
-              updates.name = frontmatter.name || character.name;
-              
-              if (frontmatter.stress !== undefined) {
-                updates.maxStress = frontmatter.stress;
-                // Preserve current stress, don't reset it
-                if (character.stress === undefined) {
-                  updates.stress = 0;
-                }
-              }
-              
-              if (frontmatter.difficulty !== undefined) {
-                updates.difficulty = frontmatter.difficulty;
-              }
-              
-              // Update the token image if it has changed
-              if (newTokenImage && character.imagePath !== newTokenImage) {
-                updates.imagePath = newTokenImage;
-              }
-            }
-            
-            if (Object.keys(updates).length > 0) {
-              this.store.getState().updateToken(tokenId, updates);
+          if (token.kind !== 'character' || token.statblockPath !== statblockPath) continue;
+
+          // Refresh statblock-derived data but keep live values such as current HP and stress
+          const updates: TokenUpdates = { name: vitals.name || token.name };
+
+          if (vitals.hp) {
+            const currentHp = typeof token.hp === 'object' ? token.hp.current : undefined;
+            updates.hp = {
+              current: currentHp ?? vitals.hp.current ?? vitals.hp.max ?? 0,
+              max: vitals.hp.max || vitals.hp.current || 0
+            };
+          }
+
+          if (vitals.maxStress !== undefined) {
+            updates.maxStress = vitals.maxStress;
+            if (token.stress === undefined) {
+              updates.stress = 0;
             }
           }
+
+          if (vitals.difficulty !== undefined) {
+            updates.difficulty = vitals.difficulty;
+          }
+
+          if (newTokenImage && token.imagePath !== newTokenImage) {
+            updates.imagePath = newTokenImage;
+          }
+
+          this.store.getState().updateToken(tokenId, updates);
         }
       }
     });
     
     // Listen for token-statblock link changes from the centralized service
-    const handleLinkChange = (event: any) => {
+    const handleLinkChange = (event: LinkChangeEvent): void => {
       // Find tokens on the current map that use the affected image
       const tokens = this.store.getState().objects.tokens;
-      const affectedTokenIds: string[] = [];
-      
-      for (const [tokenId, token] of Object.entries(tokens)) {
-        const tokenImagePath = (token as any).imagePath;
-        if (tokenImagePath === event.tokenImagePath) {
-          affectedTokenIds.push(tokenId);
-        }
-      }
-      
-      // Update affected tokens based on the event
+      const affectedTokenIds = Object.keys(tokens).filter(
+        (tokenId) => tokens[tokenId]?.imagePath === event.tokenImagePath
+      );
+
       if (event.type === 'linked' && event.statblockPath) {
         // Token was linked to a statblock - update all instances with statblock data
         void this.updateTokensWithStatblockData(affectedTokenIds, event.statblockPath);
       } else if (event.type === 'unlinked') {
         // Token was unlinked from statblock - clear ALL statblock-derived data
         for (const tokenId of affectedTokenIds) {
-          const token = tokens[tokenId];
-          if (token) {
-            this.store.getState().updateToken(tokenId, {
-              statblockPath: undefined,
-              name: undefined,
-              statblockName: undefined,
-              hp: undefined,
-              stress: undefined,
-              difficulty: undefined,
-              showNameplate: false
-            } as any);
-          }
+          this.store.getState().updateToken(tokenId, {
+            statblockPath: undefined,
+            name: undefined,
+            statblockName: undefined,
+            hp: undefined,
+            stress: undefined,
+            difficulty: undefined,
+            showNameplate: false
+          });
         }
       }
     };
@@ -629,7 +604,7 @@ export class TokenRenderer {
     tokenGroup.interactiveChildren = false;
   }
 
-  private updateTokenRing(tokenId: string, tokenGroup: Container, size: number, ringColor?: string): void {
+  private updateTokenRing(tokenId: string, tokenGroup: TokenGroupContainer, size: number, ringColor?: string): void {
     const tokenSettings = this.store.getState().tokenSettings || {
       showNameplates: false,
       showHPBars: true,
@@ -682,7 +657,7 @@ export class TokenRenderer {
       for (const token of groupTokens) {
         const tokenGroup = this.tokenSprites[token.id];
         if (tokenGroup) {
-          const tokenSize = (tokenGroup as any).tokenSize || 70;
+          const tokenSize = tokenGroup.tokenSize || 70;
           updateInstanceBadge(tokenGroup, token.instanceNumber ?? 1, tokenSize, shouldShow);
         }
       }
@@ -742,9 +717,9 @@ export class TokenRenderer {
     prevTokensRecord: Record<string, TokenEntity>
   ): Promise<void> => {
 
-    if (!this.gridSystem) {
-        console.warn("[TokenRenderer] syncTokens called before gridSystem is initialized.");
-        return;
+    // Syncs queued before destroy() may still run afterwards
+    if (this.isDestroyed) {
+      return;
     }
 
     const container = this.tokenContainer;
@@ -821,12 +796,12 @@ export class TokenRenderer {
       }
 
       // Skip if we have a token sprite (including placeholder)
-      const existingTokenGroup = existingSprite as Container;
       if (existingSprite !== undefined) {
         // If it's still being created (null placeholder), skip
         if (existingSprite === null) {
           continue;
         }
+        const existingTokenGroup = existingSprite;
 
         // Only update position if it changed
         if (!prevToken || prevToken.x !== token.x || prevToken.y !== token.y) {
@@ -868,7 +843,7 @@ export class TokenRenderer {
         const tempSize = this.uiManager.getResizeUI()?.getTemporarySize(token.id);
         
         // Update resize handle positions when token size changes
-        const sizeChanged = !prevToken || (prevToken as any).size !== (token as any).size || tempSize !== undefined;
+        const sizeChanged = !prevToken || prevToken.size !== token.size || tempSize !== undefined;
         if (sizeChanged) {
           this.uiManager.getResizeUI()?.updateHandlePositions();
           // Also update rotation handles since token size affects their position
@@ -881,10 +856,10 @@ export class TokenRenderer {
         }
         
         // Update size if it changed (not temporary)
-        if (!prevToken || (prevToken as any).size !== (token as any).size) {
+        if (!prevToken || prevToken.size !== token.size) {
           // Only update actual size if there's no temporary size override
           if (tempSize === undefined) {
-            const newSize = (token as any).size || 1;
+            const newSize = token.size || 1;
             this.spriteFactory.updateTokenSize(token.id, existingTokenGroup, newSize);
             const tokenSize = computeTokenPixelSize(this.gridSystem.getOptions().size, newSize);
             
@@ -892,8 +867,7 @@ export class TokenRenderer {
             this.uiManager.syncUIScale(token.id, tokenSize);
             
             // Always refresh ring, even when token has no explicit ringColor.
-            const ringColor = (token as any).ringColor;
-            this.updateTokenRing(token.id, existingTokenGroup, tokenSize, ringColor);
+            this.updateTokenRing(token.id, existingTokenGroup, tokenSize, token.ringColor);
           }
         }
 
@@ -914,21 +888,14 @@ export class TokenRenderer {
         }
         
         // Update ring color if it changed
-        const newRingColor = (token as any).ringColor;
-        const prevRingColor = prevToken ? (prevToken as any).ringColor : undefined;
+        const newRingColor = token.ringColor;
+        const prevRingColor = prevToken?.ringColor;
         if (newRingColor !== prevRingColor) {
           // Calculate token size for ring update
-          const currentSize = tempSize !== undefined ? tempSize : ((token as any).size || 1);
+          const currentSize = tempSize !== undefined ? tempSize : (token.size || 1);
           const tokenSize = computeTokenPixelSize(this.gridSystem.getOptions().size, currentSize);
           
           this.updateTokenRing(token.id, existingTokenGroup, tokenSize, newRingColor);
-        }
-        
-        // Check for defeated status changes
-        const isDefeated = (token as any).isDefeated || false;
-        const wasDefeated = prevToken ? (prevToken as any).isDefeated || false : false;
-        if (isDefeated !== wasDefeated) {
-          this.updateDefeatedState(token.id, existingTokenGroup, isDefeated);
         }
         
         // Update token UI with any state changes
@@ -944,45 +911,22 @@ export class TokenRenderer {
       // Create new token sprite asynchronously
       void (async () => {
         try {
-          let character = token as any;
-          
-          // Check if this token is linked to a statblock via its image
-          if (character.imagePath) {
-            const linkedStatblockPath = await this.tokenStatblockLinkService.getStatblockLinkedToToken(character.imagePath);
-            if (linkedStatblockPath && !character.statblockPath) {
-              // Token is linked to a statblock but doesn't have the path set yet
-              character = { ...character, statblockPath: linkedStatblockPath };
-              
-              // Load initial data from the statblock
+          let character: TokenEntity = token;
+
+          // A character whose image is linked to a statblock but that has no path set yet
+          // starts out with the statblock's data
+          if (token.imagePath) {
+            const linkedStatblockPath = await this.tokenStatblockLinkService.getStatblockLinkedToToken(token.imagePath);
+            if (linkedStatblockPath && token.kind === 'character' && !token.statblockPath) {
+              character = { ...token, statblockPath: linkedStatblockPath };
+
               try {
                 const statblockFile = this.obsApp.vault.getAbstractFileByPath(linkedStatblockPath);
-                if (statblockFile instanceof TFile) {
-                  const metadata = this.obsApp.metadataCache.getFileCache(statblockFile);
-                  const frontmatter = metadata?.frontmatter;
-                  if (frontmatter) {
-                    // Extract HP - handle both formats
-                    if (typeof frontmatter.hp === 'number') {
-                      character.hp = { current: frontmatter.hp, max: frontmatter.hp };
-                    } else if (typeof frontmatter.hp === 'object' && frontmatter.hp !== null) {
-                      character.hp = {
-                        current: frontmatter.hp.current || frontmatter.hp.max || 0,
-                        max: frontmatter.hp.max || frontmatter.hp.current || 0
-                      };
-                    }
-                    
-                    // Extract other attributes
-                    character.name = frontmatter.name || character.name;
-                    character.showNameplate = true;
-                    
-                    if (frontmatter.stress !== undefined) {
-                      character.stress = 0; // Current stress starts at 0
-                      character.maxStress = frontmatter.stress;
-                    }
-                    
-                    if (frontmatter.difficulty !== undefined) {
-                      character.difficulty = frontmatter.difficulty;
-                    }
-                  }
+                const frontmatter = statblockFile instanceof TFile
+                  ? this.obsApp.metadataCache.getFileCache(statblockFile)?.frontmatter
+                  : undefined;
+                if (frontmatter) {
+                  character = { ...character, ...buildStatblockLinkUpdates(frontmatter, token.name) };
                 }
               } catch (error) {
                 console.error(`[TokenRenderer] Failed to load statblock data for token ${token.id}:`, error);
@@ -998,7 +942,12 @@ export class TokenRenderer {
           
           // Create sprite through factory
           const tokenGroup = await this.spriteFactory.createTokenSprite(character, texture);
-          
+
+          if (this.isDestroyed) {
+            tokenGroup.destroy({ children: true, texture: false });
+            return;
+          }
+
           // Set up interaction handlers
           this.interactionController.attachInteractionHandlers(token.id, tokenGroup, token);
           
@@ -1017,7 +966,7 @@ export class TokenRenderer {
           // Create UI elements
           this.uiManager.createTokenUI(token.id, tokenGroup, character);
           
-          this.applyTokenVisibilityPolicy(character as TokenEntity, tokenGroup);
+          this.applyTokenVisibilityPolicy(character, tokenGroup);
           
           // Request sort for proper z-ordering
           this.requestSort();
@@ -1042,7 +991,7 @@ export class TokenRenderer {
 
   private async updateTokenSpriteTexture(
     token: TokenEntity,
-    tokenGroup: Container,
+    tokenGroup: TokenGroupContainer,
     previousImagePath?: string
   ): Promise<void> {
     const sprite = tokenGroup.getChildByLabel('tokenSprite') as Sprite | null;
@@ -1050,7 +999,7 @@ export class TokenRenderer {
       return;
     }
 
-    const texture = await this.textureCache.loadTokenTexture(token as any);
+    const texture = await this.textureCache.loadTokenTexture(token);
 
     // Abort if this sprite was replaced while awaiting texture load.
     if (this.tokenSprites[token.id] !== tokenGroup) {
@@ -1058,8 +1007,8 @@ export class TokenRenderer {
     }
 
     sprite.texture = texture;
-    const tokenSize = (tokenGroup as any).tokenSize;
-    if (typeof tokenSize === 'number' && Number.isFinite(tokenSize) && tokenSize > 0) {
+    const tokenSize = tokenGroup.tokenSize;
+    if (Number.isFinite(tokenSize) && tokenSize > 0) {
       sprite.width = tokenSize;
       sprite.height = tokenSize;
     }
@@ -1090,31 +1039,26 @@ export class TokenRenderer {
     // Layer/z-index changes
     if (token.layer !== prevToken.layer) return true;
 
-    // Extended properties (cast to any for optional fields)
-    const t = token as any;
-    const p = prevToken as any;
-
     // Size changes
-    if (t.size !== p.size) return true;
+    if (token.size !== prevToken.size) return true;
 
     // Ring color changes
-    if (t.ringColor !== p.ringColor) return true;
+    if (token.ringColor !== prevToken.ringColor) return true;
 
     // Visibility/hidden state changes
-    if (t.isHidden !== p.isHidden) return true;
+    if (token.isHidden !== prevToken.isHidden) return true;
 
-    // Defeated state changes
-    if (t.isDefeated !== p.isDefeated) return true;
+    // Nameplate changes
+    if (token.showNameplate !== prevToken.showNameplate) return true;
 
-    // Name/nameplate changes
-    if (t.name !== p.name || t.showNameplate !== p.showNameplate) return true;
-
-    // HP changes (check object equality)
-    const hpChanged = JSON.stringify(t.hp) !== JSON.stringify(p.hp);
-    if (hpChanged) return true;
-
-    // Statblock path changes
-    if (t.statblockPath !== p.statblockPath) return true;
+    // Character data: name, HP and stress (compared by value) and statblock link
+    const character = token.kind === 'character' ? token : undefined;
+    const prevCharacter = prevToken.kind === 'character' ? prevToken : undefined;
+    if (character?.name !== prevCharacter?.name) return true;
+    if (JSON.stringify(character?.hp) !== JSON.stringify(prevCharacter?.hp)) return true;
+    if (JSON.stringify(character?.stress) !== JSON.stringify(prevCharacter?.stress)) return true;
+    if (character?.maxStress !== prevCharacter?.maxStress) return true;
+    if (character?.statblockPath !== prevCharacter?.statblockPath) return true;
 
     // Texture source changes
     if (token.imagePath !== prevToken.imagePath) return true;
@@ -1122,113 +1066,6 @@ export class TokenRenderer {
     return false;
   }
 
-  private updateDefeatedState(tokenId: string, tokenGroup: Container, isDefeated: boolean): void {
-    const defeatedIconContainer = tokenGroup.getChildByLabel('defeatedIcon') as Container;
-    
-    if (isDefeated && !defeatedIconContainer) {
-      // Create defeated icon with glow effect
-      const defeatedIconContainer = new Container();
-      defeatedIconContainer.label = 'defeatedIcon';
-      
-      // Get token size from the sprite
-      const sprite = tokenGroup.getChildByLabel('tokenSprite') as Sprite;
-      if (!sprite) return;
-      
-      const tokenSize = sprite.width;
-      const iconSize = tokenSize * 0.4; // 40% of token size
-      
-      // Create glow effect container
-      const glowContainer = new Container();
-      
-      // Create multiple glow layers for softer effect
-      const glowGraphics = new Graphics();
-      glowGraphics.circle(0, 0, iconSize / 2 + 10);
-      glowGraphics.fill({ color: 0xef4444, alpha: 0.3 });
-      (glowContainer as any).glowGraphics = glowGraphics;
-      glowContainer.addChild(glowGraphics);
-      
-      // Create main icon background
-      const iconBg = new Graphics();
-      iconBg.circle(0, 0, iconSize / 2);
-      iconBg.fill(0xdc2626); // Red background
-      iconBg.stroke({ width: 2, color: 0x991b1b }); // Darker red border
-      
-      // Create X shape
-      const xGraphics = new Graphics();
-      const xSize = iconSize * 0.5;
-      const xThickness = iconSize * 0.12;
-      
-      // Draw thick X
-      xGraphics.moveTo(-xSize/2, -xSize/2);
-      xGraphics.lineTo(xSize/2, xSize/2);
-      xGraphics.moveTo(xSize/2, -xSize/2);
-      xGraphics.lineTo(-xSize/2, xSize/2);
-      xGraphics.stroke({ width: xThickness, color: 0xffffff, cap: 'round' });
-      
-      // Add components to defeated icon container
-      defeatedIconContainer.addChild(glowContainer);
-      defeatedIconContainer.addChild(iconBg);
-      defeatedIconContainer.addChild(xGraphics);
-      
-      // Position at center of token
-      defeatedIconContainer.position.set(0, 0);
-      defeatedIconContainer.zIndex = 10; // Above token but below UI
-      
-      tokenGroup.addChild(defeatedIconContainer);
-      tokenGroup.sortChildren();
-      
-      // Start pulsing animation
-      this.startPulsingGlow(glowContainer, iconSize);
-    } else if (!isDefeated && defeatedIconContainer) {
-      // Stop any running animations
-      const glowContainer = defeatedIconContainer.children.find(child => (child as any).glowGraphics) as Container;
-      if (glowContainer) {
-        if (this.pixiApp) {
-          this.pixiApp.ticker.remove((glowContainer as any).pulseAnimation);
-        }
-      }
-      
-      // Remove defeated icon
-      tokenGroup.removeChild(defeatedIconContainer);
-      defeatedIconContainer.destroy({ children: true });
-    }
-  }
-  
-  private startPulsingGlow(glowContainer: Container, iconSize: number): void {
-    const glowGraphics = (glowContainer as any).glowGraphics as Graphics;
-    let pulseTime = 0;
-    
-    const pulseAnimation = (ticker: any) => {
-      const delta = ticker.deltaTime || ticker;
-      pulseTime += delta * 0.05; // Adjust speed of pulsing
-      
-      // Calculate pulse intensity using sine wave
-      const pulseIntensity = (Math.sin(pulseTime) + 1) / 2; // 0 to 1
-      const glowRadius = iconSize / 2 + (10 * pulseIntensity); // Grow glow radius
-      const glowAlpha = 0.3 + (0.3 * pulseIntensity); // Pulse alpha
-      
-      // Redraw glow
-      glowGraphics.clear();
-      
-      // Draw multiple glow layers for softer effect
-      for (let i = 3; i > 0; i--) {
-        const layerRadius = glowRadius * (1 + i * 0.3);
-        const layerAlpha = glowAlpha * (0.3 / i);
-        glowGraphics.fill({ color: 0xef4444, alpha: layerAlpha });
-        glowGraphics.circle(0, 0, layerRadius);
-        glowGraphics.fill();
-      }
-    };
-    
-    // Store animation reference for cleanup
-    (glowContainer as any).pulseAnimation = pulseAnimation;
-    
-    // Add to ticker
-    if (this.pixiApp) {
-      this.pixiApp.ticker.add(pulseAnimation);
-    }
-  }
-  
   private async updateHiddenIcon(tokenId: string, tokenGroup: Container, isHidden: boolean): Promise<void> {
     let hiddenIconContainer = tokenGroup.getChildByLabel('hiddenIcon') as Container;
     
@@ -1336,21 +1173,18 @@ export class TokenRenderer {
   /**
    * Enhance character object with statblock name for nameplate display
    */
-  private async enhanceCharacterWithStatblockName(character: any): Promise<any> {
-    // If character already has a custom name, no need to load statblock name
-    if (character.name) {
+  private async enhanceCharacterWithStatblockName(character: TokenEntity): Promise<TokenEntity> {
+    // A custom name wins over the statblock name; without a statblock there is nothing to load
+    if (character.kind !== 'character' || character.name || !character.statblockPath) {
       return character;
     }
-    
-    // If no statblock path, return as is
-    if (!character.statblockPath) {
-      return character;
-    }
-    
+
+    const statblockPath = character.statblockPath;
+
     try {
-      const file = this.obsApp.vault.getAbstractFileByPath(character.statblockPath);
+      const file = this.obsApp.vault.getAbstractFileByPath(statblockPath);
       if (!(file instanceof TFile)) {
-        console.warn(`[TokenRenderer] Statblock file not found: ${character.statblockPath}`);
+        console.warn(`[TokenRenderer] Statblock file not found: ${statblockPath}`);
         return character;
       }
       
@@ -1358,30 +1192,30 @@ export class TokenRenderer {
       const match = content.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
       
       if (!match) {
-        console.warn(`[TokenRenderer] Invalid statblock format in file: ${character.statblockPath}`);
+        console.warn(`[TokenRenderer] Invalid statblock format in file: ${statblockPath}`);
         return character;
       }
       
-      const statblockData = parseYaml(match[1]!);
+      const statblockData: unknown = parseYaml(match[1]!);
       if (!statblockData || typeof statblockData !== 'object') {
-        console.warn(`[TokenRenderer] Failed to parse YAML in statblock: ${character.statblockPath}`);
+        console.warn(`[TokenRenderer] Failed to parse YAML in statblock: ${statblockPath}`);
         return character;
       }
-      
-      // Create enhanced character with statblock name
-      const enhancedCharacter = {
-        ...character,
-        statblockName: statblockData.name || null
-      };
 
-      return enhancedCharacter;
+      const name = 'name' in statblockData ? statblockData.name : undefined;
+      return {
+        ...character,
+        statblockName: typeof name === 'string' && name ? name : null
+      };
     } catch (error) {
-      console.error(`[TokenRenderer] Error loading statblock at ${character.statblockPath}:`, error);
+      console.error(`[TokenRenderer] Error loading statblock at ${statblockPath}:`, error);
       return character;
     }
   }
 
   public destroy(): void {
+    this.isDestroyed = true;
+
     // Unsubscribe from store
     this._unsubscribeFromStore?.();
     this._unsubscribeFromViewport?.();
@@ -1455,9 +1289,7 @@ export class TokenRenderer {
     // Now destroy the container and its children. 
     // Textures associated with sprites in tokenContainer should be handled by PixiAppManager.destroy
     // if they were not individually destroyed from the cache.
-    if (this.tokenContainer) { // Add null check
-        this.tokenContainer.destroy({ children: true, texture: false });
-    }
+    this.tokenContainer.destroy({ children: true, texture: false });
     
     // Destroy all cached textures using centralized method
     this.textureCache.destroyAll();
@@ -1466,13 +1298,6 @@ export class TokenRenderer {
     this.tokenSprites = {};
     this.tokenRings = {};
 
-    // Nullify other references if necessary
-    (this as any).obsApp = null;
-    (this as any).viewport = null;
-    (this as any).gridSystem = null;
-    (this as any).tokenContainer = null;
-    (this as any).store = null;
-    (this as any).eventBus = null;
     this.pixiApp = null;
   }
 
@@ -1504,33 +1329,12 @@ export class TokenRenderer {
       for (const tokenId of tokenIds) {
         const token = this.store.getState().objects.tokens[tokenId];
         if (!token) continue;
-        
-        let updates: any = { statblockPath };
-        
-        // Extract HP - handle both formats
-        if (typeof frontmatter.hp === 'number') {
-          updates.hp = { current: frontmatter.hp, max: frontmatter.hp };
-        } else if (typeof frontmatter.hp === 'object' && frontmatter.hp !== null) {
-          updates.hp = {
-            current: frontmatter.hp.current || frontmatter.hp.max || 0,
-            max: frontmatter.hp.max || frontmatter.hp.current || 0
-          };
-        }
-        
-        // Extract other attributes
-        updates.name = frontmatter.name || (token as any).name;
-        updates.showNameplate = true;
-        
-        if (frontmatter.stress !== undefined) {
-          updates.stress = 0; // Current stress starts at 0
-          updates.maxStress = frontmatter.stress;
-        }
-        
-        if (frontmatter.difficulty !== undefined) {
-          updates.difficulty = frontmatter.difficulty;
-        }
-        
-        this.store.getState().updateToken(tokenId, updates);
+
+        const currentName = token.kind === 'character' ? token.name : undefined;
+        this.store.getState().updateToken(tokenId, {
+          statblockPath,
+          ...buildStatblockLinkUpdates(frontmatter, currentName)
+        });
       }
     } catch (error) {
       console.error('[TokenRenderer] Failed to update tokens with statblock data:', error);
@@ -1615,8 +1419,13 @@ export class TokenRenderer {
   }
 
   /** Get all token sprites for external systems like SelectionManager. */
-  public getTokenSprites(): Record<string, Container> {
-    return this.tokenSprites as Record<string, Container>;
+  public getTokenSprites(): Record<string, TokenGroupContainer> {
+    return this.tokenSprites as Record<string, TokenGroupContainer>;
+  }
+
+  /** Applies a token sync that was deferred while the map was loading. */
+  public forceSyncTokens(): void {
+    this.syncService.forceSyncTokens();
   }
 
   // ─── Fog provider setters ───────────────────────────────────────────

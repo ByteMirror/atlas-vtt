@@ -3,6 +3,7 @@ import { Volume2, VolumeX, Play, Pause, Repeat, X, Headphones, MoreHorizontal } 
 import { AudioTrack } from '../../services/AudioService';
 import { Slider } from '../../packages/components/primitives/slider';
 import { DropdownMenu } from '../../packages/components/primitives/DropdownMenu';
+import { LabelTooltip } from '../../packages/components/primitives/tooltip';
 
 interface TrackCardProps {
     track: AudioTrack;
@@ -88,13 +89,14 @@ export const TrackCard: React.FC<TrackCardProps> = ({
     return (
         <div className={`atlas-track-card ${channel} ${isPlaying ? 'playing' : ''} ${track.solo ? 'solo' : ''}`}>
             <div className="atlas-track-header">
-                <button
-                    className="atlas-track-play-button"
-                    onClick={isPlaying ? onPause : onPlay}
-                    aria-label={isPlaying ? 'Pause' : 'Play'}
-                >
-                    {isPlaying ? <Pause size={18} /> : <Play size={18} />}
-                </button>
+                <LabelTooltip label={isPlaying ? 'Pause' : 'Play'}>
+                    <button
+                        className="atlas-track-play-button"
+                        onClick={isPlaying ? onPause : onPlay}
+                    >
+                        {isPlaying ? <Pause size={18} /> : <Play size={18} />}
+                    </button>
+                </LabelTooltip>
                 
                 <div className="atlas-track-info">
                     <div className="atlas-track-title">{track.title}</div>
@@ -120,48 +122,53 @@ export const TrackCard: React.FC<TrackCardProps> = ({
                 <div className="atlas-track-controls">
                     {/* Regular controls for larger screens */}
                     <div className="atlas-track-controls-full">
-                        <button
-                            className={`atlas-track-control-button ${track.loop ? 'active' : ''}`}
-                            onClick={onLoopToggle}
-                            aria-label="Toggle loop"
-                        >
-                            <Repeat size={18} />
-                        </button>
+                        <LabelTooltip label="Toggle loop">
+                            <button
+                                className={`atlas-track-control-button ${track.loop ? 'active' : ''}`}
+                                onClick={onLoopToggle}
+                            >
+                                <Repeat size={18} />
+                            </button>
+                        </LabelTooltip>
 
-                        <button
-                            className="atlas-track-control-button"
-                            onClick={onMuteToggle}
-                            aria-label={track.muted ? 'Unmute' : 'Mute'}
-                        >
-                            {track.muted ? <VolumeX size={18} /> : <Volume2 size={18} />}
-                        </button>
+                        <LabelTooltip label={track.muted ? 'Unmute' : 'Mute'}>
+                            <button
+                                className="atlas-track-control-button"
+                                onClick={onMuteToggle}
+                            >
+                                {track.muted ? <VolumeX size={18} /> : <Volume2 size={18} />}
+                            </button>
+                        </LabelTooltip>
 
-                        <button
-                            className={`atlas-track-control-button ${track.solo ? 'active' : ''}`}
-                            onClick={onSoloToggle}
-                            aria-label="Solo"
-                        >
-                            <Headphones size={18} />
-                        </button>
+                        <LabelTooltip label="Solo">
+                            <button
+                                className={`atlas-track-control-button ${track.solo ? 'active' : ''}`}
+                                onClick={onSoloToggle}
+                            >
+                                <Headphones size={18} />
+                            </button>
+                        </LabelTooltip>
 
-                        <button
-                            className="atlas-track-control-button"
-                            onClick={onRemove}
-                            aria-label="Remove track"
-                        >
-                            <X size={18} />
-                        </button>
+                        <LabelTooltip label="Remove track">
+                            <button
+                                className="atlas-track-control-button"
+                                onClick={onRemove}
+                            >
+                                <X size={18} />
+                            </button>
+                        </LabelTooltip>
                     </div>
 
                     {/* Compact controls with overflow menu for small screens */}
                     <div className="atlas-track-controls-compact">
-                        <button
-                            className="atlas-track-control-button"
-                            onClick={onMuteToggle}
-                            aria-label={track.muted ? 'Unmute' : 'Mute'}
-                        >
-                            {track.muted ? <VolumeX size={18} /> : <Volume2 size={18} />}
-                        </button>
+                        <LabelTooltip label={track.muted ? 'Unmute' : 'Mute'}>
+                            <button
+                                className="atlas-track-control-button"
+                                onClick={onMuteToggle}
+                            >
+                                {track.muted ? <VolumeX size={18} /> : <Volume2 size={18} />}
+                            </button>
+                        </LabelTooltip>
 
                         <DropdownMenu
                             isOpen={isOverflowMenuOpen}
@@ -171,13 +178,14 @@ export const TrackCard: React.FC<TrackCardProps> = ({
                             label="More options"
                             triggerRef={overflowButtonRef}
                             triggerButton={
-                                <button
-                                    ref={overflowButtonRef}
-                                    className="atlas-track-control-button"
-                                    aria-label="More options"
-                                >
-                                    <MoreHorizontal size={18} />
-                                </button>
+                                <LabelTooltip label="More options">
+                                    <button
+                                        ref={overflowButtonRef}
+                                        className="atlas-track-control-button"
+                                    >
+                                        <MoreHorizontal size={18} />
+                                    </button>
+                                </LabelTooltip>
                             }
                             menuClassName="atlas-track-overflow-menu"
                         >

@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events';
-import { GridController } from '../grid/GridController';
-import { AtlasMapData } from '../types';
+import { GridController, type GridMapData } from '../grid/GridController';
+import type { PixiRendererOrchestrator } from '../PixiRendererOrchestrator';
 
 export class GridManager {
   private isVisible: boolean = true;
@@ -14,11 +14,6 @@ export class GridManager {
       this.isVisible = isVisible;
       this.updateGridVisibility();
     });
-    
-    // Listen for map loaded events
-    this.eventBus.on('map-loaded', (mapData: AtlasMapData) => {
-      this.onMapLoaded(mapData);
-    });
   }
   
   /**
@@ -27,7 +22,7 @@ export class GridManager {
    * @param mapData The current map data
    * @returns The new visibility state
    */
-  public toggle(renderer: any, mapData: AtlasMapData | null): boolean {
+  public toggle(renderer: PixiRendererOrchestrator | null, mapData: GridMapData | null): boolean {
     if (!renderer) {
       console.warn('[GridManager] Cannot toggle grid: renderer not initialized');
       return this.isVisible;
@@ -47,16 +42,6 @@ export class GridManager {
   private updateGridVisibility(): void {
     // This will be called when tool controller changes visibility
     // Implementation will use the renderer when available
-  }
-  
-  /**
-   * Handle map loaded event
-   * @param mapData The loaded map data
-   */
-  private onMapLoaded(mapData: AtlasMapData): void {
-    // Update grid based on map data
-    // The actual implementation would use the renderer to update the grid
-    // based on mapData.grid settings
   }
   
   /**

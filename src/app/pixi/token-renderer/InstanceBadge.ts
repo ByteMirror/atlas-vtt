@@ -1,5 +1,6 @@
 import { Container, Graphics, Text, TextStyle } from 'pixi.js';
 import { getTokenRingCenterRadius } from './tokenRingMetrics';
+import type { TokenGroupContainer } from './types';
 
 const BADGE_NAME = 'instanceBadge';
 const BG_NAME = 'badgeBg';
@@ -11,7 +12,7 @@ const TEXT_NAME = 'badgeText';
  * If it doesn't exist, creates it.
  */
 export function updateInstanceBadge(
-  tokenGroup: Container,
+  tokenGroup: TokenGroupContainer,
   instanceNumber: number,
   tokenSize: number,
   visible: boolean,
@@ -20,8 +21,8 @@ export function updateInstanceBadge(
   const fontSize = Math.max(10, badgeRadius * 1.3);
 
   // Position badge centered on the token ring band
-  const baseTokenSize = (tokenGroup as any).tokenSize || tokenSize;
-  const strokeWidth = (tokenGroup as any).strokeWidth || 4;
+  const baseTokenSize = tokenGroup.tokenSize || tokenSize;
+  const strokeWidth = tokenGroup.strokeWidth || 4;
   const ringScale = baseTokenSize > 0 ? tokenSize / baseTokenSize : 1;
   const ringRadius = getTokenRingCenterRadius(tokenSize, strokeWidth, ringScale);
   const angle = (-45 * Math.PI) / 180;

@@ -1,6 +1,7 @@
 import { WIDGET_ICON_PATHS, resolveWidgetIcon } from '../types/widgetIcons';
 import { App, Notice } from 'obsidian';
 import type { ViewAtlasState } from '../storeFactory';
+import type { AnyWidget } from '../types/widgetTypes';
 import type { StoreApi } from 'zustand';
 import type { AtlasSettings, SettingsService } from './SettingsService';
 import { playerWindowStore, resetPlayerWindowStore } from '../stores/playerWindowStore';
@@ -90,6 +91,11 @@ export class PlayerWindowService {
     return this.playerWindow !== null && !this.playerWindow.closed;
   }
 
+  /** The open popout window, or null when there is none. */
+  public getWindow(): Window | null {
+    return this.isWindowOpen() ? this.playerWindow : null;
+  }
+
   /**
    * Keep players on the current frame while the DM works on another scene tab.
    * A freeze the DM started manually is left untouched.
@@ -161,11 +167,12 @@ export class PlayerWindowService {
   private freezeCurrentFrame(): void {
     if (!this.streamSource || !this.playerWindow || this.playerWindow.closed) return;
 
-    const doc = this.playerWindow.document;
-    const targetCanvas = doc.getElementById('atlas-player-canvas') as HTMLCanvasElement | null;
+    const targetCanvas = this.playerWindow.document.getElementById('atlas-player-canvas') as HTMLCanvasElement | null;
     if (!targetCanvas) return;
 
-    this.frozenCanvas = doc.createElement('canvas');
+    // Never attached to a document: it is only a pixel buffer, so it can live in the
+    // main window. drawImage works across windows, as the live mirroring relies on.
+    this.frozenCanvas = createEl('canvas');
     this.frozenCanvas.width = targetCanvas.width;
     this.frozenCanvas.height = targetCanvas.height;
     this.frozenCanvas.getContext('2d')?.drawImage(targetCanvas, 0, 0);
@@ -375,19 +382,13 @@ export class PlayerWindowService {
     widgetContainer.style.transform = `scale(${widgetSettings.scale || 1})`;
     
     // Render each widget
-    visibleWidgets.forEach(widget => {
-      const widgetEl = this.createWidgetElement(container.ownerDocument, widget);
-      if (widgetEl) {
-        widgetContainer.appendChild(widgetEl);
-      }
-    });
-    
-    
+    visibleWidgets.forEach(widget => this.createWidgetElement(widgetContainer, widget));
+
     // Subscribe to store changes to update widgets
     this.widgetUnsubscribe = this.store.subscribe((state: ViewAtlasState) => {
       const widgetSettings = state.widgetSettings;
       if (widgetSettings && widgetSettings.widgets) {
-        Object.values(widgetSettings.widgets).forEach((widget: any) => {
+        Object.values(widgetSettings.widgets).forEach((widget) => {
           const valueEl = container.ownerDocument.getElementById(`atlas-widget-value-${widget.id}`);
           if (valueEl) {
             valueEl.textContent = String(state.widgetValues?.[widget.id] ?? widget.value);
@@ -398,16 +399,16 @@ export class PlayerWindowService {
   }
   
   /**
-   * Creates a widget element
+   * Appends a widget element to `parent`. Building it through the parent keeps it
+   * in the popout's document, where Obsidian installs the same DOM helpers.
    */
-  private createWidgetElement(doc: Document, widget: any): HTMLElement | null {
-    if (widget.type !== 'counter') return null; // For now, only support counter widgets
-    
-    const widgetEl = doc.createElement('div');
-    widgetEl.className = 'atlas-widget atlas-widget-counter';
-    
-    const color: string = widget.color || '#ffc107';
-    widgetEl.style.setProperty('--widget-color', color);
+  private createWidgetElement(parent: HTMLElement, widget: AnyWidget): void {
+    if (widget.type !== 'counter') return; // For now, only support counter widgets
+
+    const doc = parent.ownerDocument;
+    const widgetEl = parent.createDiv({ cls: 'atlas-widget atlas-widget-counter' });
+
+    widgetEl.style.setProperty('--widget-color', widget.color || '#ffc107');
     const iconWrapper = widgetEl.createDiv({ cls: 'atlas-widget-icon-wrapper' });
     const icon = createSvgElement(doc, 'svg', { viewBox: '0 0 512 512', fill: 'currentColor' });
     icon.appendChild(createSvgElement(doc, 'path', { d: WIDGET_ICON_PATHS[resolveWidgetIcon(widget.icon)] }));
@@ -427,10 +428,6 @@ export class PlayerWindowService {
     // Label
     const label = content.createDiv({ cls: 'atlas-widget-label' });
     label.textContent = widget.label;
-    
-    
-    
-    return widgetEl;
   }
 
   /**

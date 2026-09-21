@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import type { App } from 'obsidian';
 import { MusicPlayer } from './MusicPlayer';
 import { CloseButton } from '../../packages/components/primitives/CloseButton';
 
 interface StandaloneMusicPlayerProps {
-    app: any;
+    app: App;
     onClose: () => void;
 }
 

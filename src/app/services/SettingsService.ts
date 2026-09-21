@@ -16,6 +16,7 @@ export interface NavigationSettings {
 export type TutorialId = 'assets' | 'palette' | 'tokenStatblocks';
 
 export interface AtlasSettings {
+  showChangelogOnUpdate: boolean;
   hotkeys: MapHotkeys;
   onboarding: { enabled: boolean; completed: Partial<Record<TutorialId, boolean>>; tokenImported: boolean };
   navigation: NavigationSettings;
@@ -33,6 +34,7 @@ export interface AtlasSettings {
 }
 
 const DEFAULT_SETTINGS: AtlasSettings = {
+  showChangelogOnUpdate: true,
   hotkeys: DEFAULT_MAP_HOTKEYS,
   onboarding: { enabled: true, completed: {}, tokenImported: false },
   navigation: {

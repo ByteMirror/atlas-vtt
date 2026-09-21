@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useId, useState } from 'react';
 import { cn } from '../../../../utils/cn';
 import { Button } from '../../../packages/components/primitives/button';
+import { LabelTooltip } from '../../../packages/components/primitives/tooltip';
 import { WIDGET_ICONS, resolveWidgetIcon, type WidgetIcon } from '../../../types/widgetIcons';
 import type { WidgetType } from '../../../types/widgetTypes';
 import { WidgetIconGlyph } from '../WidgetIconGlyph';
@@ -33,6 +34,9 @@ export function WidgetEditorForm({ initial, submitLabel, onSubmit, onCancel }: W
   const [label, setLabel] = useState(initial?.label ?? '');
   const [icon, setIcon] = useState<WidgetIcon>(resolveWidgetIcon(initial?.icon));
   const [color, setColor] = useState(initial?.color ?? DEFAULT_COLOR);
+  const typeLabelId = useId();
+  const nameLabelId = useId();
+  const iconLabelId = useId();
 
   const trimmedLabel = label.trim();
 
@@ -45,7 +49,8 @@ export function WidgetEditorForm({ initial, submitLabel, onSubmit, onCancel }: W
   return (
     <form className="atlas-widget-editor" onSubmit={submit}>
       {isNew && (
-        <div className="atlas-widget-editor-types" role="radiogroup" aria-label="Widget type">
+        <div className="atlas-widget-editor-types" role="radiogroup" aria-labelledby={typeLabelId}>
+          <span id={typeLabelId} hidden>Widget type</span>
           {WIDGET_TYPES.map((option) => (
             <Button
               key={option.type}
@@ -63,40 +68,42 @@ export function WidgetEditorForm({ initial, submitLabel, onSubmit, onCancel }: W
       )}
 
       <div className="atlas-widget-editor-name-row">
+        <span id={nameLabelId} hidden>Widget name</span>
         <input
           type="text"
           className="atlas-setting-input"
           value={label}
           onChange={(e) => setLabel(e.target.value)}
           placeholder="Widget name"
-          aria-label="Widget name"
+          aria-labelledby={nameLabelId}
           maxLength={24}
           autoFocus
         />
-        <input
-          type="color"
-          className="atlas-widget-editor-color"
-          value={color}
-          onChange={(e) => setColor(e.target.value)}
-          aria-label="Widget colour"
-        />
+        <LabelTooltip label="Widget colour">
+          <input
+            type="color"
+            className="atlas-widget-editor-color"
+            value={color}
+            onChange={(e) => setColor(e.target.value)}
+          />
+        </LabelTooltip>
       </div>
 
-      <div className="atlas-widget-editor-icons" role="radiogroup" aria-label="Widget icon">
+      <div className="atlas-widget-editor-icons" role="radiogroup" aria-labelledby={iconLabelId}>
+        <span id={iconLabelId} hidden>Widget icon</span>
         {WIDGET_ICONS.map((name) => (
-          <button
-            key={name}
-            type="button"
-            role="radio"
-            aria-checked={icon === name}
-            aria-label={name}
-            title={name}
-            className={cn('atlas-widget-editor-icon', icon === name && 'atlas-active')}
-            style={icon === name ? { color } : undefined}
-            onClick={() => setIcon(name)}
-          >
-            <WidgetIconGlyph icon={name} size={20} />
-          </button>
+          <LabelTooltip key={name} label={name}>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={icon === name}
+              className={cn('atlas-widget-editor-icon', icon === name && 'atlas-active')}
+              style={icon === name ? { color } : undefined}
+              onClick={() => setIcon(name)}
+            >
+              <WidgetIconGlyph icon={name} size={20} />
+            </button>
+          </LabelTooltip>
         ))}
       </div>
 

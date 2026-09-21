@@ -4,6 +4,7 @@ import {
   Download, Upload,
 } from 'lucide-react';
 import { Button } from '../../primitives/button';
+import { LabelTooltip } from '../../primitives/tooltip';
 import type { AnyAsset, Tag as TagType } from '../types';
 import { hasAssetTag } from '../utils/assetTags';
 
@@ -137,14 +138,18 @@ export function Sidebar({
               <div className="atlas-section-title">Collection</div>
               <div className="atlas-collections-heading-actions">
                 {selectedCollection && onExportCollection && (
-                  <Button variant="ghost" size="icon" className="atlas-collection-header-btn" onClick={onExportCollection} title="Export collection" aria-label="Export collection">
-                    <Download />
-                  </Button>
+                  <LabelTooltip label="Export collection">
+                    <Button variant="ghost" size="icon" className="atlas-collection-header-btn" onClick={onExportCollection}>
+                      <Download />
+                    </Button>
+                  </LabelTooltip>
                 )}
                 {onImportCollection && (
-                  <Button variant="ghost" size="icon" className="atlas-collection-header-btn" onClick={onImportCollection} title="Import collection" aria-label="Import collection">
-                    <Upload />
-                  </Button>
+                  <LabelTooltip label="Import collection">
+                    <Button variant="ghost" size="icon" className="atlas-collection-header-btn" onClick={onImportCollection}>
+                      <Upload />
+                    </Button>
+                  </LabelTooltip>
                 )}
               </div>
             </div>
@@ -190,16 +195,16 @@ export function Sidebar({
               </div>
 
               {selectedCollection && onEditCollectionSettings && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="atlas-collection-header-btn"
-                  onClick={(e) => { e.stopPropagation(); onEditCollectionSettings(selectedCollection); }}
-                  title="Collection settings"
-                  aria-label="Collection settings"
-                >
-                  <Settings />
-                </Button>
+                <LabelTooltip label="Collection settings">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="atlas-collection-header-btn"
+                    onClick={(e) => { e.stopPropagation(); onEditCollectionSettings(selectedCollection); }}
+                  >
+                    <Settings />
+                  </Button>
+                </LabelTooltip>
               )}
             </div>
           </div>
@@ -207,16 +212,16 @@ export function Sidebar({
           <div className="atlas-tags">
             <div className="atlas-tags-header">
               <div className="atlas-section-title">Tags</div>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={toggleTagSearch}
-                className={`atlas-collection-header-btn ${isTagsSearchVisible ? 'atlas-active' : ''}`}
-                aria-label="Search tags"
-                title="Search tags"
-              >
-                <Search />
-              </Button>
+              <LabelTooltip label="Search tags">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={toggleTagSearch}
+                  className={`atlas-collection-header-btn ${isTagsSearchVisible ? 'atlas-active' : ''}`}
+                >
+                  <Search />
+                </Button>
+              </LabelTooltip>
             </div>
 
             {isTagsSearchVisible && (
@@ -231,9 +236,11 @@ export function Sidebar({
                   className="atlas-tags-search-input"
                 />
                 {tagsSearchQuery && (
-                  <Button variant="ghost" size="icon" className="atlas-collection-header-btn" onClick={() => setTagsSearchQuery('')} aria-label="Clear search">
-                    <X />
-                  </Button>
+                  <LabelTooltip label="Clear search">
+                    <Button variant="ghost" size="icon" className="atlas-collection-header-btn" onClick={() => setTagsSearchQuery('')}>
+                      <X />
+                    </Button>
+                  </LabelTooltip>
                 )}
               </div>
             )}

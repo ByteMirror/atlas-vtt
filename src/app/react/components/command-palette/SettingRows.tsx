@@ -4,16 +4,18 @@ import { Slider } from '../../../packages/components/primitives/slider';
 
 interface SettingRowProps {
   label: string;
+  /** Id for the visible label, so the control can point `aria-labelledby` at it. */
+  labelId?: string | undefined;
   hint?: string | undefined;
   children: React.ReactNode;
 }
 
 /** One settings row: name and optional hint on the left, control on the right. */
-export function SettingRow({ label, hint, children }: SettingRowProps): React.ReactElement {
+export function SettingRow({ label, labelId, hint, children }: SettingRowProps): React.ReactElement {
   return (
     <div className="atlas-setting-row">
       <div className="atlas-setting-row-info">
-        <span className="atlas-setting-label">{label}</span>
+        <span id={labelId} className="atlas-setting-label">{label}</span>
         {hint && <span className="atlas-setting-hint">{hint}</span>}
       </div>
       <div className="atlas-setting-row-control">{children}</div>
@@ -31,13 +33,14 @@ interface SettingToggleRowProps {
 /** Setting row with the shared `.atlas-toggle` switch. */
 export function SettingToggleRow({ label, hint, value, onToggle }: SettingToggleRowProps): React.ReactElement {
   const state = value ? 'on' : 'off';
+  const labelId = React.useId();
   return (
-    <SettingRow label={label} hint={hint}>
+    <SettingRow label={label} labelId={labelId} hint={hint}>
       <div
         className="atlas-toggle"
         role="switch"
         aria-checked={value}
-        aria-label={label}
+        aria-labelledby={labelId}
         tabIndex={0}
         onClick={onToggle}
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggle(); } }}
@@ -74,10 +77,11 @@ export function SettingSliderRow({
   displayValue,
   onChange,
 }: SettingSliderRowProps): React.ReactElement {
+  const labelId = React.useId();
   return (
     <div className="atlas-setting-group">
       <div className="atlas-setting-row-info">
-        <span className="atlas-setting-label">{label}</span>
+        <span id={labelId} className="atlas-setting-label">{label}</span>
         {hint && <span className="atlas-setting-hint">{hint}</span>}
       </div>
       <div className="atlas-setting-slider-group">
@@ -88,7 +92,7 @@ export function SettingSliderRow({
           step={step}
           onValueChange={(next: number[]) => onChange(next[0] ?? value)}
           className="atlas-setting-slider"
-          aria-label={label}
+          aria-labelledby={labelId}
         />
         <span className="atlas-setting-value">{displayValue}</span>
       </div>

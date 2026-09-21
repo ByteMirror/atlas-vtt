@@ -172,9 +172,11 @@ export function calculateOperationBounds(op: FogOperation): FogBounds {
         width: op.width ?? 0,
         height: op.height ?? 0,
       };
-    default:
-      // Unknown operation type — return zero-size bounds
-      console.warn('[FogRenderUtils] Unknown fog operation type:', (op as any).type);
+    default: {
+      // Unreachable for typed data; map files from a newer version may carry other types
+      const unknownOp: { type?: unknown } = op;
+      console.warn('[FogRenderUtils] Unknown fog operation type:', unknownOp.type);
       return { x: 0, y: 0, width: 0, height: 0 };
+    }
   }
 }

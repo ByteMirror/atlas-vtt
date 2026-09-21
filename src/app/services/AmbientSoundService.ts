@@ -17,6 +17,13 @@ export interface AmbientTrack {
     tags: string[];
 }
 
+/** Snapshot produced by `exportState`; `importState` restores the mixer settings from it. */
+export interface AmbientSoundState {
+    masterVolume: number;
+    globalMute: boolean;
+    sounds: AmbientSound[];
+}
+
 interface HowlInstance {
     howl: Howl;
     sound: AmbientSound;
@@ -357,7 +364,7 @@ export class AmbientSoundService extends EventEmitter {
     /**
      * Export current state for persistence
      */
-    exportState(): any {
+    exportState(): AmbientSoundState {
         return {
             masterVolume: this.masterVolume,
             globalMute: this.globalMute,
@@ -368,7 +375,7 @@ export class AmbientSoundService extends EventEmitter {
     /**
      * Import state for restoration
      */
-    importState(state: any): void {
+    importState(state: Partial<AmbientSoundState>): void {
         if (state.masterVolume !== undefined) {
             this.setMasterVolume(state.masterVolume);
         }

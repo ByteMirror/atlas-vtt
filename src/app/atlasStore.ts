@@ -3,6 +3,7 @@ import { subscribeWithSelector, persist } from "zustand/middleware";
 import type { StorageValue } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
 import type { TokenEntity, Character, NotePin } from './types';
+import type { FogOperation } from './types/fogTypes';
 import { CameraState, GridState, createAtlasStorage, ATLAS_SCHEMA, ATLAS_VERSION, migrateMapFile } from './services/MapPersistence';
 import { getStorageApp } from './atlasStorageInit';
 import { isAtlasToolAvailable } from './tools/toolAvailability';
@@ -33,7 +34,7 @@ export interface AtlasState {
   // Object collections by type
   objects: {
     tokens: Record<string, TokenEntity>;
-    fog: Record<string, any>;
+    fog: Record<string, FogOperation>;
     pins: Record<string, NotePin>;
     // Add more object types as needed
   };
@@ -121,7 +122,10 @@ export function isPersistenceEnabled(): boolean {
   return globalPersistenceEnabled;
 }
 
-// Custom type for our storage implementation
+/** Trust boundary for the fallback storage: a persisted envelope always carries `state`. */
+function isStorageValue(value: unknown): value is StorageValue<Partial<AtlasState>> {
+  return typeof value === 'object' && value !== null && 'state' in value;
+}
 
 // Create a custom storage adapter that initializes on demand
 function createCustomStorage() {
@@ -139,7 +143,9 @@ function createCustomStorage() {
         // avoid console errors during initial module load. This data will be
         // superseded once the proper vault storage kicks in after init.
         const raw = localStoreAvailable ? window.localStorage.getItem(name) : memoryFallback.get(name);
-        return raw ? (JSON.parse(raw)) : null;
+        if (!raw) return null;
+        const parsed: unknown = JSON.parse(raw);
+        return isStorageValue(parsed) ? parsed : null;
       }
       const storage = createAtlasStorage<AtlasState, Partial<AtlasState>>(app, _deprecatedAtlasStore);
       return storage.getItem(name);
@@ -252,9 +258,8 @@ const _deprecatedAtlasStore = create<AtlasState>()(
         updateToken: (id, updates) => set((draft) => {
           const token = draft.objects.tokens[id];
           if (token) {
-            // Merge updates, but don't allow changing id or kind directly via this action
-            const { id: _id, kind: _kind, ...safeUpdates } = updates as any; 
-            draft.objects.tokens[id] = { ...token, ...safeUpdates };
+            // `updates` cannot carry id or kind, so identity is preserved
+            draft.objects.tokens[id] = { ...token, ...updates };
           }
         }),
 
@@ -452,7 +457,7 @@ const _deprecatedAtlasStore = create<AtlasState>()(
           }
 
           // Create new token object so Reactivity triggers
-          const updated = { ...existing } as any;
+          const updated: TokenEntity = { ...existing };
           if (color === null) {
             delete updated.ringColor;
           } else {

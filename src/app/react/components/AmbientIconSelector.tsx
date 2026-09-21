@@ -8,9 +8,11 @@ import {
     Bug, Cat, Dog, Rabbit, Flower, Flower2,
     Anchor, Sailboat, Ship, Plane, Car, Bike, Train, Truck,
   X,
+  type LucideIcon,
 } from 'lucide-react';
 import './ambient-icon-selector.scss';
 import { CloseButton } from '../../packages/components/primitives/CloseButton';
+import { LabelTooltip } from '../../packages/components/primitives/tooltip';
 
 interface AmbientIconSelectorProps {
     value: string;
@@ -19,7 +21,7 @@ interface AmbientIconSelectorProps {
 }
 
 // Create a safe icon map with known working icons
-const iconMap = {
+const iconMap: Record<string, LucideIcon> = {
     // Nature & Weather
     Wind, CloudRain, Droplets, Flame, Trees, Waves, Snowflake, Sun, Moon, Star, 
     Sparkles, Leaf, CloudSnow, CloudLightning, Sunrise, Sunset,
@@ -72,8 +74,8 @@ export const AmbientIconSelector: React.FC<AmbientIconSelectorProps> = ({
         'Tent', 'Sparkles', 'Leaf'
     ];
     
-    const renderIcon = (iconName: string, size: number = 20) => {
-        const IconComponent = (iconMap as any)[iconName];
+    const renderIcon = (iconName: string, size: number = 20): React.ReactElement | null => {
+        const IconComponent = iconMap[iconName];
         return IconComponent ? <IconComponent size={size} /> : null;
     };
     
@@ -100,14 +102,14 @@ export const AmbientIconSelector: React.FC<AmbientIconSelectorProps> = ({
                     <h4>Popular Ambient Icons</h4>
                     <div className="atlas-icon-grid">
                         {popularIcons.map(iconName => (
-                            <button
-                                key={iconName}
-                                className={`atlas-icon-option ${value === iconName ? 'selected' : ''}`}
-                                onClick={() => onChange(iconName)}
-                                title={iconName}
-                            >
-                                {renderIcon(iconName)}
-                            </button>
+                            <LabelTooltip key={iconName} label={iconName}>
+                                <button
+                                    className={`atlas-icon-option ${value === iconName ? 'selected' : ''}`}
+                                    onClick={() => onChange(iconName)}
+                                >
+                                    {renderIcon(iconName)}
+                                </button>
+                            </LabelTooltip>
                         ))}
                     </div>
                 </div>
@@ -118,14 +120,14 @@ export const AmbientIconSelector: React.FC<AmbientIconSelectorProps> = ({
                 <div className="atlas-icon-grid">
                     {filteredIcons.length > 0 ? (
                         filteredIcons.map(iconName => (
-                            <button
-                                key={iconName}
-                                className={`atlas-icon-option ${value === iconName ? 'selected' : ''}`}
-                                onClick={() => onChange(iconName)}
-                                title={iconName}
-                            >
-                                {renderIcon(iconName)}
-                            </button>
+                            <LabelTooltip key={iconName} label={iconName}>
+                                <button
+                                    className={`atlas-icon-option ${value === iconName ? 'selected' : ''}`}
+                                    onClick={() => onChange(iconName)}
+                                >
+                                    {renderIcon(iconName)}
+                                </button>
+                            </LabelTooltip>
                         ))
                     ) : (
                         <p className="atlas-no-results">No icons found</p>

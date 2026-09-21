@@ -5,6 +5,15 @@ import type { CellCoord, EncounterFormation } from '../encounters/encounterForma
 import { showAtlasToast } from '../react/components/AtlasToast';
 import { getDataFilePath } from '../utils/dataFileMigration';
 import type { CollectionSettings } from '../types/collectionSettingsTypes';
+import {
+  isAssetMetadata,
+  isCollectionExport,
+  isLegacyAssetMetadata,
+  isLegacyTokenRecord,
+  isRecord,
+  parseGroupTokenRefs,
+  type LegacyAssetMetadata,
+} from './assetMetadataGuards';
 
 export interface BaseAsset {
   id: string;
@@ -34,64 +43,107 @@ export interface NoteAsset extends BaseAsset {
   notePath: string;
 }
 
+/** Token reference stored inside encounter and player group assets. */
+export interface GroupTokenRef {
+  id: string;
+  name: string;
+  imagePath: string;
+  x?: number;
+  y?: number;
+  statblockPath?: string;
+  size?: number;
+}
+
+export interface EncounterTokenRef extends GroupTokenRef {
+  /** Cell offset from the encounter's anchor token (see EncounterFormation). */
+  cell?: CellCoord;
+  /** Pitch-normalised world offset from the anchor token. */
+  offset?: { x: number; y: number };
+  /** Full token state at save time (HP, conditions, statblock link, ...). Restored verbatim on spawn. */
+  state?: TokenStateSnapshot;
+}
+
+export type EncounterDifficulty = 'easy' | 'medium' | 'hard' | 'deadly';
+
+// An asset's `data` is the payload written to its own JSON file. It is optional
+// everywhere because metadata written by older versions may lack it.
+
+export interface SceneAssetData {
+  /** Vault path of the scene's .atlasmap file. */
+  mapPath?: string;
+}
+
+export interface EncounterAssetData {
+  tokens?: EncounterTokenRef[];
+  difficulty?: EncounterDifficulty;
+  formation?: EncounterFormation;
+  description?: string;
+}
+
+export interface PlayerAssetData {
+  tokens?: GroupTokenRef[];
+  level?: number;
+  class?: string;
+}
+
 export interface StatblockAsset extends BaseAsset {
   type: 'statblock';
-  data: any; // Statblock data structure
+  /** Opaque statblock JSON; Atlas never reads it. */
+  data?: Record<string, unknown>;
 }
 
 export interface CharacterAsset extends BaseAsset {
   type: 'character';
-  data: any; // Character data structure
+  /** Opaque character JSON; Atlas never reads it. */
+  data?: Record<string, unknown>;
 }
 
 export interface SceneAsset extends BaseAsset {
   type: 'scene';
   mapId?: string;
-  data: any; // Scene data structure
+  data?: SceneAssetData;
 }
 
 export interface EncounterAsset extends BaseAsset {
   type: 'encounter';
-  tokens: {
-    id: string;
-    name: string;
-    imagePath: string;
-    x?: number;
-    y?: number;
-    statblockPath?: string;
-    size?: number;
-    /** Cell offset from the encounter's anchor token (see EncounterFormation). */
-    cell?: CellCoord;
-    /** Pitch-normalised world offset from the anchor token. */
-    offset?: { x: number; y: number };
-    /** Full token state at save time (HP, conditions, statblock link, ...). Restored verbatim on spawn. */
-    state?: TokenStateSnapshot;
-  }[];
+  tokens: EncounterTokenRef[];
   /** Grid the token layout was captured on. Absent for encounters saved without positions. */
   formation?: EncounterFormation;
-  difficulty?: 'easy' | 'medium' | 'hard' | 'deadly';
+  difficulty?: EncounterDifficulty;
   thumbnailUrl?: string; // Generated thumbnail for the encounter
-  data: any; // Encounter data structure
+  data?: EncounterAssetData;
 }
 
 export interface PlayerAsset extends BaseAsset {
   type: 'player';
-  tokens: {
-    id: string;
-    name: string;
-    imagePath: string;
-    x?: number;
-    y?: number;
-    statblockPath?: string;
-    size?: number;
-  }[];
+  tokens: GroupTokenRef[];
   level?: number;
   class?: string;
   thumbnailUrl?: string; // Generated thumbnail for the player group
-  data: any; // Player data structure
+  data?: PlayerAssetData;
 }
 
 export type Asset = TokenAsset | MapAsset | NoteAsset | StatblockAsset | CharacterAsset | SceneAsset | EncounterAsset | PlayerAsset;
+
+export type AssetOfType<T extends Asset['type']> = Extract<Asset, { type: T }>;
+
+type NewAssetOf<A> = A extends Asset ? Omit<A, 'id' | 'createdAt' | 'modifiedAt'> : never;
+/** An asset before the service assigns its id and timestamps. */
+export type NewAsset = NewAssetOf<Asset>;
+
+type AssetUpdatesOf<A> = A extends Asset
+  ? { [K in Exclude<keyof A, 'id' | 'createdAt' | 'type'>]?: A[K] | undefined }
+  : never;
+/** Fields to change on an asset; an explicit `undefined` removes the field. */
+export type AssetUpdates = AssetUpdatesOf<Asset>;
+
+type GroupAsset = EncounterAsset | PlayerAsset;
+
+/** Token lists of a group asset: the top-level one and the copy inside its JSON payload. */
+function groupTokenRefs(asset: GroupAsset): GroupTokenRef[] {
+  if (Array.isArray(asset.tokens)) return asset.tokens;
+  return Array.isArray(asset.data?.tokens) ? asset.data.tokens : [];
+}
 
 export interface TagMetadata {
   id: string;
@@ -254,13 +306,11 @@ export class AssetService {
         this.metadata = await this.createDefaultMetadata();
         await this.saveMetadata();
       } else {
-        const parsed = JSON.parse(content);
+        const parsed: unknown = JSON.parse(content);
 
-        // Check if we need to migrate from old format
-        if (parsed && typeof parsed === 'object' && 'tokens' in parsed && !('assets' in parsed)) {
-          // Migrate from old format
+        if (isLegacyAssetMetadata(parsed)) {
           await this.migrateFromOldFormat(parsed);
-        } else if (parsed && typeof parsed === 'object' && 'assets' in parsed && 'collections' in parsed && 'version' in parsed) {
+        } else if (isAssetMetadata(parsed)) {
           this.metadata = parsed;
           // Migrate tags to collection-based system if needed
           await this.migrateTagsToCollections();
@@ -353,7 +403,7 @@ export class AssetService {
     return fileName.replace(/\.[^.]+$/, '');
   }
 
-  private async readJsonFile(file: TFile): Promise<any> {
+  private async readJsonFile(file: TFile): Promise<unknown> {
     try {
       const content = await this.app.vault.read(file);
       return JSON.parse(content);
@@ -402,12 +452,7 @@ export class AssetService {
       }
 
       if (asset.type === 'encounter' || asset.type === 'player') {
-        const tokens = Array.isArray(asset.tokens)
-          ? asset.tokens
-          : Array.isArray(asset.data?.tokens)
-            ? asset.data.tokens
-            : [];
-        for (const token of tokens) {
+        for (const token of groupTokenRefs(asset)) {
           if (token && typeof token.imagePath === 'string' && token.imagePath.length > 0) {
             encounterOrPlayerTokenPathToCollection.set(token.imagePath, asset.collection || 'default');
           }
@@ -471,7 +516,7 @@ export class AssetService {
         const collectionId = mapMatch[1]!;
         const fallbackId = mapMatch[2]!;
         const parsed = await this.readJsonFile(file);
-        if (!parsed || typeof parsed !== 'object') {
+        if (!isRecord(parsed)) {
           continue;
         }
         const mapFilePath = typeof parsed.mapFilePath === 'string' ? parsed.mapFilePath : '';
@@ -505,7 +550,7 @@ export class AssetService {
       const folderType = typedMatch[2]!;
       const assetId = this.fileNameWithoutExtension(file.path);
       const parsed = await this.readJsonFile(file);
-      const parsedObject = parsed && typeof parsed === 'object' ? parsed : {};
+      const parsedObject = isRecord(parsed) ? parsed : {};
       const createdAt = typeof parsedObject.createdAt === 'number' ? parsedObject.createdAt : now;
       const modifiedAt = typeof parsedObject.modifiedAt === 'number' ? parsedObject.modifiedAt : createdAt;
       const tags = this.normalizeTagArray(parsedObject.tags);
@@ -528,7 +573,7 @@ export class AssetService {
           createdAt,
           modifiedAt,
           data: {
-            ...(parsedObject as Record<string, unknown>),
+            ...parsedObject,
             mapPath
           }
         };
@@ -536,28 +581,18 @@ export class AssetService {
         continue;
       }
 
-      const assetType = folderType === 'encounters'
-        ? 'encounter'
-        : folderType === 'players'
-          ? 'player'
-          : folderType === 'characters'
-            ? 'character'
-            : 'statblock';
-      const fallbackName = this.prettifyIdentifier(assetId);
-      const baseAsset: Asset = {
+      const base: BaseAsset = {
         id: assetId,
-        type: assetType,
         name: typeof parsedObject.name === 'string' && parsedObject.name.trim()
           ? parsedObject.name
-          : fallbackName,
+          : this.prettifyIdentifier(assetId),
         filePath: file.path,
         tags,
         collection: collectionId,
         createdAt,
-        modifiedAt,
-        data: parsedObject
-      } as Asset;
-      recoveredAssets.set(baseAsset.id, baseAsset);
+        modifiedAt
+      };
+      recoveredAssets.set(assetId, this.recoverJsonAsset(folderType, base, parsedObject));
     }
 
     // Recover scene assets directly from .atlasmap files that have no matching scene JSON.
@@ -596,6 +631,20 @@ export class AssetService {
     return Array.from(recoveredAssets.values());
   }
 
+  /** Rebuilds a JSON-backed asset from its own data file (the file holds the asset's `data` payload). */
+  private recoverJsonAsset(folderType: string, base: BaseAsset, payload: Record<string, unknown>): Asset {
+    if (folderType === 'encounters' || folderType === 'players') {
+      const tokens = parseGroupTokenRefs(payload.tokens);
+      return {
+        ...base,
+        type: folderType === 'encounters' ? 'encounter' : 'player',
+        tokens,
+        data: { ...payload, tokens }
+      };
+    }
+    return { ...base, type: folderType === 'characters' ? 'character' : 'statblock', data: payload };
+  }
+
   private async reconcileMetadataWithVault(): Promise<void> {
     if (!this.metadata || typeof this.app.vault.getFiles !== 'function') {
       return;
@@ -611,12 +660,7 @@ export class AssetService {
       if (asset.type !== 'encounter' && asset.type !== 'player') {
         continue;
       }
-      const tokens = Array.isArray((asset as any).tokens)
-        ? (asset as any).tokens
-        : Array.isArray((asset as any).data?.tokens)
-          ? (asset as any).data.tokens
-          : [];
-      for (const token of tokens) {
+      for (const token of groupTokenRefs(asset)) {
         if (token && typeof token.imagePath === 'string' && token.imagePath.length > 0) {
           encounterOrPlayerTokenRefs.add(token.imagePath);
         }
@@ -733,32 +777,30 @@ export class AssetService {
     }
   }
 
-  private async migrateFromOldFormat(oldMetadata: any): Promise<void> {
+  private async migrateFromOldFormat(oldMetadata: LegacyAssetMetadata): Promise<void> {
     this.metadata = await this.createDefaultMetadata();
-    
-    // Migrate tokens
-    if (oldMetadata.tokens) {
-      for (const [id, token] of Object.entries(oldMetadata.tokens)) {
-        const oldToken = token as any;
-        
-        // Keep image in the same location (global assets folder)
-        const imagePath = oldToken.imagePath;
-        
-        const newToken: TokenAsset = {
-          id,
-          type: 'token',
-          name: oldToken.name,
-          imagePath: imagePath,
-          tags: oldToken.tags || [],
-          collection: 'default',
-          createdAt: oldToken.createdAt,
-          modifiedAt: oldToken.modifiedAt
-        };
-        
-        this.metadata.assets[id] = newToken;
+    const now = Date.now();
+
+    for (const [id, oldToken] of Object.entries(oldMetadata.tokens)) {
+      if (!isLegacyTokenRecord(oldToken)) {
+        console.warn(`[AssetService] Legacy token ${id} has no name or image path, not migrated`);
+        continue;
       }
+
+      // The image stays where it is (global assets folder).
+      const createdAt = typeof oldToken.createdAt === 'number' ? oldToken.createdAt : now;
+      this.metadata.assets[id] = {
+        id,
+        type: 'token',
+        name: oldToken.name,
+        imagePath: oldToken.imagePath,
+        tags: this.normalizeTagArray(oldToken.tags),
+        collection: 'default',
+        createdAt,
+        modifiedAt: typeof oldToken.modifiedAt === 'number' ? oldToken.modifiedAt : createdAt
+      };
     }
-    
+
     await this.saveMetadata();
   }
 
@@ -787,44 +829,14 @@ export class AssetService {
     }
   }
 
-  private propagateTokenReferenceUpdate(token: TokenAsset): boolean {
+  /**
+   * Runs `rewrite` over both token lists of every encounter/player asset.
+   * `rewrite` returns the new list, or null when it left the list untouched.
+   */
+  private rewriteGroupTokenRefs(rewrite: (tokens: GroupTokenRef[]) => GroupTokenRef[] | null): boolean {
     if (!this.metadata) {
       return false;
     }
-
-    const syncTokenList = (tokens: any[]): { changed: boolean; next: any[] } => {
-      let changed = false;
-      const next = tokens.map((tokenRef) => {
-        if (!tokenRef || typeof tokenRef !== 'object' || tokenRef.id !== token.id) {
-          return tokenRef;
-        }
-
-        const updatedRef: Record<string, unknown> = {
-          ...tokenRef,
-          name: token.name,
-          imagePath: token.imagePath,
-        };
-
-        if (token.statblockPath !== undefined) {
-          updatedRef.statblockPath = token.statblockPath;
-        } else {
-          delete updatedRef.statblockPath;
-        }
-
-        const unchanged =
-          tokenRef.name === updatedRef.name &&
-          tokenRef.imagePath === updatedRef.imagePath &&
-          tokenRef.statblockPath === updatedRef.statblockPath;
-        if (unchanged) {
-          return tokenRef;
-        }
-
-        changed = true;
-        return updatedRef;
-      });
-
-      return { changed, next };
-    };
 
     let metadataChanged = false;
     for (const asset of Object.values(this.metadata.assets)) {
@@ -832,21 +844,21 @@ export class AssetService {
         continue;
       }
 
+      const group: { tokens: GroupTokenRef[]; data?: { tokens?: GroupTokenRef[] } } = asset;
       let assetChanged = false;
 
-      if (Array.isArray(asset.tokens)) {
-        const result = syncTokenList(asset.tokens);
-        if (result.changed) {
-          asset.tokens = result.next;
+      if (Array.isArray(group.tokens)) {
+        const next = rewrite(group.tokens);
+        if (next) {
+          group.tokens = next;
           assetChanged = true;
         }
       }
 
-      const dataTokens = asset.data?.tokens;
-      if (Array.isArray(dataTokens)) {
-        const result = syncTokenList(dataTokens);
-        if (result.changed) {
-          asset.data.tokens = result.next;
+      if (group.data && Array.isArray(group.data.tokens)) {
+        const next = rewrite(group.data.tokens);
+        if (next) {
+          group.data.tokens = next;
           assetChanged = true;
         }
       }
@@ -860,48 +872,42 @@ export class AssetService {
     return metadataChanged;
   }
 
+  private propagateTokenReferenceUpdate(token: TokenAsset): boolean {
+    return this.rewriteGroupTokenRefs((tokens) => {
+      let changed = false;
+      const next = tokens.map((tokenRef) => {
+        if (!tokenRef || tokenRef.id !== token.id) {
+          return tokenRef;
+        }
+
+        const unchanged =
+          tokenRef.name === token.name &&
+          tokenRef.imagePath === token.imagePath &&
+          tokenRef.statblockPath === token.statblockPath;
+        if (unchanged) {
+          return tokenRef;
+        }
+
+        const updatedRef: GroupTokenRef = { ...tokenRef, name: token.name, imagePath: token.imagePath };
+        if (token.statblockPath !== undefined) {
+          updatedRef.statblockPath = token.statblockPath;
+        } else {
+          delete updatedRef.statblockPath;
+        }
+
+        changed = true;
+        return updatedRef;
+      });
+
+      return changed ? next : null;
+    });
+  }
+
   private removeTokenReferencesFromGroups(tokenId: string): boolean {
-    if (!this.metadata) {
-      return false;
-    }
-
-    const removeFromList = (tokens: any[]): { changed: boolean; next: any[] } => {
-      const next = tokens.filter((tokenRef) => !(tokenRef && typeof tokenRef === 'object' && tokenRef.id === tokenId));
-      return { changed: next.length !== tokens.length, next };
-    };
-
-    let metadataChanged = false;
-    for (const asset of Object.values(this.metadata.assets)) {
-      if (asset.type !== 'encounter' && asset.type !== 'player') {
-        continue;
-      }
-
-      let assetChanged = false;
-
-      if (Array.isArray(asset.tokens)) {
-        const result = removeFromList(asset.tokens);
-        if (result.changed) {
-          asset.tokens = result.next;
-          assetChanged = true;
-        }
-      }
-
-      const dataTokens = asset.data?.tokens;
-      if (Array.isArray(dataTokens)) {
-        const result = removeFromList(dataTokens);
-        if (result.changed) {
-          asset.data.tokens = result.next;
-          assetChanged = true;
-        }
-      }
-
-      if (assetChanged) {
-        asset.modifiedAt = Date.now();
-        metadataChanged = true;
-      }
-    }
-
-    return metadataChanged;
+    return this.rewriteGroupTokenRefs((tokens) => {
+      const next = tokens.filter((tokenRef) => tokenRef?.id !== tokenId);
+      return next.length !== tokens.length ? next : null;
+    });
   }
 
   // Collection management
@@ -968,68 +974,53 @@ export class AssetService {
   }
 
   // Generic asset management
-  async addAsset(asset: Omit<Asset, 'id' | 'createdAt' | 'modifiedAt'>): Promise<Asset> {
+  async addAsset(asset: NewAsset): Promise<Asset> {
+    const newAsset: Asset = { ...asset, ...this.createAssetIdentity(asset.type) };
+    return this.registerAsset(newAsset);
+  }
+
+  private createAssetIdentity(type: Asset['type']): Pick<BaseAsset, 'id' | 'createdAt' | 'modifiedAt'> {
+    const now = Date.now();
+    return {
+      id: `${type}-${now}-${Math.random().toString(36).substring(2, 8)}`,
+      createdAt: now,
+      modifiedAt: now
+    };
+  }
+
+  /** Persists a fully built asset: data file, metadata entry and onboarding flag. */
+  private async registerAsset<A extends Asset>(newAsset: A): Promise<A> {
     if (!this.metadata) {
       await this.loadMetadata();
     }
 
-    const now = Date.now();
-    const id = `${asset.type}-${now}-${Math.random().toString(36).substring(2, 8)}`;
-    
-    const newAsset: Asset = {
-      ...asset,
-      id,
-      createdAt: now,
-      modifiedAt: now
-    } as Asset;
-
-    if (
-      (newAsset.type === 'statblock' ||
-        newAsset.type === 'character' ||
-        newAsset.type === 'scene' ||
-        newAsset.type === 'encounter' ||
-        newAsset.type === 'player') &&
-      !newAsset.filePath
-    ) {
+    if (newAsset.type !== 'token' && newAsset.type !== 'map' && newAsset.type !== 'note' && !newAsset.filePath) {
       newAsset.filePath = this.getAssetPath(newAsset);
     }
 
     // Ensure collection exists
-    if (!this.metadata!.collections[asset.collection]) {
-      await this.createCollection(asset.collection);
+    if (!this.metadata!.collections[newAsset.collection]) {
+      await this.createCollection(newAsset.collection);
     }
 
     // Save asset data if needed
-    if (asset.type === 'statblock' || asset.type === 'character' || asset.type === 'scene' || asset.type === 'encounter' || asset.type === 'player' || asset.type === 'map') {
-      const assetPath = this.getAssetPath(newAsset);
-      
-      if (asset.type === 'map') {
-        // For maps, create a JSON file with map metadata
-        const mapData = {
-          id: newAsset.id,
-          name: newAsset.name,
-          mapFilePath: (newAsset as MapAsset).mapFilePath,
-          tags: newAsset.tags,
-          collection: newAsset.collection,
-          createdAt: newAsset.createdAt,
-          modifiedAt: newAsset.modifiedAt
-        };
-        const content = JSON.stringify(mapData, null, 2);
-        const mapJsonPath = `${COLLECTIONS_DIR}/${asset.collection}/maps/${newAsset.id}.json`;
-        await this.app.vault.create(mapJsonPath, content);
-      } else {
-        const content = JSON.stringify((newAsset as any).data, null, 2) || '{}';
-        await this.app.vault.create(assetPath, content);
-      }
+    if (newAsset.type === 'map') {
+      const mapJsonPath = `${COLLECTIONS_DIR}/${newAsset.collection}/maps/${newAsset.id}.json`;
+      await this.app.vault.create(mapJsonPath, this.serializeMapAsset(newAsset));
+    } else if (newAsset.type !== 'token' && newAsset.type !== 'note') {
+      const content = JSON.stringify(newAsset.data, null, 2) || '{}';
+      await this.app.vault.create(this.getAssetPath(newAsset), content);
     }
 
-    this.metadata!.assets[id] = newAsset;
+    this.metadata!.assets[newAsset.id] = newAsset;
     await this.saveMetadata();
 
     if (newAsset.type === 'token') SettingsService.forApp(this.app)?.markTokenImported();
     return newAsset;
   }
 
+  async getAssets<T extends Asset['type']>(collection: string | undefined, type: T): Promise<AssetOfType<T>[]>;
+  async getAssets(collection?: string, type?: Asset['type']): Promise<Asset[]>;
   async getAssets(collection?: string, type?: Asset['type']): Promise<Asset[]> {
     await this.loadMetadata();
 
@@ -1056,7 +1047,7 @@ export class AssetService {
     return this.metadata!.assets[id] || null;
   }
 
-  async updateAsset(id: string, updates: Partial<Omit<Asset, 'id' | 'createdAt' | 'type'>> & Record<string, any>): Promise<void> {
+  async updateAsset(id: string, updates: AssetUpdates): Promise<void> {
     if (!this.metadata) {
       await this.loadMetadata();
     }
@@ -1070,59 +1061,51 @@ export class AssetService {
       return;
     }
 
-    // First, check which properties in updates are undefined and should be removed
-    const keysToRemove = Object.keys(updates).filter(key => updates[key] === undefined);
-    
-    // Create the updated asset
-    const updatedAsset = {
-      ...asset,
-      ...updates,
-      modifiedAt: Date.now()
-    };
-    
-    // Remove properties that were explicitly set to undefined in updates
-    keysToRemove.forEach(key => {
-      delete (updatedAsset as Record<string, unknown>)[key];
-    });
-    
-    // Debug logging for statblockPath updates
-    
+    // Properties explicitly set to undefined in updates are removed from the asset
+    const keysToRemove = Object.entries<unknown>(updates)
+      .filter(([, value]) => value === undefined)
+      .map(([key]) => key);
+
+    const updatedAsset: Asset = Object.assign({}, asset, updates, { modifiedAt: Date.now() });
+    for (const key of keysToRemove) {
+      Reflect.deleteProperty(updatedAsset, key);
+    }
+
     this.metadata!.assets[id] = updatedAsset;
 
-    if (asset.type === 'token') {
-      this.propagateTokenReferenceUpdate(updatedAsset as TokenAsset);
+    if (updatedAsset.type === 'token') {
+      this.propagateTokenReferenceUpdate(updatedAsset);
     }
 
     // Update asset data file if needed
-    if (asset.type === 'statblock' || asset.type === 'character' || asset.type === 'scene' || asset.type === 'encounter' || asset.type === 'player' || asset.type === 'map') {
-      const assetPath = this.getAssetPath(this.metadata!.assets[id]);
-      
-      if (asset.type === 'map') {
-        // For maps, update the JSON metadata file
-        const mapData = {
-          id: updatedAsset.id,
-          name: updatedAsset.name,
-          mapFilePath: (updatedAsset as MapAsset).mapFilePath,
-          tags: updatedAsset.tags,
-          collection: updatedAsset.collection,
-          createdAt: updatedAsset.createdAt,
-          modifiedAt: updatedAsset.modifiedAt
-        };
-        const content = JSON.stringify(mapData, null, 2);
-        const file = this.app.vault.getAbstractFileByPath(assetPath);
-        if (file instanceof TFile) {
-          await this.app.vault.process(file, () => content);
-        }
-      } else if ('data' in updates) {
-        const content = JSON.stringify(updates.data, null, 2) || '{}';
-        const file = this.app.vault.getAbstractFileByPath(assetPath);
-        if (file instanceof TFile) {
-          await this.app.vault.process(file, () => content);
-        }
+    let fileContent: string | null = null;
+    if (updatedAsset.type === 'map') {
+      fileContent = this.serializeMapAsset(updatedAsset);
+    } else if (updatedAsset.type !== 'token' && updatedAsset.type !== 'note' && 'data' in updates) {
+      fileContent = JSON.stringify(updates.data, null, 2) || '{}';
+    }
+    if (fileContent !== null) {
+      const content = fileContent;
+      const file = this.app.vault.getAbstractFileByPath(this.getAssetPath(updatedAsset));
+      if (file instanceof TFile) {
+        await this.app.vault.process(file, () => content);
       }
     }
 
     await this.saveMetadata();
+  }
+
+  /** Content of the JSON file that accompanies a map asset. */
+  private serializeMapAsset(asset: MapAsset): string {
+    return JSON.stringify({
+      id: asset.id,
+      name: asset.name,
+      mapFilePath: asset.mapFilePath,
+      tags: asset.tags,
+      collection: asset.collection,
+      createdAt: asset.createdAt,
+      modifiedAt: asset.modifiedAt
+    }, null, 2);
   }
 
   async deleteAsset(id: string): Promise<void> {
@@ -1153,24 +1136,27 @@ export class AssetService {
           const sceneJsonPath = this.getAssetPath(asset);
           const sceneJsonFile = this.app.vault.getAbstractFileByPath(sceneJsonPath);
           if (sceneJsonFile instanceof TFile) {
-            const content = await this.app.vault.read(sceneJsonFile);
-            sceneData = JSON.parse(content);
+            const parsed: unknown = JSON.parse(await this.app.vault.read(sceneJsonFile));
+            if (isRecord(parsed) && typeof parsed.mapPath === 'string') {
+              sceneData = { mapPath: parsed.mapPath };
+            }
           }
         } catch (error) {
           console.error('[AssetService] Error loading scene data:', error);
         }
       }
       
-      if (sceneData?.mapPath) {
+      const mapPath = sceneData?.mapPath;
+      if (mapPath) {
         try {
           // Delete the map file
-          const mapFile = this.app.vault.getAbstractFileByPath(sceneData.mapPath);
+          const mapFile = this.app.vault.getAbstractFileByPath(mapPath);
           if (mapFile instanceof TFile) {
             // Close any leaves showing this file
             const leaves = this.app.workspace.getLeavesOfType('atlas-view');
             for (const leaf of leaves) {
               const state = leaf.view?.getState?.();
-              if (state?.file === sceneData.mapPath) {
+              if (state?.file === mapPath) {
                 leaf.detach();
               }
             }
@@ -1179,7 +1165,7 @@ export class AssetService {
             const markdownLeaves = this.app.workspace.getLeavesOfType('markdown');
             for (const leaf of markdownLeaves) {
               const state = leaf.view?.getState?.();
-              if (state?.file === sceneData.mapPath) {
+              if (state?.file === mapPath) {
                 leaf.detach();
               }
             }
@@ -1362,14 +1348,10 @@ export class AssetService {
     }
 
     const metadataContent = await metadataFile.async('string');
-    const importData = JSON.parse(metadataContent) as unknown as {
-      collection: CollectionMetadata;
-      assets: Asset[];
-      version: number;
-      exportDate: number;
-      collectionUid?: string;
-      collectionVersion?: number;
-    };
+    const importData: unknown = JSON.parse(metadataContent);
+    if (!isCollectionExport(importData)) {
+      throw new Error('Invalid collection export: malformed metadata.json');
+    }
 
     // Extract uid/version with backward compat for old exports
     const importUid = importData.collectionUid ?? importData.collection.uid;
@@ -1502,11 +1484,11 @@ export class AssetService {
 
   // Backward compatibility methods
   async addTokenAsset(asset: Omit<TokenAsset, 'id' | 'createdAt' | 'modifiedAt' | 'type'>): Promise<TokenAsset> {
-    return await this.addAsset({ ...asset, type: 'token' }) as TokenAsset;
+    return this.registerAsset<TokenAsset>({ ...asset, type: 'token', ...this.createAssetIdentity('token') });
   }
 
   async getTokenAssets(): Promise<TokenAsset[]> {
-    return await this.getAssets(undefined, 'token') as TokenAsset[];
+    return this.getAssets(undefined, 'token');
   }
 
   async deleteTokenAsset(id: string): Promise<void> {
@@ -1518,33 +1500,38 @@ export class AssetService {
   }
 
   async createEncounter(encounterData: Omit<EncounterAsset, 'id' | 'createdAt' | 'modifiedAt' | 'type' | 'collection'>): Promise<EncounterAsset> {
-    const encounter: Omit<EncounterAsset, 'id' | 'createdAt' | 'modifiedAt'> = {
+    const encounter: EncounterAsset = {
       ...encounterData,
+      ...this.createAssetIdentity('encounter'),
       type: 'encounter',
       collection: 'default', // Use default collection
       data: {
+        ...encounterData.data,
         tokens: encounterData.tokens,
-        difficulty: encounterData.difficulty,
-        formation: encounterData.formation,
+        ...(encounterData.difficulty !== undefined && { difficulty: encounterData.difficulty }),
+        ...(encounterData.formation !== undefined && { formation: encounterData.formation }),
       }
     };
-    
-    return await this.addAsset(encounter) as EncounterAsset;
+
+    return this.registerAsset(encounter);
   }
 
-  async createPlayer(playerData: Omit<PlayerAsset, 'id' | 'createdAt' | 'modifiedAt' | 'type' | 'collection'>): Promise<PlayerAsset> {
-    const player: Omit<PlayerAsset, 'id' | 'createdAt' | 'modifiedAt'> = {
-      ...playerData,
-      type: 'player',
-      collection: 'default', // Use default collection
-      data: {
-        tokens: playerData.tokens,
-        level: playerData.level,
-        class: playerData.class,
-      }
-    };
-    
-    return await this.addAsset(player) as PlayerAsset;
+  /**
+   * Edits asset records in place, e.g. to rewrite paths after a vault rename.
+   * `rewrite` returns whether it changed the asset; metadata is saved once if any did.
+   */
+  async rewriteAssets(rewrite: (asset: Asset) => boolean): Promise<boolean> {
+    if (!this.metadata) return false;
+
+    let changed = false;
+    for (const asset of Object.values(this.metadata.assets)) {
+      if (rewrite(asset)) changed = true;
+    }
+
+    if (changed) {
+      await this.saveMetadata();
+    }
+    return changed;
   }
 
   async refreshMetadata(): Promise<void> {

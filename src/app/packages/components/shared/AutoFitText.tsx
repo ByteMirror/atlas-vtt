@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { LabelTooltip } from '../primitives/tooltip';
 
 export function calculateAutoFitFontSize({
   containerWidth,
@@ -77,7 +78,7 @@ export const AutoFitText: React.FC<{
     };
   }, [children, minFontSize, maxFontSize]);
 
-  return (
+  const content = (
     <span
       ref={containerRef}
       className={[
@@ -86,11 +87,12 @@ export const AutoFitText: React.FC<{
         className,
       ].filter(Boolean).join(' ')}
       style={{ fontSize: `${fontSize}px` }}
-      title={title}
     >
       <span ref={textRef} className="atlas-auto-fit-text-inner">
         {children}
       </span>
     </span>
   );
+
+  return title ? <LabelTooltip label={title}>{content}</LabelTooltip> : content;
 };

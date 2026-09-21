@@ -1,4 +1,4 @@
-import { App, Menu, TFile, Notice, type EventRef } from 'obsidian';
+import { App, FileSystemAdapter, Menu, TFile, Notice, type EventRef } from 'obsidian';
 import { openContextMenuGlobal, type ContextMenuEntry } from '../react/root/ContextMenuContext';
 import { PlayerWindowService } from './PlayerWindowService';
 import './image-display.scss';
@@ -57,15 +57,13 @@ export class ImageDisplayService {
     this.contextMenuEventRefs.push(fileMenuRef);
 
     // Register for link context menu (unofficial Obsidian event)
-    const linkMenuRef = (this.app.workspace as any).on('link-menu', (menu: Menu, linktext: string, sourcePath: string) => {
+    const linkMenuRef = this.app.workspace.on('link-menu', (menu, linktext, sourcePath) => {
       const file = this.app.metadataCache.getFirstLinkpathDest(linktext, sourcePath);
       if (file instanceof TFile && this.isImageFile(file)) {
         this.addImageDisplayMenuItem(menu, file);
       }
     });
-    if (linkMenuRef) {
-      this.contextMenuEventRefs.push(linkMenuRef);
-    }
+    this.contextMenuEventRefs.push(linkMenuRef);
 
     // Capture-phase listener to track right-click target (runs before Obsidian's handlers)
     document.addEventListener('contextmenu', this.boundStoreContextMenuTarget, true);
@@ -84,7 +82,7 @@ export class ImageDisplayService {
         item.setTitle('Copy image').setIcon('copy').onClick(() => this.copyImageToClipboard(result.imgElement));
       });
       menu.addItem((item) => {
-        item.setTitle('Open in default app').setIcon('external-link').onClick(() => (this.app as any).openWithDefaultApp(result.file.path));
+        item.setTitle('Open in default app').setIcon('external-link').onClick(() => this.app.openWithDefaultApp(result.file.path));
       });
     });
     this.contextMenuEventRefs.push(editorMenuRef);
@@ -187,7 +185,7 @@ export class ImageDisplayService {
         { type: 'item', label: 'Display on player view', icon: 'monitor', onClick: () => this.displayImageOnPlayerView(file) },
         { type: 'separator' },
         { type: 'item', label: 'Copy image', icon: 'copy', onClick: () => this.copyImageToClipboard(imgElement) },
-        { type: 'item', label: 'Open in Default App', icon: 'external-link', onClick: () => (this.app as any).openWithDefaultApp(file.path) },
+        { type: 'item', label: 'Open in Default App', icon: 'external-link', onClick: () => this.app.openWithDefaultApp(file.path) },
       ];
 
       openContextMenuGlobal(entries, { x: event.clientX, y: event.clientY });
@@ -262,8 +260,8 @@ export class ImageDisplayService {
       const imageUrl = URL.createObjectURL(blob);
 
       // Get the player window
-      const playerWindow = (playerWindowService as any).playerWindow as Window;
-      if (!playerWindow || playerWindow.closed) {
+      const playerWindow = playerWindowService.getWindow();
+      if (!playerWindow) {
         new Notice('Player window is not available');
         return;
       }
@@ -430,7 +428,8 @@ export class ImageDisplayService {
           let fullPath = decodeURIComponent(appMatch[1]);
           
           // Get the vault path
-          const vaultPath = (this.app.vault.adapter as any).basePath || '';
+          const adapter = this.app.vault.adapter;
+          const vaultPath = adapter instanceof FileSystemAdapter ? adapter.getBasePath() : '';
           
           // Normalize paths by ensuring they start with /
           const normalizedFullPath = fullPath.startsWith('/') ? fullPath : '/' + fullPath;

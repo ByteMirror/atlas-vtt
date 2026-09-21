@@ -1,5 +1,5 @@
 import { App, Notice } from 'obsidian';
-import { AssetService, MapAsset } from '../../../../services/AssetService';
+import { AssetService } from '../../../../services/AssetService';
 import { optimizeImage, OPTIMIZATION_PRESETS } from '../../../../utils/imageOptimizer';
 import { bakeTokenCrop } from './bakeTokenCrop';
 import type { CreatorMode, EditTokenInput, TokenPreview } from './types';
@@ -81,7 +81,7 @@ export async function saveTokenPreviews(options: SaveTokenPreviewsOptions): Prom
         name: preview.name,
         mapFilePath: imagePath,
         ...meta,
-      } as Omit<MapAsset, 'id' | 'createdAt' | 'modifiedAt'>);
+      });
     } else {
       await assetService.addTokenAsset({ name: preview.name, imagePath, ...meta });
     }

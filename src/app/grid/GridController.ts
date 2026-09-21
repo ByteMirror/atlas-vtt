@@ -1,6 +1,10 @@
 import { PixiRendererOrchestrator } from '../PixiRendererOrchestrator';
 import type { GridOptions } from './GridSystem';
+import type { MapFile } from '../services/MapPersistence';
 import { Sprite } from 'pixi.js';
+
+/** The part of the loaded map the grid helpers read and keep in sync. */
+export type GridMapData = Pick<MapFile, 'grid'>;
 
 /**
  * Ensure a GridSystem exists for the given renderer. If none exists yet it
@@ -8,7 +12,7 @@ import { Sprite } from 'pixi.js';
  */
 function ensureInitialised(
   renderer: PixiRendererOrchestrator,
-  mapData: any
+  mapData: GridMapData | null
 ): void {
   if (!mapData) return; // nothing to do without map meta
 
@@ -45,7 +49,7 @@ function ensureInitialised(
  */
 function toggle(
   renderer: PixiRendererOrchestrator,
-  mapData: any
+  mapData: GridMapData | null
 ): boolean {
   // Ensure we have a grid system before toggling.
   ensureInitialised(renderer, mapData);

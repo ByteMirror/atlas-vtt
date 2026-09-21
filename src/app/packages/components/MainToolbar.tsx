@@ -40,7 +40,7 @@ import {
 } from "lucide-react"
 
 
-import { TooltipProvider } from "./primitives/tooltip"
+import { LabelTooltip, TooltipProvider } from "./primitives/tooltip"
 import { useMapHotkeys, useHotkeyLabels } from "../../keyboard/useMapHotkeys"
 import { CommandPalette } from "../../react/components/CommandPalette"
 import AssetManager from "./asset-manager/AssetManager"
@@ -214,7 +214,7 @@ export const MainToolbar = forwardRef<HTMLDivElement, MainToolbarProps>(({ viewI
    */
   const applyTextSetting = useCallback((updates: Partial<{ color: string; fontSize: number; bold: boolean }>) => {
     const state = store.getState();
-    const selected = (state.selectedIds as string[]).filter((id: string) => id.startsWith('text_'));
+    const selected = state.selectedIds.filter((id) => id.startsWith('text_'));
     if (selected.length === 1) {
       state.updateText(selected[0]!, updates);
     }
@@ -664,19 +664,18 @@ export const MainToolbar = forwardRef<HTMLDivElement, MainToolbarProps>(({ viewI
                     <span className="text-sm text-[var(--text-normal)]">Icons</span>
                     <div className="atlas-icon-grid">
                       {MAP_ICON_OPTIONS.map(({ key, icon: Icon }) => (
-                        <button
-                          key={key}
-                          type="button"
-                          title={MAP_ICON_LABELS[key]}
-                          aria-label={MAP_ICON_LABELS[key]}
-                          aria-pressed={activeTool === "draw-icon" && drawIcon === key}
-                          className={`atlas-icon-grid__item${
-                            activeTool === "draw-icon" && drawIcon === key ? " atlas-icon-grid__item--active" : ""
-                          }`}
-                          onClick={() => { setDrawIcon(key); setActiveTool("draw-icon"); }}
-                        >
-                          <Icon className="h-4 w-4" />
-                        </button>
+                        <LabelTooltip key={key} label={MAP_ICON_LABELS[key] ?? key}>
+                          <button
+                            type="button"
+                            aria-pressed={activeTool === "draw-icon" && drawIcon === key}
+                            className={`atlas-icon-grid__item${
+                              activeTool === "draw-icon" && drawIcon === key ? " atlas-icon-grid__item--active" : ""
+                            }`}
+                            onClick={() => { setDrawIcon(key); setActiveTool("draw-icon"); }}
+                          >
+                            <Icon className="h-4 w-4" />
+                          </button>
+                        </LabelTooltip>
                       ))}
                     </div>
                   </div>
@@ -760,16 +759,15 @@ export const MainToolbar = forwardRef<HTMLDivElement, MainToolbarProps>(({ viewI
                     <span className="text-sm text-[var(--text-normal)]">Colour</span>
                     <div className="atlas-swatch-grid">
                       {TEXT_COLOR_SWATCHES.map(({ value, label }) => (
-                        <button
-                          key={value}
-                          type="button"
-                          title={label}
-                          aria-label={label}
-                          aria-pressed={textColor === value}
-                          className={`atlas-swatch${textColor === value ? " atlas-swatch--active" : ""}`}
-                          style={{ backgroundColor: value }}
-                          onClick={() => { setTextColor(value); applyTextSetting({ color: value }); }}
-                        />
+                        <LabelTooltip key={value} label={label}>
+                          <button
+                            type="button"
+                            aria-pressed={textColor === value}
+                            className={`atlas-swatch${textColor === value ? " atlas-swatch--active" : ""}`}
+                            style={{ backgroundColor: value }}
+                            onClick={() => { setTextColor(value); applyTextSetting({ color: value }); }}
+                          />
+                        </LabelTooltip>
                       ))}
                     </div>
                   </div>
@@ -817,8 +815,8 @@ export const MainToolbar = forwardRef<HTMLDivElement, MainToolbarProps>(({ viewI
                 shortcut={hotkeyLabel('measure')}
                 isActive={activeTool === "measure" || activeTool === "measure-circle" || activeTool === "measure-cone"}
                 onClick={() => {
-                  const measureTools: Array<'measure' | 'measure-circle' | 'measure-cone'> = ['measure', 'measure-circle', 'measure-cone'];
-                  if (measureTools.includes(activeTool as any)) {
+                  const measureTools: readonly Tool[] = ['measure', 'measure-circle', 'measure-cone'];
+                  if (measureTools.includes(activeTool)) {
                     // If already a measure tool, just re-select it
                     handleToolClick(activeTool);
                   } else {

@@ -182,7 +182,7 @@ export class PixiAppManager {
         this.viewport.plugins.pause('wheel');
         this.viewport.plugins.pause('decelerate');
         this.viewport.destroy();
-      } catch (e: any) { 
+      } catch (e: unknown) {
         if (e instanceof TypeError && e.message.includes('_cancelResize')) {
             console.warn('[PixiAppManager] Viewport destroy failed with _cancelResize (known issue, suppressed): ', e.message);
         } else {

@@ -11,6 +11,7 @@ import {
   type FormationSlot,
 } from '../../../../encounters/encounterFormation';
 import type { AtlasView } from '../../../../atlas-view';
+import type { ViewAtlasState } from '../../../../storeFactory';
 
 // ─── Viewport helpers ───────────────────────────────────────────────
 
@@ -33,7 +34,7 @@ interface GridSystemLike {
 export interface SpawnContext {
   app: ObsidianApp;
   view: AtlasView | null;
-  addToken: (data: any) => string;
+  addToken: ViewAtlasState['addToken'];
   setSelection: (ids: string[]) => void;
   assetService: AssetService | null;
 }

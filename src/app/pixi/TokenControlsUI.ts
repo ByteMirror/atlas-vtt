@@ -1,26 +1,36 @@
 import { Container, Graphics, Texture, Sprite } from 'pixi.js';
 import { Viewport } from 'pixi-viewport';
-import type { Character, TokenEntity } from '../types';
+import type { Character } from '../types';
 import type { ViewAtlasState } from '../storeFactory';
 import type { StoreApi } from 'zustand';
 import { colors, barDimensions } from '../styles/designTokens';
 import { toError } from '../utils/errors';
+import type { TokenGestureEventDetail } from '../types/atlasWindowEvents';
+
+type ControlIconType = 'plus' | 'minus';
+
+/** Round +/- button; keeps what `drawButtonState` needs to redraw it. */
+interface ControlButton extends Container {
+  bg: Graphics;
+  iconType: ControlIconType;
+  iconColor: number;
+}
 
 export class TokenControlsUI {
   private container: Container;
   private viewport: Viewport;
   private store: StoreApi<ViewAtlasState>;
   private currentTokenId: string | null = null;
-  private buttons: Container[] = [];
+  private buttons: ControlButton[] = [];
   private isHiddenDuringResize: boolean = false;
   private isHiddenDuringRotation: boolean = false;
   private isDestroyed: boolean = false;
 
   // Button containers
-  private hpMinusBtn: Container;
-  private hpPlusBtn: Container;
-  private stressMinusBtn: Container;
-  private stressPlusBtn: Container;
+  private hpMinusBtn: ControlButton;
+  private hpPlusBtn: ControlButton;
+  private stressMinusBtn: ControlButton;
+  private stressPlusBtn: ControlButton;
 
   // Colors from design tokens
   private readonly HP_COLOR = colors.health.healthy;
@@ -159,18 +169,12 @@ export class TokenControlsUI {
     }
   }
   
-  private createButton(iconType: 'plus' | 'minus', iconColor: number): Container {
-    const button = new Container();
+  private createButton(iconType: ControlIconType, iconColor: number): ControlButton {
+    const bg = new Graphics();
+    const button: ControlButton = Object.assign(new Container(), { bg, iconType, iconColor });
     button.eventMode = 'static';
     button.cursor = 'pointer';
-    
-    const bg = new Graphics();
     button.addChild(bg);
-    
-    // Store references for hover effects
-    (button as any).bg = bg;
-    (button as any).iconType = iconType;
-    (button as any).iconColor = iconColor;
     
     // Draw initial state
     this.drawButtonState(button, false);
@@ -183,17 +187,14 @@ export class TokenControlsUI {
     return button;
   }
   
-  private drawButtonState(button: Container, isHover: boolean): void {
-    const bg = (button as any).bg as Graphics;
+  private drawButtonState(button: ControlButton, isHover: boolean): void {
+    const { bg, iconType, iconColor } = button;
     
-    // Safety check - ensure bg exists before using it
-    if (!bg || bg.destroyed) {
+    // The icon textures load asynchronously, so a redraw can arrive after destroy
+    if (bg.destroyed) {
       console.warn('[TokenControlsUI] drawButtonState called with invalid bg Graphics');
       return;
     }
-    
-    const iconType = (button as any).iconType as string;
-    const iconColor = (button as any).iconColor as number;
     
     bg.clear();
     
@@ -244,11 +245,10 @@ export class TokenControlsUI {
   
   public show(tokenId: string, worldX: number, worldY: number, tokenSize: number): void {
     const state = this.store.getState();
-    const token = state.objects.tokens[tokenId] as Character;
+    const token = state.objects.tokens[tokenId] as Character | undefined;
     
-    // Check if token has a statblock assigned (path or object)
-    const hasStatblock = !!(token.statblockPath || (token as any).statblock);
-    if (!token || !hasStatblock) {
+    // Controls only apply to tokens with a linked statblock
+    if (!token?.statblockPath) {
       this.hide();
       return;
     }
@@ -359,7 +359,7 @@ export class TokenControlsUI {
     
     // Stress buttons — mirror TokenUIRenderer's hasStress logic
     const tokenSettings = this.store.getState().tokenSettings || { showStressBars: true };
-    const hasStatblock = !!(token.statblockPath || (token as any).statblock);
+    const hasStatblock = !!token.statblockPath;
     const hasStress = hasStatblock && token.stress !== undefined && tokenSettings.showStressBars;
     if (hasStress && typeof token.stress === 'number' && typeof token.maxStress === 'number') {
       this.stressMinusBtn.visible = true;
@@ -397,10 +397,7 @@ export class TokenControlsUI {
     const maxHP = token.hp.max;
     const newHP = Math.max(0, Math.min(maxHP, currentHP + delta));
     
-    const updates = { hp: { ...token.hp, current: newHP } } as Partial<Omit<TokenEntity, 'id' | 'kind'>>;
-    
-    // Update token in store
-    this.store.getState().updateToken(this.currentTokenId, updates);
+    this.store.getState().updateToken(this.currentTokenId, { hp: { ...token.hp, current: newHP } });
     
     // Refresh buttons with updated token data
     const updatedToken = this.store.getState().objects.tokens[this.currentTokenId] as Character;
@@ -417,10 +414,7 @@ export class TokenControlsUI {
     const maxStress = token.maxStress;
     const newStress = Math.max(0, Math.min(maxStress, currentStress + delta));
     
-    const updates = { stress: newStress } as Partial<Omit<TokenEntity, 'id' | 'kind'>>;
-    
-    // Update token in store
-    this.store.getState().updateToken(this.currentTokenId, updates);
+    this.store.getState().updateToken(this.currentTokenId, { stress: newStress });
     
     // Refresh buttons with updated token data
     const updatedToken = this.store.getState().objects.tokens[this.currentTokenId] as Character;
@@ -433,9 +427,8 @@ export class TokenControlsUI {
   /**
    * Handle resize started events - hide controls
    */
-  private onResizeStarted = (e: Event): void => {
-    const customEvent = e as CustomEvent;
-    const resizingTokenIds = customEvent.detail?.tokenIds || [];
+  private onResizeStarted = (e: CustomEvent<TokenGestureEventDetail>): void => {
+    const resizingTokenIds = e.detail.tokenIds;
     
     // Only hide controls if this token is being resized
     if (this.currentTokenId && resizingTokenIds.includes(this.currentTokenId)) {
@@ -447,9 +440,8 @@ export class TokenControlsUI {
   /**
    * Handle resize ended events - show controls if they should be visible
    */
-  private onResizeEnded = (e: Event): void => {
-    const customEvent = e as CustomEvent;
-    const resizedTokenIds = customEvent.detail?.tokenIds || [];
+  private onResizeEnded = (e: CustomEvent<TokenGestureEventDetail>): void => {
+    const resizedTokenIds = e.detail.tokenIds;
     
     // Only restore controls if this token was being resized
     if (this.currentTokenId && resizedTokenIds.includes(this.currentTokenId)) {
@@ -464,9 +456,8 @@ export class TokenControlsUI {
   /**
    * Handle rotation started events - hide controls
    */
-  private onRotationStarted = (e: Event): void => {
-    const customEvent = e as CustomEvent;
-    const rotatingTokenIds = customEvent.detail?.tokenIds || [];
+  private onRotationStarted = (e: CustomEvent<TokenGestureEventDetail>): void => {
+    const rotatingTokenIds = e.detail.tokenIds;
     
     // Only hide controls if this token is being rotated
     if (this.currentTokenId && rotatingTokenIds.includes(this.currentTokenId)) {
@@ -478,9 +469,8 @@ export class TokenControlsUI {
   /**
    * Handle rotation ended events - show controls if they should be visible
    */
-  private onRotationEnded = (e: Event): void => {
-    const customEvent = e as CustomEvent;
-    const rotatedTokenIds = customEvent.detail?.tokenIds || [];
+  private onRotationEnded = (e: CustomEvent<TokenGestureEventDetail>): void => {
+    const rotatedTokenIds = e.detail.tokenIds;
     
     // Only restore controls if this token was being rotated
     if (this.currentTokenId && rotatedTokenIds.includes(this.currentTokenId)) {

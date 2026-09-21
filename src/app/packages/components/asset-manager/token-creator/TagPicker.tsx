@@ -1,7 +1,8 @@
-import React, { useRef, useState } from 'react';
+import React, { useId, useRef, useState } from 'react';
 import { Check, Plus, Search, Tag as TagIcon, X } from 'lucide-react';
 import { cn } from '../../../../../utils/cn';
 import { Button } from '../../primitives/button';
+import { LabelTooltip } from '../../primitives/tooltip';
 
 interface TagPickerProps {
   available: string[];
@@ -18,6 +19,7 @@ export function TagPicker({ available, selected, onToggle, onCreate, disabled = 
   const [error, setError] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const creatingRef = useRef(false);
+  const labelId = useId();
   const name = query.trim();
   const tags = Array.from(new Set([...available, ...selected]));
   const filtered = tags.filter((tag) => tag.toLowerCase().includes(name.toLowerCase()));
@@ -54,10 +56,11 @@ export function TagPicker({ available, selected, onToggle, onCreate, disabled = 
 
       <div className="atlas-token-creator__search">
         <Search />
+        <span id={labelId} hidden>Search or create tags</span>
         <input
           ref={inputRef}
           type="text"
-          aria-label="Search or create tags"
+          aria-labelledby={labelId}
           placeholder="Search or create tags…"
           value={query}
           disabled={disabled}
@@ -72,10 +75,12 @@ export function TagPicker({ available, selected, onToggle, onCreate, disabled = 
           }}
         />
         {query && (
-          <Button type="button" variant="ghost" size="icon" className="atlas-collection-header-btn" disabled={disabled || isCreating}
-            onClick={() => { setQuery(''); setError(''); }} aria-label="Clear search">
-            <X />
-          </Button>
+          <LabelTooltip label="Clear search">
+            <Button type="button" variant="ghost" size="icon" className="atlas-collection-header-btn" disabled={disabled || isCreating}
+              onClick={() => { setQuery(''); setError(''); }}>
+              <X />
+            </Button>
+          </LabelTooltip>
         )}
       </div>
 

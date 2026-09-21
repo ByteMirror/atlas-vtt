@@ -28,5 +28,5 @@ it('uses inline resources when assigning a statblock link to existing tokens', a
   app.vault.cachedRead = app.vault.read;
   Object.assign(window, { FantasyStatblocks: { getBestiaryCreatures: () => [], hasCreature: () => false } });
   const service = Object.assign(Object.create(TokenStatblockLinkService.prototype), { app });
-  expect(await service.extractStatblockData(path)).toMatchObject({ hp: { current: 12, max: 27 }, maxHp: 27, stress: 0, maxStress: 3 });
+  expect(await service.extractStatblockData(path)).toMatchObject({ hp: { current: 12, max: 27 }, stress: 0, maxStress: 3 });
 });

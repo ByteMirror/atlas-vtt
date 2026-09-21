@@ -178,28 +178,16 @@ export function useAssetCrud(
     const col = selectedCollection || 'default';
     const tabBase = `${ATLAS_VTT_DIR}/collections/${col.toLowerCase()}/${activeTab}`;
     const targetDir = targetFolderId ? targetFolderId.replace('folder-', '') : tabBase;
-    const movedPathById: Record<string, { path: string; field: 'imagePath' | 'filePath' }> = {};
+    const movedPathById: Record<string, string> = {};
 
     for (const id of assetIds) {
       const asset = assets.find((a) => a.id === id);
-      if (!asset) continue;
-      const pathField: 'imagePath' | 'filePath' | null =
-        activeTab === 'tokens'
-          ? 'imagePath'
-          : activeTab === 'encounters'
-            ? 'filePath'
-            : null;
-      if (!pathField) continue;
+      // Only tokens (their image) and encounters (their JSON file) live in folders.
+      if (!asset || (asset.type !== 'tokens' && asset.type !== 'encounters')) continue;
 
-      const sourcePath = (() => {
-        if (pathField === 'imagePath') {
-          return (asset as any).imagePath as string | undefined;
-        }
-        return (
-          (asset.filePath) ??
-          `${tabBase}/${asset.id}.json`
-        );
-      })();
+      const sourcePath = asset.type === 'tokens'
+        ? asset.imagePath
+        : asset.filePath ?? `${tabBase}/${asset.id}.json`;
       if (!sourcePath) continue;
 
       const fileName = sourcePath.substring(sourcePath.lastIndexOf('/') + 1);
@@ -210,19 +198,20 @@ export function useAssetCrud(
         const file = app.vault.getAbstractFileByPath(sourcePath);
         if (!(file instanceof TFile)) continue;
         await app.vault.rename(file, newPath);
-        movedPathById[id] = { path: newPath, field: pathField };
-        await assetService.updateAsset(id, { [pathField]: newPath } as any);
+        movedPathById[id] = newPath;
+        await assetService.updateAsset(id, asset.type === 'tokens' ? { imagePath: newPath } : { filePath: newPath });
       } catch (error) {
         console.error(`[useAssetCrud] Failed to move asset ${id}:`, error);
       }
     }
 
-    const movedIds = new Set(Object.keys(movedPathById));
     setAssets((prev) =>
       prev.map((a) => {
-        if (!movedIds.has(a.id)) return a;
-        const moved = movedPathById[a.id]!;
-        return { ...a, folderId: targetFolderId, [moved.field]: moved.path } as any;
+        const movedPath = movedPathById[a.id];
+        if (movedPath === undefined) return a;
+        return a.type === 'tokens'
+          ? { ...a, folderId: targetFolderId, imagePath: movedPath }
+          : { ...a, folderId: targetFolderId, filePath: movedPath };
       })
     );
   };

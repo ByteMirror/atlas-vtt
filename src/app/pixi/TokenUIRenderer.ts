@@ -8,6 +8,7 @@ import { colors, barDimensions, getHealthColor, lightenColor, darkenColor } from
 import { ConditionDotsRenderer } from './token-renderer/ConditionDotsRenderer';
 import { ConditionHoverPanel } from './token-renderer/ConditionHoverPanel';
 import type { ConditionDefinition } from '../types/collectionSettingsTypes';
+import type { TokenGestureEventDetail } from '../types/atlasWindowEvents';
 
 /**
  * Text is drawn at scale 0.333 and the viewport zooms to at most 5x, so a
@@ -75,6 +76,7 @@ export class TokenUIRenderer {
   // Inline editing state
   private isEditingName: boolean = false;
   private editInput: HTMLInputElement | null = null;
+  private removeEditInputListeners: (() => void) | null = null;
   private originalName: string = '';
   private editCursor: Graphics;
   private cursorBlinkInterval: number | null = null;
@@ -272,9 +274,8 @@ export class TokenUIRenderer {
   /**
    * Handle resize started events - hide UI elements except resize handles
    */
-  private onResizeStarted = (e: Event): void => {
-    const customEvent = e as CustomEvent;
-    const resizingTokenIds = customEvent.detail?.tokenIds || [];
+  private onResizeStarted = (e: CustomEvent<TokenGestureEventDetail>): void => {
+    const resizingTokenIds = e.detail.tokenIds;
     
     // Only hide UI if this token is being resized
     if (this.currentToken && resizingTokenIds.includes(this.currentToken.id)) {
@@ -295,9 +296,8 @@ export class TokenUIRenderer {
   /**
    * Handle resize ended events - show UI elements again
    */
-  private onResizeEnded = (e: Event): void => {
-    const customEvent = e as CustomEvent;
-    const resizedTokenIds = customEvent.detail?.tokenIds || [];
+  private onResizeEnded = (e: CustomEvent<TokenGestureEventDetail>): void => {
+    const resizedTokenIds = e.detail.tokenIds;
     
     // Only restore UI if this token was being resized
     if (this.currentToken && resizedTokenIds.includes(this.currentToken.id)) {
@@ -314,9 +314,8 @@ export class TokenUIRenderer {
   /**
    * Handle rotation started events - hide UI elements except rotation handles
    */
-  private onRotationStarted = (e: Event): void => {
-    const customEvent = e as CustomEvent;
-    const rotatingTokenIds = customEvent.detail?.tokenIds || [];
+  private onRotationStarted = (e: CustomEvent<TokenGestureEventDetail>): void => {
+    const rotatingTokenIds = e.detail.tokenIds;
     
     // Only hide UI if this token is being rotated
     if (this.currentToken && rotatingTokenIds.includes(this.currentToken.id)) {
@@ -338,9 +337,8 @@ export class TokenUIRenderer {
   /**
    * Handle rotation ended events - show UI elements again
    */
-  private onRotationEnded = (e: Event): void => {
-    const customEvent = e as CustomEvent;
-    const rotatedTokenIds = customEvent.detail?.tokenIds || [];
+  private onRotationEnded = (e: CustomEvent<TokenGestureEventDetail>): void => {
+    const rotatedTokenIds = e.detail.tokenIds;
     
     // Only restore UI if this token was being rotated
     if (this.currentToken && rotatedTokenIds.includes(this.currentToken.id)) {
@@ -402,7 +400,7 @@ export class TokenUIRenderer {
     const stressString = token.stress === undefined ? 'no-stress' : (typeof token.stress === 'object' ? `${token.stress.current}/${token.stress.max}` : String(token.stress));
     const showNameplate = playerSettings ? playerSettings.showTokenNameplates : tokenSettings.showNameplates || token.showNameplate === true;
     const conditionsKey = token.conditions?.join(',') ?? '';
-    const updateKey = `${hpString}_${stressString}_${spriteWidth}_${gridPx}_${this.isHovered}_${this.isSelected}_${token.name || ''}_${showNameplate}_${(token as any).statblockName || ''}_${tokenSettings.showHPBars}_${tokenSettings.showStressBars}_${conditionsKey}`;
+    const updateKey = `${hpString}_${stressString}_${spriteWidth}_${gridPx}_${this.isHovered}_${this.isSelected}_${token.name || ''}_${showNameplate}_${token.statblockName || ''}_${tokenSettings.showHPBars}_${tokenSettings.showStressBars}_${conditionsKey}`;
     
     // Skip update if nothing has changed
     if (this.lastUpdateData === updateKey) {
@@ -424,7 +422,7 @@ export class TokenUIRenderer {
     
     // Check if we have any data to display
     // Only show HP/stress bars if token has a statblock assigned AND the setting is enabled
-    const hasStatblock = !!(token.statblockPath || (token as any).statblock);
+    const hasStatblock = !!token.statblockPath;
     const hasHP = hasStatblock && token.hp !== undefined && tokenSettings.showHPBars;
     const hasStress = hasStatblock && token.stress !== undefined && tokenSettings.showStressBars;
     // showNameplate is already calculated above for change detection
@@ -597,9 +595,9 @@ export class TokenUIRenderer {
     if (token.name) {
       // Token has a custom name (overrides statblock name)
       displayName = token.name;
-    } else if (hasStatblock && (token as any).statblockName) {
+    } else if (hasStatblock && token.statblockName) {
       // Token has a statblock and we loaded the statblock name
-      displayName = (token as any).statblockName;
+      displayName = token.statblockName;
     } else if (hasStatblock) {
       // Token has a statblock but no name was loaded - show placeholder
       displayName = 'Unknown Creature';
@@ -995,9 +993,7 @@ export class TokenUIRenderer {
       
       // Only update if name changed
       if (newName !== this.originalName) {
-        // Only characters can have names updated - use type assertion since we know this is a character
-        const updates = { name: newName === '' ? undefined : newName } as any;
-        this.store?.getState().updateToken(this.currentToken.id, updates);
+        this.store.getState().updateToken(this.currentToken.id, { name: newName === '' ? undefined : newName });
         
         // Force a re-render of this UI by clearing the cache
         this.lastUpdateData = '';
@@ -1078,7 +1074,7 @@ export class TokenUIRenderer {
     input.addEventListener('input', inputHandler);
     
     // Store handlers for cleanup
-    (input as any).cleanupHandlers = () => {
+    this.removeEditInputListeners = (): void => {
       input.removeEventListener('keydown', keydownHandler);
       input.removeEventListener('blur', blurHandler);
       input.removeEventListener('click', clickHandler);
@@ -1106,10 +1102,8 @@ export class TokenUIRenderer {
     
     // Remove input element with proper cleanup
     if (this.editInput) {
-      // Clean up event handlers
-      if ((this.editInput as any).cleanupHandlers) {
-        (this.editInput as any).cleanupHandlers();
-      }
+      this.removeEditInputListeners?.();
+      this.removeEditInputListeners = null;
       
       // Remove from DOM
       this.editInput.remove();

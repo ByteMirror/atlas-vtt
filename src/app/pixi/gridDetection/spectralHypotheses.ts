@@ -6,9 +6,11 @@
  * centre spacing S has six reciprocal-lattice peaks at radius 2 / (sqrt(3) S):
  * perpendicular to the rows of centres, so at 30° + k·60° for pointy-top hexes
  * and at k·60° for flat-top hexes. Peaks are scored against the median power on
- * the same ring so texture and low-frequency content do not masquerade as grids.
- * The strongest peak may be a harmonic (honeycombs have weak fundamentals), so
- * the caller decides between the size, its half and its double by line evidence.
+ * the same ring so texture and low-frequency content do not masquerade as grids,
+ * and summed over their harmonics.
+ * The spectrum only proposes: a peak may be a harmonic (honeycombs have weak
+ * fundamentals) or belong to map art, so the caller fits every proposal to the
+ * map's lines and keeps the one they support.
  */
 
 import type { GridType } from '../../grid/GridSystem';
@@ -17,25 +19,28 @@ export interface SpectralHypothesis {
   gridType: GridType;
   /** Cell size in pixels of the analysed image (flat-to-flat for hexes). */
   cellSize: number;
-  /** Mean peak power divided by the median power on the same frequency ring. */
-  peakRatio: number;
-  /** Radius (in spectrum bins) of the ring the size was read from. */
-  ringFrequency: number;
+  /** Harmonic sum of the peak-to-ring-median excess; comparable between hypotheses of one image. */
+  score: number;
 }
 
 const SQRT3 = Math.sqrt(3);
 const RING_SAMPLES = 72;
 const K_STEP = 0.25;
-/** A ring must beat its background by this much to count at all. */
-const MIN_RING_RATIO = 6;
-/** ...and be at least this fraction of the strongest ring of its type. */
-const RING_SIGNIFICANCE = 0.15;
-/** Rings whose frequencies differ by less than this are the same ring seen by two types. */
-const SAME_RING_TOLERANCE = 0.08;
+/** Ratios up to this are what ring noise reaches on its own; only the excess above it is evidence. */
+const NOISE_RATIO = 3;
+/** Weight of each further harmonic relative to the one before. */
+const HARMONIC_DECAY = 0.85;
+/** Harmonic score below which a frequency is not proposed at all. */
+const MIN_HARMONIC_SCORE = 3;
+const PROPOSALS_PER_TYPE = 2;
 
-const SQUARE_ANGLES = [0, 90, 180, 270].map((deg) => (deg * Math.PI) / 180);
-const FLAT_ANGLES = [0, 60, 120, 180, 240, 300].map((deg) => (deg * Math.PI) / 180);
-const POINTY_ANGLES = [30, 90, 150, 210, 270, 330].map((deg) => (deg * Math.PI) / 180);
+function toRadians(degrees: number): number {
+  return (degrees * Math.PI) / 180;
+}
+
+const SQUARE_ANGLES = [0, 90, 180, 270].map(toRadians);
+const FLAT_ANGLES = [0, 60, 120, 180, 240, 300].map(toRadians);
+const POINTY_ANGLES = [30, 90, 150, 210, 270, 330].map(toRadians);
 
 function readPower(power: Float32Array, n: number, fx: number, fy: number): number {
   const x = fx + n / 2;
@@ -74,38 +79,54 @@ function cellSizeFromFrequency(gridType: GridType, n: number, k: number): number
 }
 
 /**
- * Innermost significant ring for a grid type. Harmonics and outer reciprocal
- * shells are stronger than the fundamental for thin honeycomb lines, but the
- * fundamental is always the ring closest to the origin.
+ * Candidate fundamentals for a grid type, best first.
+ *
+ * Thin grid lines are a comb: their harmonics are as strong as the fundamental,
+ * while map art fades with frequency, so on a textured map the fundamental alone
+ * barely rises above its ring and the higher harmonics stand out. Summing the
+ * evidence at k, 2k, 3k… (as pitch detectors do) rewards the frequency that
+ * explains the whole series. A sub- or super-harmonic may still win; the caller
+ * fits the half and the double of every supported proposal.
  */
-function innermostRing(
+function candidateFundamentals(
   power: Float32Array,
   n: number,
   gridType: GridType,
   angles: number[],
   kMin: number,
   kMax: number,
-): SpectralHypothesis | null {
-  const ks: number[] = [];
+): SpectralHypothesis[] {
   const ratios: number[] = [];
-  for (let k = kMin; k <= kMax; k += K_STEP) {
-    ks.push(k);
-    ratios.push(peakRatioAt(power, n, k, angles));
-  }
-  const maxRatio = Math.max(...ratios);
-  const threshold = Math.max(MIN_RING_RATIO, RING_SIGNIFICANCE * maxRatio);
+  for (let k = kMin; k <= kMax; k += K_STEP) ratios.push(peakRatioAt(power, n, k, angles));
 
-  for (let i = 1; i < ratios.length - 1; i++) {
-    const ratio = ratios[i]!;
-    if (ratio >= threshold && ratio > ratios[i - 1]! && ratio >= ratios[i + 1]!) {
-      return { gridType, cellSize: cellSizeFromFrequency(gridType, n, ks[i]!), peakRatio: maxRatio, ringFrequency: ks[i]! };
-    }
+  /** Peak excess over the ring background around frequency `k`; harmonics may sit a little off their nominal place. */
+  const excessAt = (k: number, slack: number): number => {
+    const from = Math.max(0, Math.floor((k - slack - kMin) / K_STEP));
+    const to = Math.min(ratios.length - 1, Math.ceil((k + slack - kMin) / K_STEP));
+    let best = NOISE_RATIO;
+    for (let i = from; i <= to; i++) best = Math.max(best, ratios[i]!);
+    return best - NOISE_RATIO;
+  };
+
+  const scores = ratios.map((_, i) => {
+    const k = kMin + i * K_STEP;
+    let score = 0;
+    for (let h = 1; h * k <= kMax; h++) score += HARMONIC_DECAY ** (h - 1) * excessAt(h * k, (h * K_STEP) / 2);
+    return score;
+  });
+
+  const peaks: number[] = [];
+  for (let i = 1; i < scores.length - 1; i++) {
+    if (scores[i]! >= MIN_HARMONIC_SCORE && scores[i]! > scores[i - 1]! && scores[i]! >= scores[i + 1]!) peaks.push(i);
   }
-  return null;
+  return peaks
+    .sort((a, b) => scores[b]! - scores[a]!)
+    .slice(0, PROPOSALS_PER_TYPE)
+    .map((i) => ({ gridType, cellSize: cellSizeFromFrequency(gridType, n, kMin + i * K_STEP), score: scores[i]! }));
 }
 
 /**
- * Best hypothesis per grid type, most plausible first. `minPeriod`/`maxPeriod` bound
+ * Grid hypotheses worth fitting, for every grid type. `minPeriod`/`maxPeriod` bound
  * the line spacing (in analysed pixels) considered plausible.
  */
 export function spectralHypotheses(
@@ -116,18 +137,9 @@ export function spectralHypotheses(
 ): SpectralHypothesis[] {
   const kMin = n / maxPeriod;
   const kMax = Math.min(n / minPeriod, n / 2 - 2);
-  const hypotheses = [
-    innermostRing(power, n, 'square', SQUARE_ANGLES, kMin, kMax),
-    innermostRing(power, n, 'hex-vertical', POINTY_ANGLES, kMin, kMax),
-    innermostRing(power, n, 'hex-horizontal', FLAT_ANGLES, kMin, kMax),
-  ].filter((h): h is SpectralHypothesis => h !== null);
-
-  // The true lattice owns the innermost ring; on a shared ring, the type whose
-  // angle set matches best has the higher ratio.
-  return hypotheses.sort((a, b) => {
-    if (Math.abs(a.ringFrequency - b.ringFrequency) > SAME_RING_TOLERANCE * Math.max(a.ringFrequency, b.ringFrequency)) {
-      return a.ringFrequency - b.ringFrequency;
-    }
-    return b.peakRatio - a.peakRatio;
-  });
+  return [
+    ...candidateFundamentals(power, n, 'square', SQUARE_ANGLES, kMin, kMax),
+    ...candidateFundamentals(power, n, 'hex-vertical', POINTY_ANGLES, kMin, kMax),
+    ...candidateFundamentals(power, n, 'hex-horizontal', FLAT_ANGLES, kMin, kMax),
+  ];
 }

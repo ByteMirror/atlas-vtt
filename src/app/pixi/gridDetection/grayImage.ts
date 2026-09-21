@@ -73,13 +73,6 @@ export function localContrast(image: GrayImage, d: number): GrayImage {
   return { width, height, data: out };
 }
 
-export function sampleNearest(image: GrayImage, x: number, y: number): number {
-  const xi = Math.round(x);
-  const yi = Math.round(y);
-  if (xi < 0 || yi < 0 || xi >= image.width || yi >= image.height) return 0;
-  return image.data[yi * image.width + xi]!;
-}
-
 export function sampleBilinear(image: GrayImage, x: number, y: number): number {
   const x0 = Math.floor(x);
   const y0 = Math.floor(y);

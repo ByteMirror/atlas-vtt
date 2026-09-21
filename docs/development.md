@@ -20,7 +20,10 @@ of the existing lint backlog.
 ## Test builds
 
 Successful Plugin CI runs attach an `atlas-vtt-<commit>` artifact containing
-`main.js`, `manifest.json` and `styles.css`, retained for 14 days. Install these
+`main.js`, `manifest.json` and `styles.css`, retained for 14 days. For pull
+requests, `<commit>` is the PR head commit, but the build itself is that commit
+merged into the current `main`, so it may include base changes that are not in
+the branch. Install these
 files in an isolated test vault's `.obsidian/plugins/atlas-vtt/` directory and
 reload the plugin. Include practical Obsidian test steps for interaction changes.
 These artifacts do not publish a release or bump the version.

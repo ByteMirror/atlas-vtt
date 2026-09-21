@@ -52,8 +52,8 @@ jobs:
       - name: Build plugin
         run: npm run build:ci
 
-      - name: Smoke test postbuild copy hook (used by npm run build)
-        run: node scripts/copy-plugin.js
+      - name: Smoke test postbuild hook (used by npm run build)
+        run: npm run postbuild
 
       - name: Preflight (community directory review checks)
         run: npm run preflight

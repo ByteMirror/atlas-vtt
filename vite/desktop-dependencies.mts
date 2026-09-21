@@ -2,7 +2,9 @@ import type { Plugin } from 'vite';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
-const scriptError = 'Atlas does not support script elements';
+// Source text spliced into React DOM. Kept as a literal so no runtime value is
+// ever turned into code.
+const throwScriptError = 'throw new Error("Atlas does not support script elements")';
 
 /**
  * Atlas renders local UI and never loads executable scripts through React.
@@ -42,9 +44,9 @@ export function desktopDependencies(): Plugin {
       if ([...code.matchAll(createScript)].length !== 3 || [...code.matchAll(inertScript)].length !== 1) {
         throw new Error('React DOM script handling changed; review the desktop dependency adapter');
       }
-      const reject = `(() => { throw new Error(${JSON.stringify(scriptError)}); })()`;
+      const reject = `(() => { ${throwScriptError}; })()`;
       return {
-        code: code.replace(createScript, reject).replace(inertScript, `case "script": throw new Error(${JSON.stringify(scriptError)});`),
+        code: code.replace(createScript, reject).replace(inertScript, `case "script": ${throwScriptError};`),
         map: null,
       };
     },

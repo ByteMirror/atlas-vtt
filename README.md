@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="docs/images/atlas-vtt-icon.webp" alt="Atlas VTT icon" width="160" height="160">
+  <img src="docs/images/atlas-vtt-icon.webp" alt="AtlasVTT icon" width="160" height="160">
 </p>
 
-# Atlas VTT
+# AtlasVTT
 
 A game system agnostic virtual tabletop for tabletop RPGs that runs inside [Obsidian](https://obsidian.md). 
 

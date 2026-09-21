@@ -1,5 +1,7 @@
-# Maps issue-form answers to labels. Each pattern anchors on the form
-# question so free text elsewhere in the issue cannot trigger a label.
+# Maps issue-form answers to labels. Each pattern requires the form question
+# heading right before the answer, which rules out casual mentions of an
+# option in free text. Pasted copies of another issue body can still match;
+# labels are advisory and the maintainer's triage is authoritative.
 # Keep the option texts identical to .github/ISSUE_TEMPLATE/*.yml.
 "type:bug":
   - '### What kind of issue is this\?\s+Something doesn.t work'

@@ -28,7 +28,7 @@ export interface AlignmentResult {
   gridType?: GridType;
   /** Largest disagreement (px) between the fitted lattice and the clicked points, when available. */
   maxResidual?: number;
-  /** Peak-to-background ratio of the grid evidence when the result came from image auto-detection. */
+  /** Share of the detected grid's edges that sit on a line of the map (0–1), when the result came from image auto-detection. */
   confidence?: number;
 }
 

@@ -135,7 +135,7 @@ export function GridAlignmentOverlay({ onClose }: GridAlignmentOverlayProps): Re
       setResult(detected);
       controllerRef.current?.showPreview(detected.cellSize, detected.offsetX, detected.offsetY, detected.gridType);
       setDetectionStatus(
-        `Detected ${describeGridType(detected.gridType)}, ${detected.cellSize.toFixed(2)} px (confidence ${detected.confidence?.toFixed(1)}×). Check the preview, then Apply.`,
+        `Detected ${describeGridType(detected.gridType)}, ${detected.cellSize.toFixed(2)} px (found on ${Math.round((detected.confidence ?? 0) * 100)}% of the map). Check the preview, then Apply.`,
       );
     }, 30);
   }, [view, detecting]);

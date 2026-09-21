@@ -17,24 +17,27 @@ export interface LineSample {
   ny: number;
 }
 
-interface Segment {
+export interface Segment {
   x1: number;
   y1: number;
   x2: number;
   y2: number;
 }
 
-function collectSegments(gridType: GridType, cellSize: number, offsetX: number, offsetY: number, bounds: GridBounds): Segment[] {
+/** Every line segment the drawers emit for the grid inside `bounds`, in the same coordinate space as `bounds` and the offsets. */
+export function gridLineSegments(gridType: GridType, cellSize: number, offsetX: number, offsetY: number, bounds: GridBounds): Segment[] {
   const segments: Segment[] = [];
-  let cursor = { x: 0, y: 0 };
+  // The drawers work in coordinates local to the bounds' top-left corner.
+  let cursor = { x: bounds.minX, y: bounds.minY };
   const recorder: GridPath = {
     moveTo(x, y) {
-      cursor = { x, y };
+      cursor = { x: bounds.minX + x, y: bounds.minY + y };
       return recorder;
     },
     lineTo(x, y) {
-      segments.push({ x1: cursor.x, y1: cursor.y, x2: x, y2: y });
-      cursor = { x, y };
+      const next = { x: bounds.minX + x, y: bounds.minY + y };
+      segments.push({ x1: cursor.x, y1: cursor.y, x2: next.x, y2: next.y });
+      cursor = next;
       return recorder;
     },
     poly() {
@@ -64,7 +67,7 @@ export function gridLineSamples(
   spacing: number,
 ): LineSample[] {
   const samples: LineSample[] = [];
-  for (const s of collectSegments(gridType, cellSize, offsetX, offsetY, bounds)) {
+  for (const s of gridLineSegments(gridType, cellSize, offsetX, offsetY, bounds)) {
     const dx = s.x2 - s.x1;
     const dy = s.y2 - s.y1;
     const length = Math.hypot(dx, dy);
@@ -74,12 +77,7 @@ export function gridLineSamples(
     const count = Math.max(1, Math.floor(length / spacing));
     for (let i = 0; i < count; i++) {
       const t = (i + 0.5) / count;
-      samples.push({
-        x: bounds.minX + s.x1 + dx * t,
-        y: bounds.minY + s.y1 + dy * t,
-        nx,
-        ny,
-      });
+      samples.push({ x: s.x1 + dx * t, y: s.y1 + dy * t, nx, ny });
     }
   }
   return samples;

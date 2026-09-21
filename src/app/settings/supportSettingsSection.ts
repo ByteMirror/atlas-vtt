@@ -7,7 +7,7 @@ export function supportSettingsSection(reporter: IssueReporter): AtlasSettingSec
     rows: [
       {
         name: 'Report an issue',
-        desc: 'Opens a pre-filled GitHub issue with your Atlas and Obsidian versions. Also available as the "Report an issue" command.',
+        desc: 'Submit a report from Atlas with your Atlas and Obsidian versions. No GitHub account is needed. Also available as the "Report an issue" command.',
         aliases: ['bug', 'crash', 'problem', 'feedback', 'github', 'support'],
         render: setting => {
           setting.addButton(button => button.setButtonText('Report an issue').onClick(() => reporter.open({ type: 'bug' })));

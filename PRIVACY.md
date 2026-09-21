@@ -1,11 +1,11 @@
 # Privacy and network use
 
-Atlas VTT is an offline plugin. Maps, tokens, notes, audio and settings are stored in your vault and never leave your computer.
+Atlas VTT works offline. Maps, tokens, notes, audio and settings stay in your vault. Submitting an issue report is an optional network action.
 
 - No accounts, no telemetry, no analytics, no ads.
 - No code is downloaded or executed from the internet, and the plugin does not update itself.
 
-## The only network access
+## Network access
 
 If you set a token or map background to an `http://` or `https://` image URL, or copy an image that a note embeds from an external URL, that image is downloaded from the address in question. Images stored in your vault cause no network traffic.
 
@@ -21,7 +21,24 @@ When the optional [Fantasy Statblocks](https://github.com/javalent/fantasy-statb
 
 ## Issue reports
 
-The **Report an issue** command and **Settings → Atlas VTT → Help and feedback** open a form inside Obsidian. Choosing **Open GitHub issue** opens a pre-filled issue form in your browser; nothing is sent until you submit it there with your own GitHub account. The pre-filled text contains what you typed plus the Atlas, Obsidian and Electron versions, your operating system and interface language, the active theme, and optionally the names and versions of enabled community plugins and recent Atlas error messages. Both optional parts can be turned off in the form and are shown before you continue. It never contains vault names, file paths, note contents or map data. **Copy report** places the same text on the clipboard instead. See [docs/reporting-issues.md](docs/reporting-issues.md).
+The **Report an issue** command and **Settings → Atlas VTT → Help and feedback**
+open a form inside Obsidian. **Submit report** sends the filled report over HTTPS
+to the Atlas reporting service. The service
+publishes it as a public GitHub issue and returns a confirmation. No GitHub
+account is required. Nothing is sent merely by opening the form.
+
+The report includes the text you enter and the Atlas, Obsidian and Electron
+versions, operating system, interface language and active theme. Community
+plugin names/versions and recent Atlas errors are optional. Automated diagnostics
+exclude vault names, file paths, note contents and map data; your own report
+text is published as entered.
+
+The reporting service processes your IP address for abuse prevention. It stores
+a daily keyed address hash for up to 24 hours, not the raw IP. It retains request
+identifiers, report hashes and issue receipts to prevent duplicate submissions;
+it does not retain report bodies separately from GitHub. **Copy report** writes
+the report to your clipboard without sending it. See
+[docs/reporting-issues.md](docs/reporting-issues.md).
 
 ## Clipboard and local storage
 

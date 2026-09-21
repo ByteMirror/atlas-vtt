@@ -21,7 +21,7 @@ describe('GitHub issue forms stay in sync with the in-app report', () => {
     expect(field(bug, 'area').attributes.options).toEqual(Object.values(ISSUE_AREAS));
     expect(field(feature, 'area').attributes.options).toEqual(Object.values(ISSUE_AREAS));
   });
-  it('has every field the plugin pre-fills and matching wording', () => {
+  it('has matching field identifiers and wording', () => {
     for (const [type, template] of [['bug', bug], ['feature', feature]] as const) {
       const form = issueForm(type);
       expect(template.name).toBe(form.title);

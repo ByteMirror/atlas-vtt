@@ -9,6 +9,7 @@ function openModal(overrides: Partial<IssueReportModalOptions> = {}) {
     diagnostics: { pluginVersion: '0.2.0-beta.1', obsidianVersion: '1.13.1', electronVersion: '37.2.0', system: 'macOS arm64', language: 'en-US', theme: 'Default', plugins: [{ id: 'brat', name: 'BRAT', version: '1.1.0' }] },
     errors: [{ at: '12:00:00', message: '[Atlas] Fog failed' }],
     openExternal: vi.fn(),
+    submitReport: vi.fn(async () => ({ number: 42, url: 'https://github.com/ByteMirror/atlas-vtt/issues/42' })),
     copyText: vi.fn(async () => {}),
     ...overrides,
   };
@@ -25,12 +26,12 @@ function openModal(overrides: Partial<IssueReportModalOptions> = {}) {
 }
 
 describe('issue report modal', () => {
-  it('refuses to open GitHub without a title and description', () => {
+  it('refuses to submit without a title and description', () => {
     const { button, options } = openModal();
-    button('Open GitHub issue').click();
-    expect(options.openExternal).not.toHaveBeenCalled();
+    button('Submit report').click();
+    expect(options.submitReport).not.toHaveBeenCalled();
   });
-  it('opens a pre-filled bug report with the chosen options and environment', () => {
+  it('submits the selected categories and diagnostics without opening GitHub', async () => {
     const { el, set, button, options } = openModal();
     const [type, area] = el.querySelectorAll('select');
     set(type!, 'compatibility');
@@ -39,15 +40,37 @@ describe('issue report modal', () => {
     const [description, steps] = el.querySelectorAll('textarea');
     set(description!, 'After enabling Dataview the tokens disappear.');
     set(steps!, '1. Enable Dataview');
-    expect(el.querySelector('pre')!.textContent).toContain('Obsidian: 1.13.1 (Electron 37.2.0)');
-    button('Open GitHub issue').click();
-    const url = new URL(vi.mocked(options.openExternal).mock.calls[0]![0]);
-    expect(url.searchParams.get('type')).toBe('Conflict with another plugin or theme');
-    expect(url.searchParams.get('area')).toBe('Tokens and creatures');
-    expect(url.searchParams.get('title')).toBe('Tokens vanish with Dataview');
-    expect(url.searchParams.get('steps')).toBe('1. Enable Dataview');
-    expect(url.searchParams.get('environment')).toContain('BRAT 1.1.0');
-    expect(url.searchParams.get('errors')).toBe('12:00:00 [Atlas] Fog failed');
+    button('Submit report').click();
+    await vi.waitFor(() => expect(el.textContent).toContain('Report submitted'));
+    expect(options.submitReport).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'compatibility', area: 'tokens', title: 'Tokens vanish with Dataview',
+      steps: '1. Enable Dataview', environment: expect.stringContaining('BRAT 1.1.0'),
+      errors: '12:00:00 [Atlas] Fog failed',
+    }), expect.any(String));
+    expect(options.openExternal).not.toHaveBeenCalled();
+    expect(el.textContent).toContain('#42');
+  });
+  it('blocks double submission and keeps the draft on a failed request', async () => {
+    let reject!: (reason: Error) => void;
+    const submitReport = vi.fn(() => new Promise<never>((_, fail) => { reject = fail; }));
+    const { el, set, button } = openModal({ submitReport });
+    set(el.querySelector('input')!, 'Fog issue');
+    set(el.querySelector('textarea')!, 'The fog vanished.');
+    const submit = button('Submit report');
+    submit.click();
+    submit.click();
+    expect(submitReport).toHaveBeenCalledTimes(1);
+    expect(submit.disabled).toBe(true);
+    expect(el.querySelector('input')!.disabled).toBe(true);
+    reject(new Error('Connection unavailable'));
+    await vi.waitFor(() => expect(submit.disabled).toBe(false));
+    expect(el.querySelector('input')!.value).toBe('Fog issue');
+    expect(el.querySelector('input')!.disabled).toBe(false);
+    expect(el.querySelector('[role="alert"]')!.textContent).toContain('Connection unavailable');
+    submit.click();
+    expect(submitReport.mock.calls[1]![1]).toBe(submitReport.mock.calls[0]![1]);
+    reject(new Error('Connection unavailable'));
+    await vi.waitFor(() => expect(submit.disabled).toBe(false));
   });
   it('switches wording for feature requests and copies a markdown report', async () => {
     const { modal, el, set, button, options } = openModal({ preset: { type: 'feature', area: 'dice' } });

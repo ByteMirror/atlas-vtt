@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React from 'react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { renderEntries, type ContextMenuEntry } from '../../../react/components/context-menu/AtlasContextMenu';
 import { Button } from '../primitives/button';
+import { useExclusiveDropdown } from '../primitives/useExclusiveDropdown';
 
 interface ObsidianMenuDropdownProps {
   value: string;
@@ -25,7 +26,7 @@ export const ObsidianMenuDropdown: React.FC<ObsidianMenuDropdownProps> = ({
   placeholder,
   className
 }) => {
-  const [isOpen, setIsOpen] = useState(false);
+  const { isOpen, setIsOpen, onCloseAutoFocus } = useExclusiveDropdown();
   const close = (): void => setIsOpen(false);
   const optionEntries = Array.isArray(options)
     ? (options as readonly string[]).map((option) => [option, option] as const)
@@ -44,7 +45,7 @@ export const ObsidianMenuDropdown: React.FC<ObsidianMenuDropdownProps> = ({
   }
   
   return (
-    <DropdownMenu.Root open={isOpen} onOpenChange={setIsOpen}>
+    <DropdownMenu.Root open={isOpen} onOpenChange={setIsOpen} modal={false}>
       <DropdownMenu.Trigger asChild>
         <Button
           variant="ghost"
@@ -67,6 +68,7 @@ export const ObsidianMenuDropdown: React.FC<ObsidianMenuDropdownProps> = ({
           align="start"
           sideOffset={4}
           collisionPadding={8}
+          onCloseAutoFocus={onCloseAutoFocus}
           onEscapeKeyDown={(event) => event.stopPropagation()}
         >
           {renderEntries(entries, close)}

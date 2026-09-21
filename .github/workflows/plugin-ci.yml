@@ -9,9 +9,14 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: plugin-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-plugin:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -45,10 +50,18 @@ jobs:
           if-no-files-found: warn
 
       - name: Build plugin
-        run: npm run build
+        run: npm run build:ci
 
       - name: Preflight (community directory review checks)
         run: npm run preflight
 
-      - name: Validate release assets
-        run: npm run release:validate
+      - name: Prepare installable test build
+        run: npm run release:prepare
+
+      - name: Upload plugin test build
+        uses: actions/upload-artifact@v4
+        with:
+          name: atlas-vtt-${{ github.sha }}
+          path: release/
+          if-no-files-found: error
+          retention-days: 14

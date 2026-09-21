@@ -52,6 +52,9 @@ jobs:
       - name: Build plugin
         run: npm run build:ci
 
+      - name: Smoke test postbuild copy hook (used by npm run build)
+        run: node scripts/copy-plugin.js
+
       - name: Preflight (community directory review checks)
         run: npm run preflight
 
@@ -61,7 +64,7 @@ jobs:
       - name: Upload plugin test build
         uses: actions/upload-artifact@v4
         with:
-          name: atlas-vtt-${{ github.sha }}
+          name: atlas-vtt-${{ github.event.pull_request.head.sha || github.sha }}
           path: release/
           if-no-files-found: error
           retention-days: 14

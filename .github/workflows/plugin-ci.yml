@@ -20,12 +20,14 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: npm
 
       - name: Install dependencies
@@ -33,6 +35,11 @@ jobs:
 
       - name: Typecheck
         run: npx tsc --noEmit
+
+      # The rule set Obsidian's community directory scores the plugin with.
+      # Zero tolerance; accepted exceptions live in eslint-suppressions.json.
+      - name: Lint
+        run: npm run lint
 
       - name: Verify release channel (main = stable x.y.z, beta = x.y.z-beta.N)
         run: node scripts/release-channel.js --branch "${{ github.base_ref || github.ref_name }}"
@@ -45,19 +52,6 @@ jobs:
 
       - name: Test
         run: npx vitest run
-
-      # Keep the existing typing backlog visible while typecheck/tests gate CI.
-      - name: ESLint report (advisory)
-        continue-on-error: true
-        run: npm run lint -- --format json --output-file eslint-report.json
-
-      - name: Upload ESLint report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: eslint-report
-          path: eslint-report.json
-          if-no-files-found: warn
 
       - name: Build plugin
         run: npm run build:ci
@@ -72,9 +66,26 @@ jobs:
         run: npm run release:prepare
 
       - name: Upload plugin test build
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: atlas-vtt-${{ github.event.pull_request.head.sha || github.sha }}
           path: release/
           if-no-files-found: error
           retention-days: 14
+
+  dependency-review:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      # Fails a pull request that adds a dependency with a known vulnerability.
+      - name: Review dependency changes
+        uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 # v4.9.0
+        with:
+          fail-on-severity: moderate
+          comment-summary-in-pr: never

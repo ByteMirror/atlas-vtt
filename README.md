@@ -72,7 +72,7 @@ If you use an external image URL for a token or map background, or copy an exter
 
 ## Help and contributing
 
-Found a bug or have an idea? [Open an issue](https://github.com/ByteMirror/atlas-vtt/issues). To contribute code, see [CONTRIBUTING.md](CONTRIBUTING.md).
+Found a bug or have an idea? Run the **Report an issue** command inside Obsidian or use **Settings → Atlas VTT → Help and feedback**. Atlas fills in your versions and opens a pre-filled [GitHub issue](https://github.com/ByteMirror/atlas-vtt/issues/new/choose); see [docs/reporting-issues.md](docs/reporting-issues.md). To contribute code, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 <details>
 <summary>Build from source</summary>

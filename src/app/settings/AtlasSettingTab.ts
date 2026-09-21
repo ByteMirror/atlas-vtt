@@ -1,25 +1,12 @@
 import { App, Plugin, PluginSettingTab, Setting, type SettingDefinitionItem } from 'obsidian';
-import type { SettingsService } from '../services/SettingsService';
-import { navigationSettingsSection } from './navigationSettingsSection';
-import { hotkeySettingsSection, onboardingSettingsSection } from './hotkeySettingsSection';
 import type { AtlasSettingSection } from './settingSections';
-import type { ChangelogService } from '../changelog/ChangelogService';
-import { changelogSettingsSection } from './changelogSettingsSection';
 
+/** Renders the sections the plugin composes; it does not know which services exist. */
 export class AtlasSettingTab extends PluginSettingTab {
   private cleanups: Array<() => void> = [];
-  constructor(app: App, plugin: Plugin, private readonly settingsService: SettingsService,
-    private readonly changelog?: ChangelogService, private readonly version = plugin.manifest.version) {
-    super(app, plugin);
-  }
 
-  private sections(): AtlasSettingSection[] {
-    return [
-      navigationSettingsSection(this.settingsService),
-      hotkeySettingsSection(this.settingsService),
-      onboardingSettingsSection(this.settingsService),
-      ...(this.changelog ? [changelogSettingsSection(this.settingsService, this.changelog, this.version)] : []),
-    ];
+  constructor(app: App, plugin: Plugin, private readonly sections: () => AtlasSettingSection[]) {
+    super(app, plugin);
   }
 
   /** Obsidian 1.13+: declarative settings, indexed by the settings search. */

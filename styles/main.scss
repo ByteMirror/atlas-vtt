@@ -10,6 +10,7 @@
 @use './mixins' as *;
 @use '../src/app/onboarding/onboarding';
 @use '../src/app/changelog/changelog';
+@use '../src/app/support/issue-report';
 
 // Root namespace for all Atlas VTT styles
 .atlas-vtt-plugin {

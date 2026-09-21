@@ -15,6 +15,10 @@ import { ServiceManager } from './src/app/services/ServiceManager';
 import { SettingsService } from './src/app/services/SettingsService';
 import type { WidgetSyncService } from './src/app/services/WidgetSyncService';
 import { AtlasSettingTab } from './src/app/settings/AtlasSettingTab';
+import { changelogSettingsSection } from './src/app/settings/changelogSettingsSection';
+import { hotkeySettingsSection, onboardingSettingsSection } from './src/app/settings/hotkeySettingsSection';
+import { navigationSettingsSection } from './src/app/settings/navigationSettingsSection';
+import { supportSettingsSection } from './src/app/settings/supportSettingsSection';
 import { EXTENSION_ATLASMAP, registerAtlasLeafSync } from './src/app/plugin/atlasLeaves';
 import { registerColorSwatchIcons } from './src/app/plugin/colorSwatchIcons';
 import { HeaderAutocompleteSuggest } from './src/app/plugin/HeaderAutocompleteSuggest';
@@ -22,6 +26,8 @@ import { registerCommands } from './src/app/plugin/registerCommands';
 import { runStartupMigration } from './src/app/plugin/startupMigration';
 import { registerStatusBarVisibility } from './src/app/plugin/statusBarVisibility';
 import { ChangelogService } from './src/app/changelog/ChangelogService';
+import { AtlasErrorLog } from './src/app/support/errorLog';
+import { IssueReporter } from './src/app/support/IssueReporter';
 
 declare const __ATLAS_RELEASE_BUILD__: boolean;
 
@@ -38,6 +44,12 @@ export default class AtlasVTTPlugin extends Plugin {
   private changelogService: ChangelogService | undefined;
 
   async onload(): Promise<void> {
+    // Record errors from the very start so startup problems can be reported too.
+    const errorLog = new AtlasErrorLog();
+    this.register(errorLog.attach());
+    const issueReporter = new IssueReporter(this.app, this.manifest, errorLog);
+    this.addCommand({ id: 'report-issue', name: 'Report an issue…', callback: () => issueReporter.open() });
+
     // Views first, so workspace restore can resolve persisted Atlas tabs
     // before the slower startup path finishes.
     this.registerAtlasViews();
@@ -50,18 +62,25 @@ export default class AtlasVTTPlugin extends Plugin {
 
     this.settingsService = new SettingsService(this.app);
     await this.settingsService.initialize();
-    this.changelogService = new ChangelogService(this.app, this.settingsService, {
+    const changelogService = new ChangelogService(this.app, this.settingsService, {
       installedVersion: this.manifest.version,
       existingInstallation,
       releaseBuild: __ATLAS_RELEASE_BUILD__,
     });
-    this.addCommand({ id: 'view-changelog', name: 'View changelog', callback: () => this.changelogService?.open() });
+    this.changelogService = changelogService;
+    this.addCommand({ id: 'view-changelog', name: 'View changelog', callback: () => changelogService.open() });
 
     this.globalAssetManager = new GlobalAssetManagerService(this.app);
     this.globalMusicPlayer = new GlobalMusicPlayerService(this.app);
     this.imageDisplayService = new ImageDisplayService(this.app);
 
-    this.addSettingTab(new AtlasSettingTab(this.app, this, this.settingsService, this.changelogService));
+    this.addSettingTab(new AtlasSettingTab(this.app, this, () => [
+      navigationSettingsSection(this.settingsService),
+      hotkeySettingsSection(this.settingsService),
+      onboardingSettingsSection(this.settingsService),
+      changelogSettingsSection(this.settingsService, changelogService, this.manifest.version),
+      supportSettingsSection(issueReporter),
+    ]));
     this.registerEditorSuggest(new HeaderAutocompleteSuggest(this.app));
     registerAtlasLeafSync(this);
     registerCommands(this, {

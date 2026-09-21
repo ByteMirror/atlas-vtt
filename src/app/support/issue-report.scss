@@ -1,0 +1,56 @@
+@use '../../../styles/tokens' as *;
+
+.atlas-vtt-plugin.atlas-issue-report-modal {
+  width: min(640px, 90vw);
+
+  .atlas-issue-report-intro {
+    margin: 0 0 $spacing-l;
+    color: var(--text-muted);
+    font-size: $font-ui-small;
+  }
+
+  .atlas-issue-report-field {
+    flex-direction: column;
+    align-items: stretch;
+    gap: $spacing-s;
+
+    .setting-item-control {
+      justify-content: flex-start;
+    }
+
+    input,
+    textarea {
+      width: 100%;
+      resize: vertical;
+    }
+  }
+
+  .atlas-issue-report-environment {
+    margin: $spacing-l 0 0;
+
+    summary {
+      cursor: pointer;
+      color: var(--text-muted);
+      font-size: $font-ui-small;
+    }
+
+    pre {
+      margin: $spacing-s 0 0;
+      padding: $spacing-m;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      font-size: var(--font-ui-smaller);
+      background: var(--background-secondary);
+      border-radius: $radius-m;
+    }
+  }
+
+  .atlas-issue-report-actions .setting-item {
+    border: 0;
+    padding: $spacing-l 0 0;
+
+    .setting-item-control {
+      gap: $spacing-s;
+    }
+  }
+}

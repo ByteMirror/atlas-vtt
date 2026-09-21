@@ -1,0 +1,39 @@
+# Maps issue-form answers to labels. Each pattern anchors on the form
+# question so free text elsewhere in the issue cannot trigger a label.
+# Keep the option texts identical to .github/ISSUE_TEMPLATE/*.yml.
+"type:bug":
+  - '### What kind of issue is this\?\s+Something doesn.t work'
+"type:crash":
+  - '### What kind of issue is this\?\s+Crash or freeze'
+"type:performance":
+  - '### What kind of issue is this\?\s+Slow or laggy'
+"type:compatibility":
+  - '### What kind of issue is this\?\s+Conflict with another plugin or theme'
+"type:question":
+  - '### What kind of issue is this\?\s+Question or something else'
+"area:maps":
+  - '### Which part of Atlas is affected\?\s+Maps and scenes'
+"area:grid":
+  - '### Which part of Atlas is affected\?\s+Grid and alignment'
+"area:tokens":
+  - '### Which part of Atlas is affected\?\s+Tokens and creatures'
+"area:statblocks":
+  - '### Which part of Atlas is affected\?\s+Statblocks, notes and pins'
+"area:asset-manager":
+  - '### Which part of Atlas is affected\?\s+Asset manager and collections'
+"area:vision":
+  - '### Which part of Atlas is affected\?\s+Fog of war, vision and lighting'
+"area:combat":
+  - '### Which part of Atlas is affected\?\s+Initiative and combat'
+"area:dice":
+  - '### Which part of Atlas is affected\?\s+Dice'
+"area:player-view":
+  - '### Which part of Atlas is affected\?\s+Player view window'
+"area:audio":
+  - '### Which part of Atlas is affected\?\s+Music and ambience'
+"area:settings":
+  - '### Which part of Atlas is affected\?\s+Settings, hotkeys and commands'
+"area:install":
+  - '### Which part of Atlas is affected\?\s+Installing or updating Atlas'
+"area:unknown":
+  - '### Which part of Atlas is affected\?\s+Not sure / something else'

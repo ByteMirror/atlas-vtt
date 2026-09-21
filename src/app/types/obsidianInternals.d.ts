@@ -1,5 +1,5 @@
 import 'obsidian';
-import type { EventRef, Menu, TAbstractFile, View } from 'obsidian';
+import type { EventRef, Menu, Plugin, TAbstractFile, View } from 'obsidian';
 
 /**
  * Obsidian members that exist at runtime but are missing from the public
@@ -11,6 +11,15 @@ declare module 'obsidian' {
   interface App {
     openWithDefaultApp(path: string): void;
     showInFolder(path: string): void;
+    /** Community plugin registry; read only for diagnostics in issue reports. */
+    plugins?: {
+      plugins: Record<string, Plugin>;
+      enabledPlugins: Set<string>;
+    };
+    /** Active theme name, empty for the default theme. */
+    customCss?: {
+      theme?: string;
+    };
   }
 
   interface FileManager {

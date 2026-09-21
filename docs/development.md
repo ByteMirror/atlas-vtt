@@ -21,6 +21,7 @@ beta builds are unreachable from production installs.
 ```sh
 npm ci
 npx tsc --noEmit
+npm run lint
 npx vitest run
 npm run build:ci
 npm run preflight
@@ -28,8 +29,37 @@ npm run release:prepare
 ```
 
 `build:ci` builds without copying files into a local vault. CI runs these checks
-and publishes an advisory ESLint report. Lint is not yet a merge gate because
-of the existing lint backlog.
+and every one of them blocks the merge, lint included.
+
+### Lint
+
+`npm run lint` runs `eslint-plugin-obsidianmd`, the rule set Obsidian's community
+directory scores the plugin with, so a lint finding is a public review finding.
+The gate is zero tolerance: no errors, no warnings (`--max-warnings 0`).
+
+- Fix a finding where it starts, usually a declaration typed `any`. Do not run
+  `eslint --fix` across the tree.
+- Inline `eslint-disable` comments are switched off (`noInlineConfig`) and fail
+  the gate. `@ts-ignore`, `@ts-expect-error` and `@ts-nocheck` are errors
+  (`ban-ts-comment`).
+- The one accepted exception, the `Function` constructor that runs Fantasy
+  Statblocks layout callbacks (see [PRIVACY.md](../PRIVACY.md)), is recorded in
+  `eslint-suppressions.json`. A suppression covers a rule, in a file, up to a
+  count, so a second occurrence anywhere still fails. Adding an entry is a
+  maintainer decision and needs its reason in the pull request. Obsidian's
+  scorecard does not read this file and keeps listing suppressed findings.
+- When a suppressed finding is fixed, ESLint fails until the stale entry is
+  removed: `npx eslint main.ts src --prune-suppressions`.
+
+### Workflow conventions
+
+Actions are pinned to a full commit SHA with the version in a trailing comment;
+Dependabot (`.github/dependabot.yml`) opens weekly pull requests against `beta`
+that move the pins and group minor and patch npm updates. Checkouts do not
+persist credentials, workflows declare the minimum `permissions`, and the Node
+version comes from `.nvmrc`. Pull requests also run a dependency review that
+fails on a newly added dependency with a known vulnerability of moderate
+severity or higher.
 
 ## Test builds
 

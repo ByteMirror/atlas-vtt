@@ -2,7 +2,7 @@
 
 1. Create a branch from `beta`. Changes reach `main` only through beta promotion, see [`docs/development.md`](docs/development.md).
 2. Make your change. Coding conventions are described in [`CLAUDE.md`](CLAUDE.md); the short version: PIXI.js v8 (not the v7 Obsidian bundles), SCSS with Obsidian CSS variables, explicit return types, files under roughly 300 lines.
-3. Run `npx tsc --noEmit`, `npm test` and `npm run build`.
+3. Run `npx tsc --noEmit`, `npm run lint`, `npm test` and `npm run build`. Lint must be clean; see [`docs/development.md`](docs/development.md#lint).
 4. Open a pull request against `beta` that describes what changed and how you tested it.
 
 ## Release notes

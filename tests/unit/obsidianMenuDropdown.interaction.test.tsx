@@ -19,6 +19,48 @@ describe('settings dropdown interactions', () => {
     vi.unstubAllGlobals();
   });
 
+  it.each(['pointer', 'keyboard'] as const)('opening another dropdown with %s closes the previous one across React roots', async (input) => {
+    const first = render(<ObsidianMenuDropdown value="Square" options={['Square', 'Hex']} onChange={vi.fn()} />);
+    const second = render(<ObsidianMenuDropdown value="Solid" options={['Solid', 'Dotted']} onChange={vi.fn()} />);
+    const firstTrigger = first.container.querySelector('button') as HTMLButtonElement;
+    const secondTrigger = second.container.querySelector('button') as HTMLButtonElement;
+    const open = (trigger: HTMLButtonElement): void => {
+      if (input === 'pointer') fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false });
+      else fireEvent.keyDown(trigger, { key: 'Enter' });
+    };
+
+    open(firstTrigger);
+    await screen.findByRole('menuitemcheckbox', { name: 'Hex' });
+    open(secondTrigger);
+    await screen.findByRole('menuitemcheckbox', { name: 'Dotted' });
+    expect(firstTrigger.getAttribute('aria-expanded')).toBe('false');
+    expect(secondTrigger.getAttribute('aria-expanded')).toBe('true');
+    expect(document.querySelectorAll('[role="menu"]')).toHaveLength(1);
+    expect(document.querySelector('[role="menu"]')?.textContent).toBe('SolidDotted');
+
+    // Unmounting the old owner must not dismiss the new owner's menu.
+    first.unmount();
+    expect(screen.getByRole('menuitemcheckbox', { name: 'Dotted' })).toBeTruthy();
+    if (input === 'keyboard') {
+      await waitFor(() => expect(screen.getByRole('menu').contains(document.activeElement)).toBe(true));
+    }
+    fireEvent.keyDown(screen.getByRole('menu'), { key: 'Escape' });
+    await waitFor(() => expect(document.querySelectorAll('[role="menu"]')).toHaveLength(0));
+    await waitFor(() => expect(document.activeElement).toBe(secondTrigger));
+  });
+
+  it('leaves other dropdown buttons available while a menu is open', async () => {
+    const { getByRole } = render(<>
+      <ObsidianMenuDropdown value="Square" options={['Square', 'Hex']} onChange={vi.fn()} />
+      <ObsidianMenuDropdown value="Solid" options={['Solid', 'Dotted']} onChange={vi.fn()} />
+    </>);
+    const firstTrigger = getByRole('button', { name: 'Square' });
+    fireEvent.pointerDown(firstTrigger, { button: 0, ctrlKey: false });
+    await screen.findByRole('menu');
+    expect(document.body.style.pointerEvents).not.toBe('none');
+    expect(getByRole('button', { name: 'Solid' })).toBeTruthy();
+  });
+
   it('still opens and selects an option after another map menu provider unmounts', async () => {
     const onChange = vi.fn();
     const view = render(

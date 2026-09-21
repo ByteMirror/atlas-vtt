@@ -68,11 +68,11 @@ Download `main.js`, `manifest.json`, and `styles.css` from a [GitHub release](ht
 
 Atlas works offline with files in your vault. It has no accounts, telemetry, or ads. Scenes are saved as `.atlasmap` files; asset tags and thumbnails live in the vault's hidden `.atlas-data` folder.
 
-If you use an external image URL for a token or map background, or copy an externally hosted image from a note, Atlas downloads that image from the supplied address. Vault images require no network access. See [PRIVACY.md](PRIVACY.md) for details.
+If you use an external image URL for a token or map background, or copy an externally hosted image from a note, Atlas downloads that image from the supplied address. Vault images require no network access. When you explicitly submit an issue report, Atlas sends it to `https://srv1871379.hstgr.cloud/atlas/reports`, which creates a public GitHub issue. See [PRIVACY.md](PRIVACY.md) for details.
 
 ## Help and contributing
 
-Found a bug or have an idea? Run the **Report an issue** command inside Obsidian or use **Settings → Atlas VTT → Help and feedback**. Atlas fills in your versions and opens a pre-filled [GitHub issue](https://github.com/ByteMirror/atlas-vtt/issues/new/choose); see [docs/reporting-issues.md](docs/reporting-issues.md). To contribute code, see [CONTRIBUTING.md](CONTRIBUTING.md).
+Found a bug or have an idea? Run the **Report an issue** command inside Obsidian or use **Settings → Atlas VTT → Help and feedback**. Atlas fills in your versions and submits your report directly, without a GitHub account or a second form; see [docs/reporting-issues.md](docs/reporting-issues.md). To contribute code, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 <details>
 <summary>Build from source</summary>

@@ -3,7 +3,7 @@ import { runInBackground } from '../utils/backgroundTask';
 import { formatDiagnostics, type IssueDiagnostics } from './diagnostics';
 import { formatErrors, type LoggedError } from './errorLog';
 import { ISSUE_AREAS, ISSUE_TYPES, type IssueArea, type IssueType } from './issueCategories';
-import { buildIssueUrl, formatReportMarkdown, issueForm, type IssueForm, type IssueReport } from './issueReport';
+import { formatReportMarkdown, issueForm, type IssueForm, type IssueReport } from './issueReport';
 
 export interface IssueReportPreset {
   type?: IssueType;
@@ -16,12 +16,17 @@ export interface IssueReportModalOptions {
   errors: LoggedError[];
   openExternal: (url: string) => void;
   copyText: (text: string) => Promise<void>;
+  submitReport: (report: IssueReport, requestId: string) => Promise<{ number: number; url: string }>;
 }
 
-/** Collects a report and hands it to a pre-filled GitHub issue form; nothing is sent from inside Obsidian. */
+/** Submits a report in Obsidian and keeps the draft until the service confirms creation. */
 export class IssueReportModal extends Modal {
   private type: IssueType;
   private area: IssueArea;
+  private submitting = false;
+  private submission: { body: string; id: string } | undefined;
+  private submitButton: HTMLButtonElement | undefined;
+  private statusEl: HTMLElement | undefined;
   private title = '';
   private description = '';
   private steps = '';
@@ -43,7 +48,7 @@ export class IssueReportModal extends Modal {
     this.modalEl.addClass('atlas-vtt-plugin', 'atlas-issue-report-modal');
     this.contentEl.createEl('p', {
       cls: 'atlas-issue-report-intro',
-      text: 'Atlas opens a pre-filled GitHub issue in your browser. Nothing is sent until you submit it there with your GitHub account.',
+      text: 'Submit your report directly from Atlas. Your report and included diagnostics will be posted publicly on GitHub. No GitHub account is needed.',
     });
     this.renderChoices();
     this.renderText();
@@ -121,8 +126,13 @@ export class IssueReportModal extends Modal {
     new Setting(actions)
       .addButton(button => button.setButtonText('Copy report')
         .onClick(() => runInBackground(this.copyReport(), 'Copying the issue report', 'Could not access the clipboard.')))
-      .addButton(button => button.setButtonText('Open GitHub issue').setCta()
-        .onClick(() => runInBackground(this.submit(), 'Opening the GitHub issue form', 'Could not prepare the GitHub issue. Use "Copy report" instead.')));
+      .addButton(button => {
+        this.submitButton = button.buttonEl;
+        button.setButtonText('Submit report').setCta()
+          .onClick(() => { void this.submit(); });
+      });
+    this.statusEl = this.contentEl.createEl('p', { cls: 'atlas-issue-report-status' });
+    this.statusEl.setAttribute('role', 'alert');
   }
 
   private applyWording(): void {
@@ -160,14 +170,41 @@ export class IssueReportModal extends Modal {
   }
 
   private async submit(): Promise<void> {
+    if (this.submitting) return;
     const report = this.validate();
     if (!report) return;
-    const { url, complete } = buildIssueUrl(report);
-    if (!complete) {
-      await this.options.copyText(formatReportMarkdown(report));
-      new Notice('The report is too long for a link. The full report was copied; paste the missing parts into the GitHub form.', 10000);
+    const body = JSON.stringify(report);
+    if (this.submission?.body !== body) {
+      this.submission = { body, id: crypto.randomUUID() };
     }
-    this.options.openExternal(url);
-    this.close();
+    this.submitting = true;
+    const controls = [...this.contentEl.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>('input, textarea, select')];
+    const disabled = controls.map(control => control.disabled);
+    controls.forEach(control => { control.disabled = true; });
+    this.statusEl?.setText('');
+    if (this.submitButton) {
+      this.submitButton.disabled = true;
+      this.submitButton.textContent = 'Submitting…';
+    }
+    try {
+      const receipt = await this.options.submitReport(report, this.submission.id);
+      this.contentEl.empty();
+      this.setTitle('Report submitted');
+      this.contentEl.createEl('p', { text: `Report submitted as #${receipt.number}. Thank you for helping improve Atlas.` });
+      new Setting(this.contentEl)
+        .addButton(button => button.setButtonText('View issue')
+          .onClick(() => this.options.openExternal(receipt.url)))
+        .addButton(button => button.setButtonText('Close').setCta().onClick(() => this.close()));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Could not send your report.';
+      this.statusEl?.setText(`${message} Your report is still here. Try again or copy it to save it.`);
+    } finally {
+      this.submitting = false;
+      controls.forEach((control, index) => { control.disabled = disabled[index]!; });
+      if (this.submitButton) {
+        this.submitButton.disabled = false;
+        this.submitButton.textContent = 'Submit report';
+      }
+    }
   }
 }

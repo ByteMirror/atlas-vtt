@@ -40,6 +40,9 @@ jobs:
       - name: Check release notes
         run: npm run changelog:check
 
+      - name: Test reporting service
+        run: python3 -m unittest discover -s services/issue-reporter
+
       - name: Test
         run: npx vitest run
 

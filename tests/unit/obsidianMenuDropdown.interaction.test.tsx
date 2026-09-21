@@ -46,7 +46,11 @@ describe('settings dropdown interactions', () => {
     trigger.focus();
     fireEvent.keyDown(trigger, { key: 'Enter' });
     expect(await screen.findByRole('menu')).toBeTruthy();
+    const parentKeyDown = vi.fn();
+    document.addEventListener('keydown', parentKeyDown);
     fireEvent.keyDown(screen.getByRole('menu'), { key: 'Escape' });
+    document.removeEventListener('keydown', parentKeyDown);
+    expect(parentKeyDown).not.toHaveBeenCalled();
     await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
     await waitFor(() => expect(document.activeElement).toBe(trigger));
   });

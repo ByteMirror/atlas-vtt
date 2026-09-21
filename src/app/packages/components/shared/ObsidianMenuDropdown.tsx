@@ -67,6 +67,7 @@ export const ObsidianMenuDropdown: React.FC<ObsidianMenuDropdownProps> = ({
           align="start"
           sideOffset={4}
           collisionPadding={8}
+          onEscapeKeyDown={(event) => event.stopPropagation()}
         >
           {renderEntries(entries, close)}
         </DropdownMenu.Content>

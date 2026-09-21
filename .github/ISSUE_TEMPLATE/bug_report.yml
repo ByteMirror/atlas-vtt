@@ -5,7 +5,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thanks for helping improve Atlas VTT. The fastest way to fill this form is from inside Obsidian: run the **Report an issue** command or open **Settings → Atlas VTT → Help and feedback**. Atlas then fills in your versions for you.
+        Thanks for helping improve Atlas VTT. From Atlas 0.2.0 on, the fastest way to fill this form is from inside Obsidian: run the **Report an issue** command or open **Settings → Atlas VTT → Help and feedback**, and Atlas fills in your versions for you. On older versions, fill in the environment section by hand.
   - type: dropdown
     id: type
     attributes:
@@ -57,7 +57,7 @@ body:
     id: environment
     attributes:
       label: Environment
-      description: Filled in automatically when you report from inside Obsidian. Otherwise list your Atlas version, Obsidian version (Settings → General → About) and operating system.
+      description: Filled in automatically when you report from inside Obsidian (Atlas 0.2.0 and later). Otherwise list your Atlas version, Obsidian version (Settings → General → About) and operating system.
       placeholder: |
         - Atlas VTT: 0.2.0
         - Obsidian: 1.13.1
@@ -68,7 +68,7 @@ body:
     id: errors
     attributes:
       label: Recent errors
-      description: Any `[Atlas]` lines from the developer console (Ctrl/Cmd+Shift+I → Console). Filled in automatically when reporting from inside Obsidian.
+      description: Any `[Atlas]` lines from the developer console (Ctrl/Cmd+Shift+I → Console). Filled in automatically when reporting from inside Obsidian (Atlas 0.2.0 and later).
       render: text
   - type: checkboxes
     id: checks

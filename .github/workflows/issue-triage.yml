@@ -2,7 +2,8 @@ name: Issue Triage
 
 # Labels new and edited issues from their form answers (see issue-labeler.yml).
 # Only regex matching runs against issue text; no user-provided content is
-# executed, and the job can do nothing but manage issue labels.
+# executed, and the job can do nothing but manage issue labels. Labels are
+# only ever added, so a maintainer's manual re-triage survives later edits.
 
 on:
   issues:
@@ -27,5 +28,5 @@ jobs:
           configuration-path: .github/issue-labeler.yml
           enable-versioned-regex: 0
           include-title: 0
-          sync-labels: 1
+          sync-labels: 0
           repo-token: ${{ github.token }}

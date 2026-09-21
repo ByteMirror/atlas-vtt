@@ -5,7 +5,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Ideas are welcome. Describe the goal at your table first; the maintainer decides on the design and timing. You can also start this form from inside Obsidian via **Settings → Atlas VTT → Help and feedback → Suggest a feature**.
+        Ideas are welcome. Describe the goal at your table first; the maintainer decides on the design and timing. From Atlas 0.2.0 on, you can also start this form from inside Obsidian via **Settings → Atlas VTT → Help and feedback → Suggest a feature**.
   - type: dropdown
     id: area
     attributes:
@@ -42,4 +42,4 @@ body:
     id: environment
     attributes:
       label: Environment
-      description: Filled in automatically when you report from inside Obsidian.
+      description: Optional. Filled in automatically when you report from inside Obsidian (Atlas 0.2.0 and later).

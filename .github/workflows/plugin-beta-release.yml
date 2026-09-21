@@ -47,11 +47,25 @@ jobs:
 
       - name: Check whether this beta is already published
         id: existing
+        env:
+          # Empty for manual runs, which always mean "publish this version".
+          BEFORE_SHA: ${{ github.event_name == 'push' && github.event.before || '' }}
         run: |
           skip=false
           if git ls-remote --exit-code --tags origin "refs/tags/$RELEASE_VERSION" > /dev/null; then
             git fetch --force origin "refs/tags/$RELEASE_VERSION:refs/tags/$RELEASE_VERSION"
             if [ "$(git rev-list -n 1 "$RELEASE_VERSION")" != "$GITHUB_SHA" ]; then
+              # An ordinary merge leaves the version alone: nothing to publish.
+              # Only a push that sets the version to an already-used tag is a mistake.
+              previous_version=""
+              if [ -n "$BEFORE_SHA" ] && git fetch --quiet --depth=1 origin "$BEFORE_SHA" 2>/dev/null; then
+                previous_version="$(git show "$BEFORE_SHA:manifest.json" | node -p "JSON.parse(require('fs').readFileSync(0, 'utf8')).version")"
+              fi
+              if [ "$previous_version" = "$RELEASE_VERSION" ]; then
+                echo "Version $RELEASE_VERSION was not bumped by this push; nothing to publish." >> "$GITHUB_STEP_SUMMARY"
+                echo "skip=true" >> "$GITHUB_OUTPUT"
+                exit 0
+              fi
               echo "::error::Tag $RELEASE_VERSION already points at another commit. Bump to the next beta number (npm version prerelease)."
               exit 1
             fi
@@ -73,6 +87,10 @@ jobs:
       - name: Typecheck
         if: steps.existing.outputs.skip != 'true'
         run: npx tsc --noEmit
+
+      - name: Lint
+        if: steps.existing.outputs.skip != 'true'
+        run: npm run lint
 
       - name: Test
         if: steps.existing.outputs.skip != 'true'

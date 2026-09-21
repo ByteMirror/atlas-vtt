@@ -78,8 +78,9 @@ Every push to `beta` runs **Publish Beta Build**. When the manifest carries a
 beta version that has not been published yet, the workflow runs the full check
 suite, attests build provenance and publishes a GitHub **pre-release** tagged
 with that version, with `changelog/Unreleased.md` as its notes. Pushes that do
-not bump the version are verified but publish nothing, and a version that was
-already published from another commit fails the run.
+not bump the version publish nothing and the run stays green. A push that sets
+the version to one already tagged on another commit fails the run, as does a
+manual run for such a version.
 
 To cut a new beta after merging into `beta`:
 

@@ -1,58 +1,28 @@
 import React from 'react';
-import { act, fireEvent, render } from '@testing-library/react';
-import { describe, expect, it, vi, beforeEach } from 'vitest';
-
-const openContextMenuGlobalMock = vi.fn();
-
-vi.mock('../../src/app/react/root/ContextMenuContext', () => ({
-  openContextMenuGlobal: (...args: any[]) => openContextMenuGlobalMock(...args),
-}));
-
+import { fireEvent, render, screen } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
 import { ObsidianMenuDropdown } from '../../src/app/packages/components/shared/ObsidianMenuDropdown';
 
 describe('ObsidianMenuDropdown empty option labels', () => {
-  beforeEach(() => {
-    openContextMenuGlobalMock.mockReset();
-  });
-
-  it('renders an explicit label for empty string options in array mode', () => {
+  it('renders and selects the empty string option in array mode', async () => {
     const onChange = vi.fn();
-    const { getByText } = render(
-      <ObsidianMenuDropdown
-        value=""
-        options={['', 'One', 'Two']}
-        onChange={onChange}
-        placeholder="Type"
-      />,
+    const { getByRole } = render(
+      <ObsidianMenuDropdown value="" options={['', 'One', 'Two']} onChange={onChange} placeholder="Type" />,
     );
 
-    fireEvent.click(getByText('Type'));
-
-    const entries = openContextMenuGlobalMock.mock.calls[0]?.[0] as Array<{ label: string; onClick: () => void; checked?: boolean }>;
-    expect(entries[0]?.label).toBe('None');
-    expect(entries[0]?.checked).toBe(true);
-
-    act(() => {
-      entries[0]?.onClick();
-    });
+    fireEvent.keyDown(getByRole('button', { name: 'Type' }), { key: 'Enter' });
+    const option = await screen.findByRole('menuitemcheckbox', { name: 'None' });
+    expect(option.getAttribute('aria-checked')).toBe('true');
+    fireEvent.click(option);
     expect(onChange).toHaveBeenCalledWith('');
   });
 
-  it('renders an explicit label for empty display values in object mode', () => {
-    const onChange = vi.fn();
-    const { container } = render(
-      <ObsidianMenuDropdown
-        value=""
-        options={{ '': '', first: 'First' }}
-        onChange={onChange}
-        placeholder="Category"
-      />,
+  it('renders an explicit label for empty display values in object mode', async () => {
+    const { getByRole } = render(
+      <ObsidianMenuDropdown value="" options={{ '': '', first: 'First' }} onChange={vi.fn()} placeholder="Category" />,
     );
 
-    const trigger = container.querySelector('.text-icon-button') as HTMLElement;
-    fireEvent.click(trigger);
-
-    const entries = openContextMenuGlobalMock.mock.calls[0]?.[0] as Array<{ label: string }>;
-    expect(entries[0]?.label).toBe('None');
+    fireEvent.keyDown(getByRole('button', { name: 'Category' }), { key: 'Enter' });
+    expect(await screen.findByRole('menuitemcheckbox', { name: 'None' })).toBeTruthy();
   });
 });

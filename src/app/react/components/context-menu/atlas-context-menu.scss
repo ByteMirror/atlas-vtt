@@ -18,6 +18,10 @@
   @include atlas-scrollbar;
 }
 
+.atlas-ctx-menu--dropdown {
+  min-width: var(--radix-dropdown-menu-trigger-width);
+}
+
 // ── Menu item (Radix Item / CheckboxItem / SubTrigger) ──────────────────────
 
 .atlas-ctx-item {

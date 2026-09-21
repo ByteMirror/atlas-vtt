@@ -3,6 +3,13 @@ import { createIssueSubmitter } from '../../src/app/support/issueSubmission';
 
 const report = { type: 'bug', area: 'tokens', title: 'Test', description: 'Tokens vanished', steps: '', environment: '', errors: '' } as const;
 describe('direct issue submission', () => {
+  it('shows a useful message when a proxy returns a non-JSON response', async () => {
+    const submit = createIssueSubmitter('https://reports.example.test/atlas/reports', async () => ({
+      status: 404,
+      get json(): unknown { return JSON.parse('404 page not found'); },
+    }));
+    await expect(submit(report, 'request-id')).rejects.toThrow('The reporting service could not confirm submission.');
+  });
   it('posts the full report and request ID without credentials', async () => {
     const send = vi.fn(async () => ({ status: 201, json: { number: 42, url: 'https://github.com/ByteMirror/atlas-vtt/issues/42' } }));
     const submit = createIssueSubmitter('https://reports.example.test/atlas/reports', send);

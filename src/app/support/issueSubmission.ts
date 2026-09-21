@@ -27,7 +27,12 @@ export function createIssueSubmitter(
     } catch {
       throw new Error('Could not reach the reporting service. Check your connection.');
     }
-    const data = response.json as Partial<IssueReceipt> & { error?: unknown } | null;
+    let data: Partial<IssueReceipt> & { error?: unknown } | null;
+    try {
+      data = response.json as typeof data;
+    } catch {
+      throw new Error('The reporting service could not confirm submission.');
+    }
     if (response.status !== 201) {
       throw new Error(typeof data?.error === 'string' ? data.error : 'The reporting service could not confirm submission.');
     }

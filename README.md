@@ -12,7 +12,7 @@ TTRPG worlds in my opinion are something very personal and players and DMs get a
 
 Ease of use matters just as much to me. Atlas aims for a minimal, streamlined interface that feels native to Obsidian, with clear controls and simple workflows that keep your attention on the game.
 
-Atlas VTT is desktop only.
+AtlasVTT is desktop only.
 
 ![Atlas VTT showing a battle map, character tokens, a linked statblock, and the initiative tracker](docs/images/atlas-overview.webp)
 

@@ -40,9 +40,9 @@ problems have a private channel through GitHub's vulnerability reporting.
   `tests/unit/issueTemplates.test.ts` fails otherwise.
 - New issues receive `needs-triage`. The **Issue Triage** workflow reads the
   form answers and adds `type:*` and `area:*` labels using the patterns in
-  `.github/issue-labeler.yml`. It only adds labels, so a manual re-triage
-  survives later edits. It runs with issue-write permission only and executes
-  no user content.
+  `.github/issue-labeler.yml`. It runs once when the issue is opened, so the
+  maintainer's triage is authoritative afterwards. It runs with issue-write
+  permission only and executes no user content.
 - The plugin pre-fills form fields through URL query parameters keyed by the
   field ids in the templates. Renaming an id in a template requires the same
   change in `src/app/support/issueReport.ts`.

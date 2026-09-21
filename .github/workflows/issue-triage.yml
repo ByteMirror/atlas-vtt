@@ -1,0 +1,31 @@
+name: Issue Triage
+
+# Labels new and edited issues from their form answers (see issue-labeler.yml).
+# Only regex matching runs against issue text; no user-provided content is
+# executed, and the job can do nothing but manage issue labels.
+
+on:
+  issues:
+    types: [opened, edited]
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: issue-triage-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Apply type and area labels
+        uses: github/issue-labeler@ccca1e16fcb66762200e616fc29b57b940c1cb67 # v3.5
+        with:
+          configuration-path: .github/issue-labeler.yml
+          enable-versioned-regex: 0
+          include-title: 0
+          sync-labels: 1
+          repo-token: ${{ github.token }}

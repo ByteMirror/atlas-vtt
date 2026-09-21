@@ -1,0 +1,79 @@
+name: Report an issue
+description: Something is broken, slow, crashing or conflicting with another plugin.
+labels: ["needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve Atlas VTT. The fastest way to fill this form is from inside Obsidian: run the **Report an issue** command or open **Settings → Atlas VTT → Help and feedback**. Atlas then fills in your versions for you.
+  - type: dropdown
+    id: type
+    attributes:
+      label: What kind of issue is this?
+      options:
+        - Something doesn't work
+        - Crash or freeze
+        - Slow or laggy
+        - Conflict with another plugin or theme
+        - Question or something else
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Which part of Atlas is affected?
+      options:
+        - Maps and scenes
+        - Grid and alignment
+        - Tokens and creatures
+        - Statblocks, notes and pins
+        - Asset manager and collections
+        - Fog of war, vision and lighting
+        - Initiative and combat
+        - Dice
+        - Player view window
+        - Music and ambience
+        - Settings, hotkeys and commands
+        - Installing or updating Atlas
+        - Not sure / something else
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead? Screenshots or a short recording help a lot.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open a scene with …
+        2. Select the … tool
+        3. …
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Filled in automatically when you report from inside Obsidian. Otherwise list your Atlas version, Obsidian version (Settings → General → About) and operating system.
+      placeholder: |
+        - Atlas VTT: 0.2.0
+        - Obsidian: 1.13.1
+        - System: macOS arm64
+    validations:
+      required: true
+  - type: textarea
+    id: errors
+    attributes:
+      label: Recent errors
+      description: Any `[Atlas]` lines from the developer console (Ctrl/Cmd+Shift+I → Console). Filled in automatically when reporting from inside Obsidian.
+      render: text
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched the existing issues and did not find this problem.
+        - label: I tried a fresh test vault with only Atlas VTT enabled, or this is a compatibility report.

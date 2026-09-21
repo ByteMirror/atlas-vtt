@@ -1,0 +1,45 @@
+name: Suggest a feature
+description: Propose something new or an improvement to an existing part of Atlas.
+labels: ["needs-triage", "type:feature"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Ideas are welcome. Describe the goal at your table first; the maintainer decides on the design and timing. From Atlas 0.2.0 on, you can also start this form from inside Obsidian via **Settings → Atlas VTT → Help and feedback → Suggest a feature**.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Which part of Atlas is affected?
+      options:
+        - Maps and scenes
+        - Grid and alignment
+        - Tokens and creatures
+        - Statblocks, notes and pins
+        - Asset manager and collections
+        - Fog of war, vision and lighting
+        - Initiative and combat
+        - Dice
+        - Player view window
+        - Music and ambience
+        - Settings, hotkeys and commands
+        - Installing or updating Atlas
+        - Not sure / something else
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: What would you like to do?
+      description: The goal or the problem this would solve during preparation or play.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: How could it work?
+      description: Optional. How you imagine the feature, where it would live, and any tools that do it well.
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Optional. Filled in automatically when you report from inside Obsidian (Atlas 0.2.0 and later).

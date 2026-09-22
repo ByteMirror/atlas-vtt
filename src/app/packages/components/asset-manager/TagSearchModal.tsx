@@ -86,7 +86,12 @@ function TagSearchModalInner({
   };
 
   return (
-    <div className="atlas-modal-overlay" onClick={onClose}>
+    <div
+      className="atlas-modal-overlay"
+      onClick={onClose}
+      // This separate React root must not trigger the asset manager's outside-click listener.
+      onMouseDown={(e) => e.stopPropagation()}
+    >
       <div className="atlas-modal atlas-tag-search-modal" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="atlas-modal-header">

@@ -9,6 +9,14 @@ const { spawnSync } = require('child_process');
 const path = require('path');
 
 const root = path.resolve(__dirname, '..');
+
+// ESLint auto-loads this file from the working directory. The directory review
+// runs a different rule set, so a suppression it does not use would make its
+// run exit 2 ("There are suppressions left that do not occur anymore").
+if (require('fs').existsSync(path.join(root, 'eslint-suppressions.json'))) {
+  console.error('eslint-suppressions.json must not exist at the repository root; use eslint.suppressions.json with --suppressions-location.');
+  process.exit(1);
+}
 const eslint = path.join(root, 'node_modules', '.bin', process.platform === 'win32' ? 'eslint.cmd' : 'eslint');
 const result = spawnSync(eslint, ['--no-config-lookup', '--config', 'eslint.scanner.mjs', '--format', 'json', '.'], {
   cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, shell: process.platform === 'win32',

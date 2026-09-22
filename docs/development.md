@@ -44,12 +44,16 @@ The gate is zero tolerance: no errors, no warnings (`--max-warnings 0`).
   (`ban-ts-comment`).
 - The one accepted exception, the `Function` constructor that runs Fantasy
   Statblocks layout callbacks (see [PRIVACY.md](../PRIVACY.md)), is recorded in
-  `eslint-suppressions.json`. A suppression covers a rule, in a file, up to a
+  `eslint.suppressions.json`. A suppression covers a rule, in a file, up to a
   count, so a second occurrence anywhere still fails. Adding an entry is a
   maintainer decision and needs its reason in the pull request. Obsidian's
   scorecard does not read this file and keeps listing suppressed findings.
 - When a suppressed finding is fixed, ESLint fails until the stale entry is
-  removed: `npx eslint main.ts src --prune-suppressions`.
+  removed: `npx eslint . --suppressions-location eslint.suppressions.json --prune-suppressions`.
+  The file deliberately does not use ESLint's default name: Obsidian's
+  directory review runs ESLint with its own rule set, and a suppression that
+  set does not use makes ESLint exit with code 2, which the review reports as
+  a fatal error.
 
 ### Workflow conventions
 

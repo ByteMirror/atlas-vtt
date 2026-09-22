@@ -2,6 +2,14 @@
 
 <!-- Generated from changelog/*.md. Run npm run changelog:generate. -->
 
+## 0.2.3 — Maintenance release
+
+2026-09-22
+
+### Fixed
+
+- Obsidian's community directory can complete its source review. The lint suppressions file moved to a name ESLint does not load on its own, so the review's own ESLint run no longer exits with a configuration error. The plugin itself is unchanged from 0.2.0.
+
 ## 0.2.2 — Maintenance release
 
 2026-09-22

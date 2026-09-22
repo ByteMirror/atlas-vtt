@@ -6,6 +6,7 @@ import { isHandled } from "./utils/handledEvents";
 import type { ViewAtlasState, ViewAtlasStore } from '../storeFactory';
 import { EventEmitter } from 'events';
 import { getDrawingBounds, type DrawingBounds } from './drawingGeometry';
+import type { LayerVisibility } from './playerSafeFrame';
 
 export class SelectionManager {
   private viewport: Viewport;
@@ -343,6 +344,11 @@ export class SelectionManager {
       if (intersect) inside = !inside;
     }
     return inside;
+  }
+
+  /** DM selection feedback that must not reach the mirrored player frame. */
+  public getPlayerViewLayers(): LayerVisibility[] {
+    return [this.selectionOverlay, this.marqueeGraphics].map(layer => ({ layer, visible: false }));
   }
 
   public updateSelectionOverlay(): void {

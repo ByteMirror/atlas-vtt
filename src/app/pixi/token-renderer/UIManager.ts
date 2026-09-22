@@ -446,9 +446,15 @@ export class UIManager implements ITokenUIManager {
       ui.getContainer().position.copyFrom(sprite.position);
       ui.getContainer().renderable = sprite.visible && !token.isHidden;
     }
+    const dmControls: Container[] = [
+      ...(this.tokenControlsUI ? [this.tokenControlsUI.getContainer()] : []),
+      ...(this.tokenRotationUI?.getHandles() ?? []),
+      ...(this.tokenResizeUI?.getHandles() ?? []),
+    ];
     return [
       { layer: this.uiContainer, visible: false },
       { layer: this.playerUIContainer, visible: true },
+      ...dmControls.map(layer => ({ layer, visible: false })),
     ];
   }
 

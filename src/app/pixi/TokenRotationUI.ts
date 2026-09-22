@@ -587,6 +587,10 @@ export class TokenRotationUI {
     }
   }
   
+  public getHandles(): Container[] {
+    return [...this.rotationHandles.values()];
+  }
+
   /**
    * Clean up and destroy
    */

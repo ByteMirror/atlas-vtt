@@ -1,4 +1,4 @@
-import { FederatedPointerEvent, Graphics, Text, TextStyle } from "pixi.js";
+import { FederatedPointerEvent, Graphics, Point, Text, TextStyle } from "pixi.js";
 import { Viewport } from "pixi-viewport";
 import { EventEmitter } from 'events';
 import { getObsidianAccentColor, cssColorToHexNumber } from "./utils/colorUtils";
@@ -195,11 +195,20 @@ export class MeasureRenderer {
       e.stopPropagation();
       
       const worldPos = this.viewport.toWorld(e.global);
-      // Snap to grid center
-      const snappedPos = this.gridSystem.snapToCellCenter(worldPos.x, worldPos.y);
+      var startPos = worldPos;
+
+      // Check for grid snap setting and position start accordingly
+      const currentState = this.store.getState();
+      const grid = currentState.grid;
+      const snapToGrid = grid && typeof grid.snapToGrid === 'boolean' ? grid.snapToGrid : true;
       
-      this.startPoint = snappedPos;
-      this.endPoint = snappedPos;
+      if (snapToGrid) {
+        const snapPoint = this.gridSystem.snapToCellCenter(worldPos.x, worldPos.y);
+        startPos = new Point(snapPoint.x, snapPoint.y);
+      }
+
+      this.startPoint = { x:startPos.x, y:startPos.y };
+      this.endPoint = { x:startPos.x, y:startPos.y };
       this.isDrawing = true;
       
       this.updateMeasurement();
@@ -221,10 +230,19 @@ export class MeasureRenderer {
     e.stopPropagation();
     
     const worldPos = this.viewport.toWorld(e.global);
-    // Snap to grid center
-    const snappedPos = this.gridSystem.snapToCellCenter(worldPos.x, worldPos.y);
+    var endPos = worldPos;
+
+    // Check for grid snap setting and position start accordingly
+    const currentState = this.store.getState();
+    const grid = currentState.grid;
+    const snapToGrid = grid && typeof grid.snapToGrid === 'boolean' ? grid.snapToGrid : true;
     
-    this.endPoint = snappedPos;
+    if (snapToGrid) {
+      const snapPoint = this.gridSystem.snapToCellCenter(worldPos.x, worldPos.y);
+      endPos = new Point(snapPoint.x, snapPoint.y);
+    }
+
+    this.endPoint = { x:endPos.x, y:endPos.y };
     this.updateMeasurement();
   }
   

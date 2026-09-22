@@ -17,7 +17,7 @@ export function computeTokenStrokeWidth(gridSize: number): number {
 
 /** Diameter in cells covered by a token of the given size multiplier. */
 export function tokenDiameterInCells(sizeInCells: number): number {
-  return 2 * sizeInCells - 1;
+  return sizeInCells;
 }
 
 /** Token sprite diameter in pixels for a token covering `sizeInCells` cells. */

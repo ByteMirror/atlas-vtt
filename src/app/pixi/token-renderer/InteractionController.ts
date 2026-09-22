@@ -524,6 +524,23 @@ export class InteractionController implements ITokenInteractionController {
       entries.push({ type: 'separator' });
     }
 
+    // Size modification
+    const sizeDefs = ["Tiny", "Small/Medium", "Large", "Huge", "Gargantuan"];
+    entries.push({
+        type: 'submenu',
+        label: 'Size',
+        icon: 'scaling',
+        children: sizeDefs.map((size, index) => ({
+          type: 'item' as const,
+          label: size,
+          checked: sizeDefs[index] == character.size,
+          onClick: () => {
+            this.store.getState().setTokenSize(token.id, index == 0 ? 0.5 : index)
+          },
+        })),
+      });
+      entries.push({ type: 'separator' });
+
     // Hide/Show
     const currentToken = this.store.getState().objects.tokens[token.id];
     const isHidden = currentToken?.isHidden || false;

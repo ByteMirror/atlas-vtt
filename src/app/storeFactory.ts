@@ -102,6 +102,7 @@ export interface ViewAtlasState {
   setTokenRing: (id: string, color: string | null) => void;
   addTokenCondition: (tokenId: string, conditionId: string) => void;
   removeTokenCondition: (tokenId: string, conditionId: string) => void;
+  setTokenSize: (tokenId: string, size: number) => void;
   clearTokenConditions: (id: string) => void;
   killTokens: (ids: string[]) => void;
   resetTokens: (ids: string[]) => void;
@@ -1358,6 +1359,15 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: any, isP
             } else {
               delete token.conditions;
             }
+          }),
+
+          setTokenSize: (tokenId, size) => set((draft) => {
+            const token = draft.objects.tokens[tokenId];
+            if (!token) {
+              console.warn(`[ViewStore-${viewId}] setTokenSize: token not found`, tokenId);
+              return;
+            }
+            token.size = size;
           }),
 
           clearTokenConditions: (id) => set((draft) => {

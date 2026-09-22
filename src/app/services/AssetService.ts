@@ -935,14 +935,14 @@ export class AssetService {
       .filter((asset): asset is GroupAsset => asset.type === 'encounter' || asset.type === 'player');
   }
 
-  /** Encounters and player groups that contain any of the given token assets. */
+  /** Encounters that contain any of the given token assets. */
   async getGroupsUsingTokens(tokenIds: readonly string[]): Promise<GroupAsset[]> {
     await this.ensureLoaded();
     const ids = new Set(tokenIds);
     return this.listGroups().filter((group) => groupTokenRefs(group).some((ref) => ids.has(ref.id)));
   }
 
-  /** Deletes the given encounters and player groups if their token list is now empty. */
+  /** Deletes the given encounters if their token list is now empty. */
   private async deleteEmptiedGroups(groups: GroupAsset[]): Promise<void> {
     for (const group of groups) {
       if (groupTokenRefs(group).length === 0) await this.deleteAsset(group.id);

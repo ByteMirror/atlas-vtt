@@ -20,7 +20,7 @@ function plural(count: number, noun: string): string {
   return `${count} ${noun}${count === 1 ? '' : 's'}`;
 }
 
-/** Looks up encounters, player groups and maps that use any of the given token assets. */
+/** Looks up encounters and maps that use any of the given token assets. */
 export async function findTokenDeleteImpact(
   app: App,
   assetService: AssetService,
@@ -42,8 +42,7 @@ export function describeTokenDeleteImpact(impact: TokenDeleteImpact): string[] {
   const paragraphs: string[] = [];
   if (impact.groups.length > 0) {
     const emptied = impact.groups.filter((g) => groupTokenRefs(g).every((ref) => ids.has(ref.id)));
-    const noun = impact.groups.every((g) => g.type === 'encounter') ? 'encounter' : 'group';
-    paragraphs.push(`Used in ${plural(impact.groups.length, noun)}: ${listNames(impact.groups.map((g) => g.name))}. The token will be removed from them.`);
+    paragraphs.push(`Used in ${plural(impact.groups.length, 'encounter')}: ${listNames(impact.groups.map((g) => g.name))}. The token will be removed from them.`);
     if (emptied.length > 0) {
       paragraphs.push(`${listNames(emptied.map((g) => g.name))} would be left empty and will be deleted too.`);
     }

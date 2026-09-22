@@ -1,9 +1,8 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { DiceToast } from './DiceToast';
+import { DiceToast, type ToastPhase } from './DiceToast';
 import type { DiceRollResult } from '../../../tools/DiceTool';
-
-type ToastPhase = 'entering' | 'visible' | 'exiting';
+import { DICE_TOAST_KNOT_PATHS, DICE_TOAST_KNOT_SYMBOL_ID } from './diceToastOrnament';
 
 interface ToastEntry {
   id: string;
@@ -68,6 +67,16 @@ export function DiceToastContainer(): React.ReactElement | null {
 
   return createPortal(
     <div className="atlas-dice-toast-container atlas-vtt-plugin">
+      {/* Knotwork defined once; every toast corner draws it with <use>. */}
+      <svg className="atlas-dice-toast-container__defs" aria-hidden="true">
+        <defs>
+          <g id={DICE_TOAST_KNOT_SYMBOL_ID} fill="none" stroke="currentColor" strokeWidth="10">
+            {DICE_TOAST_KNOT_PATHS.map((d, i) => (
+              <path key={i} d={d} />
+            ))}
+          </g>
+        </defs>
+      </svg>
       {toasts.map((toast) => (
         <DiceToast
           key={toast.id}

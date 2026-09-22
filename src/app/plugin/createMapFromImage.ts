@@ -63,7 +63,7 @@ function buildMapFileContent(name: string, backgroundPath: string): string {
     version: NEW_MAP_VERSION,
     name,
     background: backgroundPath,
-    grid: { enabled: true, size: 70, offsetX: 0, offsetY: 0, color: '#00FFFF', opacity: 0.5 },
+    grid: { enabled: true, size: 70, offsetX: 0, offsetY: 0, opacity: 0.5 },
     objects: { tokens: {}, fog: {}, pins: {} },
     camera: { x: 0, y: 0, scale: 1 },
   };

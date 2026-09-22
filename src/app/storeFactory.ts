@@ -313,7 +313,6 @@ const createInitialState = (): Pick<ViewAtlasState, 'schema' | 'version' | 'mapP
     size: 70,
     offsetX: 0,
     offsetY: 0,
-    color: '#00FFFF',
     opacity: 0.5,
     lineType: 'solid',
     lineWidth: 1
@@ -541,7 +540,6 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
                 size: 70,
                 offsetX: 0,
                 offsetY: 0,
-                color: '#00FFFF',
                 opacity: 0.5,
                 lineType: 'solid',
                 lineWidth: 1
@@ -562,7 +560,6 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
                 size: 70,
                 offsetX: 0,
                 offsetY: 0,
-                color: '#00FFFF',
                 opacity: 0.5,
                 lineType: 'solid',
                 lineWidth: 1
@@ -1297,7 +1294,6 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
               size: 70,
               offsetX: 0,
               offsetY: 0,
-              color: '#00FFFF',
               opacity: 0.5,
               lineType: 'solid',
               lineWidth: 1

@@ -4,6 +4,7 @@ import type { Root } from 'react-dom/client';
 import { AssetService, type TokenAsset } from '../../../services/AssetService';
 import { TokenStatblockLinkService } from '../../../services/TokenStatblockLinkService';
 import { LabelTooltip } from '../primitives/tooltip';
+import { resourceUrl } from '../asset-manager/utils/assetFormatters';
 import './token-picker.scss';
 
 /** A token asset whose image exists in the vault, with its resolved resource URL. */
@@ -101,9 +102,8 @@ const TokenPickerContent: React.FC<TokenPickerModalProps> = ({
       // Tokens of all collections; those whose image is missing cannot be picked
       const pickable: PickableToken[] = [];
       for (const asset of await assetService.getTokenAssets()) {
-        const file = app.vault.getAbstractFileByPath(asset.imagePath);
-        const imageUrl = file instanceof TFile ? app.vault.getResourcePath(file) : '';
-        if (imageUrl) pickable.push({ ...asset, imageUrl });
+        const imageUrl = resourceUrl(app, asset.imagePath);
+        if (imageUrl) pickable.push({ ...asset, imageUrl: resourceUrl(app, asset.thumbnailPath) || imageUrl });
       }
       setTokens(pickable);
       setLoading(false);

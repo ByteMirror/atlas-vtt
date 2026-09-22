@@ -3,6 +3,7 @@ import { AssetRegistrationUncertainError } from '../../../../services/assetRegis
 import { withStatblockImportLock } from '../../../../services/statblockImportLock';
 import { requireResolvedBestiary, statblockImportCandidate } from '../../../../services/statblockImportCandidates';
 import { AssetService } from '../../../../services/AssetService';
+import { TokenThumbnailService } from '../../../../services/TokenThumbnailService';
 import { optimizeImage, OPTIMIZATION_PRESETS } from '../../../../utils/imageOptimizer';
 import { bakeTokenCrop } from './bakeTokenCrop';
 import type { CreatorMode, EditTokenInput, TokenPreview } from './types';
@@ -62,6 +63,8 @@ async function savePreviews(options: SaveTokenPreviewsOptions): Promise<number> 
   const destination = destinations.find(c => c.id === collection) ?? destinations.find(c => c.name === collection);
   if (!destination) throw new Error('The destination collection no longer exists. Choose another collection.');
   const meta = { collection: destination.id };
+  const thumbnails = TokenThumbnailService.getInstance(app, assetService);
+  if (previews.some(p => p.statblockPath)) await assetService.refreshMetadata();
   await ensureAssetsDir(app);
   let saved = 0;
 
@@ -69,6 +72,7 @@ async function savePreviews(options: SaveTokenPreviewsOptions): Promise<number> 
     const preview = previews[0];
     if (!preview) return 0;
     let imagePath = editToken.imagePath ?? editToken.imageUrl;
+    let thumbnailPath: string | undefined;
     if (preview.file) {
       const blob = await resolveImageBlob(preview, mode, waitForOptimized);
       if (!blob) {
@@ -76,8 +80,12 @@ async function savePreviews(options: SaveTokenPreviewsOptions): Promise<number> 
         return 0;
       }
       imagePath = await writeImage(app, preview.name, blob);
+      thumbnailPath = await thumbnails.tryCreateForImage(imagePath);
     }
-    await assetService.updateTokenAsset(editToken.id, { name: preview.name, imagePath, showRing: preview.showRing !== false, tags: preview.tags ?? tags, ...meta });
+    await assetService.updateAsset(editToken.id, {
+      name: preview.name, imagePath, showRing: preview.showRing !== false, tags: preview.tags ?? tags,
+      ...meta, ...(preview.file && { thumbnailPath }),
+    });
     return 1;
   }
 
@@ -86,6 +94,7 @@ async function savePreviews(options: SaveTokenPreviewsOptions): Promise<number> 
       if (options.signal?.aborted) break;
       if (!preview.file) continue;
       let imagePath: string | undefined;
+      let thumbnailPath: string | undefined;
       try {
         if (preview.statblockPath) {
           const note = app.vault.getAbstractFileByPath(preview.statblockPath);
@@ -101,8 +110,9 @@ async function savePreviews(options: SaveTokenPreviewsOptions): Promise<number> 
         if (mode === 'map') {
           await assetService.addAsset({ type: 'map', name: preview.name, mapFilePath: imagePath, ...metadata });
         } else {
+          thumbnailPath = await thumbnails.tryCreateForImage(imagePath);
           await assetService.addTokenAsset({
-            showRing: preview.showRing !== false, name: preview.name, imagePath,
+            showRing: preview.showRing !== false, name: preview.name, imagePath, ...(thumbnailPath && { thumbnailPath }),
             ...(preview.statblockPath ? { statblockPath: preview.statblockPath } : {}), ...metadata,
           });
         }
@@ -111,9 +121,11 @@ async function savePreviews(options: SaveTokenPreviewsOptions): Promise<number> 
       } catch (error) {
         if (error instanceof AssetRegistrationUncertainError) throw error;
         if (imagePath && mode === 'token') {
-          const copied = app.vault.getAbstractFileByPath(imagePath);
-          if (copied instanceof TFile) {
-            try { await app.fileManager.trashFile(copied); } catch { /* Keep an unlinked copy if trash is unavailable. */ }
+          for (const path of [imagePath, thumbnailPath]) {
+            const copied = path ? app.vault.getAbstractFileByPath(path) : null;
+            if (copied instanceof TFile) {
+              try { await app.fileManager.trashFile(copied); } catch { /* Keep an unlinked copy if trash is unavailable. */ }
+            }
           }
         }
         new Notice(`${preview.name}: ${error instanceof Error ? error.message : 'Could not save this preview.'}`);

@@ -6,9 +6,7 @@ import type { StoreApi } from 'zustand';
 import type { AtlasSettings, SettingsService } from './SettingsService';
 import { playerWindowStore, resetPlayerWindowStore } from '../stores/playerWindowStore';
 import './player-window.scss';
-
-/** The mirrored canvas is capped at 30 fps; players never need more. */
-const PLAYER_WINDOW_FRAME_INTERVAL_MS = 1000 / 30;
+import { LocalPlayerView, LOCAL_PLAYER_VIEW_TYPE, type PlayerCameraState } from '../local-player-view';
 
 /** Scopes the rules in `player-window.scss` to the popout document. */
 const PLAYER_WINDOW_BODY_CLASS = 'atlas-player-window';
@@ -31,6 +29,7 @@ function createSvgElement(doc: Document, tag: string, attributes: Record<string,
 /** A DM map canvas that can briefly render itself without DM-only layers. */
 export interface PlayerFrameSource {
   canvas: HTMLCanvasElement;
+  getCamera?(): PlayerCameraState | undefined;
   /** Runs `capture` while `canvas` holds a frame that is safe to show players. */
   withPlayerSafeFrame(capture: () => void, settings: AtlasSettings['localPlayerView']): void;
 }
@@ -44,6 +43,7 @@ export interface PlayerFrameSource {
  */
 export class PlayerWindowService {
   private playerWindow: Window | null = null;
+  private playerView: LocalPlayerView | null = null;
   private app: App;
   private store: StoreApi<ViewAtlasState>;
   private settingsService: SettingsService;
@@ -122,7 +122,7 @@ export class PlayerWindowService {
    * Show the scene tab `tabId`, already rendered into `source`, to players.
    * Any freeze is lifted because the DM explicitly chose what players see.
    */
-  public presentCanvas(source: PlayerFrameSource, tabId: string): void {
+  public presentCanvas(source: PlayerFrameSource, tabId: string, filePath?: string): void {
     if (!this.isWindowOpen()) {
       new Notice('Player window is not open');
       return;
@@ -131,16 +131,26 @@ export class PlayerWindowService {
     this.isAutoFrozen = false;
     this.setCameraFrozen(false);
     playerWindowStore.setState({ presentedTabId: tabId });
+    this.playerView?.updateSession({ tabId, ...(filePath ? { filePath } : {}), frozen: false });
   }
 
   /** Opens a player window mirroring `source`, which shows the scene tab `tabId`. */
-  public openPlayerWindow(source: PlayerFrameSource, tabId: string): void {
-    if (this.playerWindow && !this.playerWindow.closed) {
-      this.playerWindow.close();
-    }
+  public async openPlayerWindow(source: PlayerFrameSource, tabId: string, filePath: string): Promise<void> {
+    const leaf = this.app.workspace.getLeavesOfType(LOCAL_PLAYER_VIEW_TYPE)[0] ?? this.app.workspace.openPopoutLeaf();
+    await leaf.setViewState({ type: LOCAL_PLAYER_VIEW_TYPE, state: { tabId, filePath, frozen: false } });
+    if (leaf.view instanceof LocalPlayerView) this.attachToView(leaf.view, source, tabId);
+  }
+
+  public ownsView(view: LocalPlayerView): boolean {
+    return this.playerView === view;
+  }
+
+  public attachToView(view: LocalPlayerView, source: PlayerFrameSource, tabId: string): void {
+    this.playerView = view;
+    this.playerWindow = view.contentEl.win;
     this.streamSource = source;
     playerWindowStore.setState({ presentedTabId: tabId });
-    this.openWindow();
+    this.setupPlayerWindow();
   }
 
   private setCameraFrozen(frozen: boolean): void {
@@ -153,6 +163,7 @@ export class PlayerWindowService {
     }
     this.updateFreezeIndicator();
     playerWindowStore.setState({ isFrozen: frozen });
+    this.playerView?.updateSession({ frozen: frozen && !this.isAutoFrozen });
   }
 
   private updateFreezeIndicator(): void {
@@ -176,52 +187,6 @@ export class PlayerWindowService {
     this.frozenCanvas.width = targetCanvas.width;
     this.frozenCanvas.height = targetCanvas.height;
     this.frozenCanvas.getContext('2d')?.drawImage(targetCanvas, 0, 0);
-  }
-
-  /**
-   * Opens the player window
-   */
-  private openWindow(): void {
-    try {
-      let windowCaptured = false;
-      
-      // Listen for the window-open event to get the actual popout window
-      const eventRef = this.app.workspace.on('window-open', (workspaceWindow, window) => {
-        windowCaptured = true;
-        
-        // Store the actual popout window reference
-        this.playerWindow = window;
-        
-        // Unregister the event listener after we've captured the window
-        this.app.workspace.offref(eventRef);
-        
-        // Continue with window setup
-        this.setupPlayerWindow();
-      });
-
-      // Open the popout leaf - this will trigger the window-open event
-      const leaf = this.app.workspace.openPopoutLeaf();
-      
-      if (!leaf) {
-        console.error('[PlayerWindowService] Failed to create popout leaf');
-        this.app.workspace.offref(eventRef);
-        new Notice("Failed to open player window - could not create popout leaf");
-        return;
-      }
-      
-      // Fallback: If window-open event doesn't fire within 1 second, clean up
-      window.setTimeout(() => {
-        if (!windowCaptured) {
-          console.warn('[PlayerWindowService] window-open event did not fire, cleaning up');
-          this.app.workspace.offref(eventRef);
-          new Notice("Failed to open player window. If you have a popup blocker, please allow popups for Obsidian.");
-        }
-      }, 1000);
-
-    } catch (error) {
-      console.error('[PlayerWindowService] Error opening window:', error);
-      new Notice("Failed to open player window");
-    }
   }
 
   /**
@@ -265,27 +230,23 @@ export class PlayerWindowService {
         return;
       }
       
-      body.empty(); // Clear body content
+      const content = this.playerView?.contentEl ?? body;
+      content.empty();
       
       this.copyMainWindowStyles(doc);
       body.classList.add(PLAYER_WINDOW_BODY_CLASS);
       body.classList.remove(PLAYER_WINDOW_LIVE_CLASS);
 
       // Create our UI elements
-      const loading = body.createDiv();
+      const loading = content.createDiv();
       loading.id = 'atlas-player-loading';
       loading.textContent = 'Connecting to game session...';
 
-      const canvas = body.createEl('canvas');
+      const canvas = content.createEl('canvas');
       canvas.id = 'atlas-player-canvas';
 
-      const info = body.createDiv();
-      info.id = 'atlas-player-info';
-      info.createDiv({ text: 'Player view - display only' });
-      info.createDiv().id = 'atlas-player-fps';
-      
       // Create widget container
-      const widgetContainer = body.createDiv();
+      const widgetContainer = content.createDiv();
       widgetContainer.id = 'atlas-player-widgets';
       widgetContainer.className = 'atlas-vtt-plugin';
       
@@ -302,7 +263,7 @@ export class PlayerWindowService {
       this.settingsUnsubscribe = this.settingsService.onChange(updateWidgets);
 
       // Create freeze indicator
-      const freezeIndicator = body.createDiv();
+      const freezeIndicator = content.createDiv();
       freezeIndicator.id = 'atlas-player-freeze-indicator';
       const freezeIcon = createSvgElement(doc, 'svg', {
         width: '16',
@@ -324,7 +285,7 @@ export class PlayerWindowService {
       freezeIndicator.style.display = this.isCameraFrozen ? 'flex' : 'none';
       
       // Create title bar container
-      const titleBarContainer = body.createDiv();
+      const titleBarContainer = content.createDiv();
       titleBarContainer.id = 'atlas-player-titlebar-container';
       
       // Create title bar for dragging
@@ -444,7 +405,6 @@ export class PlayerWindowService {
     if (!this.playerWindow || !this.streamSource) return;
 
     const targetCanvas = this.playerWindow.document.getElementById('atlas-player-canvas') as HTMLCanvasElement;
-    const fpsDisplay = this.playerWindow.document.getElementById('atlas-player-fps');
     
     if (!targetCanvas) return;
 
@@ -453,22 +413,15 @@ export class PlayerWindowService {
 
     this.playerWindow.document.body.classList.add(PLAYER_WINDOW_LIVE_CLASS);
 
-    let lastTime = performance.now();
-    let frameCount = 0;
-    let lastCopyAt = 0;
     let lastDrawnSource: HTMLCanvasElement | null = null;
 
-    const copyCanvas = (frameTime: number = performance.now()) => {
+    const copyCanvas = (): void => {
       if (!this.playerWindow || this.playerWindow.closed || !this.streamSource) {
         this.cleanup();
         return;
       }
 
-      this.animationFrame = window.requestAnimationFrame(copyCanvas);
-
-      // The player window never needs more than 30 fps; skip in-between frames.
-      if (frameTime - lastCopyAt < PLAYER_WINDOW_FRAME_INTERVAL_MS) return;
-      lastCopyAt = frameTime;
+      this.animationFrame = this.playerWindow.requestAnimationFrame(copyCanvas);
 
       try {
         const frozen = this.isCameraFrozen ? this.frozenCanvas : null;
@@ -493,15 +446,11 @@ export class PlayerWindowService {
           draw();
         } else {
           this.streamSource.withPlayerSafeFrame(draw, this.settingsService.getLocalPlayerViewSettings());
-        }
-        frameCount++;
-
-        if (frameTime - lastTime >= 1000) {
-          if (fpsDisplay) {
-            fpsDisplay.textContent = `FPS: ${frameCount}`;
+          const camera = this.streamSource.getCamera?.();
+          const previous = this.playerView?.getState().camera;
+          if (camera && (camera.centerX !== previous?.centerX || camera.centerY !== previous.centerY || camera.scale !== previous.scale)) {
+            this.playerView?.updateSession({ camera });
           }
-          frameCount = 0;
-          lastTime = frameTime;
         }
       } catch (error) {
         console.error('[PlayerWindowService] Error copying canvas:', error);
@@ -523,7 +472,7 @@ export class PlayerWindowService {
     this.isCleaningUp = true;
 
     if (this.animationFrame) {
-      window.cancelAnimationFrame(this.animationFrame);
+      this.playerWindow?.cancelAnimationFrame(this.animationFrame);
       this.animationFrame = null;
     }
 
@@ -542,6 +491,7 @@ export class PlayerWindowService {
     }
     
     this.playerWindow = null;
+    this.playerView = null;
     this.streamSource = null;
     this.frozenCanvas = null;
     this.isCameraFrozen = false;
@@ -557,7 +507,7 @@ export class PlayerWindowService {
   /**
    * Destroy the service
    */
-  public destroy(): void {
-    this.cleanup();
+  public destroy(closeWindow = true): void {
+    this.cleanup(closeWindow);
   }
 }

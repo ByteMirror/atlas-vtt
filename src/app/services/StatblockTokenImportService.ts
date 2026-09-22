@@ -1,6 +1,7 @@
 import { withStatblockImportLock } from './statblockImportLock';
 import { TFile, normalizePath, type App } from 'obsidian';
 import { AssetService, type TokenAsset } from './AssetService';
+import { TokenThumbnailService } from './TokenThumbnailService';
 import { AssetRegistrationUncertainError } from './assetRegistrationRecovery';
 import { requireResolvedBestiary, statblockImportCandidate, type StatblockImportCandidate } from './statblockImportCandidates';
 
@@ -73,6 +74,7 @@ export class StatblockTokenImportService {
   private async importNote(path: string, collection: string, showRing: boolean): Promise<StatblockImportItem> {
     let name = path.split('/').pop()?.replace(/\.md$/, '') ?? path;
     let copied: TFile | undefined;
+    let thumbnailPath: string | undefined;
     try {
       const file = this.app.vault.getAbstractFileByPath(path);
       if (!(file instanceof TFile)) return { path, name, status: 'skipped', message: 'The statblock note no longer exists.' };
@@ -86,13 +88,17 @@ export class StatblockTokenImportService {
       const safeName = name.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 80) || 'creature';
       const imagePath = `${dir}/${safeName}_${crypto.randomUUID()}.${image.extension}`;
       copied = await this.app.vault.createBinary(imagePath, await this.app.vault.readBinary(image));
-      const asset = await this.assets.addTokenAsset({ name, imagePath, statblockPath: path, showRing, tags: [], collection });
+      thumbnailPath = await TokenThumbnailService.getInstance(this.app, this.assets).tryCreateForImage(imagePath);
+      const asset = await this.assets.addTokenAsset({
+        name, imagePath, statblockPath: path, showRing, tags: [], collection, ...(thumbnailPath && { thumbnailPath }),
+      });
       return { path, name, status: 'created', message: 'Token created.', asset };
     } catch (error) {
       // An unconfirmed write may have committed. Never delete the image in this case.
       if (error instanceof AssetRegistrationUncertainError) return { path, name, status: 'failed', message: error.message, uncertain: true };
-      if (copied) {
-        try { await this.app.fileManager.trashFile(copied); } catch { /* Leave a safe, unlinked image if trash is unavailable. */ }
+      for (const orphan of [copied, thumbnailPath && this.app.vault.getAbstractFileByPath(thumbnailPath)]) {
+        if (!(orphan instanceof TFile)) continue;
+        try { await this.app.fileManager.trashFile(orphan); } catch { /* Leave a safe, unlinked image if trash is unavailable. */ }
       }
       return { path, name, status: 'failed', message: error instanceof Error ? error.message : 'Could not create this token.' };
     }

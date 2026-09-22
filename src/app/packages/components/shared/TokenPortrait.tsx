@@ -10,10 +10,12 @@ interface TokenPortraitProps {
   ringColor?: string | undefined;
   className?: string | undefined;
   style?: React.CSSProperties | undefined;
+  /** Defer loading until the portrait nears the viewport, for long lists. */
+  lazy?: boolean | undefined;
 }
 
 /** Circular token art framed by the same ring image the canvas draws. */
-export function TokenPortrait({ src, alt, ringColor, showRing = true, className, style }: TokenPortraitProps): React.JSX.Element {
+export function TokenPortrait({ src, alt, ringColor, showRing = true, className, style, lazy }: TokenPortraitProps): React.JSX.Element {
   const ringStyle = {
     '--atlas-token-ring-image': `url("${tokenRingImageUrl}")`,
     ...(ringColor ? { '--atlas-token-ring-color': ringColor } : {}),
@@ -22,7 +24,7 @@ export function TokenPortrait({ src, alt, ringColor, showRing = true, className,
   return (
     <div className={`atlas-token-portrait ${showRing ? '' : 'atlas-token-portrait--unframed'} ${className ?? ''}`} style={style}>
       <div className="atlas-token-image-wrapper">
-        <img src={src} alt={alt} draggable={false} />
+        <img src={src} alt={alt} draggable={false} decoding="async" loading={lazy ? 'lazy' : undefined} />
       </div>
       {showRing && <div className="atlas-token-ring" style={ringStyle} />}
     </div>

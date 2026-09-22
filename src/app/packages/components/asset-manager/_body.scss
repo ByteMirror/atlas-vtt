@@ -31,6 +31,8 @@
 }
 
 .atlas-asset-manager-content {
+  // Offset parent of the virtualized grid, so its rows can be placed relative to the scroll origin.
+  position: relative;
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;

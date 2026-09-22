@@ -83,7 +83,7 @@ async function savePreviews(options: SaveTokenPreviewsOptions): Promise<number> 
       thumbnailPath = await thumbnails.tryCreateForImage(imagePath);
     }
     await assetService.updateAsset(editToken.id, {
-      name: preview.name, imagePath, showRing: preview.showRing !== false, tags: preview.tags ?? tags,
+      name: preview.name, imagePath, showRing: preview.showRing !== false, size: preview.size, tags: preview.tags ?? tags,
       ...meta, ...(preview.file && { thumbnailPath }),
     });
     return 1;
@@ -113,6 +113,7 @@ async function savePreviews(options: SaveTokenPreviewsOptions): Promise<number> 
           thumbnailPath = await thumbnails.tryCreateForImage(imagePath);
           await assetService.addTokenAsset({
             showRing: preview.showRing !== false, name: preview.name, imagePath, ...(thumbnailPath && { thumbnailPath }),
+            ...(preview.size !== undefined && { size: preview.size }),
             ...(preview.statblockPath ? { statblockPath: preview.statblockPath } : {}), ...metadata,
           });
         }

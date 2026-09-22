@@ -19,6 +19,7 @@ import { confirmAction } from '../../../../ui/confirmDialog';
 import type { AtlasView } from '../../../../atlas-view';
 import type { ViewAtlasState } from '../../../../storeFactory';
 import { applyTokenDeleteImpact, describeTokenDeleteImpact, findTokenDeleteImpact } from '../utils/tokenDeleteImpact';
+import { tokenSizeSubmenu } from '../../../../react/components/context-menu/tokenSizeMenu';
 
 export interface AssetContextMenuDeps {
   app: ObsidianApp;
@@ -146,6 +147,19 @@ export function buildAssetContextMenuEntries(
         });
       },
     });
+  }
+
+  // ── Default size (all selected tokens) ────────────────────────
+  if (asset.type === 'tokens') {
+    const tokenIds = selectedAssets.filter((a) => a.type === 'tokens').map((a) => a.id);
+    entries.push(tokenSizeSubmenu(asset.size, (size) => {
+      deps.setAssets((prev) => prev.map((a) => (tokenIds.includes(a.id) ? { ...a, size } : a)));
+      const service = deps.assetService;
+      if (!service) return;
+      for (const id of tokenIds) {
+        runInBackground(service.updateAsset(id, { size }), `Updating size of asset ${id}`);
+      }
+    }));
   }
 
   // ── Statblock link (single token) ─────────────────────────────

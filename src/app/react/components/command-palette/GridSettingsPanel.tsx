@@ -94,7 +94,7 @@ export function GridSettingsPanel({
 
       <SettingToggleRow
         label="Snap to grid"
-        hint="Tokens and pins settle on cell centres"
+        hint="Tokens, pins and measurements settle on cell centres"
         value={localSnapToGrid}
         onToggle={() => {
           const next = !localSnapToGrid;

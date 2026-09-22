@@ -47,6 +47,7 @@ describe('bulk importing recognized statblock notes', () => {
   it('resolves YAML wikilinks, inline statblocks and remote/missing images without guessing from names', async () => {
     const { app, files, frontmatter, assets } = setup();
     frontmatter[note]!.image = [[image + '|portrait']];
+    frontmatter[note]!.size = 'Large';
     files.set('Other/Goblin.md', 'ordinary note');
     files.set('Inline.md', '```statblock\nname: Orc\nimage: Artwork/goblin.webp\n```');
     files.set('Remote.md', 'remote');
@@ -58,7 +59,8 @@ describe('bulk importing recognized statblock notes', () => {
       [note, 'ready'], ['Inline.md', 'ready'], ['Remote.md', 'remote-image'], ['Missing.md', 'missing-image'],
     ]));
     expect(rows.find(r => r.path === 'Other/Goblin.md')).toBeUndefined();
-    expect(rows.find(r => r.path === note)?.imagePath).toBe(image);
+    expect(rows.find(r => r.path === note)).toMatchObject({ imagePath: image, size: 1.5 });
+    expect(rows.find(r => r.path === 'Inline.md')?.size).toBeUndefined();
   });
 
   it('creates distinct owned images for equal names/artwork, preserves source notes and skips reruns', async () => {

@@ -1,4 +1,5 @@
 import { TokenRingToggle } from './TokenRingToggle';
+import { TokenSizeSelect } from './TokenSizeSelect';
 import tokenRingImageUrl from '../../../../assets/token-ring.webp';
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { Check, Loader2, Trash2, ZoomIn, ZoomOut } from 'lucide-react';
@@ -201,7 +202,10 @@ export function TokenPreviewCard({ preview, mode, index, onChange, onToggleSelec
       />
 
       {preview.tags && preview.tags.length > 0 && <div className="atlas-token-card__tags">{preview.tags.join(' · ')}</div>}
-      {mode === 'token' && <TokenRingToggle label={`Toggle token ring for ${preview.name}`} value={preview.showRing !== false} onChange={showRing => onChange({ showRing })} />}
+      {mode === 'token' && <>
+        <TokenRingToggle label={`Toggle token ring for ${preview.name}`} value={preview.showRing !== false} onChange={showRing => onChange({ showRing })} />
+        <TokenSizeSelect className="atlas-setting-dropdown" value={preview.size} onChange={size => onChange({ size })} />
+      </>}
       {isCropEditable && (
         <div className="atlas-token-card__zoom">
           <LabelTooltip label="Zoom out">

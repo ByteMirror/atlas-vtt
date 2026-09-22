@@ -81,8 +81,9 @@ export function TokenCreator({ isOpen, onClose, mode = 'token', selectedCollecti
       const current = previews.previews[0];
       const tags = current?.tags ?? editToken.tags;
       const showRing = current?.showRing ?? editToken.showRing ?? true;
+      const size = current?.size ?? editToken.size;
       previews.reset(null);
-      previews.addImages([{ file, tags, showRing }]);
+      previews.addImages([{ file, tags, showRing, size }]);
       return;
     }
     previews.addFiles(files);

@@ -26,7 +26,8 @@ export interface GridState {
   size: number;
   offsetX: number;
   offsetY: number;
-  color: string;
+  /** Hex colour of the grid lines. Unset lets the grid pick black or white from the map's brightness. */
+  color?: string;
   opacity: number;
   scale?: number;
   mapScale?: number; // Scale factor used during grid alignment
@@ -396,10 +397,14 @@ function migrateFogData(fogData: unknown): Record<string, FogOperation> {
   return {};
 }
 
+/** Every map saved before automatic grid colours carries this default; nobody chose it, so it becomes automatic. */
+const LEGACY_DEFAULT_GRID_COLOR = '#00FFFF';
+
 function migrateGrid(grid: LegacyGridState): GridState {
-  const { measurementType, ...rest } = grid;
-  if (measurementType === undefined) return rest;
-  return { ...rest, measurementType: measurementType === 'daggerheart' ? 'abstract' : measurementType };
+  const { measurementType, color, ...rest } = grid;
+  const migrated: GridState = color === undefined || color.toUpperCase() === LEGACY_DEFAULT_GRID_COLOR ? rest : { ...rest, color };
+  if (measurementType === undefined) return migrated;
+  return { ...migrated, measurementType: measurementType === 'daggerheart' ? 'abstract' : measurementType };
 }
 
 /**

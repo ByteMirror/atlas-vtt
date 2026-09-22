@@ -7,7 +7,7 @@
 import type { Sprite } from 'pixi.js';
 import type { AlignmentResult } from '../gridAlignmentMath';
 import { powerSpectrum2D } from './fft';
-import { downsampleGray, grayFromCanvasSource, localContrast, toWindowedSquare } from './grayImage';
+import { downsampleGray, grayFromSprite, localContrast, toWindowedSquare } from './grayImage';
 import type { GrayImage } from './grayImage';
 import { spectralHypotheses } from './spectralHypotheses';
 import type { SpectralHypothesis } from './spectralHypotheses';
@@ -103,19 +103,11 @@ export function detectGridInImage(image: GrayImage): RefinedGrid | null {
   return fits.length > 0 ? chooseFit(image, fits) : null;
 }
 
-/** The part of a PIXI texture source detection reads; its `resource` is untyped upstream. */
-interface TexturePixels {
-  resource?: CanvasImageSource;
-  pixelWidth: number;
-  pixelHeight: number;
-}
-
 function readBackgroundGray(sprite: Sprite): GrayImage | null {
   if (sprite.destroyed) return null;
-  const source: TexturePixels | undefined = sprite.texture?.source;
-  const resource = source?.resource;
-  if (!source || !resource || source.pixelWidth < 64 || source.pixelHeight < 64) return null;
-  return grayFromCanvasSource(resource, source.pixelWidth, source.pixelHeight, MAX_ANALYSIS_SIDE);
+  const source = sprite.texture?.source;
+  if (!source || source.pixelWidth < 64 || source.pixelHeight < 64) return null;
+  return grayFromSprite(sprite, MAX_ANALYSIS_SIDE);
 }
 
 /** Detects the grid of a background sprite and returns it in world coordinates. */

@@ -94,7 +94,6 @@ const initialState: Pick<AtlasState, 'schema' | 'version' | 'mapPath' | 'backgro
     size: 70,
     offsetX: 0,
     offsetY: 0,
-    color: '#00FFFF',
     opacity: 0.5
   },
   objects: {

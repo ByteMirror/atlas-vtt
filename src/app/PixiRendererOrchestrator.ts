@@ -5,6 +5,7 @@ import { runInBackground } from './utils/backgroundTask';
 import { Viewport } from "pixi-viewport"; // Keep for type, but instance comes from PixiAppManager
 import { WorkspaceLeaf } from 'obsidian';
 import { GridOptions, GridSystem, GridType } from "./grid/GridSystem";
+import { parseGridColor } from "./grid/gridContrastColor";
 import type { App } from 'obsidian';
 import type { ViewAtlasState, ViewAtlasStore } from './storeFactory';
 import { openContextMenuGlobal, type ContextMenuEntry } from './react/root/ContextMenuContext';
@@ -190,10 +191,7 @@ export class PixiRendererOrchestrator { // Renamed class
             
             // Get current options BEFORE any updates to compare what actually changed
             const currentOptions = this.gridSystem.getOptions();
-            // The store keeps the colour as a hex string, the grid system as a number
-            const gridColorNum = typeof grid.color === 'string'
-              ? parseInt(grid.color.replace('#', '0x'))
-              : undefined;
+            const gridColorNum = parseGridColor(grid.color);
 
             const visibleChanged = grid.visible !== undefined && grid.visible !== currentOptions.enabled;
             const typeChanged = grid.type !== undefined && grid.type !== currentOptions.type;
@@ -203,7 +201,7 @@ export class PixiRendererOrchestrator { // Renamed class
             const opacityChanged = grid.opacity !== undefined && grid.opacity !== currentOptions.alpha;
             const lineWidthChanged = grid.lineWidth !== undefined && grid.lineWidth !== currentOptions.lineWidth;
             const lineTypeChanged = grid.lineType !== undefined && grid.lineType !== currentOptions.lineType;
-            const colorChanged = gridColorNum !== undefined && gridColorNum !== currentOptions.color;
+            const colorChanged = gridColorNum !== currentOptions.color;
             
             const hasChanges = visibleChanged || typeChanged || offsetXChanged || offsetYChanged || 
                              sizeChanged || opacityChanged || lineWidthChanged || lineTypeChanged || colorChanged;
@@ -243,7 +241,7 @@ export class PixiRendererOrchestrator { // Renamed class
               updates.alpha = grid.opacity;
               needsOptionsUpdate = true;
             }
-            if (gridColorNum !== undefined && gridColorNum !== currentOptions.color) {
+            if (colorChanged) {
               updates.color = gridColorNum;
               needsOptionsUpdate = true;
             }

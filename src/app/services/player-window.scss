@@ -40,21 +40,6 @@ body.atlas-player-window {
     -webkit-app-region: drag;
   }
 
-  #atlas-player-info {
-    position: absolute;
-    top: 50px;
-    left: 10px;
-    color: white;
-    background: rgba(0, 0, 0, 0.7);
-    padding: 8px 12px;
-    border-radius: 5px;
-    font-size: 12px;
-    user-select: none;
-    pointer-events: none;
-    z-index: 10;
-    -webkit-app-region: no-drag;
-  }
-
   #atlas-player-loading {
     color: white;
     font-size: 24px;
@@ -63,8 +48,7 @@ body.atlas-player-window {
 
   // Only the loading message shows until the first frame is mirrored.
   &:not(.atlas-player-window--live) {
-    #atlas-player-canvas,
-    #atlas-player-info {
+    #atlas-player-canvas {
       display: none;
     }
   }
@@ -114,9 +98,10 @@ body.atlas-player-window {
   }
 
   // The popout only shows the mirrored canvas, never Obsidian's own chrome
-  .workspace,
-  .workspace-tabs,
-  .workspace-tab-header,
+  .workspace-ribbon,
+  .workspace-tab-header-container,
+  .view-header,
+  .status-bar,
   .titlebar {
     display: none !important;
   }
@@ -143,4 +128,12 @@ body.atlas-player-window {
       height: 16px;
     }
   }
+}
+
+.atlas-local-player-content {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  padding: 0;
+  background: #1a1a1a;
 }

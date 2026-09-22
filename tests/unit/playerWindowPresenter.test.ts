@@ -1,3 +1,5 @@
+import type { App } from 'obsidian';
+import type { LocalPlayerView } from '../../src/app/local-player-view';
 import { describe, expect, test, vi, beforeEach } from 'vitest';
 import { createStore } from 'zustand/vanilla';
 import { createTabMetaStore } from '../../src/app/stores/tabMetaStore';
@@ -7,6 +9,7 @@ import type { PlayerFrameSource } from '../../src/app/services/PlayerWindowServi
 
 vi.mock('../../src/app/atlas-view', () => ({
   AtlasView: class AtlasView {},
+  ATLAS_VIEW_TYPE: 'atlas-vtt',
 }));
 
 const serviceMock = vi.hoisted(() => ({
@@ -15,6 +18,9 @@ const serviceMock = vi.hoisted(() => ({
   presentCanvas: vi.fn(),
   holdCurrentFrame: vi.fn(),
   releaseHeldFrame: vi.fn(),
+  attachToView: vi.fn(),
+  toggleCameraFreeze: vi.fn(),
+  getWindow: vi.fn(() => null),
 }));
 
 vi.mock('../../src/app/services/PlayerWindowService', async () => {
@@ -24,10 +30,14 @@ vi.mock('../../src/app/services/PlayerWindowService', async () => {
       return new PlayerWindowService();
     }
     isWindowOpen = serviceMock.isWindowOpen;
+    attachToView = serviceMock.attachToView;
+    toggleCameraFreeze = serviceMock.toggleCameraFreeze;
+    getWindow = serviceMock.getWindow;
+    ownsView = () => false;
     holdCurrentFrame = serviceMock.holdCurrentFrame;
     releaseHeldFrame = serviceMock.releaseHeldFrame;
-    openPlayerWindow(source: PlayerFrameSource, tabId: string): void {
-      serviceMock.openPlayerWindow(source, tabId);
+    openPlayerWindow(source: PlayerFrameSource, tabId: string, filePath: string): void {
+      serviceMock.openPlayerWindow(source, tabId, filePath);
       store.setState({ presentedTabId: tabId, isOpen: true });
     }
     presentCanvas(source: PlayerFrameSource, tabId: string): void {
@@ -38,7 +48,9 @@ vi.mock('../../src/app/services/PlayerWindowService', async () => {
   return { PlayerWindowService };
 });
 
-import { presentTabInPlayerWindow } from '../../src/app/services/PlayerWindowPresenter';
+import { restorePlayerWindow, presentTabInPlayerWindow } from '../../src/app/services/PlayerWindowPresenter';
+
+import { AtlasView } from '../../src/app/atlas-view';
 
 interface FakeView {
   view: any;
@@ -56,11 +68,12 @@ function createFakeView(): FakeView {
   const view = {
     tabMetaStore,
     atlasStore,
-    serviceManager: { getRendererService: () => ({ getRenderer: () => renderer }) },
+    serviceManager: { getRendererService: () => ({ getRenderer: () => renderer, getViewport: () => undefined }) },
     switchToTab: vi.fn(async (tabId: string) => {
       tabMetaStore.getState().setActiveTab(tabId);
     }),
   };
+  Object.setPrototypeOf(view, AtlasView.prototype);
   return { view, canvas, withPlayerSafeFrame, atlasStore };
 }
 
@@ -87,7 +100,7 @@ describe('PlayerWindowPresenter', () => {
     await presentTabInPlayerWindow({} as any, view, dungeon);
 
     expect(view.switchToTab).toHaveBeenCalledWith(dungeon);
-    expect(serviceMock.openPlayerWindow).toHaveBeenCalledWith(frameSourceFor(canvas), dungeon);
+    expect(serviceMock.openPlayerWindow).toHaveBeenCalledWith(frameSourceFor(canvas), dungeon, 'maps/dungeon.md');
     expect(playerWindowStore.getState().presentedTabId).toBe(dungeon);
 
     // Frames are captured through the renderer so DM-only layers stay out of the player view.
@@ -119,6 +132,41 @@ describe('PlayerWindowPresenter', () => {
     atlasStore.setState({ isMapLoading: false });
     await flush();
     expect(serviceMock.releaseHeldFrame).toHaveBeenCalledWith(frameSourceFor(canvas));
+  });
+
+  test('restores the presented scene into the existing popout and returns the DM to their tab', async () => {
+    const { view, canvas } = createFakeView();
+    const tavern = view.tabMetaStore.getState().addTab('maps/tavern.md', 'Tavern');
+    const dungeon = view.tabMetaStore.getState().addTab('maps/dungeon.md', 'Dungeon');
+    const player = {
+      getState: () => ({ tabId: tavern, filePath: 'maps/tavern.md', frozen: true }),
+      contentEl: document.createElement('div'),
+      isClosed: false,
+    };
+    const app = { workspace: { getLeavesOfType: () => [{ view }], revealLeaf: vi.fn() } };
+
+    await restorePlayerWindow(app as App, player as LocalPlayerView);
+
+    expect(serviceMock.openPlayerWindow).not.toHaveBeenCalled();
+    expect(serviceMock.attachToView).toHaveBeenCalledWith(player, frameSourceFor(canvas), tavern);
+    expect(serviceMock.toggleCameraFreeze).toHaveBeenCalledTimes(1);
+    expect(view.tabMetaStore.getState().activeTabId).toBe(dungeon);
+  });
+
+  test('does not show a different scene when the saved scene can no longer be loaded', async () => {
+    const { view } = createFakeView();
+    const tavern = view.tabMetaStore.getState().addTab('maps/tavern.md', 'Tavern');
+    view.tabMetaStore.getState().addTab('maps/dungeon.md', 'Dungeon');
+    view.switchToTab.mockImplementation(async () => {});
+    const player = {
+      getState: () => ({ tabId: tavern, filePath: 'maps/tavern.md', frozen: false }),
+      contentEl: document.createElement('div'),
+      isClosed: false,
+    };
+    const app = { workspace: { getLeavesOfType: () => [{ view }] } };
+    await restorePlayerWindow(app as App, player as LocalPlayerView);
+    expect(serviceMock.attachToView).not.toHaveBeenCalled();
+    expect(player.contentEl.textContent).toContain('could not be loaded');
   });
 
   test('presenting another tab re-targets the open window instead of reopening it', async () => {

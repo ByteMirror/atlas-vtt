@@ -2,6 +2,14 @@
 
 <!-- Generated from changelog/*.md. Run npm run changelog:generate. -->
 
+## 0.2.2 — Maintenance release
+
+2026-09-22
+
+### Fixed
+
+- Obsidian's community directory can complete its source review. Every script file in the repository now belongs to a TypeScript project, so the review's parser no longer fails on the test suite and build scripts. The plugin itself is unchanged from 0.2.0.
+
 ## 0.2.1 — Maintenance release
 
 2026-09-22

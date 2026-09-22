@@ -21,6 +21,7 @@
     "version": "node scripts/sync-version.js && git add manifest.json versions.json CHANGELOG.md src/app/changelog/releases.json",
     "version:check": "node scripts/release-channel.js",
     "lint": "eslint . --max-warnings 0",
+    "lint:scan": "node scripts/lint-scan.js",
     "preflight": "node scripts/preflight.js"
   },
   "keywords": [

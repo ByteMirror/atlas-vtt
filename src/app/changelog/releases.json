@@ -2,6 +2,12 @@
   "version": "0.3.0-beta.0",
   "releases": [
     {
+      "version": "0.2.2",
+      "date": "2026-09-22",
+      "title": "Maintenance release",
+      "markdown": "## Fixed\n\n- Obsidian's community directory can complete its source review. Every script file in the repository now belongs to a TypeScript project, so the review's parser no longer fails on the test suite and build scripts. The plugin itself is unchanged from 0.2.0."
+    },
+    {
       "version": "0.2.1",
       "date": "2026-09-22",
       "title": "Maintenance release",

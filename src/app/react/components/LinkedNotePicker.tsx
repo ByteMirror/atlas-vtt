@@ -1,6 +1,7 @@
 import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { FileText, Search, SearchX } from 'lucide-react';
-import { App, TFile, moment } from 'obsidian';
+import { App, TFile } from 'obsidian';
+import { formatRelativeTime } from '../../utils/relativeTime';
 
 const MAX_NOTE_SIZE_BYTES = 1_000_000;
 const RECENT_LIMIT = 20;
@@ -105,7 +106,7 @@ export default function LinkedNotePicker({ app, onSelect }: LinkedNotePickerProp
                   {file.parent && !file.parent.isRoot() ? file.parent.path : 'Vault root'}
                 </span>
               </span>
-              <span className="atlas-linked-note-item-date">{moment(file.stat.mtime).fromNow()}</span>
+              <span className="atlas-linked-note-item-date">{formatRelativeTime(file.stat.mtime)}</span>
             </button>
           ))}
         </div>

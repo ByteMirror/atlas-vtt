@@ -11,6 +11,7 @@ type PlayerSettings = AtlasSettings['localPlayerView'];
 export class PlayerInitiativePanel {
   private readonly container: HTMLElement;
   private state: ViewAtlasState | undefined;
+  private isHeld = false;
   private unsubscribeStore: (() => void) | undefined;
   private readonly unsubscribeSettings: () => void;
 
@@ -22,24 +23,33 @@ export class PlayerInitiativePanel {
   /** Bind to the presented view, including when it belongs to a different Atlas leaf. */
   present(store: StoreApi<ViewAtlasState>): void {
     this.unsubscribeStore?.();
+    this.isHeld = false;
     this.state = store.getState();
     this.render();
     this.unsubscribeStore = store.subscribe((state, previous) => {
+      const visibilityChanged = state.initiativeTrackerOpen !== previous.initiativeTrackerOpen;
+      if (this.isHeld && this.state) {
+        if (visibilityChanged) {
+          this.state = { ...this.state, initiativeTrackerOpen: state.initiativeTrackerOpen };
+          this.render();
+        }
+        return;
+      }
       this.state = state;
-      if (state.initiative !== previous.initiative || state.objects?.tokens !== previous.objects?.tokens) {
+      if (visibilityChanged || state.initiative !== previous.initiative || state.objects?.tokens !== previous.objects?.tokens) {
         this.render();
       }
     });
   }
 
-  /** Preserve this scene while its store is reused to browse other scene tabs. */
+  /** Preserve this scene while browsing other tabs, but keep following DM visibility. */
   hold(): void {
-    this.unsubscribeStore?.();
-    this.unsubscribeStore = undefined;
+    this.isHeld = true;
   }
 
   destroy(): void {
-    this.hold();
+    this.unsubscribeStore?.();
+    this.unsubscribeStore = undefined;
     this.unsubscribeSettings();
     this.state = undefined;
   }
@@ -48,7 +58,7 @@ export class PlayerInitiativePanel {
     this.container.empty();
     const settings = this.settings.getLocalPlayerViewSettings();
     const initiative = this.state?.initiative;
-    if (!settings.showInitiative || !initiative) return;
+    if (!settings.showInitiative || !this.state?.initiativeTrackerOpen || !initiative) return;
     const tokens = this.state?.objects?.tokens;
     const entries = initiative.entries
       .filter(entry => tokens?.[entry.tokenId] && !tokens[entry.tokenId]?.isHidden)

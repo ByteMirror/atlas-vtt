@@ -37,7 +37,7 @@ jobs:
         run: npx tsc --noEmit
 
       # The rule set Obsidian's community directory scores the plugin with.
-      # Zero tolerance; accepted exceptions live in eslint-suppressions.json.
+      # Zero tolerance; accepted exceptions live in eslint.suppressions.json.
       - name: Lint
         run: npm run lint
 

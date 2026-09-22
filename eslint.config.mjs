@@ -37,7 +37,11 @@ export default defineConfig([
     },
     linterOptions: {
       // Findings are fixed at their root. An accepted exception is recorded in
-      // eslint-suppressions.json, where a review sees it, never in a comment.
+      // eslint.suppressions.json, where a review sees it, never in a comment.
+      // The file is not at ESLint's default location on purpose: Obsidian's
+      // directory review runs ESLint with its own rule set, and a suppression
+      // that set does not use makes ESLint exit 2, which the review reports
+      // as a fatal error. Only npm run lint passes --suppressions-location.
       noInlineConfig: true,
     },
   },

@@ -26,9 +26,7 @@
   }
   &__selection { color: var(--text-muted); span { margin-left: auto; } }
   &__list {
-    overflow: auto;
-    max-height: 42vh;
-    min-height: 100px;
+    flex-shrink: 0;
     border: $border-width-s solid var(--background-modifier-border);
     border-radius: $radius-l;
   }
@@ -66,5 +64,5 @@
   &__status { font-size: $font-ui-smaller; color: var(--text-muted); text-align: right; }
   &__status--ready { color: var(--text-success); }
   &__progress, &__result { display: flex; flex-direction: column; gap: $spacing-s; progress { width: 100%; } }
-  &__footer { justify-content: flex-end; }
+  &__intro, &__error, &__summary, &__controls, &__selection { flex-shrink: 0; }
 }

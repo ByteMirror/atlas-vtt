@@ -30,6 +30,8 @@
 
 ## Fixed
 
+- Fantasy Statblocks import actions stay in a padded footer while the list scrolls, and the system/layout filter uses the Atlas dropdown.
+
 - The local player window no longer shows hidden tokens, the selection outline, marquee, token controls or resize and rotation handles from the DM view.
 - Imported collections open their scenes again and keep each token's ring setting and statblock link.
 - Token ring toggles keep their full button height in the importer sidebar and use the consistent label “Toggle token ring”.

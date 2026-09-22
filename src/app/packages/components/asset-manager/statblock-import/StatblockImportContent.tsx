@@ -3,6 +3,7 @@ import './statblock-import.scss';
 import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { TFile, type App } from 'obsidian';
 import { ImageOff, Search } from 'lucide-react';
+import { ObsidianMenuDropdown } from '../../shared/ObsidianMenuDropdown';
 import { Button } from '../../primitives/button';
 import { StatblockTokenImportService } from '../../../../services/StatblockTokenImportService';
 import { statblockPreviewImages } from '../token-creator/statblockPreviewImages';
@@ -77,48 +78,59 @@ export function StatblockImportContent({ app, queuedPaths, onAdd, onClose, contr
   };
 
   return (
-    <div className="atlas-statblock-import">
-      <p className="atlas-statblock-import__intro">Choose a system or layout, then add creatures to your import. Edit their tags, crop and rings in the preview cards.</p>
-      {error && <p role="alert" className="atlas-statblock-import__error">{error}</p>}
-      {loading ? <p role="status">Scanning statblocks…</p> : (
-        <>
-          <div className="atlas-statblock-import__summary" role="status">
-            <strong>{ready.length} ready</strong><span>{scopedRows.filter(r => r.status === 'imported').length} already imported</span><span>{scopedRows.length - ready.length - scopedRows.filter(r => r.status === 'imported').length} need attention</span>
-          </div>
-          <div className="atlas-statblock-import__controls">
-            <label htmlFor={layoutId}>System / layout</label>
-            <select id={layoutId} value={layout} onChange={e => setLayout(e.target.value)} disabled={disabled}>
-              <option value="">All layouts</option>
-              {[...new Set(rows.map(row => row.layoutName ?? 'Unspecified'))].sort().map(name => <option key={name} value={name}>{name}</option>)}
-            </select>
-          </div>
-          <div className="atlas-statblock-import__controls">
-            <label className="atlas-statblock-import__search"><Search size={16} /><input type="search" aria-label="Search statblocks" placeholder="Search creatures or folders…" value={query} onChange={e => setQuery(e.target.value)} /></label>
-          </div>
-          <div className="atlas-statblock-import__selection">
-            <Button variant="ghost" size="sm" disabled={disabled} onClick={() => setSelected(current => new Set([...current, ...filtered.filter(r => r.status === 'ready' && !queuedPaths.includes(r.path)).map(r => r.path)]))}>Select all shown</Button>
-            <Button variant="ghost" size="sm" disabled={disabled || selectedRows.length === 0} onClick={() => setSelected(new Set())}>Clear selection</Button>
-            <span>{selectedRows.length} selected</span>
-          </div>
-          <div className="atlas-statblock-import__list" aria-label="Statblocks">
-            {filtered.map(row => {
-              const url = thumbnail(app, row);
-              return <div key={row.path} className="atlas-statblock-import__row" title={row.detail}>
-                <input type="checkbox" aria-label={`Select ${row.name}`} checked={selected.has(row.path)} disabled={disabled || row.status !== 'ready' || queuedPaths.includes(row.path)} onChange={() => toggle(row.path)} />
-                <span className="atlas-statblock-import__portrait">{url ? <TokenPortrait src={url} alt="" showRing={false} /> : <ImageOff size={20} />}</span>
-                <span className="atlas-statblock-import__identity"><strong>{row.name}</strong><span>{row.path}</span></span>
-                <span className={`atlas-statblock-import__status atlas-statblock-import__status--${row.status}`}>{queuedPaths.includes(row.path) ? 'Added to import' : statusLabels[row.status]}</span>
-              </div>;
-            })}
-            {filtered.length === 0 && <p>{query ? 'No statblocks match your search.' : 'No statblock notes found. Enable frontmatter parsing in Fantasy Statblocks, or add a statblock code block to a note.'}</p>}
-          </div>
-        </>
-      )}
-      <div className="atlas-statblock-import__footer">
-        <Button variant="ghost" disabled={disabled} onClick={() => setScanVersion(v => v + 1)}>Scan again</Button>
-        <Button variant="outline" onClick={onClose}>Back to previews</Button>
-        <Button disabled={disabled || selectedRows.length === 0 || Boolean(error)} onClick={() => { void startImport(); }}>{running ? 'Loading images…' : `Add ${selectedRows.length} to import`}</Button>
+    <>
+      <div className="atlas-token-creator__previews atlas-statblock-import">
+        <p className="atlas-statblock-import__intro">Choose a system or layout, then add creatures to your import. Edit their tags, crop and rings in the preview cards.</p>
+        {error && <p role="alert" className="atlas-statblock-import__error">{error}</p>}
+        {loading ? <p role="status">Scanning statblocks…</p> : (
+          <>
+            <div className="atlas-statblock-import__summary" role="status">
+              <strong>{ready.length} ready</strong><span>{scopedRows.filter(r => r.status === 'imported').length} already imported</span><span>{scopedRows.length - ready.length - scopedRows.filter(r => r.status === 'imported').length} need attention</span>
+            </div>
+            <div className="atlas-statblock-import__controls">
+              <label htmlFor={layoutId}>System / layout</label>
+              <ObsidianMenuDropdown
+                id={layoutId}
+                value={layout}
+                onChange={setLayout}
+                disabled={disabled}
+                placeholder="All layouts"
+                options={Object.fromEntries<string>([
+                  ['', 'All layouts'] as const,
+                  ...[...new Set(rows.map(row => row.layoutName ?? 'Unspecified'))].sort().map(name => [name, name] as const),
+                ])}
+              />
+            </div>
+            <div className="atlas-statblock-import__controls">
+              <label className="atlas-statblock-import__search"><Search size={16} /><input type="search" aria-label="Search statblocks" placeholder="Search creatures or folders…" value={query} onChange={e => setQuery(e.target.value)} /></label>
+            </div>
+            <div className="atlas-statblock-import__selection">
+              <Button variant="ghost" size="sm" disabled={disabled} onClick={() => setSelected(current => new Set([...current, ...filtered.filter(r => r.status === 'ready' && !queuedPaths.includes(r.path)).map(r => r.path)]))}>Select all shown</Button>
+              <Button variant="ghost" size="sm" disabled={disabled || selectedRows.length === 0} onClick={() => setSelected(new Set())}>Clear selection</Button>
+              <span>{selectedRows.length} selected</span>
+            </div>
+            <div className="atlas-statblock-import__list" aria-label="Statblocks">
+              {filtered.map(row => {
+                const url = thumbnail(app, row);
+                return <div key={row.path} className="atlas-statblock-import__row" title={row.detail}>
+                  <input type="checkbox" aria-label={`Select ${row.name}`} checked={selected.has(row.path)} disabled={disabled || row.status !== 'ready' || queuedPaths.includes(row.path)} onChange={() => toggle(row.path)} />
+                  <span className="atlas-statblock-import__portrait">{url ? <TokenPortrait src={url} alt="" showRing={false} /> : <ImageOff size={20} />}</span>
+                  <span className="atlas-statblock-import__identity"><strong>{row.name}</strong><span>{row.path}</span></span>
+                  <span className={`atlas-statblock-import__status atlas-statblock-import__status--${row.status}`}>{queuedPaths.includes(row.path) ? 'Added to import' : statusLabels[row.status]}</span>
+                </div>;
+              })}
+              {filtered.length === 0 && <p>{query ? 'No statblocks match your search.' : 'No statblock notes found. Enable frontmatter parsing in Fantasy Statblocks, or add a statblock code block to a note.'}</p>}
+            </div>
+          </>
+        )}
       </div>
-    </div>
+      <footer className="atlas-token-creator__footer atlas-statblock-import__footer">
+        <Button variant="ghost" disabled={disabled} onClick={() => setScanVersion(v => v + 1)}>Scan again</Button>
+        <div className="atlas-token-creator__actions">
+          <Button variant="outline" onClick={onClose}>Back to previews</Button>
+          <Button disabled={disabled || selectedRows.length === 0 || Boolean(error)} onClick={() => { void startImport(); }}>{running ? 'Loading images…' : `Add ${selectedRows.length} to import`}</Button>
+        </div>
+      </footer>
+    </>
   );
 }

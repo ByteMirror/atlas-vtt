@@ -49,6 +49,13 @@ describe('settings dropdown interactions', () => {
     await waitFor(() => expect(document.activeElement).toBe(secondTrigger));
   });
 
+  it('keeps the menu inside its Obsidian modal so the focus trap can reach it', async () => {
+    const view = render(<div className="modal"><div role="dialog"><ObsidianMenuDropdown value="Square" options={['Square', 'Hex']} onChange={vi.fn()} /></div></div>);
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Square' }), { key: 'Enter' });
+    const menu = await screen.findByRole('menu');
+    expect(view.container.querySelector('[role="dialog"]')?.contains(menu)).toBe(true);
+  });
+
   it('leaves other dropdown buttons available while a menu is open', async () => {
     const { getByRole } = render(<>
       <ObsidianMenuDropdown value="Square" options={['Square', 'Hex']} onChange={vi.fn()} />

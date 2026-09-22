@@ -26,7 +26,9 @@ it('selects only ready creatures and stages only the chosen layout without savin
   await screen.findByRole('button', { name: 'Add 2 to import' });
   expect((screen.getByRole('checkbox', { name: 'Select Dragon' }) as HTMLInputElement).disabled).toBe(true);
   expect((screen.getByRole('checkbox', { name: 'Select Rat' }) as HTMLInputElement).disabled).toBe(true);
-  fireEvent.change(screen.getByLabelText('System / layout'), { target: { value: 'Daggerheart Adversary' } });
+  fireEvent.keyDown(screen.getByRole('button', { name: 'System / layout' }), { key: 'Enter' });
+  fireEvent.click(await screen.findByRole('menuitemcheckbox', { name: 'Daggerheart Adversary' }));
+  expect(screen.getByRole('button', { name: 'System / layout' }).textContent).toContain('Daggerheart Adversary');
   expect(screen.queryByRole('checkbox', { name: 'Select Goblin' })).toBeNull();
   fireEvent.click(screen.getByRole('button', { name: 'Add 1 to import' }));
   await waitFor(() => expect(onAdd).toHaveBeenCalledWith([expect.objectContaining({ name: 'Ogre', statblockPath: 'Bestiary/Ogre.md', file: expect.any(File) })]));

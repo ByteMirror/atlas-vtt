@@ -30,6 +30,8 @@ export interface BaseAsset {
 export interface TokenAsset extends BaseAsset {
   type: 'token';
   imagePath: string;
+  /** Small preview written by TokenThumbnailService; regenerated when missing. */
+  thumbnailPath?: string;
   statblockPath?: string; // Optional link to statblock note
 }
 
@@ -183,6 +185,7 @@ export class AssetService {
   private static instance: AssetService | null = null;
   private app: App;
   private metadata: AssetMetadata | null = null;
+  private initialization: Promise<void> | null = null;
 
   private constructor(app: App) {
     this.app = app;
@@ -198,17 +201,31 @@ export class AssetService {
     return AssetService.instance;
   }
 
-  async initialize(): Promise<void> {
-    // Ensure base directories exist
+  /** Creates the storage folders and loads the index once; later calls await the first run. */
+  initialize(): Promise<void> {
+    this.initialization ??= this.initializeStorage().catch((error: unknown) => {
+      this.initialization = null;
+      throw error;
+    });
+    return this.initialization;
+  }
+
+  private async initializeStorage(): Promise<void> {
     await this.ensureDirectory(ATLAS_VTT_DIR);
     await this.ensureDirectory(GLOBAL_ASSETS_DIR);
     await this.ensureDirectory(COLLECTIONS_DIR);
-    
-    // Create default collection if it doesn't exist
     await this.ensureDefaultCollection();
-    
-    // Load metadata
     await this.loadMetadata();
+  }
+
+  /**
+   * The index is read from disk once and then served from memory; `refreshMetadata`
+   * re-reads it when files may have changed outside the service.
+   */
+  private async ensureLoaded(): Promise<void> {
+    if (!this.metadata) {
+      await this.loadMetadata();
+    }
   }
 
   private async ensureDirectory(path: string): Promise<void> {
@@ -913,9 +930,7 @@ export class AssetService {
 
   // Collection management
   async createCollection(name: string, description?: string): Promise<CollectionMetadata> {
-    if (!this.metadata) {
-      await this.loadMetadata();
-    }
+    await this.ensureLoaded();
 
     const id = name.toLowerCase().replace(/\s+/g, '-');
     const now = Date.now();
@@ -942,9 +957,7 @@ export class AssetService {
   }
 
   async getCollections(): Promise<CollectionMetadata[]> {
-    if (!this.metadata) {
-      await this.loadMetadata();
-    }
+    await this.ensureLoaded();
 
     return Object.values(this.metadata!.collections);
   }
@@ -991,9 +1004,7 @@ export class AssetService {
 
   /** Persists a fully built asset: data file, metadata entry and onboarding flag. */
   private async registerAsset<A extends Asset>(newAsset: A): Promise<A> {
-    if (!this.metadata) {
-      await this.loadMetadata();
-    }
+    await this.ensureLoaded();
 
     if (newAsset.type !== 'token' && newAsset.type !== 'map' && newAsset.type !== 'note' && !newAsset.filePath) {
       newAsset.filePath = this.getAssetPath(newAsset);
@@ -1032,7 +1043,7 @@ export class AssetService {
   async getAssets<T extends Asset['type']>(collection: string | undefined, type: T): Promise<AssetOfType<T>[]>;
   async getAssets(collection?: string, type?: Asset['type']): Promise<Asset[]>;
   async getAssets(collection?: string, type?: Asset['type']): Promise<Asset[]> {
-    await this.loadMetadata();
+    await this.ensureLoaded();
 
     let assets = Object.values(this.metadata!.assets);
     if (collection) {
@@ -1050,17 +1061,13 @@ export class AssetService {
   }
 
   async getAssetById(id: string): Promise<Asset | null> {
-    if (!this.metadata) {
-      await this.loadMetadata();
-    }
+    await this.ensureLoaded();
 
     return this.metadata!.assets[id] || null;
   }
 
   async updateAsset(id: string, updates: AssetUpdates): Promise<void> {
-    if (!this.metadata) {
-      await this.loadMetadata();
-    }
+    await this.ensureLoaded();
 
     const asset = this.metadata!.assets[id];
     if (!asset) return;
@@ -1119,9 +1126,7 @@ export class AssetService {
   }
 
   async deleteAsset(id: string): Promise<void> {
-    if (!this.metadata) {
-      await this.loadMetadata();
-    }
+    await this.ensureLoaded();
 
     const asset = this.metadata!.assets[id];
     if (!asset) return;
@@ -1190,6 +1195,7 @@ export class AssetService {
 
     if (asset.type === 'token') {
       this.removeTokenReferencesFromGroups(asset.id);
+      await this.trashFileIfPresent(asset.thumbnailPath);
     }
 
     // Remove from metadata
@@ -1197,10 +1203,19 @@ export class AssetService {
     await this.saveMetadata();
   }
 
-  private async moveAssetToCollection(assetId: string, targetCollection: string): Promise<void> {
-    if (!this.metadata) {
-      await this.loadMetadata();
+  private async trashFileIfPresent(path: string | undefined): Promise<void> {
+    if (!path) return;
+    const file = this.app.vault.getAbstractFileByPath(path);
+    if (!(file instanceof TFile)) return;
+    try {
+      await this.app.fileManager.trashFile(file);
+    } catch (error) {
+      console.error('[AssetService] Error deleting file:', path, error);
     }
+  }
+
+  private async moveAssetToCollection(assetId: string, targetCollection: string): Promise<void> {
+    await this.ensureLoaded();
 
     const asset = this.metadata!.assets[assetId];
     if (!asset) return;
@@ -1252,9 +1267,7 @@ export class AssetService {
 
   // Import/Export functionality
   async exportCollection(collectionId: string): Promise<Blob> {
-    if (!this.metadata) {
-      await this.loadMetadata();
-    }
+    await this.ensureLoaded();
 
     const collection = this.metadata!.collections[collectionId];
     if (!collection) {
@@ -1601,7 +1614,7 @@ export class AssetService {
    * Get all unique registered and assigned tags across all collections.
    */
   async getAllTags(): Promise<string[]> {
-    await this.loadMetadata();
+    await this.ensureLoaded();
     if (!this.metadata) return [];
     
     const tags = new Set<string>();
@@ -1619,7 +1632,7 @@ export class AssetService {
    * Get all tags for a specific collection
    */
   async getCollectionTags(collectionId: string): Promise<TagMetadata[]> {
-    await this.loadMetadata();
+    await this.ensureLoaded();
     if (!this.metadata) return [];
     
     const collection = this.metadata.collections[collectionId];
@@ -1632,7 +1645,7 @@ export class AssetService {
    * Create a new tag in a collection
    */
   async createTag(collectionId: string, tagName: string): Promise<TagMetadata> {
-    await this.loadMetadata();
+    await this.ensureLoaded();
     if (!this.metadata) throw new Error('Metadata not loaded');
     
     const collection = this.metadata.collections[collectionId];
@@ -1660,7 +1673,7 @@ export class AssetService {
    * Delete a tag from a collection and remove it from all assets
    */
   async deleteTag(collectionId: string, tagId: string): Promise<void> {
-    await this.loadMetadata();
+    await this.ensureLoaded();
     if (!this.metadata) throw new Error('Metadata not loaded');
     
     const collection = this.metadata.collections[collectionId];
@@ -1683,7 +1696,7 @@ export class AssetService {
    * Update asset tags
    */
   async updateAssetTags(assetId: string, tags: string[]): Promise<void> {
-    await this.loadMetadata();
+    await this.ensureLoaded();
     if (!this.metadata) throw new Error('Metadata not loaded');
     
     const asset = this.metadata.assets[assetId];
@@ -1697,7 +1710,7 @@ export class AssetService {
 
   /** Update the settings for a collection */
   async updateCollectionSettings(collectionId: string, settings: Partial<CollectionSettings>): Promise<void> {
-    if (!this.metadata) await this.loadMetadata();
+    await this.ensureLoaded();
     const collection = this.metadata!.collections[collectionId];
     if (!collection) throw new Error(`Collection ${collectionId} not found`);
     collection.settings = { ...collection.settings, ...settings };

@@ -2,6 +2,14 @@
 
 <!-- Generated from changelog/*.md. Run npm run changelog:generate. -->
 
+## 0.2.1 — Maintenance release
+
+2026-09-22
+
+### Fixed
+
+- Obsidian's community directory can review the plugin source again. The lint configuration no longer aborts on `package.json`. The plugin itself is unchanged from 0.2.0.
+
 ## 0.2.0 — Token resources, bulk statblock import and asset manager upgrades
 
 2026-09-22

@@ -16,6 +16,7 @@ import { MapLoadingOverlay } from './components/MapLoadingOverlay';
 import { SceneTabBar } from './components/SceneTabBar';
 import { presentTabInPlayerWindow } from '../services/PlayerWindowPresenter';
 import { addTokenHighlight } from '../pixi/utils/tokenHighlight';
+import { focusToken } from '../pixi/tokenFocus';
 import { canRunMapHotkeys, matchesMapHotkey } from '../keyboard/mapHotkeys';
 import { SettingsService } from '../services/SettingsService';
 import { HotkeyHelp } from '../keyboard/HotkeyHelp';
@@ -83,7 +84,7 @@ export const UIRoot: React.FC<UIRootProps> = ({ app, view, pixiApp }) => {
       } else if (matchesMapHotkey(e, 'fitToken', settings)) {
         // Shift+2: Zoom to selected token with smooth animation
         e.preventDefault();
-        const { selectedIds, objects } = store.getState();
+        const { selectedIds, objects, grid } = store.getState();
         const tokenId = selectedIds[0];
         if (tokenId === undefined) return;
 
@@ -93,13 +94,7 @@ export const UIRoot: React.FC<UIRootProps> = ({ app, view, pixiApp }) => {
         const vp = view?.renderer?.getViewportInstance?.();
         if (!vp) return;
 
-        // Animate to token position with smooth easing
-        vp.animate({
-          position: { x: token.x, y: token.y },
-          scale: 0.9,
-          time: 400,
-          ease: 'easeInOutCubic',
-        });
+        focusToken(vp, token, grid?.size ?? 70);
 
         // Add highlight effect to the token
         addTokenHighlight(view, tokenId, { highlightDuration: 2000, glowThickness: 4 });

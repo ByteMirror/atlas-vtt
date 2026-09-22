@@ -20,6 +20,8 @@
 
 ## Fixed
 
+- Shift+2 centers the selected token at a readable on-screen size across map resolutions and window sizes, with room around it in small panes.
+
 - Local player windows refresh at the display frame rate without the display-only label or FPS counter, and reconnect to the presented scene after Obsidian reloads.
 
 - Creating a token from a statblock image no longer mistakes the source artwork for an existing token.

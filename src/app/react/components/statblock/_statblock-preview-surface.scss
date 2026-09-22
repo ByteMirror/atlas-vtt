@@ -6,10 +6,13 @@
 // never drift apart.
 
 /// Fixed-position box that hugs the statblock card. The padding leaves room for
-/// the card's shadow; vertical scrolling is switched on from JS only when the
-/// card is taller than the viewport, so the shadow survives otherwise.
+/// the card's shadow. JS sets `max-height`; the flex chain below passes that
+/// limit down to the card body, which is the only element that scrolls, so
+/// the card keeps its rounded corners and shadow however tall the statblock.
 @mixin atlas-statblock-preview-surface {
   position: fixed;
+  display: flex;
+  flex-direction: column;
   width: max-content;
   max-width: min(480px, calc(100vw - #{$spacing-s}));
   padding: $spacing-s;
@@ -18,10 +21,65 @@
   pointer-events: auto;
   animation: atlas-statblock-preview-in $transition-normal $transition-ease-out;
   transform-origin: right center;
-  @include atlas-scrollbar;
 
   @media (min-width: 1600px) {
     max-width: min(540px, calc(100vw - #{$spacing-s}));
+  }
+
+  .atlas-fantasy-statblock,
+  .atlas-statblock {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .atlas-statblock-body {
+    min-height: 0;
+    overflow-y: auto;
+    @include atlas-statblock-scroll-shadows;
+    @include atlas-statblock-inset-scrollbar;
+  }
+}
+
+/// Soft shadows at the top/bottom edge while there is more content in that
+/// direction. Pure CSS: the cover gradients scroll with the content and hide
+/// the fixed shadow gradients until the content moves away from an edge.
+@mixin atlas-statblock-scroll-shadows {
+  $shadow: color-mix(in oklch, var(--mono-100) 14%, transparent);
+  $cover: var(--background-primary);
+  $shadow-size: 12px;
+  $cover-size: 24px;
+
+  background:
+    linear-gradient($cover 30%, transparent) top / 100% $cover-size,
+    linear-gradient(transparent, $cover 70%) bottom / 100% $cover-size,
+    radial-gradient(farthest-side at 50% 0, $shadow, transparent) top / 100% $shadow-size,
+    radial-gradient(farthest-side at 50% 100%, $shadow, transparent) bottom / 100% $shadow-size;
+  background-color: $cover;
+  background-repeat: no-repeat;
+  background-attachment: local, local, scroll, scroll;
+}
+
+/// Thin thumb inset from the card edge, so it never touches the border or
+/// the content. Transparent borders on the thumb create the breathing room.
+@mixin atlas-statblock-inset-scrollbar {
+  &::-webkit-scrollbar {
+    width: 14px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb-bg);
+    background-clip: padding-box;
+    border: 5px solid transparent;
+    border-radius: $radius-full;
+
+    &:hover {
+      background-color: var(--scrollbar-active-thumb-bg);
+    }
   }
 }
 

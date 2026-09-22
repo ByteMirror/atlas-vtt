@@ -65,12 +65,7 @@ function calculatePreviewPosition(
   const verticalFor = (centerY: number): React.CSSProperties => {
     const maxTop = viewportHeight - contentHeight - VIEWPORT_PADDING;
     const top = Math.max(VIEWPORT_PADDING, Math.min(centerY - contentHeight / 2, maxTop));
-    const maxHeight = viewportHeight - top - VIEWPORT_PADDING;
-    return {
-      top,
-      maxHeight,
-      overflowY: contentHeight > maxHeight ? 'auto' : 'visible',
-    };
+    return { top, maxHeight: viewportHeight - top - VIEWPORT_PADDING };
   };
 
   // If we have an anchor rect (e.g., initiative card), position relative to it

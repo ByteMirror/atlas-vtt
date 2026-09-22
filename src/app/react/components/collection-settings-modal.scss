@@ -137,7 +137,11 @@
   margin: 0;
 }
 
-.atlas-csm-select,
+.atlas-csm-dropdown.atlas-setting-dropdown {
+  width: 100%;
+  border-radius: $radius-l;
+}
+
 .atlas-csm-input {
   width: 100%;
   height: $input-height-m;

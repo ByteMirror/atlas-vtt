@@ -54,7 +54,7 @@ export function TokenCreatorRail(props: TokenCreatorRailProps): React.JSX.Elemen
         <Button variant={props.source === 'statblocks' ? 'secondary' : 'outline'} disabled={props.sourceDisabled} onClick={() => props.onSourceChange('statblocks')}>Fantasy Statblocks</Button>
       </section>}
       {props.source === 'statblocks' && mode === 'token' && !isEditing ? <p>Add creatures from your vault to the same preview cards as uploaded images.</p> : <>
-      {mode === 'token' && <TokenRingToggle label="Atlas ring for all" value={count ? previews.previews.every(p => p.showRing !== false) : previews.defaultRing} onChange={previews.setAllRings} />}
+      {mode === 'token' && <TokenRingToggle label="Atlas ring for all" mixed={previews.previews.some(p => p.showRing !== false) && previews.previews.some(p => p.showRing === false)} value={count ? previews.previews.every(p => p.showRing !== false) : previews.defaultRing} onChange={previews.setAllRings} />}
 
       <section className="atlas-token-creator__section">
         <div className="atlas-token-creator__section-title">{isEditing ? 'Replace image' : 'Upload images'}</div>

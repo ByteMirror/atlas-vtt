@@ -161,6 +161,7 @@ export function createAtlasStorage<T extends { mapPath: string | null }, S = unk
   store: { getState: () => T },
   plugin?: AtlasVTTPlugin
 ): AtlasPersistStorage<S> {
+  const pendingWrites = new Map<string, Promise<void>>();
   // Create a map of debounced save functions per file path
   const debouncedSavers = new Map<string, DebouncedFunction<[path: string, value: StorageValue<S>]>>();
   
@@ -290,7 +291,15 @@ export function createAtlasStorage<T extends { mapPath: string | null }, S = unk
         };
         
         // Create debounced version with 500ms delay
-        debouncedSavers.set(mapPath, debounce(saveFunction, 500));
+        debouncedSavers.set(mapPath, debounce((path, snapshot) => {
+          // Preserve snapshot order even when a previous disk write is still running.
+          const previous = pendingWrites.get(path) ?? Promise.resolve();
+          const write = previous.then(() => saveFunction(path, snapshot));
+          pendingWrites.set(path, write);
+          void write.then(() => {
+            if (pendingWrites.get(path) === write) pendingWrites.delete(path);
+          });
+        }, 500));
       }
       
       // Call the debounced save function
@@ -312,6 +321,7 @@ export function createAtlasStorage<T extends { mapPath: string | null }, S = unk
         // Remove old entries
         for (const path of allPaths) {
           if (!pathsToKeep.has(path)) {
+            debouncedSavers.get(path)?.flush();
             debouncedSavers.delete(path);
           }
         }
@@ -334,6 +344,10 @@ export function createAtlasStorage<T extends { mapPath: string | null }, S = unk
       // This is important when switching maps to ensure old map saves complete
       for (const debouncedSave of debouncedSavers.values()) {
         debouncedSave.flush();
+      }
+      // A timer may already have started a save before flush was called.
+      while (pendingWrites.size > 0) {
+        await Promise.all(pendingWrites.values());
       }
     },
   };

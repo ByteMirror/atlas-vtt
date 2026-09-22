@@ -6,7 +6,7 @@ import type { StoreApi } from 'zustand';
 import { colors, barDimensions } from '../styles/designTokens';
 import { toError } from '../utils/errors';
 import type { TokenGestureEventDetail } from '../types/atlasWindowEvents';
-import { openValueEditor, type ResourceValue } from './tokenValueEditor';
+import { openValueEditor, type ResourceValue, type ResourceField } from './tokenValueEditor';
 
 type ControlIconType = 'plus' | 'minus';
 
@@ -213,14 +213,16 @@ export class TokenControlsUI {
     hit.visible = true;
   }
 
-  private openEditor(barCenterY: number, value: ResourceValue, onCommit: (next: ResourceValue) => void): void {
+  private openEditor(barCenterY: number, value: ResourceValue, field: ResourceField, resourceLabel: string, onCommit: (next: ResourceValue) => void): void {
     this.closeEditor?.();
-    const global = this.container.toGlobal({ x: 0, y: barCenterY });
+    const global = this.container.toGlobal({ x: (field === 'current' ? -1 : 1) * this.barWidth / 4, y: barCenterY });
     this.closeEditor = openValueEditor({
       anchorEl: this.viewport.options.events.domElement,
       screenX: global.x,
       screenY: global.y,
       value,
+      field,
+      resourceLabel,
       onCommit: (next) => {
         this.closeEditor = null;
         onCommit(next);
@@ -403,7 +405,11 @@ export class TokenControlsUI {
       this.hpHit.on('pointerdown', (e) => {
         e.preventDefault(); // Keep the canvas's default focus from closing the editor.
         e.stopPropagation();
-        this.openEditor(barCenterY, hp, (next) => this.setTokenValue({ hp: { ...hp, ...next } }));
+        const field = e.getLocalPosition(this.hpHit).x < 0 ? 'current' : 'max';
+        this.openEditor(barCenterY, hp, field, 'HP', (next) => this.setTokenValue({
+          hp: { ...hp, ...next },
+          ...(next.max !== hp.max ? { maxHpOverridden: true } : {}),
+        }));
       });
       
       currentY += barHeight + gap;
@@ -446,7 +452,11 @@ export class TokenControlsUI {
       this.stressHit.on('pointerdown', (e) => {
         e.preventDefault();
         e.stopPropagation();
-        this.openEditor(barCenterY, stress, (next) => this.setTokenValue({ stress: next.current, maxStress: next.max }));
+        const field = e.getLocalPosition(this.stressHit).x < 0 ? 'current' : 'max';
+        this.openEditor(barCenterY, stress, field, 'secondary resource', (next) => this.setTokenValue({
+          stress: next.current, maxStress: next.max,
+          ...(next.max !== stress.max ? { maxStressOverridden: true } : {}),
+        }));
       });
     } else {
       this.stressMinusBtn.visible = false;

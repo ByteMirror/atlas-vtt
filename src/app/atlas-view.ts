@@ -70,6 +70,9 @@ export class AtlasView extends FileView {
 
   constructor(leaf: WorkspaceLeaf, plugin?: AtlasVTTPlugin, isPlayerView: boolean = false) {
     super(leaf);
+    // Scene tabs handle deleted maps. Prevent FileView from concurrently replacing
+    // or detaching this leaf while Atlas closes the deleted scene's tab.
+    this.allowNoFile = true;
 
     // Store plugin reference
     this.plugin = plugin;
@@ -463,7 +466,12 @@ export class AtlasView extends FileView {
 
     // If the closed tab was active, switch to the newly active scene
     if (wasActive && updatedTabState.activeTabId) {
-      await this.switchToTab(updatedTabState.activeTabId);
+      const nextTabId = updatedTabState.activeTabId;
+      // removeTab selected the neighbour in metadata, but its map is not loaded yet.
+      // Clear that selection so switching loads it without caching the closed map
+      // over the neighbour's saved viewport and history.
+      this.tabMetaStore.setState({ activeTabId: null });
+      await this.switchToTab(nextTabId);
     }
 
     // Tell Obsidian the view state changed so workspace.json is updated

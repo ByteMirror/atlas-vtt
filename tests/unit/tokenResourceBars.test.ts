@@ -32,8 +32,8 @@ describe('resource fill geometry', () => {
     try {
       ui.update(hero, 70, 1, 70);
       ui.update({ ...hero, maxStress: 100 }, 70, 1, 70);
-      const labels = ui.getContainer().children.filter((c): c is Text => c instanceof Text).map(c => c.text);
-      expect(labels).toContain('1/100');
+      const labels = ui.getContainer().children.flatMap(c => c.children).filter((c): c is Text => c instanceof Text && c.label === 'resource-max').map(c => c.text);
+      expect(labels).toContain('100');
     } finally { ui.destroy(); }
   });
 
@@ -62,7 +62,7 @@ describe('resource value click editing', () => {
   it('closes once when removing the focused input triggers blur', () => {
     const anchor = document.body.createEl('canvas');
     const close = openValueEditor({ anchorEl: anchor, screenX: 0, screenY: 0,
-      value: { current: 1, max: 50 }, onCommit: vi.fn() });
+      value: { current: 1, max: 50 }, field: 'current', resourceLabel: 'HP', onCommit: vi.fn() });
     const input = document.querySelector<HTMLInputElement>('.atlas-token-value-editor')!;
     const remove = input.remove.bind(input);
     const spy = vi.spyOn(input, 'remove').mockImplementation(() => {
@@ -74,7 +74,7 @@ describe('resource value click editing', () => {
     expect(spy).toHaveBeenCalledTimes(1);
   });
 
-  it.each([0, 1])('keeps input focus after a canvas click and edits resource %i', (index) => {
+  it.each([{ index: 0, field: 'current' }, { index: 0, field: 'max' }, { index: 1, field: 'current' }, { index: 1, field: 'max' }] as const)('edits only $field in resource $index after clicking its number', ({ index, field }) => {
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
     const canvas = document.body.createEl('canvas');
     canvas.tabIndex = 0;
@@ -86,17 +86,26 @@ describe('resource value click editing', () => {
       const target = controls.getContainer().children.filter(c => c.cursor === 'text')[index]!;
       const event = new FederatedPointerEvent(new EventBoundary(viewport));
       event.nativeEvent = new MouseEvent('pointerdown', { cancelable: true });
+      event.global.copyFrom(target.toGlobal({ x: field === 'current' ? -16 : 16, y: 42 + index * 12 }));
       target.emit('pointerdown', event);
       // Model the browser's default canvas focus after pointerdown listeners finish.
       if (!event.nativeEvent.defaultPrevented) canvas.focus();
       const input = document.querySelector<HTMLInputElement>('.atlas-token-value-editor');
       expect(input).not.toBeNull();
       expect(document.activeElement).toBe(input);
-      input!.value = '7/60';
+      expect(input!.value).toBe(field === 'current' ? '1' : '50');
+      expect(input!.getAttribute('aria-label')).toBe(`${field === 'current' ? 'Current' : 'Maximum'} ${index === 0 ? 'HP' : 'secondary resource'}`);
+      input!.value = field === 'current' ? '7' : '60';
       input!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
       const token = store.getState().objects.tokens.hero as Character;
-      if (index === 0) expect(token.hp).toEqual({ current: 7, max: 60 });
-      else { expect(token.stress).toBe(7); expect(token.maxStress).toBe(60); }
+      if (index === 0) {
+        expect(token.hp).toEqual({ current: field === 'current' ? 7 : 1, max: field === 'max' ? 60 : 50 });
+        expect(token.maxHpOverridden).toBe(field === 'max' ? true : undefined);
+      } else {
+        expect(token.stress).toBe(field === 'current' ? 7 : 1);
+        expect(token.maxStress).toBe(field === 'max' ? 60 : 50);
+        expect(token.maxStressOverridden).toBe(field === 'max' ? true : undefined);
+      }
       expect(document.querySelector('.atlas-token-value-editor')).toBeNull();
     } finally { controls.destroy(); viewport.destroy(); }
   });

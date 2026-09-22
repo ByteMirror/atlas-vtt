@@ -10,6 +10,7 @@ import { ConditionHoverPanel } from './token-renderer/ConditionHoverPanel';
 import type { ConditionDefinition } from '../types/collectionSettingsTypes';
 import type { TokenGestureEventDetail } from '../types/atlasWindowEvents';
 import { resourceBarFill } from './resourceBarFill';
+import { ResourceBarLabel } from './ResourceBarLabel';
 
 /**
  * Text is drawn at scale 0.333 and the viewport zooms to at most 5x, so a
@@ -51,10 +52,10 @@ export class TokenUIRenderer {
   private container: Container;
   private hpBar: Graphics;
   private hpFill: Graphics;
-  private hpText: Text;
+  private hpText: ResourceBarLabel;
   private stressBar: Graphics;
   private stressFill: Graphics;
-  private stressText: Text;
+  private stressText: ResourceBarLabel;
   private difficultyBadge: Container;
   private difficultyText: Text;
   private defeatedOverlay: Graphics;
@@ -108,18 +109,7 @@ export class TokenUIRenderer {
     this.hpBar.zIndex = 10; // HP bar above status badges
     this.hpFill = new Graphics();
     this.hpFill.zIndex = 11; // HP fill above bar background
-    this.hpText = new Text({
-      text: '',
-      style: new TextStyle({
-        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial',
-        fontSize: 18, // Base font size for 70px token
-        fill: 0xffffff,
-        fontWeight: '600',
-        stroke: { color: 0x000000, width: 2 }
-      })
-    });
-    this.hpText.scale.set(0.333); // Will be adjusted dynamically based on token size
-    this.hpText.resolution = TEXT_RESOLUTION;
+    this.hpText = new ResourceBarLabel();
     this.hpText.zIndex = 12; // Text on top of HP bar
     this.hpText.alpha = 0; // Start with text hidden
     
@@ -130,18 +120,7 @@ export class TokenUIRenderer {
     this.stressFill.zIndex = 11; // Stress fill above bar background
     // Event mode not set - let events propagate naturally
     // this.stressFill also doesn't need eventMode set
-    this.stressText = new Text({
-      text: '',
-      style: new TextStyle({
-        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial',
-        fontSize: 18, // Base font size for 70px token
-        fill: 0xffffff,
-        fontWeight: '600',
-        stroke: { color: 0x000000, width: 2 }
-      })
-    });
-    this.stressText.scale.set(0.333); // Will be adjusted dynamically based on token size
-    this.stressText.resolution = TEXT_RESOLUTION;
+    this.stressText = new ResourceBarLabel();
     this.stressText.zIndex = 12; // Text on top of stress bar
     this.stressText.alpha = 0; // Start with text hidden
     // Event mode not set - let events propagate naturally
@@ -511,10 +490,8 @@ export class TokenUIRenderer {
       }
       
       // Text
-      this.hpText.text = hp ? `${hp.current}/${hp.max}` : '0/0';
-      this.hpText.anchor.set(0.5, 0.5);
+      this.hpText.setValue(hp ?? { current: 0, max: 0 });
       this.hpText.position.set(0, currentY + barHeight/2);
-      this.hpText.scale.set(0.333); // Fixed text scale
       
       // Defeated overlay - just darken the HP bar, no X icon
       if (isDefeated) {
@@ -577,10 +554,8 @@ export class TokenUIRenderer {
       }
       
       // Text
-      this.stressText.text = `${stressValue}/${maxStress}`;
-      this.stressText.anchor.set(0.5, 0.5);
+      this.stressText.setValue({ current: stressValue, max: maxStress });
       this.stressText.position.set(0, currentY + barHeight/2);
-      this.stressText.scale.set(0.333); // Fixed text scale
     }
     
     // Store current token data for theme updates

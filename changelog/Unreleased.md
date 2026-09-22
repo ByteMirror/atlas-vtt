@@ -38,6 +38,10 @@
 
 ## Fixed
 
+- Click the current or maximum number on a selected token’s HP or secondary-resource gauge to edit that value separately. Changing a maximum preserves it as a token override.
+- Deleting an open scene no longer makes Atlas and Obsidian both close its view. Closing the active scene loads the next scene and restores its viewport and undo history.
+- Closing a map waits for its pending saves to finish, and overlapping saves keep their original order.
+
 - Token HP and secondary-resource fills keep their rounded leading edge at low values. Clicking a selected token's bar keeps the value editor open, and changing only the secondary-resource maximum refreshes its bar and label.
 - Token artwork and glass overlays update throughout resize and rotation gestures, including after release.
 - Edit Token no longer draws an extra frame around its fields, and its actions use the shared button states.

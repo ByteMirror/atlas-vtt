@@ -556,6 +556,10 @@ export class TokenResizeUI {
     }
   }
   
+  public getHandles(): Container[] {
+    return [...this.resizeHandles.values()].flatMap(({ left, right }) => [left, right]);
+  }
+
   /**
    * Clean up and destroy
    */

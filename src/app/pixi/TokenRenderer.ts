@@ -1,6 +1,6 @@
 import { syncTokenArtwork } from './token-renderer/tokenArtwork';
 import type { AtlasSettings } from '../services/SettingsService';
-import type { LayerVisibility } from './playerSafeFrame';
+import { hiddenTokenLayers, type LayerVisibility } from './playerSafeFrame';
 import { Sprite, Container, Graphics, Circle, Texture, Application, FederatedPointerEvent } from "pixi.js";
 import { Viewport } from "pixi-viewport";
 import { App as ObsidianApp, TFile, parseYaml } from 'obsidian';
@@ -1421,7 +1421,10 @@ export class TokenRenderer {
 
   /** Player overlays prepared for the next mirrored frame. */
   public getPlayerViewLayers(settings: AtlasSettings['localPlayerView']): LayerVisibility[] {
-    return this.uiManager.getPlayerViewLayers(settings);
+    return [
+      ...hiddenTokenLayers(this.store.getState().objects.tokens, this.tokenSprites),
+      ...this.uiManager.getPlayerViewLayers(settings),
+    ];
   }
 
   /** Get all token sprites for external systems like SelectionManager. */

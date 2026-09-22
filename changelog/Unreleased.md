@@ -23,6 +23,7 @@
 
 ## Fixed
 
+- The local player window no longer shows hidden tokens, the selection outline, marquee, token controls or resize and rotation handles from the DM view.
 - Clicking controls in Manage Tags or closing the dialog no longer closes the asset manager behind it.
 - Token import ring controls now share the editable preview state, and fast-loading images no longer get stuck optimizing.
 

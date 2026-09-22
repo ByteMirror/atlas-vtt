@@ -677,6 +677,7 @@ export class PixiRendererOrchestrator { // Renamed class
     if (grid) layers.push({ layer: grid, visible: settings.showGrid });
     layers.push(...(this.tokenRenderer?.getPlayerViewLayers(settings) ?? []));
     layers.push(...(this.fogRenderer?.getPlayerViewLayers() ?? []));
+    layers.push(...(this.selectionManager?.getPlayerViewLayers() ?? []));
     captureWithLayerVisibility(layers, () => app.renderer.render(app.stage), capture);
   }
 

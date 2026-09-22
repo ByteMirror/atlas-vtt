@@ -482,6 +482,10 @@ export class TokenControlsUI {
     }
   };
   
+  public getContainer(): Container {
+    return this.container;
+  }
+
   public destroy(): void {
     // Mark as destroyed to prevent async operations
     this.isDestroyed = true;

@@ -219,6 +219,11 @@
   }
 }
 
+// Split black/white: the two colours Auto chooses between
+.atlas-command-palette-swatch--auto {
+  background: linear-gradient(135deg, #000 50%, #fff 50%);
+}
+
 // Neutral badge so the tick reads on any swatch colour
 .atlas-command-palette-swatch-check {
   width: 16px;

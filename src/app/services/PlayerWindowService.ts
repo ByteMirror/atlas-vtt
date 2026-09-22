@@ -6,6 +6,7 @@ import type { StoreApi } from 'zustand';
 import type { AtlasSettings, SettingsService } from './SettingsService';
 import { playerWindowStore, resetPlayerWindowStore } from '../stores/playerWindowStore';
 import './player-window.scss';
+import { PlayerInitiativePanel } from './PlayerInitiativePanel';
 import { LocalPlayerView, LOCAL_PLAYER_VIEW_TYPE, type PlayerCameraState } from '../local-player-view';
 
 /** Scopes the rules in `player-window.scss` to the popout document. */
@@ -29,6 +30,7 @@ function createSvgElement(doc: Document, tag: string, attributes: Record<string,
 /** A DM map canvas that can briefly render itself without DM-only layers. */
 export interface PlayerFrameSource {
   canvas: HTMLCanvasElement;
+  store?: StoreApi<ViewAtlasState>;
   getCamera?(): PlayerCameraState | undefined;
   /** Runs `capture` while `canvas` holds a frame that is safe to show players. */
   withPlayerSafeFrame(capture: () => void, settings: AtlasSettings['localPlayerView']): void;
@@ -55,6 +57,7 @@ export class PlayerWindowService {
   private frozenCanvas: HTMLCanvasElement | null = null;
   private static instance: PlayerWindowService | null = null;
   private settingsUnsubscribe: (() => void) | null = null;
+  private initiativePanel: PlayerInitiativePanel | null = null;
   private widgetUnsubscribe: (() => void) | null = null;
   private readonly boundHandleWindowResize = (): void => {
     this.handleWindowResize();
@@ -101,7 +104,9 @@ export class PlayerWindowService {
    * A freeze the DM started manually is left untouched.
    */
   public holdCurrentFrame(): void {
-    if (this.isCameraFrozen || !this.isWindowOpen()) return;
+    if (!this.isWindowOpen()) return;
+    this.initiativePanel?.hold();
+    if (this.isCameraFrozen) return;
     this.isAutoFrozen = true;
     this.setCameraFrozen(true);
   }
@@ -113,6 +118,7 @@ export class PlayerWindowService {
   public releaseHeldFrame(source: PlayerFrameSource): void {
     if (!this.isWindowOpen()) return;
     this.streamSource = source;
+    this.initiativePanel?.present(source.store ?? this.store);
     if (!this.isAutoFrozen) return;
     this.isAutoFrozen = false;
     this.setCameraFrozen(false);
@@ -128,6 +134,7 @@ export class PlayerWindowService {
       return;
     }
     this.streamSource = source;
+    this.initiativePanel?.present(source.store ?? this.store);
     this.isAutoFrozen = false;
     this.setCameraFrozen(false);
     playerWindowStore.setState({ presentedTabId: tabId });
@@ -261,6 +268,10 @@ export class PlayerWindowService {
       updateWidgets();
       this.settingsUnsubscribe?.();
       this.settingsUnsubscribe = this.settingsService.onChange(updateWidgets);
+
+      this.initiativePanel?.destroy();
+      this.initiativePanel = new PlayerInitiativePanel(content, this.app, this.settingsService);
+      this.initiativePanel.present(this.streamSource?.store ?? this.store);
 
       // Create freeze indicator
       const freezeIndicator = content.createDiv();
@@ -480,6 +491,8 @@ export class PlayerWindowService {
     this.widgetUnsubscribe = null;
     this.settingsUnsubscribe?.();
     this.settingsUnsubscribe = null;
+    this.initiativePanel?.destroy();
+    this.initiativePanel = null;
 
     if (this.playerWindow) {
       this.playerWindow.removeEventListener('resize', this.boundHandleWindowResize);

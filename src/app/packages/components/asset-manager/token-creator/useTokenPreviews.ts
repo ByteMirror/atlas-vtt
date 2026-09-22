@@ -107,6 +107,7 @@ export function useTokenPreviews(mode: CreatorMode): TokenPreviewsApi {
   const reset = useCallback((editToken?: EditTokenInput | null): void => {
     previewsRef.current.forEach((p) => revokeIfBlob(p.previewUrl));
     pendingRef.current.clear();
+    setDefaultRing(editToken?.showRing ?? true);
     setPreviews(editToken?.imageUrl ? [previewFromEdit(editToken)] : []);
   }, []);
 

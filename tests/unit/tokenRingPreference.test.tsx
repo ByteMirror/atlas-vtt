@@ -1,5 +1,6 @@
+import { useTokenPreviews } from '../../src/app/packages/components/asset-manager/token-creator/useTokenPreviews';
 import React from 'react';
-import { cleanup, render } from '@testing-library/react';
+import { act, cleanup, render, renderHook } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { Container, Graphics, Sprite, Texture, TextureSource } from 'pixi.js';
 import { TokenPortrait } from '../../src/app/packages/components/shared/TokenPortrait';
@@ -52,4 +53,11 @@ it('saves an unframed upload without baking a circular crop and persists the cho
   await saveTokenPreviews({ app, assetService: assets, mode: 'token', previews: [preview], collection: 'Default', tags: [], waitForOptimized: async () => ({ arrayBuffer: async () => bytes } as Blob) });
   expect(crop).not.toHaveBeenCalled();
   expect((await assets.getTokenAssets())[0]?.showRing).toBe(false);
+});
+
+it('initializes ring controls from the asset being edited', () => {
+  const { result } = renderHook(() => useTokenPreviews('token'));
+  act(() => result.current.reset({ id: 'existing', name: 'Goblin', imageUrl: 'goblin.webp', tags: [], showRing: false }));
+  expect(result.current.defaultRing).toBe(false);
+  expect(result.current.previews[0]?.showRing).toBe(false);
 });

@@ -18,7 +18,7 @@ interface EffectDeps {
   modalRef: React.RefObject<HTMLDivElement | null>;
   containerRef: React.RefObject<HTMLDivElement | null>;
   setSearch: (s: string) => void;
-  setActiveTab: (tab: Tab) => void;
+  setActiveTab: React.Dispatch<React.SetStateAction<Tab>>;
   setIsSidebarCollapsed: (collapsed: boolean) => void;
   setSelectedCollection: (col: string | null) => void;
   data: AssetData;
@@ -92,6 +92,12 @@ export function useAssetManagerEffects({
           return;
         }
         onClose();
+      }
+      if (e.key === 'Tab' && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        e.preventDefault();
+        const direction = e.shiftKey ? -1 : 1;
+        setActiveTab((prev) => tabs[(tabs.indexOf(prev) + direction + tabs.length) % tabs.length]!);
+        return;
       }
       if ((e.metaKey || e.ctrlKey) && e.key >= '1' && e.key <= '4') {
         const idx = parseInt(e.key) - 1;

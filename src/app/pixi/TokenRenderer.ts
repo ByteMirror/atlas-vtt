@@ -204,7 +204,7 @@ export class TokenRenderer {
     this.tokenContainer.label = 'tokenContainer';
     this.tokenContainer.sortableChildren = true;
     this.tokenContainer.eventMode = 'passive';
-    this.tokenContainer.interactiveChildren = false;
+    this.tokenContainer.interactiveChildren = true;
     this.tokenContainer.zIndex = 0;
     this.viewport.addChild(this.tokenContainer);
 
@@ -599,10 +599,10 @@ export class TokenRenderer {
     this.interactionController.isPlayerView = isPlayerView;
     this.spriteFactory.isPlayerView = isPlayerView;
 
-    // Sprites are always eventMode='none' — viewport-level dispatch handles everything.
-    // No need to toggle eventMode or re-attach handlers.
+    // Token art is never an event target (viewport-level dispatch handles token clicks), but the
+    // children must stay hit-testable so resize/rotate handles parented to the group receive pointer events.
     tokenGroup.eventMode = 'passive';
-    tokenGroup.interactiveChildren = false;
+    tokenGroup.interactiveChildren = true;
   }
 
   private updateTokenRing(tokenId: string, tokenGroup: TokenGroupContainer, size: number, ringColor?: string): void {

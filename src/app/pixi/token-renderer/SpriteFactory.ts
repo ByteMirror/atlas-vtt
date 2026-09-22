@@ -41,7 +41,8 @@ export class SpriteFactory implements ITokenSpriteFactory {
     tokenGroup.sortableChildren = true;
     tokenGroup.position.set(token.x, token.y);
     tokenGroup.eventMode = 'passive';
-    tokenGroup.interactiveChildren = false;
+    // Children stay hit-testable so resize/rotate handles parented to the group receive pointer events
+    tokenGroup.interactiveChildren = true;
 
     // Create the token sprite
     const sprite = new Sprite(texture);

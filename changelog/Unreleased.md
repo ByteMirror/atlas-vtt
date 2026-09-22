@@ -38,7 +38,7 @@
 
 ## Fixed
 
-- Click the current or maximum number on a selected token’s HP or secondary-resource gauge to edit that value separately. Changing a maximum preserves it as a token override.
+- Click the current or maximum number on a selected token’s HP or secondary-resource gauge to edit that value separately. The two numbers sit close together around the slash. Changing a maximum preserves it as a token override.
 - Deleting an open scene no longer makes Atlas and Obsidian both close its view. Closing the active scene loads the next scene and restores its viewport and undo history.
 - Closing a map waits for its pending saves to finish, and overlapping saves keep their original order.
 

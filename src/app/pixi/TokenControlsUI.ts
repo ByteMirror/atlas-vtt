@@ -7,6 +7,7 @@ import { colors, barDimensions } from '../styles/designTokens';
 import { toError } from '../utils/errors';
 import type { TokenGestureEventDetail } from '../types/atlasWindowEvents';
 import { openValueEditor, type ResourceValue, type ResourceField } from './tokenValueEditor';
+import { resourceNumberX } from './ResourceBarLabel';
 
 type ControlIconType = 'plus' | 'minus';
 
@@ -215,7 +216,7 @@ export class TokenControlsUI {
 
   private openEditor(barCenterY: number, value: ResourceValue, field: ResourceField, resourceLabel: string, onCommit: (next: ResourceValue) => void): void {
     this.closeEditor?.();
-    const global = this.container.toGlobal({ x: (field === 'current' ? -1 : 1) * this.barWidth / 4, y: barCenterY });
+    const global = this.container.toGlobal({ x: resourceNumberX(field), y: barCenterY });
     this.closeEditor = openValueEditor({
       anchorEl: this.viewport.options.events.domElement,
       screenX: global.x,

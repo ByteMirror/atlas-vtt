@@ -5,9 +5,11 @@ import type { Viewport } from 'pixi-viewport';
 import { TokenUIRenderer } from '../../src/app/pixi/TokenUIRenderer';
 import { TokenControlsUI } from '../../src/app/pixi/TokenControlsUI';
 import { openValueEditor } from '../../src/app/pixi/tokenValueEditor';
+import { ResourceBarLabel, RESOURCE_NUMBER_GAP } from '../../src/app/pixi/ResourceBarLabel';
 import { createViewAtlasStore } from '../../src/app/storeFactory';
 import type { Character } from '../../src/app/types';
 import { createInMemoryApp } from '../mocks/inMemoryVault';
+import { barDimensions } from '../../src/app/styles/designTokens';
 
 const hero: Character = { id: 'hero', kind: 'character', name: '', imagePath: 'hero.png', x: 0, y: 0,
   hp: { current: 1, max: 50 }, stress: 1, maxStress: 50 };
@@ -55,6 +57,20 @@ describe('resource fill geometry', () => {
       expect(fill.containsPoint(new Point(x + width / 2, y + 1))).toBe(false);
       expect(fill.containsPoint(new Point(x + width + 0.1, y + height / 2))).toBe(false);
     } finally { ui.destroy(); }
+  });
+});
+
+describe('resource label layout', () => {
+  it('anchors both numbers against the central slash', () => {
+    const label = new ResourceBarLabel();
+    try {
+      const [current, separator, max] = label.children as Text[];
+      // Text metrics need a canvas, so check the anchoring that keeps each number flush to the slash.
+      expect([current.anchor.x, current.position.x]).toEqual([1, -RESOURCE_NUMBER_GAP]);
+      expect([separator.anchor.x, separator.position.x]).toEqual([0.5, 0]);
+      expect([max.anchor.x, max.position.x]).toEqual([0, RESOURCE_NUMBER_GAP]);
+      expect(RESOURCE_NUMBER_GAP).toBeLessThan(barDimensions.token.width / 8);
+    } finally { label.destroy({ children: true }); }
   });
 });
 

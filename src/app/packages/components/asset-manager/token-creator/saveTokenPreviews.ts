@@ -1,5 +1,6 @@
 import { App, Notice } from 'obsidian';
 import { AssetService } from '../../../../services/AssetService';
+import { TokenThumbnailService } from '../../../../services/TokenThumbnailService';
 import { optimizeImage, OPTIMIZATION_PRESETS } from '../../../../utils/imageOptimizer';
 import { bakeTokenCrop } from './bakeTokenCrop';
 import type { CreatorMode, EditTokenInput, TokenPreview } from './types';
@@ -48,6 +49,7 @@ async function resolveImageBlob(preview: TokenPreview, mode: CreatorMode, waitFo
 export async function saveTokenPreviews(options: SaveTokenPreviewsOptions): Promise<number> {
   const { app, assetService, mode, previews, collection, tags, editToken, waitForOptimized } = options;
   const meta = { tags, collection: collection.toLowerCase() };
+  const thumbnails = TokenThumbnailService.getInstance(app, assetService);
   await ensureAssetsDir(app);
   let saved = 0;
 
@@ -55,6 +57,7 @@ export async function saveTokenPreviews(options: SaveTokenPreviewsOptions): Prom
     const preview = previews[0];
     if (!preview) return 0;
     let imagePath = editToken.imagePath ?? editToken.imageUrl;
+    let thumbnailPath: string | undefined;
     if (preview.file) {
       const blob = await resolveImageBlob(preview, mode, waitForOptimized);
       if (!blob) {
@@ -62,8 +65,12 @@ export async function saveTokenPreviews(options: SaveTokenPreviewsOptions): Prom
         return 0;
       }
       imagePath = await writeImage(app, preview.name, blob);
+      thumbnailPath = await thumbnails.tryCreateForImage(imagePath);
     }
-    await assetService.updateTokenAsset(editToken.id, { name: preview.name, imagePath, showRing: preview.showRing !== false, ...meta });
+    // A new image invalidates the old thumbnail even when the new one could not be rendered.
+    await assetService.updateAsset(editToken.id, {
+      name: preview.name, imagePath, showRing: preview.showRing !== false, ...meta, ...(preview.file && { thumbnailPath }),
+    });
     return 1;
   }
 
@@ -83,8 +90,10 @@ export async function saveTokenPreviews(options: SaveTokenPreviewsOptions): Prom
         ...meta,
       });
     } else {
+      const thumbnailPath = await thumbnails.tryCreateForImage(imagePath);
       await assetService.addTokenAsset({
-        showRing: preview.showRing !== false, name: preview.name, imagePath, ...meta });
+        showRing: preview.showRing !== false, name: preview.name, imagePath, ...meta, ...(thumbnailPath && { thumbnailPath }),
+      });
     }
     saved += 1;
   }

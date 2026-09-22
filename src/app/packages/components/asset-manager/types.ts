@@ -60,6 +60,8 @@ export interface EncounterAsset extends Asset {
   type: 'encounters';
   description?: string;
   tokens: StoredEncounterAsset['tokens'];
+  /** Resolved preview images of the first tokens, thumbnails where they exist. */
+  tokenPreviewUrls: string[];
   /** Grid the token layout was captured on. Absent for encounters saved without positions. */
   formation?: StoredEncounterAsset['formation'];
   difficulty?: StoredEncounterAsset['difficulty'];

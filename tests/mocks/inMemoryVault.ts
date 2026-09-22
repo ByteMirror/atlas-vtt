@@ -64,6 +64,7 @@ export function createInMemoryApp(seed: InMemoryVaultSeed = {}): InMemoryApp {
       if (folders.has(path)) return new TFolder(path);
       return null;
     }),
+    getFolderByPath: vi.fn((path: string): TFolder | null => (folders.has(path) && !isHiddenPath(path) ? new TFolder(path) : null)),
     createFolder: vi.fn(async (path: string) => {
       assertFree(path);
       folders.add(path);
@@ -77,6 +78,14 @@ export function createInMemoryApp(seed: InMemoryVaultSeed = {}): InMemoryApp {
     }),
     read: vi.fn(async (file: TFile) => files.get(file.path) ?? ''),
     readBinary: vi.fn(async (file: TFile) => new TextEncoder().encode(files.get(file.path) ?? '').buffer),
+    createBinary: vi.fn(async (path: string, content: ArrayBuffer) => {
+      assertFree(path);
+      writeFile(path, new TextDecoder().decode(content));
+      return new TFile(path);
+    }),
+    modifyBinary: vi.fn(async (file: TFile, content: ArrayBuffer) => {
+      files.set(file.path, new TextDecoder().decode(content));
+    }),
   };
 
   app.fileManager = {

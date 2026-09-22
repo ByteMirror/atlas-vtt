@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   Search, X, Folder, Settings, ChevronDown, Check, Tag,
   Download, Upload,
@@ -56,6 +56,14 @@ export function Sidebar({
   const filteredTags = tagsSearchQuery
     ? tags.filter((t) => t.name.toLowerCase().includes(tagsSearchQuery.toLowerCase()))
     : tags;
+
+  const tagCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const tag of tags) {
+      counts.set(tag.id, assets.filter((asset) => hasAssetTag(asset.tags, tag)).length);
+    }
+    return counts;
+  }, [tags, assets]);
 
   useEffect(() => {
     if (!isCollectionDropdownOpen) return;
@@ -248,7 +256,7 @@ export function Sidebar({
             <div className="atlas-tags-list">
               {filteredTags.length > 0 ? (
                 filteredTags.map((tag) => {
-                  const tagCount = assets.filter((asset) => hasAssetTag(asset.tags, tag)).length;
+                  const tagCount = tagCounts.get(tag.id) ?? 0;
                   return (
                     <button
                       key={tag.id}

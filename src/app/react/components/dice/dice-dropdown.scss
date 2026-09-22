@@ -81,7 +81,7 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all $transition-fast $transition-ease;
+  transition: transform $transition-press $transition-ease-out;
   color: var(--text-muted);
 
   &:hover {

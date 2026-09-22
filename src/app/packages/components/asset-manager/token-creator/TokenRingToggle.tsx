@@ -9,7 +9,7 @@ export function TokenRingToggle({ value, onChange, label, disabled = false, mixe
   disabled?: boolean;
   mixed?: boolean;
 }): React.JSX.Element {
-  return <Button variant={value ? 'secondary' : 'outline'} size="sm" role="switch" aria-checked={value} aria-label={label} disabled={disabled} onClick={() => onChange(!value)}>
-    {mixed ? <Minus /> : value ? <Circle /> : <CircleOff />}<span>{mixed ? 'Atlas rings mixed' : `Atlas ring ${value ? 'on' : 'off'}`}</span>
+  return <Button variant={value ? 'secondary' : 'outline'} className="atlas-token-ring-toggle" role="switch" aria-checked={value} aria-label={label} disabled={disabled} title={mixed ? 'Mixed token ring settings' : value ? 'Token ring shown' : 'Token ring hidden'} onClick={() => onChange(!value)}>
+    {mixed ? <Minus /> : value ? <Circle /> : <CircleOff />}<span>Toggle token ring</span>
   </Button>;
 }

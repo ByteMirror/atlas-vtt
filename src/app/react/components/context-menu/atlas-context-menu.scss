@@ -36,7 +36,6 @@
   font-size: var(--font-ui-small);
   cursor: pointer;
   white-space: nowrap;
-  transition: background-color $transition-fast $transition-ease;
   width: 100%;
   text-align: left;
   box-sizing: border-box;
@@ -149,7 +148,6 @@
   font-size: var(--font-ui-small);
   cursor: pointer;
   white-space: nowrap;
-  transition: background-color $transition-fast $transition-ease;
 
   svg {
     flex-shrink: 0;

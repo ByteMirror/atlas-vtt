@@ -74,14 +74,13 @@ export class StatblockPreviewWindow {
     window.requestAnimationFrame(() => {
       if (!this.element) return;
 
+      // Cap the window to the viewport first, so the measurement below is of
+      // the clamped box; the card body scrolls when the statblock is taller.
+      this.element.style.maxHeight = `${winHeight - padding * 2}px`;
+
       const rect = this.element.getBoundingClientRect();
       const elementWidth = rect.width || 400;
       const elementHeight = rect.height || 600;
-
-      // Only clip-and-scroll when the statblock genuinely cannot fit, so the
-      // card's drop shadow stays intact in the common case.
-      this.element.style.overflowY =
-        this.element.scrollHeight > winHeight - padding * 2 ? 'auto' : 'visible';
 
       let finalX = x + 15;
       let finalY = y + 15;

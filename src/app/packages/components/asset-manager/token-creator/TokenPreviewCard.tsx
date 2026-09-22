@@ -201,7 +201,7 @@ export function TokenPreviewCard({ preview, mode, index, onChange, onToggleSelec
       />
 
       {preview.tags && preview.tags.length > 0 && <div className="atlas-token-card__tags">{preview.tags.join(' · ')}</div>}
-      {mode === 'token' && <TokenRingToggle label={`Atlas ring for ${preview.name}`} value={preview.showRing !== false} onChange={showRing => onChange({ showRing })} />}
+      {mode === 'token' && <TokenRingToggle label={`Toggle token ring for ${preview.name}`} value={preview.showRing !== false} onChange={showRing => onChange({ showRing })} />}
       {isCropEditable && (
         <div className="atlas-token-card__zoom">
           <LabelTooltip label="Zoom out">

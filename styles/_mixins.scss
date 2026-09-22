@@ -30,7 +30,6 @@
 @mixin atlas-interactive-surface {
   background: var(--background-secondary);
   border-radius: $radius-m;
-  transition: background-color $transition-fast $transition-ease;
 
   &:hover {
     background: var(--background-modifier-hover);
@@ -64,7 +63,7 @@
   justify-content: center;
   border: none;
   cursor: pointer;
-  transition: all $transition-fast $transition-ease;
+  transition: transform $transition-press $transition-ease-out;
 
   @if $size == 's' {
     width: $button-height-s;
@@ -116,9 +115,7 @@
     height: $icon-s;
   }
 
-  transition: transform $transition-press $transition-ease-out,
-              background-color $transition-fast $transition-ease,
-              color $transition-fast $transition-ease;
+  transition: transform $transition-press $transition-ease-out;
 
   &:hover:not(:disabled) {
     color: var(--text-normal);

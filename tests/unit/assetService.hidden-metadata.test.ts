@@ -475,7 +475,7 @@ describe('AssetService hidden metadata saves', () => {
     expect(encounter.data.tokens[0].imagePath).toBe('atlas-vtt/collections/default/tokens/folder/goblin.webp');
   });
 
-  it('removes deleted tokens from encounter references', async () => {
+  it('deletes encounters left empty when their only token is deleted', async () => {
     const { app, files } = createInMemoryApp({
       files: {
         'atlas-vtt/.atlas-data/assets-metadata.json': JSON.stringify({
@@ -531,9 +531,6 @@ describe('AssetService hidden metadata saves', () => {
     expect(app.fileManager.trashFile).toHaveBeenCalledTimes(1);
     expect(files.has('atlas-vtt/collections/default/tokens/goblin.webp')).toBe(false);
 
-    const encounters = await service.getAssets('default', 'encounter');
-    const encounter = encounters[0] as any;
-    expect(encounter.tokens).toEqual([]);
-    expect(encounter.data.tokens).toEqual([]);
+    expect(await service.getAssets('default', 'encounter')).toEqual([]);
   });
 });

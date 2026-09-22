@@ -64,10 +64,13 @@
   cursor: pointer;
   user-select: none;
   color: var(--text-muted);
-  transition: background-color $transition-fast $transition-ease, color $transition-fast $transition-ease;
 
   &:hover {
     color: var(--text-normal);
+  }
+
+  &:active {
+    background-color: var(--background-modifier-active-hover);
   }
 
   h3 {

@@ -16,6 +16,7 @@ const DEFAULT_LOCAL_PLAYER_VIEW_SETTINGS = {
   showNotePreviews: false,
   showGrid: true,
   showWidgets: true,
+  showInitiative: true,
   showCommandPalette: false,
 };
 
@@ -25,6 +26,7 @@ type LocalPlayerViewToggleKey = Exclude<keyof LocalPlayerViewSettings, 'showTool
 const UI_TOGGLES: ReadonlyArray<{ key: LocalPlayerViewToggleKey; label: string }> = [
   { key: 'showGrid', label: 'Show grid' },
   { key: 'showWidgets', label: 'Show widgets' },
+  { key: 'showInitiative', label: 'Show initiative panel' },
 ];
 
 const TOKEN_TOGGLES: ReadonlyArray<{ key: LocalPlayerViewToggleKey; label: string }> = [

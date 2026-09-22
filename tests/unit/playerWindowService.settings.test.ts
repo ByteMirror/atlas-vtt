@@ -3,6 +3,8 @@ import { createStore } from 'zustand/vanilla';
 import { SettingsService } from '../../src/app/services/SettingsService';
 import { PlayerWindowService } from '../../src/app/services/PlayerWindowService';
 
+vi.mock('../../src/app/atlas-view', () => ({ AtlasView: class {}, ATLAS_VIEW_TYPE: 'atlas-vtt' }));
+
 const app = { vault: { adapter: { exists: async () => true, write: async () => {} } } } as any;
 afterEach(() => { PlayerWindowService.getInstance()?.destroy(); vi.useRealTimers(); vi.unstubAllGlobals(); });
 
@@ -19,6 +21,8 @@ describe('live player settings', () => {
     Object.defineProperty(doc, 'readyState', { value: 'complete' });
     (service as any).playerWindow = popout;
     (service as any).setupPlayerWindow();
+    expect(doc.getElementById('atlas-player-info')).toBeNull();
+    expect(doc.getElementById('atlas-player-fps')).toBeNull();
     const widgets = doc.getElementById('atlas-player-widgets')!;
     expect(widgets.textContent).toContain('Counter');
     settings.setLocalPlayerViewSettings({ showWidgets: false });
@@ -40,7 +44,7 @@ describe('live player settings', () => {
     const doc = document.implementation.createHTMLDocument();
     const target = doc.createElement('canvas'); target.id = 'atlas-player-canvas'; doc.body.append(target);
     vi.spyOn(target, 'getContext').mockReturnValue({ clearRect: vi.fn(), drawImage: vi.fn() } as any);
-    (service as any).playerWindow = { document: doc, closed: false, removeEventListener: vi.fn(), close: vi.fn() };
+    (service as any).playerWindow = { document: doc, closed: false, requestAnimationFrame, cancelAnimationFrame, removeEventListener: vi.fn(), close: vi.fn() };
     const capture = vi.fn();
     (service as any).streamSource = { canvas: document.createElement('canvas'), withPlayerSafeFrame: capture };
     (service as any).startMirroring();
@@ -48,7 +52,9 @@ describe('live player settings', () => {
     expect(capture).toHaveBeenLastCalledWith(expect.any(Function), settings.getLocalPlayerViewSettings());
     settings.setLocalPlayerViewSettings({ showGrid: false, showTokenHP: true });
     const nextFrame = vi.mocked(requestAnimationFrame).mock.calls.at(-1)![0];
-    nextFrame(80);
+    capture.mockClear();
+    nextFrame(56);
+    expect(capture).toHaveBeenCalledTimes(1);
     expect(capture).toHaveBeenLastCalledWith(expect.any(Function), settings.getLocalPlayerViewSettings());
   });
 });

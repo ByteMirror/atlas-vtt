@@ -17,6 +17,8 @@
 
 ## Fixed
 
+- Local player windows refresh at the display frame rate without the display-only label or FPS counter, and reconnect to the presented scene after Obsidian reloads.
+
 - Creating a token from a statblock image no longer mistakes the source artwork for an existing token.
 - Opening a settings dropdown closes the previous one, including when switching with the keyboard or between map views.
 - Grid settings dropdowns keep opening after other map tabs close, and size to their button unless longer options need more room.

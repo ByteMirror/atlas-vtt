@@ -4,6 +4,7 @@ import { MapLoader } from './MapLoader';
 import type { MapFile } from './services/MapPersistence';
 import { PixiRendererOrchestrator } from './PixiRendererOrchestrator';
 import type { GridOptions } from './grid/GridSystem';
+import { parseGridColor } from './grid/gridContrastColor';
 
 /**
  * Load the given map file, create background sprite, initialise grid and
@@ -45,7 +46,7 @@ async function loadAndDisplay(
     size: mapData.grid?.size ?? 70,
     offsetX: shouldUseCurrentOffset ? currentOffset.x : (mapData.grid?.offsetX ?? 0),
     offsetY: shouldUseCurrentOffset ? currentOffset.y : (mapData.grid?.offsetY ?? 0),
-    color: parseInt((mapData.grid?.color ?? '#FFFFFF').replace('#', '0x')),
+    color: parseGridColor(mapData.grid?.color),
     alpha: mapData.grid?.opacity ?? 0.7,
     enabled: true,
   } as const;
@@ -83,7 +84,6 @@ async function loadAndDisplay(
       size: gridOptions.size,
       offsetX: gridOptions.offsetX ?? 0,
       offsetY: gridOptions.offsetY ?? 0,
-      color: '#00FFFF',
       opacity: 0.7,
     };
   }

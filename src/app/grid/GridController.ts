@@ -1,5 +1,6 @@
 import { PixiRendererOrchestrator } from '../PixiRendererOrchestrator';
 import type { GridOptions } from './GridSystem';
+import { parseGridColor } from './gridContrastColor';
 import type { MapFile } from '../services/MapPersistence';
 import { Sprite } from 'pixi.js';
 
@@ -23,9 +24,7 @@ function ensureInitialised(
     size: mapData.grid?.size ?? 70,
     offsetX: mapData.grid?.offsetX ?? 0,
     offsetY: mapData.grid?.offsetY ?? 0,
-    color: mapData.grid?.color
-      ? parseInt(mapData.grid.color.replace('#', '0x'))
-      : 0x00ffff, // bright cyan default
+    color: parseGridColor(mapData.grid?.color),
     alpha: mapData.grid?.opacity ?? 0.7,
     lineWidth: mapData.grid?.lineWidth ?? 1,
     lineType: mapData.grid?.lineType ?? 'solid',
@@ -63,7 +62,6 @@ function toggle(
         size: 70,
         offsetX: 0,
         offsetY: 0,
-        color: '#00FFFF',
         opacity: 0.7,
         lineType: 'solid',
         lineWidth: 1,

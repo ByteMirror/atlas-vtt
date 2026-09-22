@@ -4,6 +4,7 @@ import { useAtlasUI } from './root/AtlasUIContext';
 import { useViewStoreHook } from './ViewStoreContext';
 import { toError } from '../utils/errors';
 import type { GridOptions } from '../grid/GridSystem';
+import { parseGridColor } from '../grid/gridContrastColor';
 import type { GridState } from '../services/MapPersistence';
 
 const FALLBACK_GRID_OPTIONS: GridOptions = {
@@ -24,7 +25,7 @@ function toGridOptions(grid: GridState): GridOptions {
     size: grid.size,
     offsetX: grid.offsetX,
     offsetY: grid.offsetY,
-    color: parseInt(grid.color.replace('#', '0x')),
+    color: parseGridColor(grid.color),
     alpha: grid.opacity,
     enabled: grid.enabled,
     ...(grid.type !== undefined ? { type: grid.type } : {}),

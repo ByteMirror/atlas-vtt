@@ -6,6 +6,7 @@ import { drawHexGrid } from './hexGridDrawer';
 import type { GridBounds, GridLineType } from './gridLineStyle';
 import { createHexLayout, hexCellExtent, isHexGridType, nearestHexCenter } from './hexGeometry';
 import type { HexLayout } from './hexGeometry';
+import { contrastColorForSprite } from './gridContrastColor';
 
 export type GridType = 'square' | 'hex-horizontal' | 'hex-vertical';
 
@@ -26,8 +27,8 @@ export interface GridOptions {
   offsetX?: number;
   /** Y offset for the grid origin */
   offsetY?: number;
-  /** Color of grid lines in hex format */
-  color?: number;
+  /** Color of grid lines in hex format. Unset picks black or white from the map's brightness. */
+  color?: number | undefined;
   /** Alpha transparency of grid lines (0–1) */
   alpha?: number;
   /** Line width for grid lines */
@@ -63,6 +64,7 @@ export class GridSystem {
   private _gridOptionsOffsetYAtCreation: number = 0;
   private isDestroying: boolean = false;
   private _isCreating: boolean = false;
+  private autoColor: number | null = null;
 
   /**
    * @param app      – the Pixi Application
@@ -85,7 +87,6 @@ export class GridSystem {
       size: options.size ?? 70,
       offsetX: options.offsetX ?? 0,
       offsetY: options.offsetY ?? 0,
-      color: options.color ?? 0x00FFFF,
       alpha: options.alpha ?? 0.7,
       lineWidth: options.lineWidth ?? 1,
       lineType: options.lineType ?? 'solid',
@@ -156,8 +157,8 @@ export class GridSystem {
       maxY: bgY + this.bgSprite.height + padding,
     };
 
-    // `??`, not `||`: black is 0x000000 and must not fall back to white
-    const gridColor = isAligning ? 0x00ff00 : (color ?? 0xffffff);
+    // `??`, not `||`: black is 0x000000 and must not fall through to the automatic colour
+    const gridColor = isAligning ? 0x00ff00 : (color ?? this.getAutoColor());
     const gridAlpha = isAligning ? Math.min(alpha! * 1.5, 1) : alpha!;
 
     const graphics = new Graphics();
@@ -216,6 +217,12 @@ export class GridSystem {
 
     this.viewport.dirty = true;
     this._isCreating = false;
+  }
+
+  /** Black or white, whichever contrasts with the map image; cached because it reads the texture's pixels. */
+  private getAutoColor(): number {
+    this.autoColor ??= contrastColorForSprite(this.bgSprite);
+    return this.autoColor ?? 0xffffff;
   }
 
   /** Clean up grid-only resources */
@@ -329,6 +336,7 @@ export class GridSystem {
     }
 
     this.bgSprite = newBgSprite;
+    this.autoColor = null;
 
     if (newBgSprite.width > 0 && newBgSprite.height > 0) {
       this.createGrid();

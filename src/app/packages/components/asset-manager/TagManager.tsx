@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Tag, FolderOpen, Search, Plus, MoreVertical, Check, X } from 'lucide-react';
 import { openContextMenuGlobal, type ContextMenuEntry } from '../../../react/root/ContextMenuContext';
+import { confirmAction } from '../../../ui/confirmDialog';
 import { isShortcutScopeActive } from '../../../utils/activeLeafGuard';
 import { CloseButton } from '../primitives/CloseButton';
 import { Button } from '../primitives/button';
@@ -14,9 +15,9 @@ interface TagManagerProps {
   onCreateTag: (tag: string) => void;
   onCreateCollection: (collection: string) => void;
   onUpdateTag: (oldTag: string, newTag: string) => void;
-  onUpdateCollection: (oldCollection: string, newCollection: string) => void;
-  onDeleteTag: (tag: string) => void;
-  onDeleteCollection: (collection: string) => void;
+  onUpdateCollection: (oldCollection: string, newCollection: string) => void | Promise<void>;
+  onDeleteTag: (tag: string) => Promise<void>;
+  onDeleteCollection: (collection: string) => Promise<void>;
 }
 
 const TagManager: React.FC<TagManagerProps> = ({
@@ -130,7 +131,7 @@ const TagManager: React.FC<TagManagerProps> = ({
     }
     
     if (editingItem) {
-      updateItem(editingItem, editValue.trim());
+      void updateItem(editingItem, editValue.trim());
     }
     
     setEditingItem(null);
@@ -144,12 +145,24 @@ const TagManager: React.FC<TagManagerProps> = ({
     setError('');
   };
 
-  const handleDelete = (item: string) => {
-    deleteItem(item);
+  const confirmDelete = async (names: string[]): Promise<boolean> => {
+    if (activeTab === 'atlas-tags') return true;
+    return confirmAction({
+      title: names.length === 1 ? `Delete collection "${names[0]}"?` : `Delete ${names.length} collections?`,
+      message: ['Every scene, map, token and encounter in it moves to the trash.'],
+      confirmLabel: 'Delete',
+      destructive: true,
+    });
   };
 
-  const handleDeleteSelected = () => {
-    selectedItems.forEach(item => deleteItem(item));
+  const handleDelete = async (item: string): Promise<void> => {
+    if (await confirmDelete([item])) await deleteItem(item);
+  };
+
+  const handleDeleteSelected = async (): Promise<void> => {
+    const selected = Array.from(selectedItems);
+    if (!(await confirmDelete(selected))) return;
+    for (const item of selected) await deleteItem(item);
     setSelectedItems(new Set());
   };
 
@@ -208,9 +221,9 @@ const TagManager: React.FC<TagManagerProps> = ({
         destructive: true,
         onClick: () => {
           if (selectedItems.size > 1) {
-            handleDeleteSelected();
+            void handleDeleteSelected();
           } else {
-            handleDelete(item);
+            void handleDelete(item);
           }
         },
       },
@@ -392,7 +405,7 @@ const TagManager: React.FC<TagManagerProps> = ({
           {selectedItems.size > 0 && (
             <>
               <span className="atlas-selected-count">{selectedItems.size} selected</span>
-              <Button variant="destructive" size="sm" onClick={handleDeleteSelected}>
+              <Button variant="destructive" size="sm" onClick={() => { void handleDeleteSelected(); }}>
                 Delete selected
               </Button>
             </>

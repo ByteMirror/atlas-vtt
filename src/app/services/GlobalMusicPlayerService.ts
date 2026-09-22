@@ -2,6 +2,7 @@ import React from 'react';
 import { createRoot, Root } from 'react-dom/client';
 import { App } from 'obsidian';
 import { StandaloneMusicPlayer } from '../react/components/StandaloneMusicPlayer';
+import { ContextMenuProvider } from '../react/root/ContextMenuContext';
 
 /**
  * Service to manage the standalone music player modal
@@ -33,9 +34,11 @@ export class GlobalMusicPlayerService {
             // Create React root and render
             this.root = createRoot(this.container);
             this.root.render(
-                React.createElement(StandaloneMusicPlayer, {
-                    app: this.app,
-                    onClose: () => this.close()
+                React.createElement(ContextMenuProvider, {
+                    children: React.createElement(StandaloneMusicPlayer, {
+                        app: this.app,
+                        onClose: () => this.close()
+                    })
                 })
             );
         } catch (error) {

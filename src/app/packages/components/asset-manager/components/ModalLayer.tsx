@@ -139,7 +139,7 @@ export function ModalLayer({
         onCreateCollection={crud.handleCreateCollection}
         onUpdateTag={tags.handleUpdateTag}
         onUpdateCollection={tags.handleUpdateCollection}
-        onDeleteTag={(tagId) => { void tags.handleDeleteTag(tagId); }}
+        onDeleteTag={tags.handleDeleteTag}
         onDeleteCollection={tags.handleDeleteCollection}
       />
 

@@ -47,3 +47,31 @@ export function applyClickSelection({
 
   return { selected: [id], anchorId: id };
 }
+
+export interface SelectAllInput {
+  visible: { assets: string[]; folders: string[] };
+  selectedAssetIds: string[];
+  selectedFolderIds: string[];
+}
+
+export interface SelectAllResult {
+  assets: string[];
+  folders: string[];
+}
+
+/**
+ * Select-all stays within one list: folders when a folder is selected,
+ * otherwise assets (folders only when the view holds no assets).
+ * Pressing it again with the whole list selected clears the selection.
+ */
+export function resolveSelectAll({ visible, selectedAssetIds, selectedFolderIds }: SelectAllInput): SelectAllResult {
+  const scopeIsFolders = selectedFolderIds.length > 0 || (selectedAssetIds.length === 0 && visible.assets.length === 0);
+
+  if (scopeIsFolders) {
+    const allSelected = visible.folders.every((id) => selectedFolderIds.includes(id));
+    return { assets: [], folders: allSelected ? [] : visible.folders };
+  }
+
+  const allSelected = visible.assets.every((id) => selectedAssetIds.includes(id));
+  return { assets: allSelected ? [] : visible.assets, folders: [] };
+}

@@ -35,6 +35,8 @@ export interface GridState {
   lineType?: 'solid' | 'dashed' | 'dotted'; // Grid line style
   lineWidth?: number; // Grid line width in pixels
   measurementType?: 'units' | 'abstract'; // Measurement system to use
+  /** Set on new scenes: align the grid to the map image on the first load, then cleared. */
+  autoDetect?: boolean;
 }
 
 import type { FogOperation } from '../types/fogTypes';

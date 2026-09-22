@@ -289,7 +289,7 @@ export function Sidebar({
             onClick={(e) => { e.stopPropagation(); onManageTags(); }}
           >
             <Settings />
-            <span>Manage tags</span>
+            <span>Manage</span>
           </Button>
         </div>
       </aside>

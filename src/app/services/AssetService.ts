@@ -3,12 +3,10 @@ import { SettingsService } from './SettingsService';
 import { App, TFile, TFolder } from 'obsidian';
 import type { TokenStateSnapshot } from '../types';
 import type { CellCoord, EncounterFormation } from '../encounters/encounterFormation';
-import { showAtlasToast } from '../react/components/AtlasToast';
 import { getDataFilePath } from '../utils/dataFileMigration';
 import type { CollectionSettings } from '../types/collectionSettingsTypes';
 import {
   isAssetMetadata,
-  isCollectionExport,
   isLegacyAssetMetadata,
   isLegacyTokenRecord,
   isRecord,
@@ -178,9 +176,9 @@ export interface AssetMetadata {
   version: number;
 }
 
-const ATLAS_VTT_DIR = 'atlas-vtt';
-const COLLECTIONS_DIR = `${ATLAS_VTT_DIR}/collections`;
-const GLOBAL_ASSETS_DIR = `${ATLAS_VTT_DIR}/assets`;
+export const ATLAS_VTT_DIR = 'atlas-vtt';
+export const COLLECTIONS_DIR = `${ATLAS_VTT_DIR}/collections`;
+export const GLOBAL_ASSETS_DIR = `${ATLAS_VTT_DIR}/assets`;
 const ASSETS_METADATA_PATH = getDataFilePath(`${ATLAS_VTT_DIR}/assets-metadata.json`);
 
 export class AssetService {
@@ -1289,244 +1287,49 @@ export class AssetService {
     await this.saveMetadata();
   }
 
-  // Import/Export functionality
-  async exportCollection(collectionId: string): Promise<Blob> {
-    await this.ensureLoaded();
-
-    const collection = this.metadata!.collections[collectionId];
-    if (!collection) {
-      throw new Error(`Collection ${collectionId} not found`);
-    }
-
-    // Get all assets in the collection
-    const assets = Object.values(this.metadata!.assets)
-      .filter(asset => asset.collection === collectionId);
-
-    // Create a zip file with all collection data
-    const { default: JSZip } = await import('jszip');
-    const zip = new JSZip();
-
-    // Add metadata
-    const exportMetadata = {
-      collection,
-      assets,
-      version: this.metadata!.version,
-      exportDate: Date.now(),
-      collectionUid: collection.uid,
-      collectionVersion: collection.version,
-    };
-    zip.file('metadata.json', JSON.stringify(exportMetadata, null, 2));
-
-    // Add all asset files and images
-    const processedFiles = new Set<string>();
-    
-    for (const asset of assets) {
-      // Handle asset data files (JSON files for statblocks, characters, etc.)
-      const assetPath = this.getAssetPath(asset);
-      const file = this.app.vault.getAbstractFileByPath(assetPath);
-      
-      if (file instanceof TFile && !processedFiles.has(assetPath)) {
-        try {
-          const content = await this.app.vault.readBinary(file);
-          // For collection-specific files, preserve the relative path
-          if (assetPath.startsWith(`${COLLECTIONS_DIR}/${collectionId}/`)) {
-            const relativePath = assetPath.replace(`${COLLECTIONS_DIR}/${collectionId}/`, '');
-            zip.file(relativePath, content);
-          }
-          // For global assets, place them in an assets folder
-          else if (assetPath.startsWith(GLOBAL_ASSETS_DIR)) {
-            const relativePath = assetPath.replace(`${ATLAS_VTT_DIR}/`, '');
-            zip.file(relativePath, content);
-          }
-          processedFiles.add(assetPath);
-        } catch (error) {
-          console.error(`[AssetService] Error reading file ${assetPath}:`, error);
-        }
-      }
-      
-      // For tokens, also include their images from the global assets folder
-      if (asset.type === 'token' && asset.imagePath) {
-        const imageFile = this.app.vault.getAbstractFileByPath(asset.imagePath);
-        if (imageFile instanceof TFile && !processedFiles.has(asset.imagePath)) {
-          try {
-            const content = await this.app.vault.readBinary(imageFile);
-            const relativePath = asset.imagePath.replace(`${ATLAS_VTT_DIR}/`, '');
-            zip.file(relativePath, content);
-            processedFiles.add(asset.imagePath);
-          } catch (error) {
-            console.error(`[AssetService] Error reading image ${asset.imagePath}:`, error);
-          }
-        }
-      }
-    }
-
-    // Include statblock .md files referenced by tokens
-    for (const asset of assets) {
-      if (asset.type === 'token') {
-        const statblockPath = asset.statblockPath;
-        if (statblockPath && !processedFiles.has(statblockPath)) {
-          const sbFile = this.app.vault.getAbstractFileByPath(statblockPath);
-          if (sbFile instanceof TFile) {
-            try {
-              const content = await this.app.vault.readBinary(sbFile);
-              zip.file(`statblocks/${sbFile.name}`, content);
-              processedFiles.add(statblockPath);
-            } catch (error) {
-              console.error(`[AssetService] Error reading statblock ${statblockPath}:`, error);
-            }
-          }
-        }
-      }
-    }
-
-    // Generate zip blob
-    const zipBlob = await zip.generateAsync({ type: 'blob' });
-    return zipBlob;
+  /** Vault path of the file that backs `asset`: the token image, the map's JSON record, or the JSON payload of other types. */
+  getAssetFilePath(asset: Asset): string {
+    return this.getAssetPath(asset);
   }
 
-  async importCollection(data: Blob): Promise<void> {
-    const { default: JSZip } = await import('jszip');
-    const zip = await JSZip.loadAsync(data);
+  async getCollection(collectionId: string): Promise<CollectionMetadata | null> {
+    await this.ensureLoaded();
+    return this.metadata!.collections[collectionId] ?? null;
+  }
 
-    // Read metadata
-    const metadataFile = zip.file('metadata.json');
-    if (!metadataFile) {
-      throw new Error('Invalid collection export: missing metadata.json');
+  async findCollectionByUid(uid: string): Promise<CollectionMetadata | null> {
+    await this.ensureLoaded();
+    return Object.values(this.metadata!.collections).find((collection) => collection.uid === uid) ?? null;
+  }
+
+  /**
+   * Records an imported collection and its assets in one metadata save. The
+   * files must already be in the vault at the paths the assets reference. An
+   * existing record with `collectionId` keeps its creation date and tags, and
+   * the imported assets replace those with the same id.
+   */
+  async adoptImportedCollection(imported: CollectionMetadata, assets: readonly Asset[], collectionId: string): Promise<CollectionMetadata> {
+    await this.ensureLoaded();
+    const now = Date.now();
+    const existing = this.metadata!.collections[collectionId];
+    const description = imported.description ?? existing?.description;
+    const collection: CollectionMetadata = {
+      ...imported,
+      id: collectionId,
+      ...(description !== undefined && { description }),
+      tags: { ...existing?.tags, ...imported.tags },
+      createdAt: existing?.createdAt ?? now,
+      modifiedAt: now,
+    };
+    this.metadata!.collections[collectionId] = collection;
+    await this.ensureCollectionStructure(collectionId);
+
+    for (const asset of assets) {
+      this.metadata!.assets[asset.id] = { ...asset, collection: collectionId };
     }
-
-    const metadataContent = await metadataFile.async('string');
-    const importData: unknown = JSON.parse(metadataContent);
-    if (!isCollectionExport(importData)) {
-      throw new Error('Invalid collection export: malformed metadata.json');
-    }
-
-    // Extract uid/version with backward compat for old exports
-    const importUid = importData.collectionUid ?? importData.collection.uid;
-    const importVersion = importData.collectionVersion ?? importData.collection.version ?? 1;
-
-    // Check for existing collection with same UID
-    const existingEntry = Object.entries(this.metadata!.collections)
-      .find(([_, c]) => c.uid === importUid);
-
-    let decision: 'create-new' | 'update' | 'already-current' | 'newer-exists';
-    if (!existingEntry) {
-      decision = 'create-new';
-    } else if (importVersion > existingEntry[1].version) {
-      decision = 'update';
-    } else if (importVersion === existingEntry[1].version) {
-      decision = 'already-current';
-    } else {
-      decision = 'newer-exists';
-    }
-
-    // Handle early-exit decisions
-    if (decision === 'already-current') {
-      showAtlasToast(`Collection "${importData.collection.name}" is already up to date (v${importVersion}).`);
-      return;
-    }
-    if (decision === 'newer-exists') {
-      showAtlasToast(`A newer version of "${importData.collection.name}" already exists locally (v${existingEntry![1].version} > v${importVersion}).`);
-      return;
-    }
-
-    // Resolve collection ID based on decision
-    let collectionId: string;
-    if (decision === 'create-new') {
-      const created = await this.createCollection(importData.collection.name, importData.collection.description);
-      collectionId = created.id;
-      // Overwrite UID and version with imported values
-      const col = this.metadata!.collections[collectionId]!;
-      col.uid = importUid;
-      col.version = importVersion;
-      col.settings = importData.collection.settings;
-    } else {
-      // decision === 'update'
-      collectionId = existingEntry![0];
-      const col = this.metadata!.collections[collectionId]!;
-      col.version = importVersion;
-      col.settings = importData.collection.settings;
-      col.modifiedAt = Date.now();
-    }
-
-    // Import all assets
-    for (const asset of importData.assets) {
-      // Check if asset already exists
-      if (this.metadata!.assets[asset.id]) {
-        console.warn(`[AssetService] Asset ${asset.id} already exists, skipping`);
-        continue;
-      }
-
-      // Handle token images (stored in the global assets folder)
-      if (asset.type === 'token' && asset.imagePath) {
-        const imagePath = asset.imagePath.replace(`${ATLAS_VTT_DIR}/`, '');
-        const imageFile = zip.file(imagePath);
-        if (imageFile) {
-          const content = await imageFile.async('arraybuffer');
-          const targetPath = `${ATLAS_VTT_DIR}/${imagePath}`;
-
-          const parentPath = targetPath.substring(0, targetPath.lastIndexOf('/'));
-          await this.ensureDirectory(parentPath);
-
-          await this.app.vault.createBinary(targetPath, content);
-        }
-      }
-
-      // Handle data files (statblocks, characters, scenes, encounters, players)
-      if (asset.type === 'statblock' || asset.type === 'character' || asset.type === 'scene' || asset.type === 'encounter' || asset.type === 'player') {
-        const fallbackDataPath = `${asset.type === 'encounter' ? 'encounters' : asset.type === 'player' ? 'players' : asset.type + 's'}/${asset.id}.json`;
-        const dataPath =
-          typeof asset.filePath === 'string'
-            ? (asset.filePath.replace(/^atlas-vtt\/collections\/[^/]+\//, '') || fallbackDataPath)
-            : fallbackDataPath;
-        const dataFile = zip.file(dataPath);
-        if (dataFile) {
-          const content = await dataFile.async('arraybuffer');
-          const targetPath = `${COLLECTIONS_DIR}/${collectionId}/${dataPath}`;
-
-          const parentPath = targetPath.substring(0, targetPath.lastIndexOf('/'));
-          await this.ensureDirectory(parentPath);
-
-          await this.app.vault.createBinary(targetPath, content);
-        }
-      }
-
-      // Add asset to metadata
-      const importedAsset = {
-        ...asset,
-        collection: collectionId
-      };
-      if (typeof importedAsset.filePath === 'string') {
-        importedAsset.filePath = (importedAsset.filePath)
-          .replace(/^atlas-vtt\/collections\/[^/]+\//, `${COLLECTIONS_DIR}/${collectionId}/`);
-      }
-      this.metadata!.assets[asset.id] = importedAsset;
-    }
-
-    // Import statblock .md files
-    const statblockImports: Promise<void>[] = [];
-    zip.folder('statblocks')?.forEach((relativePath, file) => {
-      if (!relativePath.endsWith('.md')) return;
-      statblockImports.push((async (): Promise<void> => {
-        try {
-          const content = await file.async('arraybuffer');
-          const targetPath = `${COLLECTIONS_DIR}/${collectionId}/statblocks/${relativePath}`;
-          const parentPath = targetPath.substring(0, targetPath.lastIndexOf('/'));
-          await this.ensureDirectory(parentPath);
-          if (!this.app.vault.getAbstractFileByPath(targetPath)) {
-            await this.app.vault.createBinary(targetPath, content);
-          }
-        } catch (error) {
-          console.error(`[AssetService] Error importing statblock ${relativePath}:`, error);
-        }
-      })());
-    });
-    await Promise.all(statblockImports);
-
-    // Save updated metadata and notify user
     await this.saveMetadata();
-    if (importData.assets.some(asset => asset.type === 'token')) SettingsService.forApp(this.app)?.markTokenImported();
-    const action = decision === 'create-new' ? 'Imported' : 'Updated';
-    showAtlasToast(`${action} collection "${importData.collection.name}" (v${importVersion}).`);
+    if (assets.some((asset) => asset.type === 'token')) SettingsService.forApp(this.app)?.markTokenImported();
+    return collection;
   }
 
   // Backward compatibility methods

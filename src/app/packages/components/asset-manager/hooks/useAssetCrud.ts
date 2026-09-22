@@ -7,6 +7,7 @@ import { saveEncounter, type EncounterTokenDraft } from '../../../../encounters/
 import type { AssetService, CollectionMetadata } from '../../../../services/AssetService';
 import { showAtlasToast } from '../../../../react/components/AtlasToast';
 import { ensureFolder } from '../../../../plugin/vaultFolders';
+import { useCollectionTransfer, type CollectionTransferActions } from './useCollectionTransfer';
 
 /** Background and name carried over when a scene is created from a map asset. */
 export interface CreateScenePrefill {
@@ -14,7 +15,7 @@ export interface CreateScenePrefill {
   defaultName: string;
 }
 
-export interface AssetCrudActions {
+export interface AssetCrudActions extends CollectionTransferActions {
   // Modal state
   isTokenCreatorOpen: boolean;
   isMapCreatorOpen: boolean;
@@ -54,8 +55,6 @@ export interface AssetCrudActions {
   moveAssetsToFolder: (assetIds: string[], targetFolderId: string | null) => Promise<void>;
   handleDrop: (targetFolderId: string | null) => void;
   handleSaveAsEncounter: (tokenAssets: AnyAsset[]) => Promise<void>;
-  handleExportCollection: () => Promise<void>;
-  handleImportCollection: () => void;
 }
 
 export function useAssetCrud(
@@ -274,54 +273,18 @@ export function useAssetCrud(
     if (saved && activeTab === 'encounters') await loadAssetsForActiveTab();
   };
 
-  const handleExportCollection = async (): Promise<void> => {
-    if (!assetService || !selectedCollection) return;
-    try {
-      const cols = await assetService.getCollections();
-      const match = cols.find((c: CollectionMetadata) => c.name === selectedCollection || c.id === selectedCollection);
-      if (!match) return;
-      const blob = await assetService.exportCollection(match.id);
-      const url = URL.createObjectURL(blob);
-      const a = createEl('a');
-      a.href = url;
-      a.download = `${match.name}.atlas-collection.zip`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      showAtlasToast(`Exported "${match.name}"`);
-    } catch (error) {
-      console.error('[useAssetCrud] Export failed:', error);
-      showAtlasToast('Export failed');
-    }
-  };
-
-  const handleImportCollection = (): void => {
-    const input = document.body.createEl('input', {
-      type: 'file',
-      cls: 'atlas-hidden-file-input',
-      attr: { accept: '.zip' },
-    });
-
-    const importSelected = async (): Promise<void> => {
-      const file = input.files?.[0];
-      input.remove();
-      if (!file || !assetService) return;
-      try {
-        await assetService.importCollection(file);
-        const updated = await assetService.getCollections();
-        setCollections(updated.map((c: CollectionMetadata) => c.name));
-        await loadFoldersForActiveTab();
-        await loadAssetsForActiveTab();
-      } catch (error) {
-        console.error('[useAssetCrud] Import failed:', error);
-        showAtlasToast('Import failed');
-      }
-    };
-    input.addEventListener('change', () => { void importSelected(); });
-    input.addEventListener('cancel', () => input.remove());
-    input.click();
-  };
+  const transfer = useCollectionTransfer({
+    app,
+    assetService,
+    selectedCollection,
+    onImported: async (): Promise<void> => {
+      if (!assetService) return;
+      const updated = await assetService.getCollections();
+      setCollections(updated.map((c: CollectionMetadata) => c.name));
+      await loadFoldersForActiveTab();
+      await loadAssetsForActiveTab();
+    },
+  });
 
   return {
     isTokenCreatorOpen, isMapCreatorOpen, editingToken,
@@ -338,6 +301,6 @@ export function useAssetCrud(
     handleCreateCollection, handleRefresh,
     createFolderInVault, deleteAssetFromVault, deleteFolderFromVault,
     moveAssetsToFolder, handleDrop, handleSaveAsEncounter,
-    handleExportCollection, handleImportCollection,
+    ...transfer,
   };
 }

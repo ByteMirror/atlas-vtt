@@ -20,7 +20,7 @@
     "release:validate": "node scripts/prepare-release-assets.js --validate-only",
     "version": "node scripts/sync-version.js && git add manifest.json versions.json CHANGELOG.md src/app/changelog/releases.json",
     "version:check": "node scripts/release-channel.js",
-    "lint": "eslint . --max-warnings 0",
+    "lint": "eslint . --max-warnings 0 --suppressions-location eslint.suppressions.json",
     "lint:scan": "node scripts/lint-scan.js",
     "preflight": "node scripts/preflight.js"
   },

@@ -15,7 +15,7 @@ it('updates every supported setting and follows settings changed elsewhere', () 
   render(<LocalPlayerViewSettingsPanel />);
   const settings = context.settings as SettingsService;
   for (const [label, key] of [
-    ['Show grid', 'showGrid'], ['Show widgets', 'showWidgets'], ['Show HP bars', 'showTokenHP'],
+    ['Show initiative panel', 'showInitiative'], ['Show grid', 'showGrid'], ['Show widgets', 'showWidgets'], ['Show HP bars', 'showTokenHP'],
     ['Show secondary resource bars', 'showTokenStress'], ['Show nameplates', 'showTokenNameplates'],
   ] as const) {
     const toggle = screen.getByRole('switch', { name: label });

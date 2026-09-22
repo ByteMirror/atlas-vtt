@@ -145,6 +145,7 @@ async function waitForRenderedFrameSource(view: AtlasView): Promise<PlayerFrameS
   if (!renderer || !canvas?.instanceOf(HTMLCanvasElement)) return null;
   return {
     canvas,
+    store: view.atlasStore,
     withPlayerSafeFrame: (capture, settings) => renderer.withPlayerSafeFrame(capture, settings),
     getCamera: () => {
       const viewport = view.serviceManager.getRendererService().getViewport();

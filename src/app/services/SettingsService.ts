@@ -29,6 +29,7 @@ export interface AtlasSettings {
     showNotePreviews: boolean;
     showGrid: boolean;
     showWidgets: boolean;
+    showInitiative: boolean;
     showCommandPalette: boolean;
   };
 }
@@ -49,6 +50,7 @@ const DEFAULT_SETTINGS: AtlasSettings = {
     showNotePreviews: false, // Hide note previews
     showGrid: true, // Show grid by default
     showWidgets: true,
+    showInitiative: true,
     showCommandPalette: false // Hide command palette
   },
 };

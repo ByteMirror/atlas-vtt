@@ -10,7 +10,7 @@ import { Sidebar } from './components/Sidebar';
 import { Content } from './components/Content';
 import { ModalLayer } from './components/ModalLayer';
 import { useAssetData } from './hooks/useAssetData';
-import { useSelectionHandlers } from './hooks/useSelectionHandlers';
+import { useSelectionHandlers, type VisibleIds } from './hooks/useSelectionHandlers';
 import { useAssetCrud } from './hooks/useAssetCrud';
 import { useTagsAndCollections } from './hooks/useTagsAndCollections';
 import { useContextMenus } from './hooks/useContextMenus';
@@ -56,12 +56,8 @@ export default function AssetManager({ isOpen, onClose, initialTab }: AssetManag
   const data = useAssetData(activeTab, selectedCollection, isOpen);
   const settings = useAtlasSettings(SettingsService.forApp(data.app));
 
-  const displayedFolders = useMemo(
-    () => data.folders.filter(f => f.type === activeTab && f.parentId === null),
-    [data.folders, activeTab],
-  );
-
-  const sel = useSelectionHandlers([], displayedFolders, data.folders, activeTab, isOpen);
+  const visibleIds = useRef<VisibleIds>({ assets: [], folders: [] });
+  const sel = useSelectionHandlers(visibleIds, data.folders, activeTab, isOpen);
 
   const displayedAssets = useMemo(() => {
     const searchLower = search.toLowerCase();
@@ -84,6 +80,16 @@ export default function AssetManager({ isOpen, onClose, initialTab }: AssetManag
         return sel.sortOrder === 'asc' ? cmp : -cmp;
       });
   }, [data.assets, data.availableTags, sel.selectedFolderId, activeTab, search, sel.selectedTagIds, sel.sortBy, sel.sortOrder]);
+
+  const displayedFolders = useMemo(
+    () => data.folders.filter((folder) => folder.type === activeTab && folder.parentId === sel.selectedFolderId),
+    [data.folders, activeTab, sel.selectedFolderId],
+  );
+
+  visibleIds.current = {
+    assets: displayedAssets.map((asset) => asset.id),
+    folders: displayedFolders.map((folder) => folder.id),
+  };
 
   const crud = useAssetCrud(
     data.app, data.assetService, activeTab, selectedCollection,
@@ -193,7 +199,7 @@ export default function AssetManager({ isOpen, onClose, initialTab }: AssetManag
                 <Content
                   activeTab={activeTab}
                   assets={displayedAssets}
-                  folders={data.folders}
+                  folders={displayedFolders}
                   selectedAssetIds={sel.selectedAssetIds}
                   selectedFolderIds={sel.selectedFolderIds}
                   selectedFolderId={sel.selectedFolderId}

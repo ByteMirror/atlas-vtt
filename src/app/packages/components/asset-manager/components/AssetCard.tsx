@@ -97,7 +97,7 @@ export function AssetCard({
   const handleDoubleClick = async (event: React.MouseEvent): Promise<void> => {
     event.preventDefault();
     event.stopPropagation();
-    if (event.shiftKey) return;
+    if (event.shiftKey || event.ctrlKey || event.metaKey) return;
 
     const spawnCtx: SpawnContext = { app, view, addToken, setSelection, assetService };
 

@@ -99,6 +99,11 @@ export function useAssetManagerEffects({
         setActiveTab((prev) => tabs[(tabs.indexOf(prev) + direction + tabs.length) % tabs.length]!);
         return;
       }
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'f' && !e.shiftKey && !e.altKey) {
+        e.preventDefault();
+        containerRef.current?.querySelector<HTMLInputElement>('.atlas-asset-manager-search input')?.select();
+        return;
+      }
       if ((e.metaKey || e.ctrlKey) && e.key >= '1' && e.key <= '4') {
         const idx = parseInt(e.key) - 1;
         if (idx < tabs.length) { setActiveTab(tabs[idx]!); e.preventDefault(); }

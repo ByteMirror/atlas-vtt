@@ -38,6 +38,7 @@
 
 ## Fixed
 
+- Spawning several selected tokens from the asset manager keeps each token's ring setting and default size, matching single spawns.
 - The current and maximum numbers on token gauges sit close together around the slash. Changing a maximum in the bar popover preserves it as a token override.
 - Deleting an open scene no longer makes Atlas and Obsidian both close its view. Closing the active scene loads the next scene and restores its viewport and undo history.
 - Closing a map waits for its pending saves to finish, and overlapping saves keep their original order.

@@ -13,6 +13,7 @@ import { SettingsService } from '../../../../services/SettingsService';
 
 interface EffectDeps {
   isOpen: boolean;
+  isStatblockImportOpen?: boolean;
   onClose: () => void;
   initialTab: Tab | undefined;
   modalRef: React.RefObject<HTMLDivElement | null>;
@@ -29,13 +30,13 @@ interface EffectDeps {
 }
 
 export function useAssetManagerEffects({
-  isOpen, onClose, initialTab,
+  isOpen, onClose, initialTab, isStatblockImportOpen = false,
   modalRef, containerRef,
   setSearch, setActiveTab, setIsSidebarCollapsed, setSelectedCollection,
   data, sel, crud, tags, statblock,
 }: EffectDeps): void {
   const isAnySubModalOpen =
-    crud.isTokenCreatorOpen || crud.isMapCreatorOpen ||
+    isStatblockImportOpen || crud.isTokenCreatorOpen || crud.isMapCreatorOpen ||
     crud.isCreateSceneModalOpen || crud.inputModalState.isOpen ||
     crud.isMoveModalOpen || crud.settingsModalCollectionId !== null ||
     tags.isTagManagerOpen || tags.isEditTagsModalOpen ||

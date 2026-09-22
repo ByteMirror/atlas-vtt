@@ -1,3 +1,4 @@
+import { wasTokenRegistrationSaved } from './assetRegistrationRecovery';
 import { SettingsService } from './SettingsService';
 import { App, TFile, TFolder } from 'obsidian';
 import type { TokenStateSnapshot } from '../types';
@@ -1013,7 +1014,16 @@ export class AssetService {
     }
 
     this.metadata!.assets[newAsset.id] = newAsset;
-    await this.saveMetadata();
+    try {
+      await this.saveMetadata();
+    } catch (error) {
+      if (newAsset.type !== 'token') throw error;
+      const saved = await wasTokenRegistrationSaved(this.app, newAsset);
+      if (!saved) {
+        delete this.metadata!.assets[newAsset.id];
+        throw error;
+      }
+    }
 
     if (newAsset.type === 'token') SettingsService.forApp(this.app)?.markTokenImported();
     return newAsset;

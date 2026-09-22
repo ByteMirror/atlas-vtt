@@ -1,3 +1,4 @@
+import { StatblockTokenImportService } from './StatblockTokenImportService';
 import { App, TFile, Notice, Modal } from 'obsidian';
 import { EventEmitter } from 'events';
 import { AssetService, type TokenAsset } from './AssetService';
@@ -246,11 +247,7 @@ export class TokenStatblockLinkService extends EventEmitter {
       return linkedToken.imagePath;
     }
     
-    // Otherwise fall back to the image recorded in the statblock's frontmatter.
-    const statblockFile = this.app.vault.getAbstractFileByPath(statblockPath);
-    if (!(statblockFile instanceof TFile)) return null;
-
-    return this.readStatblockImage(statblockFile);
+    return null;
   }
 
   /**
@@ -263,55 +260,19 @@ export class TokenStatblockLinkService extends EventEmitter {
    * import or a token is already linked.
    */
   async createTokenFromStatblockImage(statblockPath: string): Promise<string | null> {
-    const statblockFile = this.app.vault.getAbstractFileByPath(statblockPath);
-    if (!(statblockFile instanceof TFile)) {
-      new Notice('Statblock not found');
-      return null;
-    }
-
-    const existing = await this.getTokenLinkedToStatblock(statblockPath);
-    if (existing) {
-      new Notice('This statblock already has a token');
-      return null;
-    }
-
-    const image = this.readStatblockImage(statblockFile);
-    if (!image) {
-      new Notice('This statblock has no image to import');
-      return null;
-    }
-
-    // The frontmatter may hold a wikilink or a bare vault path.
-    const linkpath = image.replace(/(^\[\[|\]\]$)/g, '').split('|')[0] ?? '';
-    const imageFile = this.app.metadataCache.getFirstLinkpathDest(linkpath, statblockPath);
-    if (!imageFile) {
-      new Notice(`Statblock image not found: ${linkpath}`);
-      return null;
-    }
-
     try {
-      await this.assetService.addTokenAsset({
-        name: statblockFile.basename,
-        imagePath: imageFile.path,
-        tags: [],
-        collection: 'default',
-        statblockPath,
-      });
-      await this.assetService.refreshMetadata();
-
-      this.emit('link-changed', {
-        type: 'linked',
-        tokenImagePath: imageFile.path,
-        statblockPath,
-      });
-
-      new Notice(`Created token from ${statblockFile.basename}`);
-      return imageFile.path;
+      const result = await new StatblockTokenImportService(this.app, this.assetService).import([statblockPath], 'default');
+      const item = result.items[0];
+      if (item?.asset) {
+        this.emit('link-changed', { type: 'linked', tokenImagePath: item.asset.imagePath, statblockPath });
+        new Notice(`Created token from ${item.name}`);
+        return item.asset.imagePath;
+      }
+      new Notice(item?.message ?? 'No token created.');
     } catch (error) {
-      console.error('[TokenStatblockLinkService] Failed to create token from statblock:', error);
-      new Notice('Failed to create token from statblock image');
-      return null;
+      new Notice(error instanceof Error ? error.message : 'Could not import this statblock.');
     }
+    return null;
   }
 
   /**

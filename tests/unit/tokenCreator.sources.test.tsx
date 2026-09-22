@@ -60,3 +60,19 @@ it('preserves edited tags and ring choice when replacing a token image', async (
   expect(container.querySelector('.atlas-token-card__ring')).toBeNull();
   expect(screen.getByRole('button', { name: 'Enemy' }).getAttribute('aria-pressed')).toBe('true');
 });
+
+it('Escape dismisses the layout menu before closing the importer over an active map', async () => {
+  const { app } = createInMemoryApp();
+  const onClose = vi.fn();
+  render(<>
+    <div className="workspace-leaf mod-active"><div className="atlas-react-ui-container" /></div>
+    <AtlasUIContext.Provider value={{ app, view: null, pixiApp: null, renderer: null }}>
+      <TokenCreator isOpen onClose={onClose} initialSource="statblocks" />
+    </AtlasUIContext.Provider>
+  </>);
+  const trigger = await screen.findByRole('button', { name: 'System / layout' });
+  fireEvent.keyDown(trigger, { key: 'Enter' });
+  fireEvent.keyDown(await screen.findByRole('menu'), { key: 'Escape' });
+  expect(onClose).not.toHaveBeenCalled();
+  await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
+});

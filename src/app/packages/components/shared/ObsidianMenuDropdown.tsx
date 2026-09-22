@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { renderEntries, type ContextMenuEntry } from '../../../react/components/context-menu/AtlasContextMenu';
 import { Button } from '../primitives/button';
@@ -30,6 +30,7 @@ export const ObsidianMenuDropdown: React.FC<ObsidianMenuDropdownProps> = ({
   placeholder,
   className
 }) => {
+  const [trigger, setTrigger] = useState<HTMLButtonElement | null>(null);
   const { isOpen, setIsOpen, onCloseAutoFocus } = useExclusiveDropdown();
   const close = (): void => setIsOpen(false);
   const optionEntries = Array.isArray(options)
@@ -52,6 +53,7 @@ export const ObsidianMenuDropdown: React.FC<ObsidianMenuDropdownProps> = ({
     <DropdownMenu.Root open={isOpen} onOpenChange={setIsOpen} modal={false}>
       <DropdownMenu.Trigger asChild>
         <Button
+          ref={setTrigger}
           id={id}
           disabled={disabled}
           variant="ghost"
@@ -67,7 +69,7 @@ export const ObsidianMenuDropdown: React.FC<ObsidianMenuDropdownProps> = ({
           </span>
         </Button>
       </DropdownMenu.Trigger>
-      <DropdownMenu.Portal>
+      <DropdownMenu.Portal container={trigger?.closest<HTMLElement>('[role="dialog"], .modal') ?? trigger?.ownerDocument.body}>
         <DropdownMenu.Content
           className="atlas-ctx-menu atlas-ctx-menu--dropdown"
           side="bottom"

@@ -123,6 +123,8 @@ export function TokenCreator({ isOpen, onClose, mode = 'token', selectedCollecti
     if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent): void => {
       if (!isShortcutScopeActive(windowRef.current)) return;
+      // Let an open menu consume Escape before the importer handles it.
+      if (e.key === 'Escape' && windowRef.current?.querySelector('[aria-haspopup="menu"][aria-expanded="true"]')) return;
       if (e.key === 'Escape' && !isSubmitting) {
         e.preventDefault();
         e.stopPropagation();

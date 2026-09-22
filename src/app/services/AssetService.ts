@@ -981,6 +981,21 @@ export class AssetService {
     return Object.values(this.metadata!.collections);
   }
 
+  /** Finds a collection by its display name or id; the UI lists names, metadata is keyed by id. */
+  async resolveCollectionId(nameOrId: string): Promise<string | null> {
+    const collections = await this.getCollections();
+    return collections.find((collection) => collection.name === nameOrId || collection.id === nameOrId)?.id ?? null;
+  }
+
+  async renameCollection(collectionId: string, name: string): Promise<void> {
+    await this.ensureLoaded();
+    const collection = this.metadata!.collections[collectionId];
+    if (!collection) throw new Error(`Collection ${collectionId} not found`);
+    collection.name = name;
+    collection.modifiedAt = Date.now();
+    await this.saveMetadata();
+  }
+
   async deleteCollection(collectionId: string): Promise<void> {
     if (!this.metadata || collectionId === 'default') {
       return; // Can't delete default collection

@@ -3,6 +3,7 @@ import { createRoot, Root } from 'react-dom/client';
 import React from 'react';
 import AssetManager from '../packages/components/asset-manager/AssetManager';
 import { AtlasUIContext } from '../react/root/AtlasUIContext';
+import { ContextMenuProvider } from '../react/root/ContextMenuContext';
 import type { Tab } from '../packages/components/asset-manager/types';
 
 export class GlobalAssetManagerService {
@@ -50,10 +51,12 @@ export class GlobalAssetManagerService {
     this.root.render(
       React.createElement(AtlasUIContext.Provider, {
         value: contextValue,
-        children: React.createElement(AssetManager, {
-          isOpen: true,
-          onClose: () => this.close(),
-          ...(this.initialTab ? { initialTab: this.initialTab } : {})
+        children: React.createElement(ContextMenuProvider, {
+          children: React.createElement(AssetManager, {
+            isOpen: true,
+            onClose: () => this.close(),
+            ...(this.initialTab ? { initialTab: this.initialTab } : {})
+          })
         })
       })
     );

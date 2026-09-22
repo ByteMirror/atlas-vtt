@@ -119,9 +119,8 @@ export default function AssetManager({ isOpen, onClose, initialTab }: AssetManag
 
   const handleEditCollectionSettings = async (collectionName: string): Promise<void> => {
     if (!data.assetService) return;
-    const cols = await data.assetService.getCollections();
-    const match = cols.find(c => c.name === collectionName || c.id === collectionName);
-    if (match) crud.setSettingsModalCollectionId(match.id);
+    const id = await data.assetService.resolveCollectionId(collectionName);
+    if (id) crud.setSettingsModalCollectionId(id);
   };
 
   if (!isOpen) return null;

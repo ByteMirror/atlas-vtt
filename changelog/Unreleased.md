@@ -30,6 +30,8 @@
 
 ## Fixed
 
+- Deleting or renaming a collection in Manage Tags & Collections now sticks: the collection and its assets are removed from the vault, and the dropdown no longer shows it after reopening the asset manager. Deleting asks for confirmation first, and the default collection cannot be deleted.
+- Right-clicking assets, folders, tags and music in the asset manager and music player opened from the dashboard shows the context menu again, including when no map is open or another map tab was closed.
 - Fantasy Statblocks import actions stay in a padded footer while the list scrolls, and the system/layout filter uses the Atlas dropdown.
 
 - The local player window no longer shows hidden tokens, the selection outline, marquee, token controls or resize and rotation handles from the DM view.

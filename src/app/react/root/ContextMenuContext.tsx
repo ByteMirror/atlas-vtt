@@ -25,20 +25,21 @@ export const useContextMenu = (): ContextMenuController => {
 
 // ── Global helpers (non-React callers like PIXI renderers) ──────────────────
 
-type OpenContextMenuFn = (entries: ContextMenuEntry[], position: { x: number; y: number }) => void;
-
-let globalOpen: OpenContextMenuFn | null = null;
-let globalClose: (() => void) | null = null;
+/**
+ * Every mounted provider registers here. The newest one serves callers outside
+ * React, so a provider that unmounts never disables the ones still on screen.
+ */
+const controllers: ContextMenuController[] = [];
 
 export function openContextMenuGlobal(
   entries: ContextMenuEntry[],
   position: { x: number; y: number },
 ): void {
-  globalOpen?.(entries, position);
+  controllers[controllers.length - 1]?.open(entries, position);
 }
 
 export function closeContextMenuGlobal(): void {
-  globalClose?.();
+  for (const controller of controllers) controller.close();
 }
 
 // ── Provider ────────────────────────────────────────────────────────────────
@@ -57,13 +58,11 @@ export const ContextMenuProvider: React.FC<{ children: React.ReactNode }> = ({ c
     setMenuState({ entries, position });
   }, []);
 
-  // Wire up global helpers
   useEffect(() => {
-    globalOpen = open;
-    globalClose = close;
+    const controller: ContextMenuController = { open, close };
+    controllers.push(controller);
     return () => {
-      if (globalOpen === open) globalOpen = null;
-      if (globalClose === close) globalClose = null;
+      controllers.splice(controllers.indexOf(controller), 1);
     };
   }, [open, close]);
 

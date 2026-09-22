@@ -10,10 +10,12 @@ import { Container, FederatedPointerEvent } from 'pixi.js';
 import { Viewport } from 'pixi-viewport';
 import { App } from 'obsidian';
 import { openEditTokenModal } from './EditTokenModal';
+import { STATBLOCK_UNLINK_UPDATES } from './statblockFrontmatter';
 import { openContextMenuGlobal, closeContextMenuGlobal, type ContextMenuEntry } from '../../react/root/ContextMenuContext';
 import { DestructiveActionRow } from './DestructiveActionRow';
-import type { ITokenInteractionController } from './types';
+import type { ITokenInteractionController, TokenGroupContainer } from './types';
 import type { TokenEntity } from '../../types';
+import type { InitiativeEntry } from '../../types/initiativeTypes';
 import type { ViewAtlasState } from '../../storeFactory';
 import type { StoreApi } from 'zustand';
 import type { GridSystem } from '../../grid/GridSystem';
@@ -25,6 +27,7 @@ import type { ConditionDefinition } from '../../types/collectionSettingsTypes';
 import { WALLS_AND_LIGHTING_ENABLED } from '../../featureFlags';
 import { saveMapTokensAsEncounter } from '../../encounters/saveMapTokensAsEncounter';
 import { runInBackground } from '../../utils/backgroundTask';
+import { tokenSizeSubmenu } from '../../react/components/context-menu/tokenSizeMenu';
 
 interface DragState {
   isDragging: boolean;
@@ -66,7 +69,7 @@ export class InteractionController implements ITokenInteractionController {
   // Callbacks for external systems
   private onSelectionUpdate?: () => void;
   private onTokenMove?: (tokenId: string, x: number, y: number) => void;
-  private getTokenSprite?: (tokenId: string) => Container | null;
+  private getTokenSprite?: (tokenId: string) => TokenGroupContainer | null;
   private updateUIPosition?: (tokenId: string, x: number, y: number) => void;
   private updateControlsPosition?: (x: number, y: number, tokenSize: number) => void;
   private updateHandlePositions?: () => void;
@@ -161,13 +164,10 @@ export class InteractionController implements ITokenInteractionController {
       this.handleHoverEnd(prevId);
       // Emit hide preview for previous token
       const prevToken = this.store.getState().objects.tokens[prevId];
-      if (prevToken) {
-        const character = prevToken as any;
-        if (character.statblockPath?.trim()) {
-          this.eventBus.emit('pin-hide-preview', {
-            pin: { id: prevToken.id, notePath: character.statblockPath, x: prevToken.x, y: prevToken.y, type: 'token' },
-          });
-        }
+      if (prevToken?.kind === 'character' && prevToken.statblockPath?.trim()) {
+        this.eventBus.emit('pin-hide-preview', {
+          pin: { id: prevToken.id, notePath: prevToken.statblockPath, x: prevToken.x, y: prevToken.y, type: 'token' },
+        });
       }
     }
 
@@ -177,31 +177,27 @@ export class InteractionController implements ITokenInteractionController {
       this.handleHoverStart(tokenId);
       // Emit hover preview for new token
       const token = this.store.getState().objects.tokens[tokenId];
-      if (token && e) {
-        const character = token as any;
-        if (character.statblockPath?.trim()) {
-          const screenX = (e as any).clientX ?? e.global.x;
-          const screenY = (e as any).clientY ?? e.global.y;
-          this.eventBus.emit('pin-hover-preview', {
-            pin: {
-              id: token.id,
-              notePath: character.statblockPath,
-              x: token.x,
-              y: token.y,
-              type: 'token',
-              // Vitals travel with the pin so the preview can mirror them.
-              name: character.name,
-              hp: character.hp,
-              stress: character.stress,
-              maxStress: character.maxStress,
-              imagePath: character.imagePath,
-              ringColor: character.ringColor,
-            },
-            screenX,
-            screenY,
-            pixiEvent: e,
-          });
-        }
+      if (token?.kind === 'character' && e && token.statblockPath?.trim()) {
+        this.eventBus.emit('pin-hover-preview', {
+          pin: {
+            id: token.id,
+            notePath: token.statblockPath,
+            x: token.x,
+            y: token.y,
+            type: 'token',
+            // Vitals travel with the pin so the preview can mirror them.
+            name: token.name,
+            hp: token.hp,
+            stress: token.stress,
+            maxStress: token.maxStress,
+            imagePath: token.imagePath,
+            ringColor: token.ringColor,
+            showRing: token.showRing,
+          },
+          screenX: e.clientX,
+          screenY: e.clientY,
+          pixiEvent: e,
+        });
       }
     }
   }
@@ -211,57 +207,37 @@ export class InteractionController implements ITokenInteractionController {
     return this.dragState.isDragging;
   }
 
-  private createPointerDownHandler(token: TokenEntity, container: Container) {
-    return (e: FederatedPointerEvent) => {
-      // Check if a measure tool is active
-      const activeTool = this.store.getState().activeTool;
-      if (activeTool === 'measure' || activeTool === 'measure-circle' || activeTool === 'measure-cone') {
-        // Don't handle token interactions when measure tool is active
-        // Let the event propagate to the appropriate tool
-        return;
-      }
-      
-      e.stopPropagation();
-      
-      if (e.button === 2) {
-        // Right click - show context menu
-        e.preventDefault();
-        if (!this.isPlayerView) {
-          this.showContextMenu(token, e);
-        }
-        return;
-      }
-      
-      // Left click - prepare for potential drag or click
-      if (this.isPlayerView) {
-        return;
-      }
-      this.prepareInteraction(token, e);
-    };
-  }
-
   private prepareInteraction(token: TokenEntity, e: FederatedPointerEvent): void {
+    const { selectedIds, setSelection } = this.store.getState();
+    const isTokenSelected = selectedIds.includes(token.id);
+
+    // Shift-click toggles membership; removing never starts a drag.
+    if (e.shiftKey && isTokenSelected) {
+      setSelection(selectedIds.filter((id) => id !== token.id));
+      return;
+    }
+
     this.viewport.plugins.pause('drag');
     
     // Clean up any existing listeners before attaching new ones
     // This prevents accumulation if previous interaction didn't clean up properly
     this.cleanupDragListeners();
     
-    const selectedIds = this.store.getState().selectedIds;
-    const isTokenSelected = selectedIds.includes(token.id);
-    
     // Store the token for potential click handling
     this.dragState.clickToken = token;
     this.dragState.hasMoved = false;
     
     // Determine which tokens to potentially drag
-    if (isTokenSelected && selectedIds.length > 1) {
+    if (e.shiftKey) {
+      this.dragState.dragIds = [...selectedIds, token.id];
+      setSelection(this.dragState.dragIds);
+    } else if (isTokenSelected && selectedIds.length > 1) {
       this.dragState.dragIds = [...selectedIds];
     } else {
       this.dragState.dragIds = [token.id];
       // Always select the clicked token immediately
       // This ensures clicking on a different token switches selection
-      this.store.getState().setSelection(this.dragState.dragIds);
+      setSelection(this.dragState.dragIds);
     }
 
     // Initialize drag state
@@ -359,7 +335,7 @@ export class InteractionController implements ITokenInteractionController {
       if (selectedId) {
         const sprite = this.getTokenSprite?.(selectedId);
         if (sprite) {
-          const tokenSize = (sprite.getChildByLabel('tokenSprite') as any)?.width || 70;
+          const tokenSize = sprite.getChildByLabel('tokenSprite')?.width || 70;
           this.updateControlsPosition?.(sprite.position.x, sprite.position.y, tokenSize);
         }
       }
@@ -464,7 +440,7 @@ export class InteractionController implements ITokenInteractionController {
           const finalUpdate = tokenUpdates.find(u => u.id === selectedId);
           if (finalUpdate) {
             const sprite = this.getTokenSprite?.(selectedId);
-            const tokenSize = sprite ? (sprite.getChildByLabel('tokenSprite') as any)?.width || 70 : 70;
+            const tokenSize = sprite?.getChildByLabel('tokenSprite')?.width || 70;
             this.updateControlsPosition?.(finalUpdate.x, finalUpdate.y, tokenSize);
           }
         }
@@ -497,13 +473,13 @@ export class InteractionController implements ITokenInteractionController {
   }
 
   private showContextMenu(token: TokenEntity, e: FederatedPointerEvent): void {
-    const character = token as any;
+    const character = token.kind === 'character' ? token : undefined;
     const entries: ContextMenuEntry[] = [];
 
     // Condition toggles
     const conditionDefs = this.getConditionDefs();
     if (conditionDefs.length > 0) {
-      const tokenConditions: string[] = character.conditions ?? [];
+      const tokenConditions = token.conditions ?? [];
       entries.push({
         type: 'submenu',
         label: 'Conditions',
@@ -523,6 +499,10 @@ export class InteractionController implements ITokenInteractionController {
       });
       entries.push({ type: 'separator' });
     }
+
+    // Size
+    entries.push(tokenSizeSubmenu(token.size, size => this.store.getState().updateToken(token.id, { size })));
+    entries.push({ type: 'separator' });
 
     // Hide/Show
     const currentToken = this.store.getState().objects.tokens[token.id];
@@ -571,7 +551,7 @@ export class InteractionController implements ITokenInteractionController {
 
     // Initiative
     const initiativeEntries = this.store.getState().initiative?.entries || [];
-    const isInInitiative = initiativeEntries.some((entry: any) => entry.tokenId === token.id);
+    const isInInitiative = initiativeEntries.some((entry) => entry.tokenId === token.id);
     entries.push({
       type: 'item',
       label: isInInitiative ? 'Remove from Initiative' : 'Add to Initiative',
@@ -583,14 +563,15 @@ export class InteractionController implements ITokenInteractionController {
 
     // Statblock linking
     const obsApp = this.obsApp;
-    if (character.statblockPath) {
+    const statblockPath = character?.statblockPath;
+    if (statblockPath) {
       entries.push({
         type: 'item',
         label: 'Edit Statblock',
         icon: 'file-text',
         onClick: async () => {
           if (obsApp) {
-            const file = obsApp.vault.getAbstractFileByPath(character.statblockPath);
+            const file = obsApp.vault.getAbstractFileByPath(statblockPath);
             if (file) await obsApp.workspace.openLinkText(file.path, '', true);
           }
         },
@@ -600,18 +581,10 @@ export class InteractionController implements ITokenInteractionController {
         label: 'Unlink Statblock',
         icon: 'unlink',
         onClick: async () => {
-          if (obsApp && character.imagePath) {
+          if (obsApp && token.imagePath) {
             const linkService = TokenStatblockLinkService.getInstance(obsApp);
-            await linkService.unlinkToken(character.imagePath);
-            this.store.getState().updateToken(token.id, {
-              statblockPath: undefined,
-              name: undefined,
-              statblockName: undefined,
-              hp: undefined,
-              stress: undefined,
-              difficulty: undefined,
-              showNameplate: false,
-            } as any);
+            await linkService.unlinkToken(token.imagePath);
+            this.store.getState().updateToken(token.id, STATBLOCK_UNLINK_UPDATES);
           }
         },
       });
@@ -621,7 +594,7 @@ export class InteractionController implements ITokenInteractionController {
         label: 'Link Statblock',
         icon: 'link',
         onClick: () => {
-          if (obsApp && character.imagePath) {
+          if (obsApp && token.imagePath) {
             const dialogService = new StatblockDialogService(obsApp);
             const linkService = TokenStatblockLinkService.getInstance(obsApp);
             dialogService.showStatblockDialog(
@@ -629,14 +602,14 @@ export class InteractionController implements ITokenInteractionController {
               (statblockPath: string | null) => {
                 if (!statblockPath) return;
                 runInBackground(
-                  linkService.linkTokenToStatblock(character.imagePath, statblockPath).then(() => {
-                    this.store.getState().updateToken(token.id, { statblockPath } as any);
+                  linkService.linkTokenToStatblock(token.imagePath, statblockPath).then(() => {
+                    this.store.getState().updateToken(token.id, { statblockPath });
                   }),
                   `Linking statblock ${statblockPath}`,
                   'Could not link the statblock',
                 );
               },
-              character.name || 'Token',
+              character?.name || 'Token',
             );
           }
         },
@@ -646,7 +619,7 @@ export class InteractionController implements ITokenInteractionController {
     entries.push({ type: 'separator' });
 
     // Ring color submenu
-    const currentRingColor = character.ringColor;
+    const currentRingColor = token.ringColor;
     const ringColors = [
       { name: 'Default', value: null },
       { name: 'Blue', value: '#086ddd' },
@@ -674,7 +647,7 @@ export class InteractionController implements ITokenInteractionController {
     });
 
     // Reset (only if token has HP)
-    if (character.hp !== undefined) {
+    if (character?.hp !== undefined) {
       entries.push({
         type: 'item',
         label: 'Reset (Full HP, Clear Status)',
@@ -715,7 +688,7 @@ export class InteractionController implements ITokenInteractionController {
     this.onSelectionUpdate = callback;
   }
 
-  setTokenSpriteProvider(provider: (tokenId: string) => Container | null): void {
+  setTokenSpriteProvider(provider: (tokenId: string) => TokenGroupContainer | null): void {
     this.getTokenSprite = provider;
   }
 
@@ -732,11 +705,10 @@ export class InteractionController implements ITokenInteractionController {
   }
 
   private renderDestructiveRow(token: TokenEntity): React.ReactNode {
-    const character = token as any;
     return React.createElement(DestructiveActionRow, {
       tokenId: token.id,
       store: this.store,
-      hasHp: character.hp !== undefined,
+      hasHp: token.kind === 'character' && token.hp !== undefined,
       onClose: () => closeContextMenuGlobal(),
     });
   }
@@ -749,14 +721,13 @@ export class InteractionController implements ITokenInteractionController {
     const initiativeEntries = this.store.getState().initiative?.entries || [];
 
     if (isInInitiative) {
-      const entry = initiativeEntries.find((e: any) => e.tokenId === token.id);
+      const entry = initiativeEntries.find((e) => e.tokenId === token.id);
       if (entry) this.store.getState().removeFromInitiative(entry.id);
     } else {
-      const character = token as any;
-      const isCharacter = token.kind === 'character';
+      const character = token.kind === 'character' ? token : undefined;
 
       let hp: { current: number; max: number };
-      if (isCharacter && character.hp) {
+      if (character?.hp) {
         hp = typeof character.hp === 'object'
           ? { current: character.hp.current, max: character.hp.max }
           : { current: character.hp, max: character.hp };
@@ -764,24 +735,24 @@ export class InteractionController implements ITokenInteractionController {
         hp = { current: 10, max: 10 };
       }
 
-      const entry: any = {
+      const entry: Omit<InitiativeEntry, 'id' | 'order' | 'isActive'> = {
         tokenId: token.id,
-        name: isCharacter ? character.name : 'Token',
+        name: character ? character.name : 'Token',
         initiative: 0,
         initiativeModifier: 0,
         hp,
         imagePath: token.imagePath,
         isDefeated: hp.current <= 0,
-        isNPC: !isCharacter || !character.playerLinked,
+        isNPC: !character?.playerLinked,
       };
 
-      if (isCharacter && character.stress !== undefined) {
+      if (character?.stress !== undefined) {
         entry.stress = typeof character.stress === 'object'
           ? { current: character.stress.current, max: character.stress.max }
           : { current: character.stress, max: character.maxStress ?? 10 };
       }
 
-      if (isCharacter && character.statblockPath) {
+      if (character?.statblockPath) {
         entry.statblockPath = character.statblockPath;
       }
 
@@ -798,7 +769,7 @@ export class InteractionController implements ITokenInteractionController {
   }
 
   private showEditTokenModal(token: TokenEntity): void {
-    openEditTokenModal(token, this.store);
+    openEditTokenModal(token, this.store, this.obsApp);
   }
 
   destroyAll(): void {

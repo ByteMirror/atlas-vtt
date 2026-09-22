@@ -7,14 +7,7 @@ import { AtlasUIContext } from '../../src/app/react/root/AtlasUIContext';
 import { TokenCreator } from '../../src/app/packages/components/asset-manager/TokenCreator';
 import CreateSceneModal from '../../src/app/packages/components/asset-manager/CreateSceneModal';
 
-const { blob, previews } = vi.hoisted(() => {
-  const blob = { arrayBuffer: async () => new ArrayBuffer(1) };
-  return { blob, previews: {
-    previews: [{ id: 'one', name: 'Test', file: {}, imageScale: 1, imagePosition: { x: 0, y: 0 } }],
-    selectedIds: [], reset: () => {}, waitForOptimized: async () => blob,
-  } };
-});
-vi.mock('../../src/app/packages/components/asset-manager/token-creator/useTokenPreviews', () => ({ useTokenPreviews: () => previews }));
+const { blob } = vi.hoisted(() => ({ blob: { arrayBuffer: async () => new ArrayBuffer(1) } }));
 vi.mock('../../src/app/packages/components/asset-manager/token-creator/TokenPreviewCard', () => ({ TokenPreviewCard: () => null }));
 vi.mock('../../src/app/packages/components/asset-manager/token-creator/bakeTokenCrop', () => ({ bakeTokenCrop: async () => blob }));
 vi.mock('../../src/app/utils/imageOptimizer', () => ({ optimizeImage: async () => ({ blob }), OPTIMIZATION_PRESETS: { token: {} } }));
@@ -42,6 +35,9 @@ const app = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} });
+  URL.createObjectURL = vi.fn(() => 'blob:art');
+  URL.revokeObjectURL = vi.fn();
   service.getCollections.mockResolvedValue([{ id: 'default', name: 'Default' }]);
   app.vault.getAbstractFileByPath.mockReturnValue(null);
   app.vault.getFolderByPath.mockImplementation((path: string) => new TFolder(path));
@@ -65,6 +61,7 @@ async function selectAndCreateTags() {
 
 it.each(['token', 'map'] as const)('persists selected and newly created tags when importing a %s', async (mode) => {
   mount(<TokenCreator isOpen onClose={() => {}} mode={mode} />);
+  fireEvent.change(document.querySelector('input[type=file]')!, { target: { files: [new File(['art'], 'Test.png', { type: 'image/png' })] } });
   await selectAndCreateTags();
   fireEvent.click(screen.getByRole('button', { name: /^Create/ }));
   const save = mode === 'token' ? service.addTokenAsset : service.addAsset;

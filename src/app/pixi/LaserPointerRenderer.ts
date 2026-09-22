@@ -223,7 +223,7 @@ export class LaserPointerRenderer {
     }
   }
 
-  private handlePointerUpOutside(_e: any): void {
+  private handlePointerUpOutside(): void {
     if (this.isQuickMode) {
       this.isQuickMode = false;
       this.isPointing = false;

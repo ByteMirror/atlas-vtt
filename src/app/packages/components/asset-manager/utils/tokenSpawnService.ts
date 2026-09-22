@@ -11,6 +11,7 @@ import {
   type FormationSlot,
 } from '../../../../encounters/encounterFormation';
 import type { AtlasView } from '../../../../atlas-view';
+import type { ViewAtlasState } from '../../../../storeFactory';
 
 // ─── Viewport helpers ───────────────────────────────────────────────
 
@@ -33,7 +34,7 @@ interface GridSystemLike {
 export interface SpawnContext {
   app: ObsidianApp;
   view: AtlasView | null;
-  addToken: (data: any) => string;
+  addToken: ViewAtlasState['addToken'];
   setSelection: (ids: string[]) => void;
   assetService: AssetService | null;
 }
@@ -119,15 +120,51 @@ interface TokenSpawnData extends Omit<StatblockOverrides, 'hp'> {
   maxStress?: number;
   difficulty?: string;
   size?: number;
+  showRing?: boolean;
+}
+
+/** What a spawned token inherits from its asset. */
+interface TokenSource {
+  imagePath: string;
+  name: string;
+  statblockPath: string | null;
+  size?: number | undefined;
+  showRing?: boolean | undefined;
+}
+
+/** Fields an asset-manager view model or stored token reference may carry. */
+interface TokenSourceRef {
+  id?: string;
+  name?: string;
+  imagePath?: string;
+  imageUrl?: string;
+  statblockPath?: string;
+  size?: number;
+  showRing?: boolean;
+}
+
+/** Latest service record for the asset layered over the reference, so spawns use current paths and defaults. */
+async function resolveTokenSource(ctx: SpawnContext, ref: TokenSourceRef): Promise<TokenSource | null> {
+  const latest = ctx.assetService && ref.id ? await ctx.assetService.getAssetById(ref.id) : null;
+  const record = latest?.type === 'token' ? latest : null;
+  const imagePath = record?.imagePath ?? ref.imagePath ?? ref.imageUrl;
+  if (!imagePath) {
+    console.error('[tokenSpawnService] Token asset missing imagePath:', ref);
+    return null;
+  }
+  return {
+    imagePath,
+    name: ref.name || 'Token',
+    statblockPath: record?.statblockPath ?? ref.statblockPath ?? null,
+    size: record?.size ?? ref.size,
+    showRing: record?.showRing ?? ref.showRing,
+  };
 }
 
 async function buildTokenData(
   app: ObsidianApp,
   pos: { x: number; y: number },
-  imagePath: string,
-  name: string,
-  statblockPath: string | null,
-  size?: number
+  { imagePath, name, statblockPath, size, showRing }: TokenSource
 ): Promise<TokenSpawnData> {
   const data: TokenSpawnData = {
     x: pos.x,
@@ -139,6 +176,7 @@ async function buildTokenData(
   };
 
   if (size !== undefined) data.size = size;
+  if (showRing !== undefined) data.showRing = showRing;
 
   if (statblockPath) {
     data.statblockPath = statblockPath;
@@ -167,30 +205,13 @@ export async function spawnTokenAsset(
   const { viewport, grid, pitch } = target;
   const gridSystem = grid ? target.gridSystem : null;
   const center = getViewportCenter(viewport);
-
-  // Get fresh asset data
-  let freshAsset = asset;
-  if (ctx.assetService) {
-    const latest = await ctx.assetService.getAssetById(asset.id);
-    if (latest && latest.type === 'token') {
-      freshAsset = latest as unknown as TokenAsset;
-    }
-  }
-
-  const vaultPath = freshAsset.imagePath;
-  if (!vaultPath) {
-    console.error('[tokenSpawnService] Token asset missing imagePath:', freshAsset);
-    return [];
-  }
-  const statblockPath = freshAsset.statblockPath || null;
+  const source = await resolveTokenSource(ctx, asset);
+  if (!source) return [];
 
   const spawnedIds: string[] = [];
   for (let i = 0; i < count; i++) {
     const pos = gridPosition(i, count, center.x, center.y, pitch, gridSystem);
-    const tokenData = await buildTokenData(
-      ctx.app, pos, vaultPath, asset.name, statblockPath
-    );
-    spawnedIds.push(ctx.addToken(tokenData));
+    spawnedIds.push(ctx.addToken(await buildTokenData(ctx.app, pos, source)));
   }
 
   ctx.setSelection(spawnedIds);
@@ -252,14 +273,12 @@ export async function spawnEncounterTokens(
     // A saved state snapshot is restored verbatim; older encounters rebuild from the statblock.
     const tokenData = token.state
       ? { ...token.state, imagePath: token.imagePath, x: pos.x, y: pos.y }
-      : await buildTokenData(
-          ctx.app,
-          pos,
-          token.imagePath,
-          token.name || `Token ${i + 1}`,
-          token.statblockPath || null,
-          token.size
-        );
+      : await buildTokenData(ctx.app, pos, {
+          imagePath: token.imagePath,
+          name: token.name || `Token ${i + 1}`,
+          statblockPath: token.statblockPath || null,
+          size: token.size,
+        });
     spawnedIds.push(ctx.addToken(tokenData));
   }
 
@@ -292,26 +311,10 @@ export async function spawnSelectedTokens(
     const tokenAsset = tokensToSpawn[i];
     if (!tokenAsset) continue;
 
+    const source = await resolveTokenSource(ctx, tokenAsset);
+    if (!source) continue;
     const pos = gridPosition(i, tokensToSpawn.length, center.x, center.y, pitch, gridSystem);
-
-    let vaultPath = tokenAsset.imagePath || tokenAsset.imageUrl;
-    let statblockPath = tokenAsset.statblockPath || null;
-
-    // Refresh from service for latest paths
-    if (ctx.assetService && tokenAsset.id) {
-      const serviceAsset = await ctx.assetService.getAssetById(tokenAsset.id);
-      if (serviceAsset?.type === 'token') {
-        vaultPath = serviceAsset.imagePath;
-        if (serviceAsset.statblockPath) {
-          statblockPath = serviceAsset.statblockPath;
-        }
-      }
-    }
-
-    const tokenData = await buildTokenData(
-      ctx.app, pos, vaultPath, tokenAsset.name || 'Token', statblockPath
-    );
-    spawnedIds.push(ctx.addToken(tokenData));
+    spawnedIds.push(ctx.addToken(await buildTokenData(ctx.app, pos, source)));
   }
 
   if (spawnedIds.length > 0) {

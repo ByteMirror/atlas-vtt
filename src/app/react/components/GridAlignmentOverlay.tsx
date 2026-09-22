@@ -9,6 +9,7 @@ import { describeGridType } from '../hooks/useGridAlignmentEffects';
 import { IntersectionsTab } from './IntersectionsTab';
 import { FreeSizeTab } from './FreeSizeTab';
 import { CloseButton } from '../../packages/components/primitives/CloseButton';
+import { LabelTooltip } from '../../packages/components/primitives/tooltip';
 
 // ---------------------------------------------------------------------------
 // Props
@@ -134,7 +135,7 @@ export function GridAlignmentOverlay({ onClose }: GridAlignmentOverlayProps): Re
       setResult(detected);
       controllerRef.current?.showPreview(detected.cellSize, detected.offsetX, detected.offsetY, detected.gridType);
       setDetectionStatus(
-        `Detected ${describeGridType(detected.gridType)}, ${detected.cellSize.toFixed(2)} px (confidence ${detected.confidence?.toFixed(1)}×). Check the preview, then Apply.`,
+        `Detected ${describeGridType(detected.gridType)}, ${detected.cellSize.toFixed(2)} px (found on ${Math.round((detected.confidence ?? 0) * 100)}% of the map). Check the preview, then Apply.`,
       );
     }, 30);
   }, [view, detecting]);
@@ -228,15 +229,16 @@ export function GridAlignmentOverlay({ onClose }: GridAlignmentOverlayProps): Re
         </div>
 
         {/* Automatic detection from the map image; the tabs below stay available as the manual path */}
-        <button
-          className="atlas-grid-alignment-btn atlas-grid-alignment-btn--secondary atlas-grid-alignment-btn--wide"
-          disabled={detecting}
-          onClick={handleAutoDetect}
-          title="Detect grid type, size and offset from the map image"
-        >
-          <Wand2 size={14} />
-          {detecting ? 'Detecting…' : 'Auto-detect from map image'}
-        </button>
+        <LabelTooltip label="Detect grid type, size and offset from the map image">
+          <button
+            className="atlas-grid-alignment-btn atlas-grid-alignment-btn--secondary atlas-grid-alignment-btn--wide"
+            disabled={detecting}
+            onClick={handleAutoDetect}
+          >
+            <Wand2 size={14} />
+            {detecting ? 'Detecting…' : 'Auto-detect from map image'}
+          </button>
+        </LabelTooltip>
         {detectionStatus && <p className="atlas-grid-alignment-hint">{detectionStatus}</p>}
 
         {/* Active tab content */}

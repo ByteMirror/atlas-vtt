@@ -4,6 +4,7 @@
  */
 
 import type { StatblockItem, StatblockMonster } from './statblockTypes';
+import { runCallback } from './layoutCallbacks';
 
 /** Flattens arbitrary frontmatter values to display text, as Fantasy Statblocks does. */
 export function stringify(
@@ -46,31 +47,6 @@ export function toTitleCase(str: string): string {
 /** Signed modifier, e.g. `+3` / `-1`. */
 export function signed(value: number): string {
   return `${value >= 0 ? '+' : '-'}${Math.abs(value)}`;
-}
-
-/**
- * Runs a layout-supplied callback.
- *
- * Trust boundary: `code` comes from a Fantasy Statblocks layout definition,
- * which lives in the user's own vault and is authored by them — the same trust
- * level other plugin config, and the same thing Fantasy Statblocks does
- * with these callbacks. No remote or document content reaches this function.
- * Failures fall back to the untransformed value rather than breaking the render.
- */
-export function runCallback<T>(
-  code: string | undefined,
-  args: Record<string, unknown>,
-  fallback: T,
-): T {
-  if (!code) return fallback;
-  try {
-    const names = Object.keys(args);
-    const fn = new Function(...names, code) as (...values: unknown[]) => T;
-    return fn(...names.map((name) => args[name])) ?? fallback;
-  } catch (error) {
-    console.error('[Statblock] Layout callback failed:', error);
-    return fallback;
-  }
 }
 
 /** Mirrors Fantasy Statblocks' `checkConditioned`. */

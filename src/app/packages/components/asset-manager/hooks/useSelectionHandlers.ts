@@ -1,7 +1,14 @@
 import type * as React from 'react';
-import { useState, useEffect } from 'react';
-import type { AnyAsset, Folder, Tab, SortOption, SortOrder } from '../types';
+import { useState, useEffect, useRef } from 'react';
+import type { Folder, Tab, SortOption, SortOrder, SelectionEvent } from '../types';
 import { NavigationHistory } from '../NavigationHistory';
+import { applyClickSelection, resolveSelectAll } from '../utils/clickSelection';
+
+/** IDs currently rendered, in display order, so Shift-click can span them. */
+export interface VisibleIds {
+  assets: string[];
+  folders: string[];
+}
 
 export interface SelectionState {
   selectedAssetIds: string[];
@@ -21,9 +28,9 @@ export interface SelectionState {
   setSortBy: React.Dispatch<React.SetStateAction<SortOption>>;
   setSortOrder: React.Dispatch<React.SetStateAction<SortOrder>>;
   // Handlers
-  handleAssetSelect: (assetId: string, event?: React.MouseEvent) => void;
+  handleAssetSelect: (assetId: string, event?: SelectionEvent, toggle?: boolean) => void;
   handleFolderSelect: (folderId: string | null) => void;
-  handleFolderSelection: (folderId: string, event?: React.MouseEvent) => void;
+  handleFolderSelection: (folderId: string, event?: SelectionEvent) => void;
   handleFolderDoubleClick: (folderId: string) => void;
   handleNavigateBack: () => void;
   handleNavigateForward: () => void;
@@ -35,8 +42,7 @@ export interface SelectionState {
 }
 
 export function useSelectionHandlers(
-  displayedAssets: AnyAsset[],
-  displayedFolders: Folder[],
+  visibleIds: React.RefObject<VisibleIds>,
   folders: Folder[],
   activeTab: Tab,
   isOpen: boolean
@@ -60,40 +66,23 @@ export function useSelectionHandlers(
 
   // ── Handlers ──────────────────────────────────────────────────
 
-  const handleAssetSelect = (assetId: string, event?: React.MouseEvent, toggle = false): void => {
-    const isShiftKey = event?.shiftKey;
+  const assetAnchor = useRef<string | null>(null);
+  const folderAnchor = useRef<string | null>(null);
 
-    if (!isShiftKey && !toggle) {
-      setSpawnCounts({});
-      setSelectedAssetIds([assetId]);
-      return;
-    }
-
-    if (!isShiftKey) {
-      setSpawnCounts(({ [assetId]: _removed, ...rest }) => rest);
-    }
-
-    setSelectedAssetIds((prev) => {
-      if (isShiftKey && prev.length > 0) {
-        if (prev.includes(assetId)) {
-          setSpawnCounts((p) => ({ ...p, [assetId]: (p[assetId] || 1) + 1 }));
-          return prev;
-        }
-        const allIds = displayedAssets.map((a) => a.id);
-        const lastIdx = allIds.indexOf(prev[prev.length - 1]!);
-        const curIdx = allIds.indexOf(assetId);
-        if (lastIdx !== -1 && curIdx !== -1) {
-          const [lo, hi] = lastIdx < curIdx ? [lastIdx, curIdx] : [curIdx, lastIdx];
-          return [...new Set([...prev, ...allIds.slice(lo, hi + 1)])];
-        }
-      }
-
-      if (toggle) {
-        return prev.includes(assetId) ? prev.filter((id) => id !== assetId) : [...prev, assetId];
-      }
-
-      return [assetId];
+  const handleAssetSelect = (assetId: string, event?: SelectionEvent, toggle = false): void => {
+    const next = applyClickSelection({
+      selected: selectedAssetIds,
+      orderedIds: visibleIds.current.assets,
+      id: assetId,
+      anchorId: assetAnchor.current,
+      event,
+      toggle,
     });
+    assetAnchor.current = next.anchorId;
+    setSelectedAssetIds(next.selected);
+    setSpawnCounts((prev) =>
+      Object.fromEntries(Object.entries(prev).filter(([id]) => next.selected.includes(id)))
+    );
   };
 
   const handleFolderSelect = (folderId: string | null): void => {
@@ -102,29 +91,16 @@ export function useSelectionHandlers(
     setSelectedFolderIds([]);
   };
 
-  const handleFolderSelection = (folderId: string, event?: React.MouseEvent): void => {
-    setSelectedFolderIds((prev) => {
-      const isShift = event?.shiftKey;
-      const isCheckbox = event && (event.target as HTMLElement).tagName === 'INPUT';
-
-      if (isShift && prev.length > 0) {
-        if (prev.includes(folderId)) return prev.filter((id) => id !== folderId);
-        const allIds = displayedFolders.map((f) => f.id);
-        const lastIdx = allIds.indexOf(prev[prev.length - 1]!);
-        const curIdx = allIds.indexOf(folderId);
-        if (lastIdx !== -1 && curIdx !== -1) {
-          const [lo, hi] = lastIdx < curIdx ? [lastIdx, curIdx] : [curIdx, lastIdx];
-          return [...new Set([...prev, ...allIds.slice(lo, hi + 1)])];
-        }
-      }
-
-      if (isCheckbox) {
-        return prev.includes(folderId) ? prev.filter((id) => id !== folderId) : [...prev, folderId];
-      }
-
-      if (!isShift) return [folderId];
-      return [folderId];
+  const handleFolderSelection = (folderId: string, event?: SelectionEvent): void => {
+    const next = applyClickSelection({
+      selected: selectedFolderIds,
+      orderedIds: visibleIds.current.folders,
+      id: folderId,
+      anchorId: folderAnchor.current,
+      event,
     });
+    folderAnchor.current = next.anchorId;
+    setSelectedFolderIds(next.selected);
   };
 
   const handleNavigateToFolder = (folderId: string | null): void => {
@@ -200,21 +176,14 @@ export function useSelectionHandlers(
     const handler = (event: KeyboardEvent): void => {
       if ((event.metaKey || event.ctrlKey) && event.key === 'a') {
         event.preventDefault();
-        const allA = displayedAssets.map((a) => a.id);
-        const allF = displayedFolders.map((f) => f.id);
-        const total = selectedAssetIds.length + selectedFolderIds.length;
-        if (total === allA.length + allF.length) {
-          setSelectedAssetIds([]);
-          setSelectedFolderIds([]);
-        } else {
-          setSelectedAssetIds(allA);
-          setSelectedFolderIds(allF);
-        }
+        const next = resolveSelectAll({ visible: visibleIds.current, selectedAssetIds, selectedFolderIds });
+        setSelectedAssetIds(next.assets);
+        setSelectedFolderIds(next.folders);
       }
     };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
-  }, [isOpen, displayedAssets, displayedFolders, selectedAssetIds.length, selectedFolderIds.length]);
+  }, [isOpen, visibleIds, selectedAssetIds, selectedFolderIds]);
 
   return {
     selectedAssetIds, selectedFolderIds, selectedFolderId, selectedTagIds,

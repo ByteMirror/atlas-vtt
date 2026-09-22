@@ -32,7 +32,7 @@ export type StatblockNoteSource =
  * entry.
  */
 export function hasBestiaryFrontmatter(app: App, file: TFile): boolean {
-  const statblock = app.metadataCache.getFileCache(file)?.frontmatter?.statblock;
+  const statblock: unknown = app.metadataCache.getFileCache(file)?.frontmatter?.statblock;
   return statblock === true || statblock === 'true' || statblock === 'inline';
 }
 
@@ -42,7 +42,7 @@ export function parseStatblockFence(content: string): Record<string, unknown> | 
   if (!match) return null;
 
   try {
-    const params = parseYaml(match[1] ?? '');
+    const params: unknown = parseYaml(match[1] ?? '');
     return params && typeof params === 'object' ? (params as Record<string, unknown>) : {};
   } catch {
     // A malformed fence is still a statblock fence; Fantasy Statblocks renders

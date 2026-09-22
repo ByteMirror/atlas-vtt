@@ -1,6 +1,7 @@
-import React, { useLayoutEffect, useRef } from 'react';
+import React, { useId, useLayoutEffect, useRef } from 'react';
 import { LocateFixed, Minus, Plus } from 'lucide-react';
 import { Button } from '../../../packages/components/primitives/button';
+import { LabelTooltip } from '../../../packages/components/primitives/tooltip';
 import { getStatblockResources, getResourceUpdate, type StatblockResource } from '../../../services/statblockResources';
 import type { StatblockLayout, StatblockMonster } from './statblockTypes';
 import type { TokenVitals } from '../../../services/statblockVitalsSync';
@@ -22,36 +23,40 @@ function ResourceControl({ resource, onChange }: {
 }): React.JSX.Element {
   const { label, current, max, display, spent } = resource;
   const marked = spent ? current : max - current;
+  const labelId = useId();
   return (
     <div className="atlas-sb-token-resource">
-      <span className="atlas-sb-token-resource-label">{label}{display === 'pips' ? ` (${max})` : ''}</span>
+      <span id={labelId} className="atlas-sb-token-resource-label">{label}{display === 'pips' ? ` (${max})` : ''}</span>
       {display === 'pips' ? (
         <div className="atlas-sb-token-pips">
           {Array.from({ length: max }, (_, index) => (
-            <input
-              key={index}
-              type="checkbox"
-              aria-label={`${label}${spent ? '' : ' damage'} ${index + 1} of ${max}`}
-              title={`${label}${spent ? ' spent' : ' damage'}: ${index + 1} / ${max}`}
-              checked={index < marked}
-              onChange={(event) => {
-                const nextMarked = event.target.checked ? index + 1 : index;
-                onChange(spent ? nextMarked : max - nextMarked);
-              }}
-            />
+            <LabelTooltip key={index} label={`${label}${spent ? '' : ' damage'} ${index + 1} of ${max}`}>
+              <input
+                type="checkbox"
+                checked={index < marked}
+                onChange={(event) => {
+                  const nextMarked = event.target.checked ? index + 1 : index;
+                  onChange(spent ? nextMarked : max - nextMarked);
+                }}
+              />
+            </LabelTooltip>
           ))}
         </div>
       ) : (
         <div className="atlas-sb-token-gauge-controls">
-          <Button variant="ghost" size="icon" aria-label={`Decrease ${label}`} title={`Decrease ${label}`}
-            disabled={current <= 0} onClick={() => onChange(current - 1)}><Minus /></Button>
-          <div className="atlas-sb-token-gauge" role="meter" aria-label={label}
+          <LabelTooltip label={`Decrease ${label}`}>
+            <Button variant="ghost" size="icon"
+              disabled={current <= 0} onClick={() => onChange(current - 1)}><Minus /></Button>
+          </LabelTooltip>
+          <div className="atlas-sb-token-gauge" role="meter" aria-labelledby={labelId}
             aria-valuemin={0} aria-valuemax={max} aria-valuenow={current}>
             <span className="atlas-sb-token-gauge-fill" style={{ width: `${max > 0 ? current / max * 100 : 0}%` }} />
             <span className="atlas-sb-token-gauge-value">{current} / {max}</span>
           </div>
-          <Button variant="ghost" size="icon" aria-label={`Increase ${label}`} title={`Increase ${label}`}
-            disabled={current >= max} onClick={() => onChange(current + 1)}><Plus /></Button>
+          <LabelTooltip label={`Increase ${label}`}>
+            <Button variant="ghost" size="icon"
+              disabled={current >= max} onClick={() => onChange(current + 1)}><Plus /></Button>
+          </LabelTooltip>
         </div>
       )}
     </div>
@@ -60,6 +65,7 @@ function ResourceControl({ resource, onChange }: {
 
 export function StatblockTokenResources({ monster, layout, tokens, onLocateToken, onHoverToken, onUpdateToken }: StatblockTokenResourcesProps): React.JSX.Element {
   const listRef = useRef<HTMLDivElement>(null);
+  const entryLabelId = useId();
   const identified = tokens.filter((token): token is TokenVitals & { id: string } => Boolean(token.id));
   const scrollable = identified.length > 3;
   const used = new Set<number>();
@@ -98,13 +104,14 @@ export function StatblockTokenResources({ monster, layout, tokens, onLocateToken
     <div ref={listRef} className="atlas-sb-token-list" data-scrollable={scrollable}
       onKeyDown={(event) => event.stopPropagation()}>
       {entries.map(({ token, label }) => (
-        <div key={token.id} className="atlas-sb-token-entry" role="group" aria-label={label}>
-          <Button className="atlas-sb-token-name" variant="ghost" size="sm"
-            aria-label={`Locate ${label} on map`} title="Zoom to token on map"
-            onMouseEnter={() => onHoverToken?.(token.id)} onFocus={() => onHoverToken?.(token.id)}
-            onClick={() => onLocateToken(token.id)}>
-            <span>{label}</span><LocateFixed aria-hidden="true" />
-          </Button>
+        <div key={token.id} className="atlas-sb-token-entry" role="group" aria-labelledby={`${entryLabelId}-${token.id}`}>
+          <LabelTooltip label={`Locate ${label} on map`}>
+            <Button className="atlas-sb-token-name" variant="ghost" size="sm"
+              onMouseEnter={() => onHoverToken?.(token.id)} onFocus={() => onHoverToken?.(token.id)}
+              onClick={() => onLocateToken(token.id)}>
+              <span id={`${entryLabelId}-${token.id}`}>{label}</span><LocateFixed aria-hidden="true" />
+            </Button>
+          </LabelTooltip>
           {getStatblockResources(monster, layout, token).map((resource) => (
             <ResourceControl key={resource.key} resource={resource}
               onChange={(current) => onUpdateToken(token.id, getResourceUpdate(token, resource, current))} />

@@ -9,6 +9,8 @@
 @use './tokens' as *;
 @use './mixins' as *;
 @use '../src/app/onboarding/onboarding';
+@use '../src/app/changelog/changelog';
+@use '../src/app/support/issue-report';
 
 // Root namespace for all Atlas VTT styles
 .atlas-vtt-plugin {
@@ -43,19 +45,17 @@
   @import '../src/app/packages/components/primitives/dropdown-menu.scss';
   @import '../src/app/packages/components/primitives/toggle.scss';
   @import '../src/app/packages/components/primitives/input-modal.scss';
+  @import '../src/app/packages/components/primitives/select.scss';
+  @import '../src/app/packages/components/primitives/progress-modal.scss';
   @import '../src/app/packages/components/primitives/close-button.scss';
   @import '../src/app/react/components/dice/dice-dropdown.scss';
+  @import '../src/app/react/components/dice/dice-toast.scss';
   @import '../src/app/react/components/character-select-mode.scss';
   @import '../src/app/packages/token.scss';
     @import '../src/app/react/components/view-actions-menu.scss';
   @import '../src/app/react/components/undo-redo-controls.scss';
   @import '../src/app/react/components/dm-dashboard.scss';
   @import '../src/app/react/components/linked-note-panel.scss';
-  @import '../src/app/react/components/music-player.scss';
-  @import '../src/app/react/components/music-library.scss';
-  @import '../src/app/react/components/track-card.scss';
-  @import '../src/app/react/components/playlist-modal.scss';
-  @import '../src/app/react/components/standalone-music-player.scss';
   @import '../src/app/react/components/player-dashboard.scss';
   @import '../src/app/react/components/dashboard.scss';
   @import '../src/app/react/components/dice-log/dice-roll-log.scss';
@@ -72,6 +72,59 @@
   // UI container styles
   .atlas-vtt-ui {
     border-radius: $radius-l;
+  }
+
+  // Popover under a selected token's HP/stress bar; mounted on document.body
+  &.atlas-token-value-editor {
+    @include atlas-elevated-surface;
+    position: fixed;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: $spacing-xs;
+    padding: $spacing-xs;
+    z-index: var(--layer-popover, 1000);
+    font-size: $font-ui-small;
+    color: var(--text-normal);
+  }
+
+  .atlas-token-value-editor__input {
+    width: 56px;
+    text-align: center;
+    border-radius: $radius-l;
+    font-variant-numeric: tabular-nums;
+
+    &[aria-invalid] {
+      border-color: var(--text-error);
+      box-shadow: 0 0 0 2px color-mix(in oklch, var(--text-error) 30%, transparent);
+    }
+  }
+
+  .atlas-token-value-editor__separator {
+    color: var(--text-muted);
+  }
+
+  // Scene tabs and widgets share one row so they can never overlap:
+  // the tab strip shrinks and scrolls, the widget bar keeps its width.
+  .atlas-top-bar-row {
+    position: fixed;
+    top: $spacing-s;
+    left: $spacing-s;
+    right: $spacing-s;
+    display: flex;
+    align-items: flex-start;
+    gap: $spacing-s;
+    z-index: 100;
+    pointer-events: none;
+
+    // The row positions the widget bar here; the fixed variants in
+    // widget-bar.scss remain for the player window.
+    > .atlas-widget-bar.atlas-widget-bar-top {
+      position: static;
+      transform: none;
+      flex: none;
+      margin-left: auto;
+    }
   }
 
   // Center the main toolbar independently of the undo/redo controls.

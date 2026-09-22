@@ -2,22 +2,24 @@ import React, { useState } from 'react';
 import { ChevronDown, Eye, EyeOff, Pencil, Plus, Swords, Trash2, Users } from 'lucide-react';
 import { cn } from '../../../../utils/cn';
 import { Button } from '../../../packages/components/primitives/button';
+import { LabelTooltip } from '../../../packages/components/primitives/tooltip';
 import type { AnyWidget } from '../../../types/widgetTypes';
+import type { ViewAtlasState } from '../../../storeFactory';
 import { WidgetIconGlyph } from '../WidgetIconGlyph';
 import { SettingToggleRow } from './SettingRows';
 import { WidgetEditorForm, type WidgetDraft } from './WidgetEditorForm';
 
 interface WidgetSettingsPanelProps {
-  widgetSettings: any;
-  setWidgetSettings: (settings: any) => void;
-  updateWidget: (id: string, updates: any) => void;
-  addWidget: (widget: any) => void;
-  removeWidget: (widgetId: string) => void;
-  sortedWidgets: any[];
-  initiative: any;
-  setInitiativeConfig: (config: any) => void;
+  widgetSettings: ViewAtlasState['widgetSettings'];
+  setWidgetSettings: ViewAtlasState['setWidgetSettings'];
+  updateWidget: ViewAtlasState['updateWidget'];
+  addWidget: ViewAtlasState['addWidget'];
+  removeWidget: ViewAtlasState['removeWidget'];
+  sortedWidgets: AnyWidget[];
+  initiative: ViewAtlasState['initiative'];
+  setInitiativeConfig: ViewAtlasState['setInitiativeConfig'];
   initiativeTrackerOpen: boolean;
-  setInitiativeTrackerOpen: (open: boolean) => void;
+  setInitiativeTrackerOpen: ViewAtlasState['setInitiativeTrackerOpen'];
 }
 
 const DEFAULT_TIMER_SECONDS = 300;
@@ -38,17 +40,15 @@ export const WidgetSettingsPanel = React.memo(function WidgetSettingsPanel({
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
-  const globalVisible: boolean =
-    typeof widgetSettings?.globalVisible === 'boolean' ? widgetSettings.globalVisible : true;
-  const autoSort: boolean = initiative?.config?.autoSort ?? true;
+  // Persisted state from older maps can lack these fields; both default to on.
+  const globalVisible = widgetSettings?.globalVisible !== false;
+  const autoSort = initiative?.config?.autoSort ?? true;
 
   const toggleGlobalVisible = (): void => {
-    const currentSettings = widgetSettings || { globalVisible: true };
-    const currentState = typeof currentSettings.globalVisible === 'boolean' ? currentSettings.globalVisible : true;
-    setWidgetSettings({ ...currentSettings, globalVisible: !currentState });
+    setWidgetSettings({ ...widgetSettings, globalVisible: !globalVisible });
   };
 
-  const editingWidget: AnyWidget | undefined = sortedWidgets.find((widget) => widget.id === editingId);
+  const editingWidget = sortedWidgets.find((widget) => widget.id === editingId);
   const editorOpen = isAdding || !!editingWidget;
 
   const closeEditor = (): void => {
@@ -130,16 +130,16 @@ export const WidgetSettingsPanel = React.memo(function WidgetSettingsPanel({
         <div className="atlas-setting-group">
           <div className="atlas-setting-group atlas-setting-group--row">
             <span className="atlas-setting-label">Widgets</span>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="atlas-command-palette-icon-btn"
-              onClick={() => setIsAdding(true)}
-              title="Add widget"
-              aria-label="Add widget"
-            >
-              <Plus />
-            </Button>
+            <LabelTooltip label="Add widget">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="atlas-command-palette-icon-btn"
+                onClick={() => setIsAdding(true)}
+              >
+                <Plus />
+              </Button>
+            </LabelTooltip>
           </div>
           {sortedWidgets.length === 0 && (
             <span className="atlas-setting-hint">No widgets yet. Add a counter or timer with the plus button.</span>
@@ -147,54 +147,54 @@ export const WidgetSettingsPanel = React.memo(function WidgetSettingsPanel({
           <div className="atlas-command-palette-widget-list">
             {sortedWidgets.map((widget) => (
               <div key={widget.id} className="atlas-command-palette-widget-item">
-                <WidgetIconGlyph icon={widget.icon} size={20} color={widget.color} />
+                <WidgetIconGlyph icon={widget.icon} size={20} {...(widget.color !== undefined ? { color: widget.color } : {})} />
                 <div className="atlas-command-palette-widget-info">
                   <div className="atlas-command-palette-widget-name">{widget.label}</div>
                   <div className="atlas-command-palette-widget-type">{widget.type}</div>
                 </div>
                 <div className="atlas-command-palette-widget-controls">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="atlas-command-palette-icon-btn"
-                    onClick={() => setEditingId(widget.id)}
-                    title="Edit name and icon"
-                    aria-label="Edit name and icon"
-                  >
-                    <Pencil />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className={cn('atlas-command-palette-icon-btn', widget.visible && 'atlas-active')}
-                    onClick={() => updateWidget(widget.id, { visible: !widget.visible })}
-                    title={widget.visible ? 'Hide widget' : 'Show widget'}
-                    aria-label={widget.visible ? 'Hide widget' : 'Show widget'}
-                    aria-pressed={widget.visible}
-                  >
-                    {widget.visible ? <Eye /> : <EyeOff />}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className={cn('atlas-command-palette-icon-btn', widget.visibleToPlayers && 'atlas-active')}
-                    onClick={() => updateWidget(widget.id, { visibleToPlayers: !widget.visibleToPlayers })}
-                    title={widget.visibleToPlayers ? 'Hide from players' : 'Show to players'}
-                    aria-label={widget.visibleToPlayers ? 'Hide from players' : 'Show to players'}
-                    aria-pressed={widget.visibleToPlayers}
-                  >
-                    <Users />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="atlas-command-palette-icon-btn atlas-icon-btn--danger"
-                    onClick={() => removeWidget(widget.id)}
-                    title="Delete widget"
-                    aria-label="Delete widget"
-                  >
-                    <Trash2 />
-                  </Button>
+                  <LabelTooltip label="Edit name and icon">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="atlas-command-palette-icon-btn"
+                      onClick={() => setEditingId(widget.id)}
+                    >
+                      <Pencil />
+                    </Button>
+                  </LabelTooltip>
+                  <LabelTooltip label={widget.visible ? 'Hide widget' : 'Show widget'}>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className={cn('atlas-command-palette-icon-btn', widget.visible && 'atlas-active')}
+                      onClick={() => updateWidget(widget.id, { visible: !widget.visible })}
+                      aria-pressed={widget.visible}
+                    >
+                      {widget.visible ? <Eye /> : <EyeOff />}
+                    </Button>
+                  </LabelTooltip>
+                  <LabelTooltip label={widget.visibleToPlayers ? 'Hide from players' : 'Show to players'}>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className={cn('atlas-command-palette-icon-btn', widget.visibleToPlayers && 'atlas-active')}
+                      onClick={() => updateWidget(widget.id, { visibleToPlayers: !widget.visibleToPlayers })}
+                      aria-pressed={widget.visibleToPlayers}
+                    >
+                      <Users />
+                    </Button>
+                  </LabelTooltip>
+                  <LabelTooltip label="Delete widget">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="atlas-command-palette-icon-btn atlas-icon-btn--danger"
+                      onClick={() => removeWidget(widget.id)}
+                    >
+                      <Trash2 />
+                    </Button>
+                  </LabelTooltip>
                 </div>
               </div>
             ))}

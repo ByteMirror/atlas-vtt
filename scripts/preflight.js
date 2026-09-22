@@ -6,6 +6,7 @@
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
+const { parseVersion } = require('./release-channel');
 
 const root = path.resolve(__dirname, '..');
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
@@ -27,7 +28,12 @@ for (const key of Object.keys(manifest)) {
 }
 if (/obsidian/i.test(manifest.id) || /plugin$/i.test(manifest.id)) errors.push('manifest.id must not contain "obsidian" or end with "plugin"');
 if (/obsidian/i.test(manifest.name)) errors.push('manifest.name must not contain "Obsidian"');
-if (!/^\d+\.\d+\.\d+$/.test(manifest.version)) errors.push('manifest.version must be x.y.z');
+let channel = null;
+try {
+  channel = parseVersion(manifest.version).channel;
+} catch {
+  errors.push('manifest.version must be x.y.z (stable) or x.y.z-beta.N (beta channel)');
+}
 const description = manifest.description || '';
 if (/obsidian/i.test(description)) errors.push('manifest.description must not contain "Obsidian"');
 if (description.length > 250) errors.push('manifest.description is longer than 250 characters');
@@ -36,7 +42,9 @@ if (/\p{Extended_Pictographic}/u.test(description)) errors.push('manifest.descri
 if (pkg.version !== manifest.version) errors.push(`package.json version ${pkg.version} != manifest version ${manifest.version}`);
 if (exists('versions.json')) {
   const versions = JSON.parse(read('versions.json'));
-  if (versions[manifest.version] !== manifest.minAppVersion) errors.push('versions.json does not map the current version to minAppVersion');
+  // Beta versions stay out of versions.json; only stable releases are installable from the directory.
+  if (channel === 'stable' && versions[manifest.version] !== manifest.minAppVersion) errors.push('versions.json does not map the current version to minAppVersion');
+  if (channel === 'beta' && manifest.version in versions) errors.push('versions.json must not list beta versions');
 }
 if (!pkg.scripts || !pkg.scripts.build) errors.push('package.json needs a "build" script for build verification');
 
@@ -79,7 +87,7 @@ if (!exists('dist/main.js')) {
   for (const [label, pattern] of Object.entries(blocking)) if (pattern.test(bundle)) errors.push(`dist/main.js contains ${label}`);
   for (const [label, pattern] of Object.entries(scorecard)) if (pattern.test(bundle)) warnings.push(`dist/main.js contains ${label}`);
   const hosts = [...new Set((bundle.match(/https?:\/\/[a-z0-9.-]+\.[a-z]{2,}/gi) || []))]
-    .filter((host) => !/w3\.org|reactjs\.org|react\.dev|github\.com|mozilla\.org|pixijs\.(com|download|io)|radix-ui\.com|lucide\.dev|fb\.me|feross\.org|howlerjs\.com|goldfirestudios\.com|motion\.dev|example\.com|bit\.ly|stuartk\.com|stuk\.github\.io|polyformproject\.org/.test(host));
+    .filter((host) => !/w3\.org|reactjs\.org|react\.dev|github\.com|mozilla\.org|pixijs\.(com|download|io)|radix-ui\.com|lucide\.dev|fb\.me|feross\.org|howlerjs\.com|goldfirestudios\.com|motion\.dev|example\.com|bit\.ly|stuartk\.com|stuk\.github\.io/.test(host));
   if (hosts.length) warnings.push(`dist/main.js references hosts that must be disclosed in README: ${hosts.join(', ')}`);
   if (Buffer.byteLength(bundle) > 5 * 1024 * 1024) warnings.push('dist/main.js is larger than 5 MB');
 }

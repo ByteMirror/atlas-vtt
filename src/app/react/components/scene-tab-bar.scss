@@ -1,19 +1,18 @@
-// Scene Tab Bar - Floating tab strip for multi-scene navigation
+// Scene Tab Bar - tab strip for multi-scene navigation, laid out in .atlas-top-bar-row
 @use '../../../../styles/tokens' as *;
 @use '../../../../styles/mixins' as *;
 
 .atlas-scene-tab-bar {
-  position: fixed;
-  top: 8px;
-  left: 8px;
+  flex: 0 1 auto;
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 4px;
   padding: 4px;
   border-radius: $radius-xl;
   pointer-events: auto;
-  z-index: 100;
-  max-width: 80%;
+  overflow-x: auto;
+  scrollbar-width: thin;
 
   @include atlas-elevated-surface;
 }

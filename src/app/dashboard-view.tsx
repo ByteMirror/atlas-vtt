@@ -1,4 +1,5 @@
-import { ItemView, WorkspaceLeaf, TFile, Notice } from "obsidian";
+import { App, ItemView, WorkspaceLeaf, TFile, Notice } from "obsidian";
+import type AtlasVTTPlugin from '../../main';
 import { createRoot, Root } from 'react-dom/client';
 import React, { useState, useEffect } from 'react';
 import { AssetService, Asset } from './services/AssetService';
@@ -29,7 +30,7 @@ interface RecentScene {
 }
 
 interface DashboardProps {
-  app: any;
+  app: App;
   onOpenScene: (filePath: string) => void;
   onCreateMap: () => void;
   onOpenAssetManager: () => void;
@@ -47,7 +48,7 @@ function getAssetMapPath(asset: Asset): string {
 }
 
 /** Resolve an asset's thumbnail to a vault resource URL. */
-function resolveAssetThumbnail(app: any, asset: Asset): string | null {
+function resolveAssetThumbnail(app: App, asset: Asset): string | null {
   const mapPath = getAssetMapPath(asset);
   if (!mapPath) return null;
 
@@ -256,7 +257,7 @@ const Dashboard: React.FC<DashboardProps> = ({
 export class DashboardView extends ItemView {
   private root: Root | null = null;
 
-  constructor(leaf: WorkspaceLeaf, private plugin: any) {
+  constructor(leaf: WorkspaceLeaf, private plugin: AtlasVTTPlugin) {
     super(leaf);
   }
 

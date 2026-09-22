@@ -1,4 +1,6 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { AssetRegistrationUncertainError } from '../../../services/assetRegistrationRecovery';
+import { StatblockImportContent } from './statblock-import/StatblockImportContent';
+import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { ImageIcon, Loader2, Save, Upload } from 'lucide-react';
 import { Platform } from 'obsidian';
 import { cn } from '../../../../utils/cn';
@@ -21,23 +23,34 @@ interface TokenCreatorProps {
   mode?: CreatorMode;
   selectedCollection?: string;
   editToken?: EditTokenInput | null;
+  initialSource?: 'images' | 'statblocks';
 }
 
 function hasFiles(e: React.DragEvent): boolean {
   return Array.from(e.dataTransfer.types).includes('Files');
 }
 
-export function TokenCreator({ isOpen, onClose, mode = 'token', selectedCollection = 'default', editToken }: TokenCreatorProps): React.JSX.Element | null {
+export function TokenCreator({ isOpen, onClose, mode = 'token', selectedCollection = 'default', editToken, initialSource = 'images' }: TokenCreatorProps): React.JSX.Element | null {
   const { app } = useAtlasUI();
   const { assetService, collections } = useAssetCatalog(app, isOpen);
   const previews = useTokenPreviews(mode);
+  const [source, setSource] = useState(initialSource);
+  const [importController, setImportController] = useState(() => new AbortController());
+  const [importRunning, setImportRunning] = useState(false);
+  useEffect(() => () => importController.abort(), [importController]);
+  const usingStatblocks = mode === 'token' && !editToken && source === 'statblocks';
 
   const [collection, setCollection] = useState(selectedCollection);
   const { tags: availableTags, createTag, isCreatingTag } = useAssetTags(assetService, isOpen, collection);
-  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const selectedPreviews = previews.previews.filter(p => p.isSelected);
+  const selectedTags = selectedPreviews[0]?.tags?.filter(tag => selectedPreviews.every(p => p.tags?.includes(tag))) ?? [];
+  const queuedPaths = useMemo(() => previews.previews.flatMap(p => p.statblockPath ? [p.statblockPath] : []), [previews.previews]);
+  const [saveError, setSaveError] = useState('');
+  const [saveBlocked, setSaveBlocked] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const dragDepthRef = useRef(0);
+  const titleId = useId();
   const windowRef = useRef<HTMLDivElement>(null);
 
   const { reset } = previews;
@@ -48,31 +61,40 @@ export function TokenCreator({ isOpen, onClose, mode = 'token', selectedCollecti
     if (!isOpen) return;
     const token = editTokenRef.current;
     setCollection(selectedCollection);
-    setSelectedTags(token?.tags ?? []);
     setIsSubmitting(false);
+    setImportController(new AbortController());
+    setSaveError('');
+    setSaveBlocked(false);
     reset(token);
     windowRef.current?.focus();
   }, [isOpen, editTokenId, selectedCollection, reset]);
 
   useEffect(() => {
     const first = collections[0];
-    if (first && !collections.includes(collection)) setCollection(first);
+    if (first && !collections.some(c => c.id === collection)) setCollection(first.id);
   }, [collections, collection]);
 
   const handleFiles = useCallback((files: File[]): void => {
     if (editToken) {
+      const file = files[0];
+      if (!file) return;
+      const current = previews.previews[0];
+      const tags = current?.tags ?? editToken.tags;
+      const showRing = current?.showRing ?? editToken.showRing ?? true;
+      const size = current?.size ?? editToken.size;
       previews.reset(null);
-      previews.addFiles(files.slice(0, 1));
+      previews.addImages([{ file, tags, showRing, size }]);
       return;
     }
     previews.addFiles(files);
   }, [editToken, previews]);
 
-  const canSubmit = previews.previews.length > 0 && !isSubmitting && !isCreatingTag && assetService !== null;
+  const canSubmit = previews.previews.length > 0 && !isSubmitting && !saveBlocked && !isCreatingTag && assetService !== null;
 
   const handleSubmit = useCallback(async (): Promise<void> => {
-    if (!canSubmit || !assetService || !app) return;
+    if (usingStatblocks || !canSubmit || !assetService || !app) return;
     setIsSubmitting(true);
+    setSaveError('');
     try {
       const saved = await saveTokenPreviews({
         app,
@@ -80,26 +102,31 @@ export function TokenCreator({ isOpen, onClose, mode = 'token', selectedCollecti
         mode,
         previews: previews.previews,
         collection,
-        tags: selectedTags,
+        tags: [],
+        onSaved: previews.remove,
+        signal: importController.signal,
         editToken: editToken ?? null,
         waitForOptimized: previews.waitForOptimized,
       });
       if (saved > 0) {
         app.workspace.trigger('atlas-vtt:refresh-assets');
-        onClose();
+        if (saved === previews.previews.length) onClose();
       }
     } catch (error) {
-      console.error('[TokenCreator] Error saving:', error);
+      setSaveError(error instanceof Error ? error.message : 'Could not save previews.');
+      if (error instanceof AssetRegistrationUncertainError) setSaveBlocked(true);
     } finally {
       setIsSubmitting(false);
     }
-  }, [app, assetService, canSubmit, collection, editToken, mode, onClose, previews, selectedTags]);
+  }, [usingStatblocks, app, assetService, canSubmit, collection, editToken, mode, onClose, previews, importController]);
 
   useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent): void => {
       if (!isShortcutScopeActive(windowRef.current)) return;
-      if (e.key === 'Escape') {
+      // Let an open menu consume Escape before the importer handles it.
+      if (e.key === 'Escape' && windowRef.current?.querySelector('[aria-haspopup="menu"][aria-expanded="true"]')) return;
+      if (e.key === 'Escape' && !isSubmitting) {
         e.preventDefault();
         e.stopPropagation();
         onClose();
@@ -110,7 +137,7 @@ export function TokenCreator({ isOpen, onClose, mode = 'token', selectedCollecti
     };
     window.addEventListener('keydown', handleKeyDown, true);
     return () => window.removeEventListener('keydown', handleKeyDown, true);
-  }, [isOpen, onClose, handleSubmit]);
+  }, [isOpen, onClose, handleSubmit, isSubmitting]);
 
   const handleDragEnter = (e: React.DragEvent<HTMLDivElement>): void => {
     if (!hasFiles(e)) return;
@@ -131,7 +158,7 @@ export function TokenCreator({ isOpen, onClose, mode = 'token', selectedCollecti
     e.preventDefault();
     dragDepthRef.current = 0;
     setIsDragging(false);
-    handleFiles(Array.from(e.dataTransfer.files));
+    if (!usingStatblocks) handleFiles(Array.from(e.dataTransfer.files));
   };
 
   if (!isOpen) return null;
@@ -143,14 +170,14 @@ export function TokenCreator({ isOpen, onClose, mode = 'token', selectedCollecti
   const submitLabel = editToken ? 'Update' : 'Create';
 
   return (
-    <div className="atlas-vtt-plugin atlas-vtt-root atlas-token-creator" data-token-creator="true" onClick={onClose}>
+    <div className="atlas-vtt-plugin atlas-vtt-root atlas-token-creator" data-token-creator="true" onClick={() => { if (!isSubmitting) onClose(); }}>
       <div
         ref={windowRef}
         className={cn('atlas-token-creator__window', isDragging && 'atlas-dragging')}
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
-        aria-label={title}
+        aria-labelledby={titleId}
         onClick={(e) => e.stopPropagation()}
         onDragEnter={handleDragEnter}
         onDragLeave={handleDragLeave}
@@ -158,6 +185,9 @@ export function TokenCreator({ isOpen, onClose, mode = 'token', selectedCollecti
         onDrop={handleDrop}
       >
         <TokenCreatorRail
+          source={source}
+          onSourceChange={next => { if (next === 'statblocks') setImportController(new AbortController()); setSource(next); }}
+          sourceDisabled={importRunning || isSubmitting}
           mode={mode}
           isEditing={Boolean(editToken)}
           isDragging={isDragging}
@@ -169,19 +199,21 @@ export function TokenCreator({ isOpen, onClose, mode = 'token', selectedCollecti
           availableTags={availableTags}
           selectedTags={selectedTags}
           onCreateTag={createTag}
-          tagsDisabled={!assetService || isSubmitting}
-          onToggleTag={(tag) => setSelectedTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]))}
+          tagsDisabled={!assetService || isSubmitting || selectedPreviews.length === 0}
+          onToggleTag={previews.toggleTag}
         />
 
         <header className="atlas-token-creator__header">
           <h2>
-            {title}
-            {count > 0 && <span className="atlas-token-creator__subtitle">{count} {noun}</span>}
+            <span id={titleId}>{title}</span>
+            {!usingStatblocks && count > 0 && <span className="atlas-token-creator__subtitle">{count} {noun}</span>}
           </h2>
-          <CloseButton onClick={onClose} />
+          <CloseButton onClick={() => { if (!isSubmitting) onClose(); }} />
         </header>
 
-        <div className={cn('atlas-token-creator__previews', count === 0 && 'atlas-empty')}>
+        {usingStatblocks ? (
+          <StatblockImportContent app={app} queuedPaths={queuedPaths} onAdd={images => { previews.addImages(images); setSource('images'); }} onClose={() => { importController.abort(); setImportController(new AbortController()); setSource('images'); }} controller={importController} onRunningChange={setImportRunning} />
+        ) : <div className={cn('atlas-token-creator__previews', count === 0 && 'atlas-empty')} inert={isSubmitting}>
           {count === 0 ? (
             <div className="atlas-token-creator__empty">
               <div className="atlas-token-creator__empty-icon"><ImageIcon /></div>
@@ -203,22 +235,22 @@ export function TokenCreator({ isOpen, onClose, mode = 'token', selectedCollecti
               ))}
             </div>
           )}
-        </div>
+        </div>}
 
-        <footer className="atlas-token-creator__footer">
+        {!usingStatblocks && <footer className="atlas-token-creator__footer">
           <span className="atlas-token-creator__status">
             {isOptimizing && <Loader2 className="atlas-spin" />}
-            {count === 0 ? `No ${modeNoun(mode, 2)} to create` : isOptimizing ? 'Optimizing images…' : `${count} ${noun} ready`}
+            {saveError || (count === 0 ? `No ${modeNoun(mode, 2)} to create` : isOptimizing ? 'Optimizing images…' : `${count} ${noun} ready`)}
           </span>
           <div className="atlas-token-creator__actions">
-            <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
+            <Button variant="outline" size="sm" onClick={() => { if (!isSubmitting) onClose(); }}>Cancel</Button>
             <Button variant="default" size="sm" onClick={() => { void handleSubmit(); }} disabled={!canSubmit}>
               {isSubmitting ? <Loader2 className="atlas-spin" /> : <Save />}
               <span>{isSubmitting ? `${submitLabel.replace(/e$/, '')}ing…` : submitLabel}</span>
               {!isSubmitting && <kbd className="atlas-token-creator__kbd">{Platform.isMacOS ? '⌘' : 'Ctrl'}↵</kbd>}
             </Button>
           </div>
-        </footer>
+        </footer>}
 
         {isDragging && (
           <div className="atlas-token-creator__drop-overlay">

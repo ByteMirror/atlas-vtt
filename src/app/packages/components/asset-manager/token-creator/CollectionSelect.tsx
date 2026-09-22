@@ -1,10 +1,11 @@
+import type { CollectionMetadata } from '../../../../services/AssetService';
 import React, { useEffect, useRef, useState } from 'react';
 import { Check, ChevronDown, Folder, Search } from 'lucide-react';
 import { cn } from '../../../../../utils/cn';
 
 interface CollectionSelectProps {
   value: string;
-  options: string[];
+  options: CollectionMetadata[];
   onChange: (collection: string) => void;
 }
 
@@ -35,7 +36,7 @@ export function CollectionSelect({ value, options, onChange }: CollectionSelectP
     close();
   };
 
-  const filtered = options.filter((c) => c.toLowerCase().includes(query.toLowerCase()));
+  const filtered = options.filter((c) => c.name.toLowerCase().includes(query.toLowerCase()));
 
   return (
     <div ref={rootRef} className={cn('atlas-collection-dropdown', isOpen && 'atlas-open')}>
@@ -48,7 +49,7 @@ export function CollectionSelect({ value, options, onChange }: CollectionSelectP
       >
         <span className="atlas-collection-selected">
           <Folder />
-          <span>{value}</span>
+          <span>{options.find(c => c.id === value)?.name ?? value}</span>
         </span>
         <ChevronDown className={cn('atlas-collection-chevron', isOpen && 'atlas-rotated')} />
       </button>
@@ -70,16 +71,16 @@ export function CollectionSelect({ value, options, onChange }: CollectionSelectP
           <div className="atlas-collection-options">
             {filtered.map((collection) => (
               <button
-                key={collection}
+                key={collection.id}
                 type="button"
                 role="option"
-                aria-selected={collection === value}
-                className={cn('atlas-collection-option', collection === value && 'atlas-selected')}
-                onClick={() => select(collection)}
+                aria-selected={collection.id === value}
+                className={cn('atlas-collection-option', collection.id === value && 'atlas-selected')}
+                onClick={() => select(collection.id)}
               >
                 <div className="atlas-collection-option-content">
                   <Folder className="atlas-collection-option-icon" />
-                  <span className="atlas-collection-option-text">{collection}</span>
+                  <span className="atlas-collection-option-text">{collection.name}</span>
                 </div>
                 <Check className="atlas-collection-check" />
               </button>

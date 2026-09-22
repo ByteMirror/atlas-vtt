@@ -215,3 +215,11 @@
     animation-duration: 1.4s;
   }
 }
+
+.atlas-token-creator-host {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  padding: 0;
+  .modal-close-button { display: none; }
+}

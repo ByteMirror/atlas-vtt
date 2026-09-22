@@ -1,0 +1,68 @@
+@use '../../../../../../styles/tokens' as *;
+
+.atlas-statblock-import {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-l;
+  color: var(--text-normal);
+  font-size: $font-ui-small;
+
+  &__intro { margin: 0; color: var(--text-muted); }
+  &__error { margin: 0; color: var(--text-error); }
+  &__summary, &__selection, &__footer, &__controls {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: $spacing-s;
+  }
+  &__summary { color: var(--text-muted); gap: $spacing-l; strong { color: var(--text-normal); } }
+  &__search {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: $spacing-s;
+    min-width: 180px;
+    input { width: 100%; }
+  }
+  &__selection { color: var(--text-muted); span { margin-left: auto; } }
+  &__list {
+    flex-shrink: 0;
+    border: $border-width-s solid var(--background-modifier-border);
+    border-radius: $radius-l;
+  }
+  &__row {
+    display: flex;
+    align-items: center;
+    padding: $spacing-m;
+    gap: $spacing-m;
+    border-bottom: $border-width-s solid var(--background-modifier-border);
+    cursor: pointer;
+    &:last-child { border-bottom: 0; }
+    &:hover { background: var(--background-modifier-hover); }
+    &:focus-within { outline: 2px solid var(--interactive-accent); outline-offset: -2px; }
+    input { flex-shrink: 0; }
+  }
+  &__portrait {
+    width: 48px;
+    height: 48px;
+    flex: 0 0 48px;
+    display: grid;
+    place-items: center;
+    background: var(--background-secondary);
+    border-radius: $radius-m;
+    color: var(--text-faint);
+    .atlas-token-portrait { width: 100%; height: 100%; }
+  }
+  &__identity {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: $spacing-xs;
+    span { color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: $font-ui-smaller; }
+  }
+  &__status { font-size: $font-ui-smaller; color: var(--text-muted); text-align: right; }
+  &__status--ready { color: var(--text-success); }
+  &__progress, &__result { display: flex; flex-direction: column; gap: $spacing-s; progress { width: 100%; } }
+  &__intro, &__error, &__summary, &__controls, &__selection { flex-shrink: 0; }
+}

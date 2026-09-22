@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { App } from 'obsidian';
 import type { StatblockItem, StatblockLayout, StatblockMonster } from './statblockTypes';
-import { isVisible, runCallback, slugify } from './statblockUtils';
+import { runCallback } from './layoutCallbacks';
+import { isVisible, slugify } from './statblockUtils';
 import { StatblockEditContext, type StatblockEditApi } from './statblockEditContext';
 import {
   HeadingBlock,
@@ -21,6 +22,7 @@ import './statblock.scss';
 export interface StatblockPortrait {
   src: string;
   ringColor?: string | undefined;
+  showRing?: boolean | undefined;
 }
 
 export interface StatblockRendererProps {
@@ -242,7 +244,7 @@ export function StatblockRenderer({
       >
         <div className="atlas-statblock-body">
           {portrait && (
-            <TokenPortrait className="atlas-sb-portrait" src={portrait.src} alt="" ringColor={portrait.ringColor} />
+            <TokenPortrait className="atlas-sb-portrait" src={portrait.src} alt="" ringColor={portrait.ringColor} showRing={portrait.showRing} />
           )}
           {blocks.map((item) => (
             <StatblockBlockView

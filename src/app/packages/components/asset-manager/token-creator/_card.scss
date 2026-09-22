@@ -70,7 +70,7 @@
   }
 }
 
-.atlas-token-card--map .atlas-token-card__image {
+.atlas-token-card--unframed .atlas-token-card__image {
   cursor: default;
 }
 
@@ -297,4 +297,19 @@
       opacity: 0;
     }
   }
+}
+
+.atlas-token-card__ring {
+  position: absolute;
+  inset: 6%;
+  width: 88%;
+  height: 88%;
+  pointer-events: none;
+}
+
+.atlas-token-card__tags {
+  color: var(--text-muted);
+  font-size: $font-ui-smaller;
+  text-align: center;
+  overflow-wrap: anywhere;
 }

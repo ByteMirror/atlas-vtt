@@ -8,6 +8,9 @@ import { colors, barDimensions, getHealthColor, lightenColor, darkenColor } from
 import { ConditionDotsRenderer } from './token-renderer/ConditionDotsRenderer';
 import { ConditionHoverPanel } from './token-renderer/ConditionHoverPanel';
 import type { ConditionDefinition } from '../types/collectionSettingsTypes';
+import type { TokenGestureEventDetail } from '../types/atlasWindowEvents';
+import { resourceBarFill } from './resourceBarFill';
+import { ResourceBarLabel } from './ResourceBarLabel';
 
 /**
  * Text is drawn at scale 0.333 and the viewport zooms to at most 5x, so a
@@ -49,10 +52,10 @@ export class TokenUIRenderer {
   private container: Container;
   private hpBar: Graphics;
   private hpFill: Graphics;
-  private hpText: Text;
+  private hpText: ResourceBarLabel;
   private stressBar: Graphics;
   private stressFill: Graphics;
-  private stressText: Text;
+  private stressText: ResourceBarLabel;
   private difficultyBadge: Container;
   private difficultyText: Text;
   private defeatedOverlay: Graphics;
@@ -75,6 +78,7 @@ export class TokenUIRenderer {
   // Inline editing state
   private isEditingName: boolean = false;
   private editInput: HTMLInputElement | null = null;
+  private removeEditInputListeners: (() => void) | null = null;
   private originalName: string = '';
   private editCursor: Graphics;
   private cursorBlinkInterval: number | null = null;
@@ -105,18 +109,7 @@ export class TokenUIRenderer {
     this.hpBar.zIndex = 10; // HP bar above status badges
     this.hpFill = new Graphics();
     this.hpFill.zIndex = 11; // HP fill above bar background
-    this.hpText = new Text({
-      text: '',
-      style: new TextStyle({
-        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial',
-        fontSize: 18, // Base font size for 70px token
-        fill: 0xffffff,
-        fontWeight: '600',
-        stroke: { color: 0x000000, width: 2 }
-      })
-    });
-    this.hpText.scale.set(0.333); // Will be adjusted dynamically based on token size
-    this.hpText.resolution = TEXT_RESOLUTION;
+    this.hpText = new ResourceBarLabel();
     this.hpText.zIndex = 12; // Text on top of HP bar
     this.hpText.alpha = 0; // Start with text hidden
     
@@ -127,18 +120,7 @@ export class TokenUIRenderer {
     this.stressFill.zIndex = 11; // Stress fill above bar background
     // Event mode not set - let events propagate naturally
     // this.stressFill also doesn't need eventMode set
-    this.stressText = new Text({
-      text: '',
-      style: new TextStyle({
-        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial',
-        fontSize: 18, // Base font size for 70px token
-        fill: 0xffffff,
-        fontWeight: '600',
-        stroke: { color: 0x000000, width: 2 }
-      })
-    });
-    this.stressText.scale.set(0.333); // Will be adjusted dynamically based on token size
-    this.stressText.resolution = TEXT_RESOLUTION;
+    this.stressText = new ResourceBarLabel();
     this.stressText.zIndex = 12; // Text on top of stress bar
     this.stressText.alpha = 0; // Start with text hidden
     // Event mode not set - let events propagate naturally
@@ -272,9 +254,8 @@ export class TokenUIRenderer {
   /**
    * Handle resize started events - hide UI elements except resize handles
    */
-  private onResizeStarted = (e: Event): void => {
-    const customEvent = e as CustomEvent;
-    const resizingTokenIds = customEvent.detail?.tokenIds || [];
+  private onResizeStarted = (e: CustomEvent<TokenGestureEventDetail>): void => {
+    const resizingTokenIds = e.detail.tokenIds;
     
     // Only hide UI if this token is being resized
     if (this.currentToken && resizingTokenIds.includes(this.currentToken.id)) {
@@ -295,9 +276,8 @@ export class TokenUIRenderer {
   /**
    * Handle resize ended events - show UI elements again
    */
-  private onResizeEnded = (e: Event): void => {
-    const customEvent = e as CustomEvent;
-    const resizedTokenIds = customEvent.detail?.tokenIds || [];
+  private onResizeEnded = (e: CustomEvent<TokenGestureEventDetail>): void => {
+    const resizedTokenIds = e.detail.tokenIds;
     
     // Only restore UI if this token was being resized
     if (this.currentToken && resizedTokenIds.includes(this.currentToken.id)) {
@@ -314,9 +294,8 @@ export class TokenUIRenderer {
   /**
    * Handle rotation started events - hide UI elements except rotation handles
    */
-  private onRotationStarted = (e: Event): void => {
-    const customEvent = e as CustomEvent;
-    const rotatingTokenIds = customEvent.detail?.tokenIds || [];
+  private onRotationStarted = (e: CustomEvent<TokenGestureEventDetail>): void => {
+    const rotatingTokenIds = e.detail.tokenIds;
     
     // Only hide UI if this token is being rotated
     if (this.currentToken && rotatingTokenIds.includes(this.currentToken.id)) {
@@ -338,9 +317,8 @@ export class TokenUIRenderer {
   /**
    * Handle rotation ended events - show UI elements again
    */
-  private onRotationEnded = (e: Event): void => {
-    const customEvent = e as CustomEvent;
-    const rotatedTokenIds = customEvent.detail?.tokenIds || [];
+  private onRotationEnded = (e: CustomEvent<TokenGestureEventDetail>): void => {
+    const rotatedTokenIds = e.detail.tokenIds;
     
     // Only restore UI if this token was being rotated
     if (this.currentToken && rotatedTokenIds.includes(this.currentToken.id)) {
@@ -399,10 +377,10 @@ export class TokenUIRenderer {
     
     // Quick change detection without JSON stringify
     const hpString = token.hp === undefined ? 'no-hp' : (typeof token.hp === 'object' ? `${token.hp.current}/${token.hp.max}` : String(token.hp));
-    const stressString = token.stress === undefined ? 'no-stress' : (typeof token.stress === 'object' ? `${token.stress.current}/${token.stress.max}` : String(token.stress));
+    const stressString = token.stress === undefined ? 'no-stress' : (typeof token.stress === 'object' ? `${token.stress.current}/${token.stress.max}` : `${token.stress}/${token.maxStress ?? 10}`);
     const showNameplate = playerSettings ? playerSettings.showTokenNameplates : tokenSettings.showNameplates || token.showNameplate === true;
     const conditionsKey = token.conditions?.join(',') ?? '';
-    const updateKey = `${hpString}_${stressString}_${spriteWidth}_${gridPx}_${this.isHovered}_${this.isSelected}_${token.name || ''}_${showNameplate}_${(token as any).statblockName || ''}_${tokenSettings.showHPBars}_${tokenSettings.showStressBars}_${conditionsKey}`;
+    const updateKey = `${hpString}_${stressString}_${spriteWidth}_${gridPx}_${this.isHovered}_${this.isSelected}_${token.name || ''}_${showNameplate}_${token.statblockName || ''}_${tokenSettings.showHPBars}_${tokenSettings.showStressBars}_${conditionsKey}`;
     
     // Skip update if nothing has changed
     if (this.lastUpdateData === updateKey) {
@@ -423,10 +401,9 @@ export class TokenUIRenderer {
     this.nameText.text = '';
     
     // Check if we have any data to display
-    // Only show HP/stress bars if token has a statblock assigned AND the setting is enabled
-    const hasStatblock = !!(token.statblockPath || (token as any).statblock);
-    const hasHP = hasStatblock && token.hp !== undefined && tokenSettings.showHPBars;
-    const hasStress = hasStatblock && token.stress !== undefined && tokenSettings.showStressBars;
+    const hasStatblock = !!token.statblockPath;
+    const hasHP = token.hp !== undefined && tokenSettings.showHPBars;
+    const hasStress = token.stress !== undefined && tokenSettings.showStressBars;
     // showNameplate is already calculated above for change detection
 
     const hasConditions = (token.conditions?.length ?? 0) > 0;
@@ -503,21 +480,18 @@ export class TokenUIRenderer {
       const fillY = innerY + fillPadding;
       const fillableWidth = innerWidth - fillPadding * 2;
       const fillHeight = innerHeight - fillPadding * 2;
-      const fillRadius = fillHeight / 2;
       const fillWidth = fillableWidth * (hpPercentage / 100);
       
       if (fillWidth > 0) {
         const fillGradient = getBarGradient(baseColor);
         
-        this.hpFill.roundRect(fillX, fillY, fillWidth, fillHeight, fillRadius)
+        resourceBarFill(this.hpFill, fillX, fillY, fillWidth, fillHeight)
           .fill(fillGradient);
       }
       
       // Text
-      this.hpText.text = hp ? `${hp.current}/${hp.max}` : '0/0';
-      this.hpText.anchor.set(0.5, 0.5);
+      this.hpText.setValue(hp ?? { current: 0, max: 0 });
       this.hpText.position.set(0, currentY + barHeight/2);
-      this.hpText.scale.set(0.333); // Fixed text scale
       
       // Defeated overlay - just darken the HP bar, no X icon
       if (isDefeated) {
@@ -570,21 +544,18 @@ export class TokenUIRenderer {
       const fillY = innerY + fillPadding;
       const fillableWidth = innerWidth - fillPadding * 2;
       const fillHeight = innerHeight - fillPadding * 2;
-      const fillRadius = fillHeight / 2;
       const fillWidth = fillableWidth * (stressPercentage / 100);
       
       if (fillWidth > 0) {
         const fillGradient = getBarGradient(baseStressColor);
         
-        this.stressFill.roundRect(fillX, fillY, fillWidth, fillHeight, fillRadius)
+        resourceBarFill(this.stressFill, fillX, fillY, fillWidth, fillHeight)
           .fill(fillGradient);
       }
       
       // Text
-      this.stressText.text = `${stressValue}/${maxStress}`;
-      this.stressText.anchor.set(0.5, 0.5);
+      this.stressText.setValue({ current: stressValue, max: maxStress });
       this.stressText.position.set(0, currentY + barHeight/2);
-      this.stressText.scale.set(0.333); // Fixed text scale
     }
     
     // Store current token data for theme updates
@@ -597,9 +568,9 @@ export class TokenUIRenderer {
     if (token.name) {
       // Token has a custom name (overrides statblock name)
       displayName = token.name;
-    } else if (hasStatblock && (token as any).statblockName) {
+    } else if (hasStatblock && token.statblockName) {
       // Token has a statblock and we loaded the statblock name
-      displayName = (token as any).statblockName;
+      displayName = token.statblockName;
     } else if (hasStatblock) {
       // Token has a statblock but no name was loaded - show placeholder
       displayName = 'Unknown Creature';
@@ -995,9 +966,7 @@ export class TokenUIRenderer {
       
       // Only update if name changed
       if (newName !== this.originalName) {
-        // Only characters can have names updated - use type assertion since we know this is a character
-        const updates = { name: newName === '' ? undefined : newName } as any;
-        this.store?.getState().updateToken(this.currentToken.id, updates);
+        this.store.getState().updateToken(this.currentToken.id, { name: newName === '' ? undefined : newName });
         
         // Force a re-render of this UI by clearing the cache
         this.lastUpdateData = '';
@@ -1078,7 +1047,7 @@ export class TokenUIRenderer {
     input.addEventListener('input', inputHandler);
     
     // Store handlers for cleanup
-    (input as any).cleanupHandlers = () => {
+    this.removeEditInputListeners = (): void => {
       input.removeEventListener('keydown', keydownHandler);
       input.removeEventListener('blur', blurHandler);
       input.removeEventListener('click', clickHandler);
@@ -1106,10 +1075,8 @@ export class TokenUIRenderer {
     
     // Remove input element with proper cleanup
     if (this.editInput) {
-      // Clean up event handlers
-      if ((this.editInput as any).cleanupHandlers) {
-        (this.editInput as any).cleanupHandlers();
-      }
+      this.removeEditInputListeners?.();
+      this.removeEditInputListeners = null;
       
       // Remove from DOM
       this.editInput.remove();

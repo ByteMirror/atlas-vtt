@@ -16,6 +16,7 @@ import { MapLoadingOverlay } from './components/MapLoadingOverlay';
 import { SceneTabBar } from './components/SceneTabBar';
 import { presentTabInPlayerWindow } from '../services/PlayerWindowPresenter';
 import { addTokenHighlight } from '../pixi/utils/tokenHighlight';
+import { focusToken } from '../pixi/tokenFocus';
 import { canRunMapHotkeys, matchesMapHotkey } from '../keyboard/mapHotkeys';
 import { SettingsService } from '../services/SettingsService';
 import { HotkeyHelp } from '../keyboard/HotkeyHelp';
@@ -23,30 +24,26 @@ import { HotkeyHelp } from '../keyboard/HotkeyHelp';
 
 // Import the new context and hook
 import { AtlasUIContext, AtlasUIContextValue } from './root/AtlasUIContext';
-import { useCurrentMapData } from './root/useCurrentMapData';
 import { ContextMenuProvider } from './root/ContextMenuContext';
 import type { AtlasView } from '../atlas-view';
 import { runInBackground } from '../utils/backgroundTask';
 
 interface UIRootProps {
   app: App;
-  view: AtlasView; // TODO: Add specific type for AtlasView
+  view: AtlasView;
   pixiApp: Application | null;
-  mapData: any; // Initial map data
 }
 
 /**
  * Root component for the Atlas VTT UI
  * Provides a context with core objects to all child components
  */
-export const UIRoot: React.FC<UIRootProps> = ({ app, view, pixiApp, mapData }) => {
+export const UIRoot: React.FC<UIRootProps> = ({ app, view, pixiApp }) => {
   const settings = SettingsService.forApp(app);
   const [hotkeyHelpOpen, setHotkeyHelpOpen] = useState(false);
 
   // Get the store directly from context
   const store = useViewStoreHook();
-  
-  const [, setViewport] = useState<any>(null);
 
   // Per-view UI visibility — driven by the store, not local state
   const isGridSettingsOpen = useAtlasStore(s => s.isGridSettingsOpen);
@@ -58,33 +55,6 @@ export const UIRoot: React.FC<UIRootProps> = ({ app, view, pixiApp, mapData }) =
   const isDiceLogOpen = useAtlasStore(s => s.isDiceLogOpen);
   const setDiceLogOpen = useAtlasStore(s => s.setDiceLogOpen);
 
-  // Use the custom hook to manage map data state
-  const currentMapData = useCurrentMapData(view, mapData);
-  
-  // Get viewport from renderer
-  useEffect(() => {
-    const updateViewport = () => {
-      if (view?.renderer?.getViewportInstance) {
-        const vp = view.renderer.getViewportInstance();
-        setViewport(vp);
-      }
-    };
-    
-    // Initial viewport setup
-    updateViewport();
-    
-    // Listen for viewport reinitialization (happens when switching maps)
-    const handleViewportReinitialized = () => {
-      updateViewport();
-    };
-    
-    window.addEventListener('atlas-viewport-reinitialized', handleViewportReinitialized);
-    
-    return () => {
-      window.removeEventListener('atlas-viewport-reinitialized', handleViewportReinitialized);
-    };
-  }, [view]);
-  
   // Map navigation keyboard shortcuts (Shift+1: fit map, Shift+2: zoom to selected token)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -114,25 +84,17 @@ export const UIRoot: React.FC<UIRootProps> = ({ app, view, pixiApp, mapData }) =
       } else if (matchesMapHotkey(e, 'fitToken', settings)) {
         // Shift+2: Zoom to selected token with smooth animation
         e.preventDefault();
-        const currentSelectedIds = store.getState().selectedIds || [];
-        const currentTokens = store.getState().objects?.tokens || {};
+        const { selectedIds, objects, grid } = store.getState();
+        const tokenId = selectedIds[0];
+        if (tokenId === undefined) return;
 
-        if (currentSelectedIds.length === 0) return;
-
-        const tokenId = currentSelectedIds[0];
-        const token = currentTokens[tokenId];
+        const token = objects.tokens[tokenId];
         if (!token || !view) return;
 
         const vp = view?.renderer?.getViewportInstance?.();
         if (!vp) return;
 
-        // Animate to token position with smooth easing
-        vp.animate({
-          position: { x: token.x, y: token.y },
-          scale: 0.9,
-          time: 400,
-          ease: 'easeInOutCubic',
-        });
+        focusToken(vp, token, grid?.size ?? 70);
 
         // Add highlight effect to the token
         addTokenHighlight(view, tokenId, { highlightDuration: 2000, glowThickness: 4 });
@@ -150,10 +112,8 @@ export const UIRoot: React.FC<UIRootProps> = ({ app, view, pixiApp, mapData }) =
       view,
       pixiApp,
       renderer: view?.renderer ?? null,
-      mapData: currentMapData,
-      layerMgr: null,
     }),
-    [app, view, pixiApp, currentMapData]
+    [app, view, pixiApp]
   );
 
   // Check if this is a player view - use store state which is authoritative
@@ -163,10 +123,6 @@ export const UIRoot: React.FC<UIRootProps> = ({ app, view, pixiApp, mapData }) =
   const isMapLoading = useAtlasStore(state => state.isMapLoading);
   const mapLoadingProgress = useAtlasStore(state => state.mapLoadingProgress);
   const mapLoadingMessage = useAtlasStore(state => state.mapLoadingMessage);
-  
-  // Debug logging for loading state
-  useEffect(() => {
-  }, [isMapLoading, mapLoadingMessage]);
   
   // Get background directly from store (for streamed maps)
   const storeBackground = useAtlasStore(state => state.background);
@@ -225,27 +181,30 @@ export const UIRoot: React.FC<UIRootProps> = ({ app, view, pixiApp, mapData }) =
       <ContextMenuProvider>
         {hotkeyHelpOpen && <HotkeyHelp settings={settings} isPlayerView={isPlayerView} onClose={() => setHotkeyHelpOpen(false)} />}
         <div className="atlas-ui" style={{ position: 'relative', width: '100%', height: '100%' }}>
-          {/* Render BackgroundSprite - use store background (for streamed maps) or currentMapData background */} 
-          {(storeBackground || currentMapData?.background) && (
-            <BackgroundSprite imagePath={storeBackground || currentMapData.background} />
-          )}
+          {storeBackground && <BackgroundSprite imagePath={storeBackground} />}
 
           {/* Navigation controls - only for DM view when not loading */}
 
           
-          {/* View actions menu - only for DM view when not loading */}
-          {!isPlayerView && !isMapLoading && <ViewActionsMenu app={app} filePath={view?.file?.path} />}
-
-          {/* Scene Tab Bar - only for DM view when not loading */}
-          {!isPlayerView && !isMapLoading && (
-            <SceneTabBar
-              onSwitchTab={(tabId) => { if (view) runInBackground(view.switchToTab(tabId), 'Switching scene tab'); }}
-              onCloseTab={(tabId) => { if (view) runInBackground(view.closeTab(tabId), 'Closing scene tab'); }}
-              onAddTab={() => view?.openSceneBrowser()}
-              onPresentTab={(tabId) => {
-                if (view) void presentTabInPlayerWindow(app, view, tabId);
-              }}
-            />
+          {/* Top row — scene tabs (DM only) and widget bar share one flex row */}
+          {!isMapLoading && (
+            <div className="atlas-top-bar-row">
+              {!isPlayerView && (
+                <SceneTabBar
+                  onSwitchTab={(tabId) => { if (view) runInBackground(view.switchToTab(tabId), 'Switching scene tab'); }}
+                  onCloseTab={(tabId) => { if (view) runInBackground(view.closeTab(tabId), 'Closing scene tab'); }}
+                  onAddTab={() => view?.openSceneBrowser()}
+                  onPresentTab={(tabId) => {
+                    if (view) void presentTabInPlayerWindow(app, view, tabId);
+                  }}
+                />
+              )}
+              <ResponsiveWidgetBar
+                isPlayerView={isPlayerView}
+                store={store}
+                viewId={view?.viewId}
+              />
+            </div>
           )}
 
           {/* Bottom toolbar row — undo/redo docked left of main toolbar */}
@@ -255,16 +214,9 @@ export const UIRoot: React.FC<UIRootProps> = ({ app, view, pixiApp, mapData }) =
               <MainToolbar viewId={view?.viewId} />
             </div>
           )}
-          
-          
-          {/* Widget Bar - visible to both DM and players when not loading */}
-          {!isMapLoading && (
-            <ResponsiveWidgetBar 
-              isPlayerView={isPlayerView}
-              store={store}
-              viewId={view?.viewId}
-            />
-          )}
+
+          {/* View actions menu — bottom right, DM only */}
+          {!isPlayerView && !isMapLoading && <ViewActionsMenu app={app} filePath={view?.file?.path} />}
           
           {/* Grid Settings Modal - only render when needed */}
           {isGridSettingsOpen && (

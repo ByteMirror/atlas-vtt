@@ -5,6 +5,7 @@ import type { StorageValue } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
 import { temporal } from 'zundo';
 import type { App, Plugin } from 'obsidian';
+import type AtlasVTTPlugin from '../../main';
 import type { TokenEntity, Character, NotePin, TextElement, DrawingStroke } from './types';
 import type { FogOperation, FogOperationInput } from './types/fogTypes';
 import type { WallSegment, WallInput, LightSource, LightInput } from './types/wallTypes';
@@ -85,6 +86,7 @@ export interface ViewAtlasState {
     notePath?: string;
     snapped?: boolean;
     ringColor?: string;
+    showRing?: boolean;
   }) => string;
 
   addTokenWithId: (
@@ -184,7 +186,7 @@ export interface ViewAtlasState {
   
   // Widget settings
   widgetSettings: WidgetSettings;
-  widgetValues: Record<string, any>; // Widget values separate from definitions
+  widgetValues: Record<string, number>; // Widget values separate from definitions
   setWidgetSettings: (settings: WidgetSettings) => void;
   updateWidget: (widgetId: string, updates: Partial<AnyWidget>) => void;
   addWidget: (widget: AnyWidget) => void;
@@ -311,7 +313,6 @@ const createInitialState = (): Pick<ViewAtlasState, 'schema' | 'version' | 'mapP
     size: 70,
     offsetX: 0,
     offsetY: 0,
-    color: '#00FFFF',
     opacity: 0.5,
     lineType: 'solid',
     lineWidth: 1
@@ -342,7 +343,11 @@ const createInitialState = (): Pick<ViewAtlasState, 'schema' | 'version' | 'mapP
   diceLog: [],
 });
 
-export type TokenUpdates = Partial<Omit<TokenEntity, 'id' | 'kind'>>;
+/**
+ * Fields an update may set on a token. `Character` is a superset of `Token`, so its
+ * fields cover both kinds; an explicit `undefined` clears a field (statblock unlinking).
+ */
+export type TokenUpdates = { [K in Exclude<keyof Character, 'id' | 'kind'>]?: Character[K] | undefined };
 
 /**
  * A view store as seen after its middleware stack: selector-aware `subscribe`,
@@ -367,7 +372,7 @@ function applyTokenUpdates(token: TokenEntity | undefined, updates: TokenUpdates
 /**
  * Creates an isolated Atlas store instance for a specific view
  */
-export function createViewAtlasStore(app: App, viewId: string, plugin?: any, isPlayerView: boolean = false): ViewAtlasStore {
+export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTTPlugin, isPlayerView: boolean = false): ViewAtlasStore {
   // Create a storage factory that will access the store once it's created
   let storeRef: Pick<StoreApi<ViewAtlasState>, 'getState'> | null = null;
 
@@ -467,7 +472,7 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: any, isP
           isDragging: false,
           
           // Collection management (not persisted)
-          plugin: plugin,
+          ...(plugin && { plugin }),
           currentCollectionId: 'default', // Default to 'default' collection
           
           // DM Dashboard state
@@ -535,7 +540,6 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: any, isP
                 size: 70,
                 offsetX: 0,
                 offsetY: 0,
-                color: '#00FFFF',
                 opacity: 0.5,
                 lineType: 'solid',
                 lineWidth: 1
@@ -556,7 +560,6 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: any, isP
                 size: 70,
                 offsetX: 0,
                 offsetY: 0,
-                color: '#00FFFF',
                 opacity: 0.5,
                 lineType: 'solid',
                 lineWidth: 1
@@ -608,6 +611,7 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: any, isP
               ...(data.notePath && { notePath: data.notePath }),
               ...(data.snapped !== undefined && { snapped: data.snapped }),
               ...(data.ringColor && { ringColor: data.ringColor }),
+              ...(data.showRing !== undefined && { showRing: data.showRing }),
             };
             set((draft) => {
               draft.objects.tokens[id] = token;
@@ -1290,7 +1294,6 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: any, isP
               size: 70,
               offsetX: 0,
               offsetY: 0,
-              color: '#00FFFF',
               opacity: 0.5,
               lineType: 'solid',
               lineWidth: 1
@@ -1317,7 +1320,7 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: any, isP
             }
 
             // Create new token object so Reactivity triggers
-            const updated = { ...existing } as any;
+            const updated: TokenEntity = { ...existing };
             if (color === null) {
               delete updated.ringColor;
             } else {
@@ -1381,16 +1384,13 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: any, isP
             ids.forEach(id => {
               const existing = updatedTokens[id];
               if (existing) {
-                const updated = { ...existing } as any;
-                
+                if (existing.kind !== 'character') return;
+
                 // Set HP to 0 - handle both number and object formats
-                if (typeof updated.hp === 'object' && updated.hp !== null) {
-                  updated.hp = { ...updated.hp, current: 0 };
-                } else {
-                  updated.hp = 0;
-                }
-                
-                updatedTokens[id] = updated;
+                const hp = typeof existing.hp === 'object' && existing.hp !== null
+                  ? { ...existing.hp, current: 0 }
+                  : 0;
+                updatedTokens[id] = { ...existing, hp };
               }
             });
 
@@ -1408,22 +1408,19 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: any, isP
             ids.forEach(id => {
               const existing = updatedTokens[id];
               if (existing) {
-                const updated = { ...existing } as any;
-                
-                // Reset HP to max - handle both number and object formats
-                if (typeof updated.hp === 'object' && updated.hp !== null && updated.hp.max) {
-                  updated.hp = { ...updated.hp, current: updated.hp.max };
-                } else if (typeof updated.hp === 'number') {
-                  // For number format, we can't know the original max, so keep current value
-                  // This case is mainly for backward compatibility
+                const updated: TokenEntity = { ...existing };
+
+                if (updated.kind === 'character') {
+                  // Reset HP to max. The plain number format carries no max, so it is left as is.
+                  if (typeof updated.hp === 'object' && updated.hp !== null && updated.hp.max) {
+                    updated.hp = { ...updated.hp, current: updated.hp.max };
+                  }
+                  updated.stress = 0;
                 }
-                
-                // Reset stress to 0
-                updated.stress = 0;
-                
+
                 // Clear all conditions
                 delete updated.conditions;
-                
+
                 updatedTokens[id] = updated;
               }
             });

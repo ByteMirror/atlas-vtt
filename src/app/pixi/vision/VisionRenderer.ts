@@ -1,6 +1,7 @@
 import { Sprite, Texture, Container, Graphics } from 'pixi.js';
 import type { Application } from 'pixi.js';
 import type { Viewport } from 'pixi-viewport';
+import type { App } from 'obsidian';
 import type { StoreApi } from 'zustand';
 import type { ViewAtlasState } from '../../storeFactory';
 import type { VisionPolygon } from '../../types/visionTypes';
@@ -21,7 +22,7 @@ export class VisionRenderer {
   private container: Container;
   private viewport: Viewport;
   private store: StoreApi<ViewAtlasState>;
-  private obsApp: any; // Obsidian App
+  private obsApp: App;
   private pixiApp: Application;
   private compositor: VisionCompositor;
   private maskSprite: Sprite | null = null;
@@ -55,7 +56,7 @@ export class VisionRenderer {
     viewport: Viewport,
     pixiApp: Application,
     store: StoreApi<ViewAtlasState>,
-    obsApp: any,
+    obsApp: App,
   ) {
     this.viewport = viewport;
     this.pixiApp = pixiApp;

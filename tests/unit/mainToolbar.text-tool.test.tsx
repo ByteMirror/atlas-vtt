@@ -74,6 +74,7 @@ vi.mock('../../src/app/utils/activeLeafGuard', () => ({
 
 vi.mock('../../src/app/packages/components/primitives/tooltip', () => ({
   TooltipProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  LabelTooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
 vi.mock('../../src/app/packages/components/primitives/ToolButton', () => ({

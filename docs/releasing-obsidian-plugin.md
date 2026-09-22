@@ -2,17 +2,19 @@
 
 ## Cut a release
 
-1. `npm version patch` (or `minor` / `major`). This bumps `package.json`, `manifest.json` and `versions.json` together and creates a git tag. `.npmrc` sets an empty tag prefix, so the tag equals the manifest version exactly (`0.1.1`, not `v0.1.1`), which Obsidian requires.
-2. `git push && git push --tags`
-3. Publish a GitHub release for that tag. `plugin-release.yml` then builds the plugin, checks that the tag equals `manifest.json`'s version, attests build provenance and attaches `main.js`, `manifest.json` and `styles.css` as individual assets.
+Stable releases come from `main` only. Beta work is promoted first as described in [development.md](development.md#promoting-a-beta-to-a-stable-release).
+
+1. On the promotion branch, `npm version <x.y.z>`. This bumps `package.json`, `manifest.json` and `versions.json` together and creates a git tag. `.npmrc` sets an empty tag prefix, so the tag equals the manifest version exactly (`0.1.1`, not `v0.1.1`), which Obsidian requires.
+2. Merge into `main`, then run **Prepare Plugin Release** on `main` with that version. The workflow refuses beta versions and commits that are not on `main`, repeats every check, attests build provenance and creates a draft release with `main.js`, `manifest.json` and `styles.css` as individual assets.
+3. Review the draft and publish it.
 
 Obsidian installs exactly those three files. Anything the plugin needs at runtime (sounds, images) must be inlined into `main.js` or `styles.css`.
 
-## BRAT beta distribution
+## Beta channel
 
-Publish a GitHub release marked **Pre-release**, with the same version as its manifest and the three assets above. BRAT users add `ByteMirror/atlas-vtt` to install it; a community-directory listing is not required. Current BRAT reads the manifest from the release assets, so no `manifest-beta.json` is needed. See [BRAT's developer guide](https://tfthacker.com/brat-developers).
+Pushes to `beta` with a new `x.y.z-beta.N` version publish a GitHub **pre-release** automatically through `plugin-beta-release.yml`, with the same three assets and `changelog/Unreleased.md` as notes. BRAT reads the manifest from the release assets and installs the highest version including pre-releases, so no `manifest-beta.json` is needed; see [BRAT's developer guide](https://tfthacker.com/brat-developers) and [beta-testing.md](beta-testing.md) for the tester side.
 
-Use GitHub's prerelease flag for beta releases and a new version for each beta so BRAT detects the update. Once a stable version is listed in the community directory, keep later beta version bumps on a beta branch until they are ready for the stable channel.
+Pre-releases are never marked *latest* and `versions.json` never lists beta versions, so the community directory and stable installs cannot pick them up. Obsidian will not move a tester from `0.2.0-beta.N` to the `0.2.0` stable release by itself; BRAT does.
 
 ## Community directory
 
@@ -30,6 +32,6 @@ Screenshots (1200×800), icon, descriptions and categories are edited in the das
 
 CI gates changes on TypeScript, the test suite, the production build, local preflight checks and release asset validation. The release workflow repeats these checks before preparing assets. One WebGL integration test is intentionally skipped in the jsdom suite.
 
-ESLint currently reports an existing typing backlog and a `Function` constructor used for Fantasy Statblocks layout callbacks (see [PRIVACY.md](../PRIVACY.md)). CI uploads the full ESLint JSON report as an advisory artifact; a green CI run does not mean lint is clean. Local preflight also reports bundle/CSS warnings for the Function constructor, HTML rendering, clipboard access, `!important` and `:has()`.
+Lint is a blocking CI check with zero tolerance, so a green CI run means lint is clean. The one accepted finding, a `Function` constructor used for Fantasy Statblocks layout callbacks (see [PRIVACY.md](../PRIVACY.md)), is recorded in `eslint-suppressions.json`; Obsidian's scanner still lists it (see [development.md](development.md#lint)). Local preflight also reports bundle/CSS warnings for the Function constructor, HTML rendering, clipboard access, `!important` and `:has()`.
 
 Local preflight is only an approximation. The authoritative result is the portal's **Review branch** scan, as described in [Obsidian's entry management documentation](https://docs.obsidian.md/community-directory/manage-entry). Resolve any portal errors before publishing the directory listing.

@@ -28,7 +28,6 @@ function createHarness(eventBus: EventEmitter) {
     (renderer as any).measureRenderer = new MeasureRenderer(viewport as any, eventBus, store as any, {} as any);
   });
   vi.spyOn(renderer as any, 'setupKeyboardHandlers').mockImplementation(() => {});
-  vi.spyOn(renderer as any, 'setupViewportClickHandler').mockImplementation(() => {});
   return { renderer, store, viewport };
 }
 

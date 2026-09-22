@@ -1,0 +1,10 @@
+{
+  "src/app/react/components/statblock/layoutCallbacks.ts": {
+    "@typescript-eslint/no-implied-eval": {
+      "count": 1
+    },
+    "obsidianmd/rule-custom-message": {
+      "count": 1
+    }
+  }
+}

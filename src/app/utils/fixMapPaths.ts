@@ -2,6 +2,8 @@
  * Utility to fix token image paths in map files that have duplicated path segments
  */
 
+import type { LegacyMapFile } from '../services/MapPersistence';
+
 /**
  * Fix a single image path that may have duplicated segments
  */
@@ -27,24 +29,18 @@ export function fixDuplicatedPath(path: string): string {
 /**
  * Fix all token paths in a map data object
  */
-export function fixMapTokenPaths(mapData: any): boolean {
+export function fixMapTokenPaths(mapData: LegacyMapFile): boolean {
   let modified = false;
-  
-  // Handle both direct mapData and wrapped in state
-  const data = mapData.state || mapData;
-  
-  if (data.objects && data.objects.tokens) {
-    for (const tokenId in data.objects.tokens) {
-      const token = data.objects.tokens[tokenId];
-      if (token.imagePath) {
-        const fixedPath = fixDuplicatedPath(token.imagePath);
-        if (fixedPath !== token.imagePath) {
-          token.imagePath = fixedPath;
-          modified = true;
-        }
+
+  for (const token of Object.values(mapData.objects?.tokens ?? {})) {
+    if (token.imagePath) {
+      const fixedPath = fixDuplicatedPath(token.imagePath);
+      if (fixedPath !== token.imagePath) {
+        token.imagePath = fixedPath;
+        modified = true;
       }
     }
   }
-  
+
   return modified;
 }

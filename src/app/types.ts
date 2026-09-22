@@ -1,9 +1,6 @@
 // types.ts
 // Shared interfaces and types for Atlas VTT
 
-import type { FogOperation } from './types/fogTypes';
-
-
 /**
  * Note pin object that links to an Obsidian note
  */
@@ -18,31 +15,6 @@ export interface NotePin {
   gmOnly?: boolean; // Whether the pin is only visible to the GM
 }
 
-export interface AtlasMapData {
-  version: number;
-  /** Human-readable map name (may be absent in legacy files) */
-  name?: string;
-  /** Path to background image – preferred canonical field */
-  background?: string;
-  /** @deprecated Temporary alias for background used by historic code */
-  mapImagePath?: string;
-  width?: number; // Add optional map width (world width)
-  height?: number; // Add optional map height (world height)
-  grid?: {
-    enabled: boolean;
-    size: number;
-    offsetX?: number;
-    offsetY?: number;
-    color?: string;
-    opacity?: number;
-    mapScale?: number; // Scale factor applied to map during grid alignment
-  };
-  tokens?: TokenData[];
-  pins?: any[];
-  fog?: Record<string, FogOperation>;
-  textElements?: any[];
-}
-
 /** A bounded resource value saved on an individual map token. */
 export interface TokenResourceValue {
   current: number;
@@ -51,6 +23,8 @@ export interface TokenResourceValue {
 
 /** Base interface for any token entity. */
 export interface BaseToken {
+  /** False preserves the whole artwork without an Atlas frame. Defaults to true. */
+  showRing?: boolean;
   /** Per-instance resources imported from a statblock beyond HP, stress and hope. */
   statblockResources?: Record<string, TokenResourceValue>;
   id: string;
@@ -58,7 +32,7 @@ export interface BaseToken {
   y: number;
   imagePath: string;
   tags?: string[];
-  /** Hex colour for status ring; undefined ⇢ no ring */
+  /** Hex colour for the Atlas ring; undefined uses white. */
   ringColor?: string;
   /** Active condition IDs referencing ConditionDefinition.id from collection settings */
   conditions?: string[];
@@ -98,10 +72,16 @@ export interface Character extends BaseToken {
   hp: number | { current: number; max: number }; // Support both simple and complex HP
   stress?: number | { current: number; max: number }; // Current stress level
   maxStress?: number; // Maximum stress (defaults to 10)
+  /** Max HP was set on this token; statblock edits no longer replace it. */
+  maxHpOverridden?: boolean;
+  /** Max stress was set on this token; statblock edits no longer replace it. */
+  maxStressOverridden?: boolean;
   hope?: number | { current: number; max: number }; // Hope tokens for player characters
   difficulty?: string; // CR or tier from statblock
   notePath?: string;
   statblockPath?: string; // Path to linked statblock note
+  /** Name read from the linked statblock; the nameplate falls back to it when `name` is empty. */
+  statblockName?: string | null;
   // Player-linked token properties
   playerLinked?: boolean; // Whether this token is linked to a player character
   playerId?: string; // The player ID who owns this character
@@ -118,41 +98,6 @@ export type TokenEntity = Token | Character;
  * Saved with encounters so spawning reproduces the exact token state.
  */
 export type TokenStateSnapshot = Omit<TokenEntity, 'id' | 'x' | 'y' | 'instanceNumber'>;
-
-/**
- * Structure for tokens as persisted in .atlasmap JSON file
- */
-export interface PersistedToken {
-  id: string;
-  x: number;
-  y: number;
-  imagePath: string;
-  // Add other relevant fields like rotation, size, etc. if needed
-}
-
-// Deprecated: use TokenEntity instead
-export interface TokenData {
-  id: string;
-  x: number;
-  y: number;
-  radius?: number; // Primary dimension for circular tokens (including image-filled)
-  width?: number; // Used only if not circular (e.g., future rectangular tokens)
-  height?: number; // Used only if not circular
-  rotation?: number; // Rotation in degrees
-  imagePath?: string; // Path to image file in vault (used for fillPatternImage if circular)
-  naturalWidth?: number; // Original image width, stored for correct pattern scaling
-  naturalHeight?: number; // Original image height, stored for correct pattern scaling
-  label?: string;
-  color?: string; // Fallback color (used if imagePath is missing and token is fallback circle)
-  stroke?: string; // Outline color
-  strokeWidth?: number; // Outline width
-  link?: string;
-  statblockPath?: string; // Path to linked statblock note (instance-level override)
-  hpCurrent?: number;
-  hpMax?: number;
-  /** Active condition IDs referencing ConditionDefinition.id from collection settings */
-  conditions?: string[];
-}
 
 /**
  * Text element object for map annotations

@@ -2,6 +2,8 @@
  * Single-channel float images used by grid auto-detection.
  */
 
+import type { Sprite } from 'pixi.js';
+
 export interface GrayImage {
   width: number;
   height: number;
@@ -34,6 +36,22 @@ export function grayFromCanvasSource(
     data[i] = 0.299 * rgba[o]! + 0.587 * rgba[o + 1]! + 0.114 * rgba[o + 2]!;
   }
   return { width, height, data };
+}
+
+/** The part of a PIXI texture source detection reads; its `resource` is untyped upstream. */
+interface TexturePixels {
+  resource?: CanvasImageSource;
+  pixelWidth: number;
+  pixelHeight: number;
+}
+
+/** Luminance of a sprite's texture image, or null while the texture has no readable pixels. */
+export function grayFromSprite(sprite: Sprite, maxSide: number): GrayImage | null {
+  if (sprite.destroyed) return null;
+  const source: TexturePixels | undefined = sprite.texture?.source;
+  const resource = source?.resource;
+  if (!source || !resource) return null;
+  return grayFromCanvasSource(resource, source.pixelWidth, source.pixelHeight, maxSide);
 }
 
 /** Box-filter downsample by an integer factor. */
@@ -71,13 +89,6 @@ export function localContrast(image: GrayImage, d: number): GrayImage {
     }
   }
   return { width, height, data: out };
-}
-
-export function sampleNearest(image: GrayImage, x: number, y: number): number {
-  const xi = Math.round(x);
-  const yi = Math.round(y);
-  if (xi < 0 || yi < 0 || xi >= image.width || yi >= image.height) return 0;
-  return image.data[yi * image.width + xi]!;
 }
 
 export function sampleBilinear(image: GrayImage, x: number, y: number): number {

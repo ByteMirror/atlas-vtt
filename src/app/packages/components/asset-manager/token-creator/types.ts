@@ -3,9 +3,12 @@ import type { OptimizedImageResult } from '../../../../utils/imageOptimizer';
 export type CreatorMode = 'token' | 'map';
 
 export interface EditTokenInput {
+  showRing?: boolean;
+  size?: number | undefined;
   id: string;
   name: string;
   imageUrl: string;
+  imagePath?: string | undefined;
   tags: string[];
 }
 
@@ -15,7 +18,21 @@ export interface ImagePosition {
   y: number;
 }
 
+export interface PreviewImage {
+  file: File;
+  tags?: string[];
+  showRing?: boolean;
+  size?: number | undefined;
+  name?: string;
+  statblockPath?: string;
+}
+
 export interface TokenPreview {
+  tags?: string[];
+  statblockPath?: string;
+  showRing?: boolean;
+  /** Default footprint saved on the asset; undefined keeps 1×1. */
+  size?: number | undefined;
   id: string;
   /** Original upload; null when editing an existing asset without replacing its image. */
   file: File | null;
@@ -29,7 +46,7 @@ export interface TokenPreview {
   optimizationResult?: OptimizedImageResult;
 }
 
-export type TokenPreviewPatch = Partial<Pick<TokenPreview, 'name' | 'imageScale' | 'imagePosition'>>;
+export type TokenPreviewPatch = Partial<Pick<TokenPreview, 'name' | 'imageScale' | 'imagePosition' | 'showRing' | 'size' | 'tags'>>;
 
 export const ZOOM_MIN = 0.5;
 export const ZOOM_MAX = 3;

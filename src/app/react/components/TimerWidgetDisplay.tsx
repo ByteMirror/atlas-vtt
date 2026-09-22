@@ -2,11 +2,13 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Play, Pause, RotateCcw } from 'lucide-react';
 import { useAtlasUI } from '../root/AtlasUIContext';
 import type { TimerWidget } from '../../types/widgetTypes';
+import type { ViewAtlasStore } from '../../storeFactory';
 import { WidgetIconGlyph } from './WidgetIconGlyph';
+import { LabelTooltip } from '../../packages/components/primitives/tooltip';
 
 interface TimerWidgetDisplayProps {
   widget: TimerWidget;
-  store: any;
+  store: ViewAtlasStore;
   isPlayerView: boolean;
   isActive: boolean;
   isPulsing: boolean;
@@ -117,9 +119,7 @@ export function TimerWidgetDisplay({
     }
 
     intervalRef.current = window.setInterval(() => {
-      const state = store.getState();
-      const currentWidget = state.widgetSettings?.widgets?.[widget.id] as TimerWidget | undefined;
-      const current = (currentWidget?.value as number) ?? 0;
+      const current = store.getState().widgetSettings?.widgets?.[widget.id]?.value ?? 0;
 
       if (current <= 1) {
         // Timer expired
@@ -221,13 +221,14 @@ export function TimerWidgetDisplay({
         <div className="atlas-widget-value-row">
           {/* GM-only controls: play/pause */}
           {!isPlayerView && (
-            <button
-              onClick={handlePlayPause}
-              className="atlas-timer-btn"
-              title={isRunning ? 'Pause' : 'Start'}
-            >
-              {isRunning ? <Pause /> : <Play />}
-            </button>
+            <LabelTooltip label={isRunning ? 'Pause' : 'Start'}>
+              <button
+                onClick={handlePlayPause}
+                className="atlas-timer-btn"
+              >
+                {isRunning ? <Pause /> : <Play />}
+              </button>
+            </LabelTooltip>
           )}
 
           {/* Time display / edit */}
@@ -255,13 +256,14 @@ export function TimerWidgetDisplay({
 
           {/* GM-only controls: reset */}
           {!isPlayerView && (
-            <button
-              onClick={handleReset}
-              className="atlas-timer-btn"
-              title="Reset"
-            >
-              <RotateCcw />
-            </button>
+            <LabelTooltip label="Reset">
+              <button
+                onClick={handleReset}
+                className="atlas-timer-btn"
+              >
+                <RotateCcw />
+              </button>
+            </LabelTooltip>
           )}
         </div>
 

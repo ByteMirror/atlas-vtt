@@ -3,36 +3,17 @@ import { MapController } from '../MapController';
 import { EventEmitter } from 'events';
 import { RendererService } from './RendererService';
 import type { ViewAtlasState, ViewAtlasStore } from '../storeFactory';
+import type { MapFile } from './MapPersistence';
 import { getHistoryStore } from '../stores/history';
-
-// Define a local interface for the map data that MapController works with
-interface MapData {
-  version: number;
-  name?: string;
-  background?: string;
-  grid?: {
-    enabled: boolean;
-    size: number;
-    offsetX: number;
-    offsetY: number;
-    color: string;
-    opacity: number;
-  };
-  [key: string]: any; // Allow other properties that may exist
-}
+import { autoDetectGridOnFirstLoad } from './gridAutoDetect';
 
 export class MapService {
   private currentMapFilePath: string | null = null;
-  private currentMapData: MapData | null = null;
+  private currentMapData: MapFile | null = null;
   private eventBus: EventEmitter;
 
-  private resolveMapName(
-    mapName: string | undefined,
-    mapPath: string | null,
-  ): string {
-    if (typeof mapName === 'string' && mapName.trim().length > 0) {
-      return mapName.trim();
-    }
+  /** Map files carry no name of their own; the file name is the map name. */
+  private resolveMapName(mapPath: string | null): string {
     if (typeof mapPath === 'string' && mapPath.trim().length > 0) {
       const normalized = mapPath.replace(/\\/g, '/');
       const filename = normalized.split('/').pop() || normalized;
@@ -54,7 +35,9 @@ export class MapService {
    * @param filePath The path to the map file
    * @returns A promise that resolves with the loaded map data
    */
-  public async loadMap(rendererService: RendererService, filePath: string, restoreCamera: boolean = false): Promise<MapData | null> {
+  public async loadMap(rendererService: RendererService, filePath: string, restoreCamera: boolean = false): Promise<MapFile | null> {
+    // True once the store holds the cleared state of `filePath` instead of the previous map.
+    let storeClearedForNewMap = false;
     try {
       // Check if this is a map switch (not initial load)
       const isMapSwitch = this.currentMapFilePath !== null && this.currentMapFilePath !== filePath;
@@ -98,6 +81,7 @@ export class MapService {
       // This prevents state from bleeding between maps
       
       storeState.clearMapState();
+      storeClearedForNewMap = true;
       
       // Get fresh state after clearing
       
@@ -219,6 +203,13 @@ export class MapService {
         throw new Error('[MapService] Failed to load map data from MapController');
       }
       
+      if (this.store.getState().grid?.autoDetect) {
+        storeState.setMapLoading(true, 85, 'Detecting grid...');
+        // Let the overlay paint before the CPU-bound detection blocks the thread.
+        await new Promise(resolve => window.setTimeout(resolve, 30));
+        autoDetectGridOnFirstLoad(this.store, renderer.getBackgroundSprite());
+      }
+
       // Legacy mapData is now mostly for the renderer
       // The state is managed by the persist middleware      
       // Update loading progress
@@ -232,7 +223,7 @@ export class MapService {
       
       const mapInitData = {
         mapPath: this.currentMapFilePath || '',
-        mapName: this.resolveMapName(this.currentMapData?.name, this.currentMapFilePath),
+        mapName: this.resolveMapName(this.currentMapFilePath),
         background: this.currentMapData?.background,
         grid: currentGridSettings || this.currentMapData?.grid, // Use live grid settings if available
         tokens: finalState.objects?.tokens ?? {},
@@ -240,11 +231,7 @@ export class MapService {
         tokenSettings: finalState.tokenSettings,
       };
       this.eventBus.emit('map-loaded', mapInitData);
-      
-      
-      // Legacy event for React UI
-      window.dispatchEvent(new CustomEvent('atlas-map-data-update'));
-      
+
       // Wait for tokens to load before hiding the loading screen
       const hideLoadingScreen = () => {
         this.store.getState().setMapLoading(false);
@@ -264,8 +251,11 @@ export class MapService {
       console.error('[MapService] Error loading map:', error);
       this.currentMapFilePath = null;
       this.currentMapData = null;
-      // Ensure persistence is re-enabled even on error
       const storeState = this.store.getState();
+      // Unbind the cleared store from the file first, or the next save would replace
+      // the map that failed to load with an empty one.
+      if (storeClearedForNewMap) storeState.setMapPath(null);
+      // Ensure persistence is re-enabled even on error
       storeState.setPersistenceEnabled(true);
       
       // Hide loading overlay on error
@@ -285,7 +275,7 @@ export class MapService {
    * @param restoreCamera Whether to restore camera position from saved state
    * @returns A promise that resolves with the loaded map data
    */
-  public async loadMapFromFile(rendererService: RendererService, file: TFile, restoreCamera: boolean = false): Promise<MapData | null> {
+  public async loadMapFromFile(rendererService: RendererService, file: TFile, restoreCamera: boolean = false): Promise<MapFile | null> {
     return this.loadMap(rendererService, file.path, restoreCamera);
   }
 
@@ -293,7 +283,7 @@ export class MapService {
    * Get the current map data
    * @returns The current map data or null if no map is loaded
    */
-  public getCurrentMapData(): MapData | null {
+  public getCurrentMapData(): MapFile | null {
     return this.currentMapData;
   }
   

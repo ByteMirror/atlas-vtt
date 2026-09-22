@@ -4,6 +4,7 @@ import type { ContextMenuEntry } from '../../../../react/components/context-menu
 import type {
   AnyAsset,
   Folder,
+  InputModalState,
   Tag as TagType,
 } from '../types';
 import {
@@ -16,11 +17,14 @@ import { TagSearchModal } from '../TagSearchModal';
 import { runInBackground } from '../../../../utils/backgroundTask';
 import { confirmAction } from '../../../../ui/confirmDialog';
 import type { AtlasView } from '../../../../atlas-view';
+import type { ViewAtlasState } from '../../../../storeFactory';
+import { applyTokenDeleteImpact, describeTokenDeleteImpact, findTokenDeleteImpact } from '../utils/tokenDeleteImpact';
+import { tokenSizeSubmenu } from '../../../../react/components/context-menu/tokenSizeMenu';
 
 export interface AssetContextMenuDeps {
   app: ObsidianApp;
   view: AtlasView | null;
-  addToken: (data: any) => string;
+  addToken: ViewAtlasState['addToken'];
   setSelection: (ids: string[]) => void;
   assetService: AssetService | null;
   onClose: () => void;
@@ -28,7 +32,7 @@ export interface AssetContextMenuDeps {
   setEditingToken: (asset: AnyAsset | null) => void;
   setIsTokenCreatorOpen: (open: boolean) => void;
   setIsMoveModalOpen: (open: boolean) => void;
-  setInputModalState: (state: any) => void;
+  setInputModalState: (state: InputModalState) => void;
   setAssets: React.Dispatch<React.SetStateAction<AnyAsset[]>>;
   setSelectedAssetIds: React.Dispatch<React.SetStateAction<string[]>>;
   setAvailableTags: React.Dispatch<React.SetStateAction<TagType[]>>;
@@ -128,23 +132,34 @@ export function buildAssetContextMenuEntries(
           title: `Rename "${asset.name}"`,
           placeholder: 'Enter new name',
           defaultValue: asset.name,
-          onConfirm: async (newName: string) => {
-            if (newName.trim() !== asset.name) {
-              deps.setAssets((prev) =>
-                prev.map((a) => (a.id === asset.id ? { ...a, name: newName.trim() } : a))
+          onConfirm: (newName: string) => {
+            if (newName.trim() === asset.name) return;
+            deps.setAssets((prev) =>
+              prev.map((a) => (a.id === asset.id ? { ...a, name: newName.trim() } : a))
+            );
+            if (deps.assetService) {
+              runInBackground(
+                deps.assetService.updateAsset(asset.id, { name: newName.trim() }),
+                `Renaming asset ${asset.id}`
               );
-              if (deps.assetService) {
-                try {
-                  await deps.assetService.updateAsset(asset.id, { name: newName.trim() });
-                } catch (error) {
-                  console.error('[AssetManager] Failed to update name:', error);
-                }
-              }
             }
           },
         });
       },
     });
+  }
+
+  // ── Default size (all selected tokens) ────────────────────────
+  if (asset.type === 'tokens') {
+    const tokenIds = selectedAssets.filter((a) => a.type === 'tokens').map((a) => a.id);
+    entries.push(tokenSizeSubmenu(asset.size, (size) => {
+      deps.setAssets((prev) => prev.map((a) => (tokenIds.includes(a.id) ? { ...a, size } : a)));
+      const service = deps.assetService;
+      if (!service) return;
+      for (const id of tokenIds) {
+        runInBackground(service.updateAsset(id, { size }), `Updating size of asset ${id}`);
+      }
+    }));
   }
 
   // ── Statblock link (single token) ─────────────────────────────
@@ -194,10 +209,10 @@ export function buildAssetContextMenuEntries(
         selectedAssets: assetsToTag,
         availableTags: deps.availableTags,
         allAssets: deps.assets,
-        onToggleTag: (tagId: string, modalSelectedAssets: any[]) => {
+        onToggleTag: (tagId: string, modalSelectedAssets: AnyAsset[]) => {
           deps.setAssets((prev) =>
             prev.map((a) => {
-              if (modalSelectedAssets.some((sa: any) => sa.id === a.id)) {
+              if (modalSelectedAssets.some((sa) => sa.id === a.id)) {
                 const currentTags = a.tags || [];
                 return currentTags.includes(tagId)
                   ? { ...a, tags: currentTags.filter((t) => t !== tagId) }
@@ -208,10 +223,10 @@ export function buildAssetContextMenuEntries(
           );
           if (deps.assetService) {
             const service = deps.assetService;
-            modalSelectedAssets.forEach((sa: any) => {
+            modalSelectedAssets.forEach((sa) => {
               const currentTags = sa.tags || [];
               const newTags = currentTags.includes(tagId)
-                ? currentTags.filter((t: string) => t !== tagId)
+                ? currentTags.filter((t) => t !== tagId)
                 : [...currentTags, tagId];
               runInBackground(service.updateAssetTags(sa.id, newTags), `Updating tags of asset ${sa.id}`);
             });
@@ -250,14 +265,18 @@ export function buildAssetContextMenuEntries(
       const msg = deleteCount > 1
         ? `Are you sure you want to delete ${deleteCount} selected items?`
         : `Are you sure you want to delete "${asset.name}"?`;
+      const impact = deps.assetService
+        ? await findTokenDeleteImpact(deps.app, deps.assetService, selectedAssets)
+        : null;
       const confirmed = await confirmAction({
         title: deleteCount > 1 ? 'Delete items' : 'Delete item',
-        message: [msg],
+        message: [msg, ...(impact ? describeTokenDeleteImpact(impact) : [])],
         confirmLabel: 'Delete',
         destructive: true,
       });
       if (!confirmed) return;
 
+      if (impact) await applyTokenDeleteImpact(deps.app, impact);
       for (const a of selectedAssets) {
         const ok = await deps.deleteAssetFromVault(a);
         if (ok) {

@@ -1,11 +1,11 @@
 import React from 'react';
 import type { App } from 'obsidian';
 import type { StatblockItem, StatblockMonster, Trait } from './statblockTypes';
+import { runCallback } from './layoutCallbacks';
 import {
   abilityModifier,
   headingText,
   propertyText,
-  runCallback,
   signed,
   slugify,
   stringify,
@@ -15,6 +15,7 @@ import {
 import { StatblockMarkdown } from './StatblockText';
 import { EditableValue } from './EditableValue';
 import { useStatblockEdit } from './statblockEditContext';
+import { LabelTooltip } from '../../../packages/components/primitives/tooltip';
 
 /** Values that map cleanly onto a single editable frontmatter entry. */
 function isEditableScalar(value: unknown): boolean {
@@ -201,7 +202,7 @@ export function TextBlock({ item, monster, app, sourcePath }: BlockProps): React
 /** `saves` — a list of save/skill pairs. */
 export function SavesBlock({ item, monster, app, sourcePath }: BlockProps): React.JSX.Element | null {
   const raw = monster[item.properties?.[0] ?? ''];
-  const entries = Array.isArray(raw) ? raw : [];
+  const entries: unknown[] = Array.isArray(raw) ? raw : [];
   if (!entries.length) return null;
 
   const resolved = entries.map((save) => runCallback(item.callback, { monster, property: save }, save));
@@ -311,19 +312,19 @@ export function ImageBlock({
 
   return (
     <div className="atlas-sb-image">
-      <button
-        type="button"
-        className="atlas-sb-image-button"
-        onClick={onAssignToken}
-        aria-label={src ? 'Change token for this statblock' : 'Assign a token to this statblock'}
-        title={src ? 'Change token' : 'Assign token'}
-      >
-        {src ? (
-          <img src={src} alt={stringify(monster.name)} />
-        ) : (
-          <span className="atlas-sb-image-placeholder">Assign token</span>
-        )}
-      </button>
+      <LabelTooltip label={src ? 'Change token for this statblock' : 'Assign a token to this statblock'}>
+        <button
+          type="button"
+          className="atlas-sb-image-button"
+          onClick={onAssignToken}
+        >
+          {src ? (
+            <img src={src} alt={stringify(monster.name)} />
+          ) : (
+            <span className="atlas-sb-image-placeholder">Assign token</span>
+          )}
+        </button>
+      </LabelTooltip>
     </div>
   );
 }

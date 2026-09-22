@@ -5,11 +5,13 @@ import type { StoreApi } from 'zustand';
 import { getTokenRingCenterRadius } from './token-renderer/tokenRingMetrics';
 import { computeTokenPixelSize, computeTokenStrokeWidth } from './token-renderer/tokenSizing';
 import { toError } from '../utils/errors';
+import type { TokenHandleContainer } from './token-renderer/types';
+import { findTokenGroup } from './token-renderer/findTokenGroup';
 
 export class TokenResizeUI {
   private viewport: Viewport;
   private store: StoreApi<ViewAtlasState>;
-  private resizeHandles: Map<string, { left: Container; right: Container }> = new Map();
+  private resizeHandles: Map<string, { left: TokenHandleContainer; right: TokenHandleContainer }> = new Map();
   
   // Handle appearance - matching status badge style
   private readonly HANDLE_SIZE = 20; // Same as status badges
@@ -49,9 +51,9 @@ export class TokenResizeUI {
     });
     
     // Listen for resize events to update handle positions
-    window.addEventListener('atlas-tokens-resize-update', this.onResizeUpdate as EventListener);
-    window.addEventListener('atlas-tokens-drag-update', this.onTokenDragUpdate as EventListener);
-    window.addEventListener('atlas-tokens-rotation-update', this.onRotationUpdate as EventListener);
+    window.addEventListener('atlas-tokens-resize-update', this.onResizeUpdate);
+    window.addEventListener('atlas-tokens-drag-update', this.onTokenDragUpdate);
+    window.addEventListener('atlas-tokens-rotation-update', this.onRotationUpdate);
     
     // Listen for rotation events to hide/show resize handles
     window.addEventListener('atlas-token-rotation-started', this.onRotationStarted);
@@ -249,22 +251,22 @@ export class TokenResizeUI {
   /**
    * Create a resize handle graphic
    */
-  private createResizeHandle(direction: 'left' | 'right'): Container {
-    const handle = new Container();
+  private createResizeHandle(direction: 'left' | 'right'): TokenHandleContainer {
+    // Get theme colors - matching status badges
+    const isDarkMode = document.body.classList.contains('theme-dark');
+    const bg = new Graphics();
+    const handle: TokenHandleContainer = Object.assign(new Container(), { bg, isDarkMode });
     handle.eventMode = 'static';
     handle.interactive = true;
     handle.cursor = 'ew-resize';
     // Set a circular hit area for the handle - this should be precise to avoid blocking token
     handle.hitArea = new Circle(0, 0, this.HANDLE_SIZE / 2);
     
-    // Get theme colors - matching status badges
-    const isDarkMode = document.body.classList.contains('theme-dark');
     const bgColor = isDarkMode ? 0x2a2a2a : 0xe3e3e3;
     const strokeColor = isDarkMode ? 0xffffff : 0x000000;
     const strokeAlpha = isDarkMode ? 0.4 : 0.3;
     
     // Create background circle - matching status badge style
-    const bg = new Graphics();
     bg.circle(0, 0, this.HANDLE_SIZE / 2);
     bg.fill({ color: bgColor, alpha: 0.95 });
     bg.stroke({ width: 0.5, color: strokeColor, alpha: strokeAlpha });
@@ -281,13 +283,7 @@ export class TokenResizeUI {
       iconSprite.scale.set(this.HANDLE_SIZE * 0.6 / canvasSize); // 60% of badge size
       iconSprite.position.set(0, 0);
       handle.addChild(iconSprite);
-      (handle as any).iconSprite = iconSprite;
     }
-    
-    // Store references
-    (handle as any).bg = bg;
-    (handle as any).isDarkMode = isDarkMode;
-    (handle as any).direction = direction;
     
     // Add hover effects - subtle like status badges
     handle.on('pointerover', () => {
@@ -427,14 +423,6 @@ export class TokenResizeUI {
     window.dispatchEvent(new CustomEvent('atlas-token-size-changing', { 
       detail: { tokenIds: updates.map(u => u.id) } 
     }));
-    
-    // Ensure handles stay on top after resize
-    for (const tokenId of updates.map(u => u.id)) {
-      const tokenContainer = (this.viewport as any).tokenRenderer?.tokenSprites?.[tokenId];
-      if (tokenContainer) {
-        tokenContainer.sortChildren();
-      }
-    }
   };
   
   /**
@@ -443,6 +431,7 @@ export class TokenResizeUI {
   private onResizeEnd = (e: FederatedPointerEvent): void => {
     if (!this.isResizing) return;
     
+    let pendingUpdates: Array<{ id: string; changes: { size: number } }> = [];
     // If resize occurred, create a single undo state for all resizes
     if (this.hasResized) {
       const finalSizes: Array<{ id: string; size: number }> = [];
@@ -460,11 +449,7 @@ export class TokenResizeUI {
         }
       }
       
-      if (finalSizes.length > 0) {
-        this.store.getState().updateTokens(
-          finalSizes.map(({ id, size }) => ({ id, changes: { size } }))
-        );
-      }
+      pendingUpdates = finalSizes.map(({ id, size }) => ({ id, changes: { size } }));
     }
     
     // Store the token IDs before clearing resize state
@@ -478,6 +463,12 @@ export class TokenResizeUI {
     this.temporarySizes = {};
     this.activeHandle = null;
     
+    // Commit after clearing temporary sizes so TokenRenderer's store subscriber
+    // applies the final size instead of deferring to a temp override.
+    if (pendingUpdates.length > 0) {
+      this.store.getState().updateTokens(pendingUpdates);
+    }
+
     // Show other UI elements again after resize completes
     window.dispatchEvent(new CustomEvent('atlas-token-resize-ended', {
       detail: { tokenIds: resizedTokenIds }
@@ -490,19 +481,16 @@ export class TokenResizeUI {
       handles.right.cursor = 'ew-resize';
       
       // Reset handle appearance
-      const resetHandle = (handle: Container) => {
-        const bg = (handle as any).bg as Graphics;
-        const isDarkMode = (handle as any).isDarkMode || document.body.classList.contains('theme-dark');
-        if (bg) {
-          const bgColor = isDarkMode ? 0x2a2a2a : 0xe3e3e3;
-          const strokeColor = isDarkMode ? 0xffffff : 0x000000;
-          const strokeAlpha = isDarkMode ? 0.4 : 0.3;
-          
-          bg.clear();
-          bg.circle(0, 0, this.HANDLE_SIZE / 2);
-          bg.fill({ color: bgColor, alpha: 0.95 });
-          bg.stroke({ width: 0.5, color: strokeColor, alpha: strokeAlpha });
-        }
+      const resetHandle = ({ bg, isDarkMode: wasDarkMode }: TokenHandleContainer): void => {
+        const isDarkMode = wasDarkMode || document.body.classList.contains('theme-dark');
+        const bgColor = isDarkMode ? 0x2a2a2a : 0xe3e3e3;
+        const strokeColor = isDarkMode ? 0xffffff : 0x000000;
+        const strokeAlpha = isDarkMode ? 0.4 : 0.3;
+        
+        bg.clear();
+        bg.circle(0, 0, this.HANDLE_SIZE / 2);
+        bg.fill({ color: bgColor, alpha: 0.95 });
+        bg.stroke({ width: 0.5, color: strokeColor, alpha: strokeAlpha });
       };
       
       resetHandle(handles.left);
@@ -518,7 +506,7 @@ export class TokenResizeUI {
   /**
    * Handle resize update events
    */
-  private onResizeUpdate = (e: CustomEvent): void => {
+  private onResizeUpdate = (): void => {
     // Update handle positions when tokens resize
     this.updateHandlePositions();
   };
@@ -526,7 +514,7 @@ export class TokenResizeUI {
   /**
    * Handle token drag update events
    */
-  private onTokenDragUpdate = (e: CustomEvent): void => {
+  private onTokenDragUpdate = (): void => {
     // Update handle positions when tokens are dragged
     this.updateHandlePositions();
   };
@@ -534,7 +522,7 @@ export class TokenResizeUI {
   /**
    * Handle rotation update events
    */
-  private onRotationUpdate = (e: CustomEvent): void => {
+  private onRotationUpdate = (): void => {
     // Update handle positions when tokens rotate
     this.updateHandlePositions();
   };
@@ -542,7 +530,7 @@ export class TokenResizeUI {
   /**
    * Handle rotation started events - hide resize handles
    */
-  private onRotationStarted = (e: Event): void => {
+  private onRotationStarted = (): void => {
     this.isHiddenDuringRotation = true;
     this.hideAllHandles();
   };
@@ -550,7 +538,7 @@ export class TokenResizeUI {
   /**
    * Handle rotation ended events - show resize handles if tokens are selected
    */
-  private onRotationEnded = (e: Event): void => {
+  private onRotationEnded = (): void => {
     this.isHiddenDuringRotation = false;
     // Note: TokenRenderer will handle re-showing handles with proper token containers
   };
@@ -564,13 +552,17 @@ export class TokenResizeUI {
     if (tokenIds.length > 0) {
       const containers: Record<string, Container> = {};
       for (const id of tokenIds) {
-        const c = this.findTokenContainer(id);
+        const c = findTokenGroup(this.viewport, id);
         if (c) containers[id] = c;
       }
       this.showHandles(tokenIds, containers);
     }
   }
   
+  public getHandles(): Container[] {
+    return [...this.resizeHandles.values()].flatMap(({ left, right }) => [left, right]);
+  }
+
   /**
    * Clean up and destroy
    */
@@ -578,9 +570,9 @@ export class TokenResizeUI {
     this.hideAllHandles();
     
     // Remove event listeners
-    window.removeEventListener('atlas-tokens-resize-update', this.onResizeUpdate as EventListener);
-    window.removeEventListener('atlas-tokens-drag-update', this.onTokenDragUpdate as EventListener);
-    window.removeEventListener('atlas-tokens-rotation-update', this.onRotationUpdate as EventListener);
+    window.removeEventListener('atlas-tokens-resize-update', this.onResizeUpdate);
+    window.removeEventListener('atlas-tokens-drag-update', this.onTokenDragUpdate);
+    window.removeEventListener('atlas-tokens-rotation-update', this.onRotationUpdate);
     window.removeEventListener('atlas-token-rotation-started', this.onRotationStarted);
     window.removeEventListener('atlas-token-rotation-ended', this.onRotationEnded);
     
@@ -600,7 +592,7 @@ export class TokenResizeUI {
    */
   public show(tokenId: string, tokenSize: number): void {
     // Find the token container in the viewport
-    const tokenContainer = this.findTokenContainer(tokenId);
+    const tokenContainer = findTokenGroup(this.viewport, tokenId);
     if (tokenContainer) {
       this.showHandles([tokenId], { [tokenId]: tokenContainer });
     } else {
@@ -608,22 +600,6 @@ export class TokenResizeUI {
     }
   }
   
-  private findTokenContainer(tokenId: string): Container | null {
-    // Look through viewport children for the token container
-    for (const child of this.viewport.children) {
-      if (child.label === 'tokenContainer') {
-        // Search through token container's children
-        for (const tokenGroup of child.children) {
-          if ((tokenGroup as any).tokenId === tokenId || 
-              (tokenGroup as any).tokenData?.id === tokenId) {
-            return tokenGroup;
-          }
-        }
-      }
-    }
-    return null;
-  }
-
   /**
    * Compatibility method for UIManager - hides all handles
    */

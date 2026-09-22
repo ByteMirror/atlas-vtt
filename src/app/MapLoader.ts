@@ -1,14 +1,14 @@
 import { App, TFile, normalizePath } from 'obsidian';
-import { Assets, Texture, Graphics } from 'pixi.js';
+import { Assets, Texture } from 'pixi.js';
 import type { MapFile } from './services/MapPersistence';
-import { migrateMapFile } from './services/MapPersistence';
-import { AssetValidationService } from './services/AssetValidationService';
+import { migrateMapFile, isLegacyMapFile, isPersistedMapEnvelope } from './services/MapPersistence';
+import { AssetValidationService, type MissingAsset } from './services/AssetValidationService';
 
 export interface LoadedMap {
   mapData: MapFile;
   texture: InstanceType<typeof Texture>;
   hasBackground: boolean; // Indicate if this is a real background or placeholder
-  missingAssets?: any[]; // Track missing assets for reporting
+  missingAssets?: MissingAsset[]; // Track missing assets for reporting
 }
 
 /**
@@ -24,20 +24,20 @@ export class MapLoader {
       throw new Error(`[MapLoader] Map file not found: ${mapFilePath}`);
     }
     const raw = await app.vault.read(file);
-    let parsed: any;
+    let parsed: unknown;
     try {
       parsed = JSON.parse(raw);
     } catch {
       throw new Error('[MapLoader] Failed to parse map JSON');
     }
     // Support Zustand persist format: wrap under `state` key
-    const data = parsed.state ?? parsed;
-    
+    const data = isPersistedMapEnvelope(parsed) && parsed.state ? parsed.state : parsed;
+    if (!isLegacyMapFile(data)) {
+      throw new Error('[MapLoader] Map file has an unexpected structure');
+    }
+
     // Apply migration to convert app:// URLs to relative paths
-    const version = parsed.version ?? data.version ?? 0;
-    const migratedData = migrateMapFile(data, version);
-    
-    const mapData: MapFile = migratedData;
+    const mapData = migrateMapFile(data);
 
     let texture: Texture;
     let hasBackground = false;
@@ -53,16 +53,16 @@ export class MapLoader {
       if (!(imgFile instanceof TFile)) {
         console.error(`[MapLoader] Background image not found: ${mapData.background}`);
         const placeholder = assetValidationService.getMissingAssetPlaceholder();
-        texture = placeholder ? await Assets.load(placeholder) : await createPlaceholderTexture(app, mapData);
+        texture = placeholder ? await Assets.load<Texture>(placeholder) : createPlaceholderTexture(mapData);
         hasBackground = false;
       } else {
         const url = app.vault.adapter.getResourcePath(imgFile.path);
-        texture = await Assets.load(url);
+        texture = await Assets.load<Texture>(url);
         hasBackground = true;
       }
     } else {
       // Create a placeholder texture for maps without backgrounds
-      texture = await createPlaceholderTexture(app, mapData);
+      texture = createPlaceholderTexture(mapData);
       hasBackground = false;
     }
 
@@ -75,33 +75,11 @@ export class MapLoader {
   }
 }
 
-// Helper function to create placeholder texture
-async function createPlaceholderTexture(app: App, mapData: MapFile): Promise<Texture> {
+/** Transparent 20x20-cell texture for maps without a background image. */
+function createPlaceholderTexture(mapData: MapFile): Texture {
   const gridSize = mapData.grid?.size || 70;
-  const defaultWidth = gridSize * 20; // 20x20 grid as default
-  const defaultHeight = gridSize * 20;
-  
-  const graphics = new Graphics();
-  graphics.rect(0, 0, defaultWidth, defaultHeight);
-  graphics.fill({ color: 0xffffff, alpha: 0 }); // Transparent fill
-  
-  // Create texture from graphics
-  let texture = (app as any).renderer?.generateTexture(graphics) || Texture.EMPTY;
-  if (texture === Texture.EMPTY) {
-    // Fallback: create a minimal texture
-    const canvas = createEl('canvas');
-    canvas.width = defaultWidth;
-    canvas.height = defaultHeight;
-    const ctx = canvas.getContext('2d');
-    if (ctx) {
-      // Create transparent canvas
-      ctx.clearRect(0, 0, defaultWidth, defaultHeight);
-      texture = Texture.from(canvas);
-    } else {
-      // Create an empty transparent texture
-      texture = Texture.EMPTY;
-    }
-  }
-  
-  return texture;
+  const canvas = createEl('canvas');
+  canvas.width = gridSize * 20;
+  canvas.height = gridSize * 20;
+  return canvas.getContext('2d') ? Texture.from(canvas) : Texture.EMPTY;
 }

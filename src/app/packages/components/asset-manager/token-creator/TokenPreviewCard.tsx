@@ -1,8 +1,12 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { TokenRingToggle } from './TokenRingToggle';
+import { TokenSizeSelect } from './TokenSizeSelect';
+import tokenRingImageUrl from '../../../../assets/token-ring.webp';
+import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { Check, Loader2, Trash2, ZoomIn, ZoomOut } from 'lucide-react';
 import { cn } from '../../../../../utils/cn';
 import { Button } from '../../primitives/button';
 import { Slider } from '../../primitives/slider';
+import { LabelTooltip } from '../../primitives/tooltip';
 import { clampImagePosition } from './cropMath';
 import type { ImageAspect } from './cropMath';
 import { clampZoom, ZOOM_MAX, ZOOM_MIN, ZOOM_STEP } from './types';
@@ -53,13 +57,14 @@ function useWellSize(ref: React.RefObject<HTMLDivElement | null>): number {
  * well so the export can reproduce the preview exactly.
  */
 export function TokenPreviewCard({ preview, mode, index, onChange, onToggleSelected, onRemove }: TokenPreviewCardProps): React.JSX.Element {
+  const nameLabelId = useId();
   const artRef = useRef<HTMLDivElement>(null);
   const previewRef = useRef(preview);
   previewRef.current = preview;
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
 
-  const isCropEditable = mode === 'token';
+  const isCropEditable = mode === 'token' && preview.showRing !== false;
   const aspect = useImageAspect(preview.previewUrl);
   const wellSize = useWellSize(artRef);
 
@@ -127,92 +132,110 @@ export function TokenPreviewCard({ preview, mode, index, onChange, onToggleSelec
 
   const zoomPercent = Math.round(preview.imageScale * 100);
 
-  return (
+  const art = (
     <div
-      className={cn('atlas-token-card', `atlas-token-card--${mode}`, preview.isSelected && 'atlas-selected')}
-      style={{ '--atlas-enter-index': Math.min(index, ENTER_STAGGER_CAP) } as React.CSSProperties}
+      ref={artRef}
+      className="atlas-token-card__art"
+      onDoubleClick={isCropEditable ? resetCrop : undefined}
     >
       <div
-        ref={artRef}
-        className="atlas-token-card__art"
-        title={isCropEditable ? 'Drag to reposition · Scroll to zoom · Double-click to reset' : undefined}
-        onDoubleClick={isCropEditable ? resetCrop : undefined}
-      >
-        <div
-          className="atlas-token-card__image"
-          style={imageStyle}
-          onPointerDown={isCropEditable ? handlePointerDown : undefined}
-        />
-        <div className="atlas-token-card__mask" />
+        className="atlas-token-card__image"
+        style={imageStyle}
+        onPointerDown={isCropEditable ? handlePointerDown : undefined}
+      />
+      {isCropEditable && <><div className="atlas-token-card__mask" /><img className="atlas-token-card__ring" src={tokenRingImageUrl} alt="" /></>}
 
+      <LabelTooltip label={`Select ${preview.name}`}>
         <button
           type="button"
           className={cn('atlas-token-card__check', preview.isSelected && 'atlas-checked')}
           role="checkbox"
           aria-checked={preview.isSelected}
-          aria-label={`Select ${preview.name}`}
           onClick={(e) => { e.stopPropagation(); onToggleSelected(); }}
         >
           <Check />
         </button>
+      </LabelTooltip>
+      <LabelTooltip label="Remove">
         <Button
           variant="ghost"
           size="icon"
           className="atlas-token-card__remove"
           onClick={(e) => { e.stopPropagation(); onRemove(); }}
-          aria-label="Remove"
-          title="Remove"
         >
           <Trash2 />
         </Button>
+      </LabelTooltip>
 
-        {preview.isOptimizing && (
-          <div className="atlas-token-card__busy">
-            <Loader2 />
-            <span>Optimizing</span>
-          </div>
-        )}
-        {preview.optimizationResult && (
-          <div className="atlas-token-card__badge" title="Size reduction from optimization">
+      {preview.isOptimizing && (
+        <div className="atlas-token-card__busy">
+          <Loader2 />
+          <span>Optimizing</span>
+        </div>
+      )}
+      {preview.optimizationResult && (
+        <LabelTooltip label="Size reduction from optimization">
+          <div className="atlas-token-card__badge">
             −{preview.optimizationResult.compressionRatio}%
           </div>
-        )}
-      </div>
+        </LabelTooltip>
+      )}
+    </div>
+  );
 
+  return (
+    <div
+      className={cn('atlas-token-card', `atlas-token-card--${mode}`, preview.isSelected && 'atlas-selected', !isCropEditable && 'atlas-token-card--unframed')}
+      style={{ '--atlas-enter-index': Math.min(index, ENTER_STAGGER_CAP) } as React.CSSProperties}
+    >
+      {isCropEditable ? <LabelTooltip label="Drag to reposition · Scroll to zoom · Double-click to reset">{art}</LabelTooltip> : art}
+
+      <span id={nameLabelId} hidden>{`${mode === 'map' ? 'Map' : 'Token'} name`}</span>
       <input
         type="text"
         value={preview.name}
         onChange={(e) => onChange({ name: e.target.value })}
         className="atlas-token-card__name"
         placeholder={`${mode === 'map' ? 'Map' : 'Token'} name`}
-        aria-label={`${mode === 'map' ? 'Map' : 'Token'} name`}
         spellCheck={false}
+        aria-labelledby={nameLabelId}
       />
 
+      {preview.tags && preview.tags.length > 0 && <div className="atlas-token-card__tags">{preview.tags.join(' · ')}</div>}
+      {mode === 'token' && <>
+        <TokenRingToggle label={`Toggle token ring for ${preview.name}`} value={preview.showRing !== false} onChange={showRing => onChange({ showRing })} />
+        <TokenSizeSelect className="atlas-setting-dropdown" value={preview.size} onChange={size => onChange({ size })} />
+      </>}
       {isCropEditable && (
         <div className="atlas-token-card__zoom">
-          <Button variant="ghost" size="icon" className="atlas-token-card__zoom-btn" onClick={() => setScale(preview.imageScale - ZOOM_STEP)} aria-label="Zoom out" disabled={preview.imageScale <= ZOOM_MIN}>
-            <ZoomOut />
-          </Button>
-          <Slider
-            value={[preview.imageScale]}
-            min={ZOOM_MIN}
-            max={ZOOM_MAX}
-            step={0.01}
-            onValueChange={(v) => setScale(v[0] ?? preview.imageScale)}
-            aria-label="Zoom"
-          />
-          <Button variant="ghost" size="icon" className="atlas-token-card__zoom-btn" onClick={() => setScale(preview.imageScale + ZOOM_STEP)} aria-label="Zoom in" disabled={preview.imageScale >= ZOOM_MAX}>
-            <ZoomIn />
-          </Button>
-          <button
-            type="button"
-            className="atlas-token-card__zoom-value"
-            onClick={() => setScale(1)}
-            title="Reset zoom to 100%"
-          >
-            {zoomPercent}%
-          </button>
+          <LabelTooltip label="Zoom out">
+            <Button variant="ghost" size="icon" className="atlas-token-card__zoom-btn" onClick={() => setScale(preview.imageScale - ZOOM_STEP)} disabled={preview.imageScale <= ZOOM_MIN}>
+              <ZoomOut />
+            </Button>
+          </LabelTooltip>
+          <LabelTooltip label="Zoom">
+            <Slider
+              value={[preview.imageScale]}
+              min={ZOOM_MIN}
+              max={ZOOM_MAX}
+              step={0.01}
+              onValueChange={(v) => setScale(v[0] ?? preview.imageScale)}
+            />
+          </LabelTooltip>
+          <LabelTooltip label="Zoom in">
+            <Button variant="ghost" size="icon" className="atlas-token-card__zoom-btn" onClick={() => setScale(preview.imageScale + ZOOM_STEP)} disabled={preview.imageScale >= ZOOM_MAX}>
+              <ZoomIn />
+            </Button>
+          </LabelTooltip>
+          <LabelTooltip label="Reset zoom to 100%">
+            <button
+              type="button"
+              className="atlas-token-card__zoom-value"
+              onClick={() => setScale(1)}
+            >
+              {zoomPercent}%
+            </button>
+          </LabelTooltip>
         </div>
       )}
     </div>

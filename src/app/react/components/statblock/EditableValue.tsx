@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 
 export interface EditableValueProps {
   /** Current display text */
@@ -27,6 +27,7 @@ export function EditableValue({
   const [draft, setDraft] = useState(value);
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
   const committedRef = useRef(false);
+  const labelId = useId();
 
   useEffect(() => {
     if (!editing) setDraft(value);
@@ -83,10 +84,15 @@ export function EditableValue({
         setDraft(event.target.value),
       onBlur: commit,
       onKeyDown,
-      'aria-label': ariaLabel,
+      'aria-labelledby': ariaLabel ? labelId : undefined,
     };
 
-    return multiline ? <textarea {...shared} rows={3} /> : <input {...shared} type="text" />;
+    return (
+      <>
+        {multiline ? <textarea {...shared} rows={3} /> : <input {...shared} type="text" />}
+        {ariaLabel && <span id={labelId} hidden>{ariaLabel}</span>}
+      </>
+    );
   }
 
   return (
@@ -94,7 +100,7 @@ export function EditableValue({
       className="atlas-sb-editable"
       role="button"
       tabIndex={0}
-      aria-label={ariaLabel ? `Edit ${ariaLabel}` : 'Edit value'}
+      aria-labelledby={labelId}
       onClick={(event) => {
         // Let dice links and internal links handle their own clicks.
         if ((event.target as HTMLElement).closest('.atlas-dice-link, a')) return;
@@ -109,6 +115,7 @@ export function EditableValue({
       }}
     >
       {children ?? value}
+      <span id={labelId} hidden>{ariaLabel ? `Edit ${ariaLabel}` : 'Edit value'}</span>
     </span>
   );
 }

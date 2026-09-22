@@ -6,7 +6,7 @@
 
 A game system agnostic virtual tabletop for tabletop RPGs that runs inside [Obsidian](https://obsidian.md). 
 
-I built Atlas as part of my bachelor's thesis to give the TTRPG community a virtual tabletop that's source-available, hackable, and free for noncommercial use. Every file Atlas creates, every token, every map, every world you build, stays yours and stays local. It follows the same philosophy as Obsidian: your work lives on your machine, in formats you control, with no account and no server in between.
+I built Atlas as part of my bachelor's thesis to give the TTRPG community a virtual tabletop that's open source, hackable, and free to use. Every file Atlas creates, every token, every map, every world you build, stays yours and stays local. It follows the same philosophy as Obsidian: your work lives on your machine, in formats you control, with no account and no server in between.
 
 TTRPG worlds in my opinion are something very personal and players and DMs get attached to them. That attachment deserves better than a subscription and someone else's database. Atlas makes sure your creative output stays yours, just like a sheet of paper would.
 
@@ -47,6 +47,8 @@ Requires **Obsidian 1.8.7 or newer on desktop**. Atlas VTT is available through 
 
 Check for updates under **Settings → Community plugins**.
 
+Want to try upcoming features early? Beta builds are available through BRAT, see [docs/beta-testing.md](docs/beta-testing.md).
+
 <details>
 <summary>Manual installation</summary>
 
@@ -66,11 +68,11 @@ Download `main.js`, `manifest.json`, and `styles.css` from a [GitHub release](ht
 
 Atlas works offline with files in your vault. It has no accounts, telemetry, or ads. Scenes are saved as `.atlasmap` files; asset tags and thumbnails live in the vault's hidden `.atlas-data` folder.
 
-If you use an external image URL for a token or map background, or copy an externally hosted image from a note, Atlas downloads that image from the supplied address. Vault images require no network access. See [PRIVACY.md](PRIVACY.md) for details.
+If you use an external image URL for a token or map background, or copy an externally hosted image from a note, Atlas downloads that image from the supplied address. Vault images require no network access. When you explicitly submit an issue report, Atlas sends it to `https://srv1871379.hstgr.cloud/atlas/reports`, which creates a public GitHub issue. See [PRIVACY.md](PRIVACY.md) for details.
 
 ## Help and contributing
 
-Found a bug or have an idea? [Open an issue](https://github.com/ByteMirror/atlas-vtt/issues). To contribute code, see [CONTRIBUTING.md](CONTRIBUTING.md).
+Found a bug or have an idea? Run the **Report an issue** command inside Obsidian or use **Settings → Atlas VTT → Help and feedback**. Atlas fills in your versions and submits your report directly, without a GitHub account or a second form; see [docs/reporting-issues.md](docs/reporting-issues.md). To contribute code, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 <details>
 <summary>Build from source</summary>
@@ -92,6 +94,12 @@ The build also copies the plugin into local test vaults when they are present.
 
 Widget icons are by Lorc, Delapouite, Skoll, sbed, and Carl Olsen from [game-icons.net](https://game-icons.net), under [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/). Their backgrounds were removed and glyphs recoloured. Other asset and library credits are in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
-Atlas VTT is available under the [PolyForm Noncommercial License 1.0.0](LICENSE). You can inspect, modify, and share the code for the purposes permitted by that license. Commercial use or incorporation into a commercial project requires separate permission from Fabian Urbanek.
+Atlas VTT is free software. Copyright (C) 2025-2026 Fabian Urbanek.
+
+You can use it for any purpose, including streamed, recorded, and paid games. You can redistribute and modify it under the terms of the [GNU Affero General Public License, version 3](LICENSE) (`AGPL-3.0-only`) as published by the Free Software Foundation. If you distribute Atlas VTT or a modified version, or let others use a modified version over a network, you must make the complete source code available under the same license. It is distributed in the hope that it will be useful, but without any warranty; see the license for details.
+
+Additional permission under GNU AGPL version 3 section 7: if you modify this program, or any covered work, by linking or combining it with [Obsidian](https://obsidian.md) (or a modified version of that program), the licensors of this program grant you additional permission to convey the resulting work.
+
+Releases up to and including 0.1.6 were published under the PolyForm Noncommercial License 1.0.0. If you want to use the code under different terms, contact Fabian Urbanek.
 
 Your campaign content remains yours. Third-party components retain their own licenses.

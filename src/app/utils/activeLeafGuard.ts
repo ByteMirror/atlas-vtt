@@ -64,7 +64,7 @@ export function claimWorkspaceLeafFocus(
     return;
   }
 
-  if (getActiveWorkspaceLeaf(workspace) !== leaf && typeof workspace.setActiveLeaf === 'function') {
+  if (getActiveWorkspaceLeaf(workspace) !== leaf) {
     workspace.setActiveLeaf(leaf, { focus: false });
   }
 

@@ -1,12 +1,12 @@
 import { App } from 'obsidian';
 import React from 'react';
-import { createRoot } from 'react-dom/client';
+import { createRoot, type Root } from 'react-dom/client';
 import StatblockLinkModal from '../packages/components/asset-manager/StatblockLinkModal';
 
 export class StatblockDialogService {
   private app: App;
   private modalContainer: HTMLElement | null = null;
-  private root: any = null;
+  private root: Root | null = null;
 
   constructor(app: App) {
     this.app = app;
@@ -29,15 +29,9 @@ export class StatblockDialogService {
     // Create container for the modal
     this.modalContainer = document.body.createDiv({ cls: 'atlas-vtt-plugin atlas-vtt-root' });
 
-    // Create a dummy asset object for the modal
-    const dummyAsset = {
-      id: 'temp-' + Date.now(),
+    const asset = {
       name: assetName,
-      type: 'tokens' as const,
-      statblockPath: currentStatblockPath,
-      thumbnailUrl: '',
-      imageUrl: '',
-      tags: []
+      ...(currentStatblockPath ? { statblockPath: currentStatblockPath } : {}),
     };
 
     // Render the modal
@@ -46,7 +40,7 @@ export class StatblockDialogService {
       React.createElement(StatblockLinkModal, {
         isOpen: true,
         onClose: () => this.closeDialog(),
-        asset: dummyAsset,
+        asset,
         onLink: (path: string | null) => {
           onLink(path);
           this.closeDialog();

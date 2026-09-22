@@ -5,8 +5,8 @@
  * Handles store subscriptions, animation state tracking, and token updates.
  */
 
-import { Container, Application } from 'pixi.js';
-import type { ITokenSyncService } from './types';
+import type { Application, Ticker } from 'pixi.js';
+import type { ITokenSyncService, TokenGroupContainer } from './types';
 import type { TokenEntity } from '../../types';
 import type { ViewAtlasState } from '../../storeFactory';
 import type { StoreApi } from 'zustand';
@@ -22,7 +22,7 @@ export class SyncService implements ITokenSyncService {
   
   // Sync state
   private animatingTokens: Set<string> = new Set();
-  private pendingTokenSync: { newTokens: any, prevTokens: any } | null = null;
+  private pendingTokenSync: { newTokens: Record<string, TokenEntity>; prevTokens: Record<string, TokenEntity> } | null = null;
   private unsubscribeFromStore?: () => void;
   
   // Callbacks for external systems
@@ -30,7 +30,7 @@ export class SyncService implements ITokenSyncService {
   private onTokenPositionUpdate?: (tokenId: string, x: number, y: number) => void;
   private onTokenAnimationStart?: (tokenId: string) => void;
   private onTokenAnimationEnd?: (tokenId: string) => void;
-  private getTokenSprite?: (tokenId: string) => Container | null;
+  private getTokenSprite?: (tokenId: string) => TokenGroupContainer | null;
   private updateUIPosition?: (tokenId: string, x: number, y: number) => void;
   private updateControlsPosition?: (x: number, y: number, tokenSize: number) => void;
   private animateTokenToPositionHandler: ((data: { tokenId: string; targetX: number; targetY: number; transient?: boolean }) => void) | null = null;
@@ -175,7 +175,7 @@ export class SyncService implements ITokenSyncService {
     let elapsed = 0;
     const startTime = performance.now();
 
-    const animationTick = (ticker: any) => {
+    const animationTick = (ticker: Ticker): void => {
       if (!this.pixiApp) return;
       
       // Cap deltaMS to prevent large jumps during frame drops
@@ -190,7 +190,7 @@ export class SyncService implements ITokenSyncService {
           if (storeDistance > 0.1) {
             // Store position has changed, cancel animation
             this.pixiApp.ticker.remove(animationTick);
-            (tokenSprite as any).currentAnimation = null;
+            tokenSprite.currentAnimation = null;
             this.animatingTokens.delete(tokenId);
             this.onTokenAnimationEnd?.(tokenId);
             tokenSprite.position.set(currentStoreToken.x, currentStoreToken.y);
@@ -226,7 +226,7 @@ export class SyncService implements ITokenSyncService {
       // Animation complete
       if (progress >= 1) {
         this.pixiApp?.ticker.remove(animationTick);
-        (tokenSprite as any).currentAnimation = null;
+        tokenSprite.currentAnimation = null;
         
         // Ensure final position is exactly the target
         tokenSprite.position.set(targetX, targetY);
@@ -245,7 +245,7 @@ export class SyncService implements ITokenSyncService {
     };
 
     // Store animation reference for cleanup
-    (tokenSprite as any).currentAnimation = animationTick;
+    tokenSprite.currentAnimation = animationTick;
     
     // Add to ticker
     if (this.pixiApp) {
@@ -304,10 +304,10 @@ export class SyncService implements ITokenSyncService {
 
     let elapsed = 0;
 
-    const pathPlaybackTick = (ticker: any) => {
+    const pathPlaybackTick = (ticker: Ticker): void => {
       if (!this.pixiApp || !this.animatingTokens.has(tokenId)) {
         this.pixiApp?.ticker.remove(pathPlaybackTick);
-        (tokenSprite as any).currentAnimation = null;
+        tokenSprite.currentAnimation = null;
         return;
       }
       
@@ -331,7 +331,7 @@ export class SyncService implements ITokenSyncService {
       // Animation complete
       if (progress >= 1) {
         this.pixiApp?.ticker.remove(pathPlaybackTick);
-        (tokenSprite as any).currentAnimation = null;
+        tokenSprite.currentAnimation = null;
         
         // Ensure final position
         tokenSprite.position.set(finalX, finalY);
@@ -348,7 +348,7 @@ export class SyncService implements ITokenSyncService {
     };
 
     // Store animation reference
-    (tokenSprite as any).currentAnimation = pathPlaybackTick;
+    tokenSprite.currentAnimation = pathPlaybackTick;
     
     // Add to ticker
     if (this.pixiApp) {
@@ -361,9 +361,9 @@ export class SyncService implements ITokenSyncService {
     if (!tokenSprite) return;
     
     // Clear any existing animation
-    if ((tokenSprite as any).currentAnimation) {
-      this.pixiApp?.ticker.remove((tokenSprite as any).currentAnimation);
-      (tokenSprite as any).currentAnimation = null;
+    if (tokenSprite.currentAnimation) {
+      this.pixiApp?.ticker.remove(tokenSprite.currentAnimation);
+      tokenSprite.currentAnimation = null;
     }
     
     // Remove from animating tokens set
@@ -450,7 +450,7 @@ export class SyncService implements ITokenSyncService {
     this.onTokenAnimationEnd = callback;
   }
 
-  setTokenSpriteProvider(provider: (tokenId: string) => Container | null): void {
+  setTokenSpriteProvider(provider: (tokenId: string) => TokenGroupContainer | null): void {
     this.getTokenSprite = provider;
   }
 

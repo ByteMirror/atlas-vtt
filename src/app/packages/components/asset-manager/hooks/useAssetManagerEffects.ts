@@ -18,7 +18,7 @@ interface EffectDeps {
   modalRef: React.RefObject<HTMLDivElement | null>;
   containerRef: React.RefObject<HTMLDivElement | null>;
   setSearch: (s: string) => void;
-  setActiveTab: (tab: Tab) => void;
+  setActiveTab: React.Dispatch<React.SetStateAction<Tab>>;
   setIsSidebarCollapsed: (collapsed: boolean) => void;
   setSelectedCollection: (col: string | null) => void;
   data: AssetData;
@@ -93,6 +93,17 @@ export function useAssetManagerEffects({
         }
         onClose();
       }
+      if (e.key === 'Tab' && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        e.preventDefault();
+        const direction = e.shiftKey ? -1 : 1;
+        setActiveTab((prev) => tabs[(tabs.indexOf(prev) + direction + tabs.length) % tabs.length]!);
+        return;
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'f' && !e.shiftKey && !e.altKey) {
+        e.preventDefault();
+        containerRef.current?.querySelector<HTMLInputElement>('.atlas-asset-manager-search input')?.select();
+        return;
+      }
       if ((e.metaKey || e.ctrlKey) && e.key >= '1' && e.key <= '4') {
         const idx = parseInt(e.key) - 1;
         if (idx < tabs.length) { setActiveTab(tabs[idx]!); e.preventDefault(); }
@@ -126,14 +137,10 @@ export function useAssetManagerEffects({
   }, [isOpen, onClose, isAnySubModalOpen]);
 
   useEffect(() => {
-    const handler = (event: CustomEvent): void => {
-      if (!event.detail?.map) return;
-      crud.openCreateSceneModalFromMap({
-        backgroundPath: event.detail.backgroundPath ?? null,
-        defaultName: event.detail.defaultName ?? event.detail.map.name,
-      });
+    const handler = (event: WindowEventMap['create-scene-from-map']): void => {
+      crud.openCreateSceneModalFromMap(event.detail);
     };
-    window.addEventListener('create-scene-from-map', handler as EventListener);
-    return () => window.removeEventListener('create-scene-from-map', handler as EventListener);
+    window.addEventListener('create-scene-from-map', handler);
+    return () => window.removeEventListener('create-scene-from-map', handler);
   }, []);
 }

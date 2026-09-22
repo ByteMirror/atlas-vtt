@@ -76,10 +76,13 @@
   cursor: pointer;
   color: var(--text-normal);
   font-size: $font-ui-small;
-  transition: background-color $transition-fast $transition-ease;
 
   &:hover {
     background-color: var(--background-modifier-hover);
+  }
+
+  &:active {
+    background-color: var(--background-modifier-active-hover);
   }
 
   &.is-selected {
@@ -148,11 +151,6 @@
 
 .atlas-modal-overlay {
   @include atlas-modal-overlay($z-atlas-modal);
-}
-
-.atlas-modal-content {
-  @include atlas-modal-window;
-  pointer-events: auto;
 }
 
 .atlas-modal-header {
@@ -229,10 +227,13 @@
     padding: 0 $spacing-s;
     border-radius: $radius-m;
     cursor: pointer;
-    transition: background-color $transition-fast $transition-ease;
 
     &:hover {
       background-color: var(--background-modifier-hover);
+    }
+
+    &:active {
+      background-color: var(--background-modifier-active-hover);
     }
 
     &.atlas-current {

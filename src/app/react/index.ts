@@ -4,8 +4,7 @@ import React from 'react';
 import { Application } from 'pixi.js';
 import { UIRoot } from './UIRoot';
 import { ViewStoreProvider } from './ViewStoreContext';
-import type { ViewAtlasState } from '../storeFactory';
-import type { StoreApi } from 'zustand';
+import type { ViewAtlasStore } from '../storeFactory';
 import type { AtlasView } from '../atlas-view';
 
 // Store multiple React roots keyed by container element
@@ -17,10 +16,9 @@ const reactRoots = new WeakMap<HTMLElement, Root>();
 export function mountUI(
   app: App,
   container: HTMLElement,
-  mapData: any,
   view: AtlasView,
   pixiApp: Application | null,
-  store: StoreApi<ViewAtlasState>
+  store: ViewAtlasStore
 ): void {
   // Check if this container already has a React root
   const existingRoot = reactRoots.get(container);
@@ -29,7 +27,7 @@ export function mountUI(
   // been verified against the effects that create PIXI objects and Obsidian leaves.
   const element = React.createElement(
     ViewStoreProvider,
-    { store, children: React.createElement(UIRoot, { app, view, pixiApp, mapData }) }
+    { store, children: React.createElement(UIRoot, { app, view, pixiApp }) }
   );
   
   if (existingRoot) {

@@ -1,10 +1,11 @@
 import { canRunMapHotkeys, matchesMapHotkey } from './keyboard/mapHotkeys';
 import { SettingsService, type AtlasSettings } from './services/SettingsService';
-import { Application, Sprite, Container, Assets } from "pixi.js";
+import { Application, Sprite, Container } from "pixi.js";
 import { runInBackground } from './utils/backgroundTask';
 import { Viewport } from "pixi-viewport"; // Keep for type, but instance comes from PixiAppManager
 import { WorkspaceLeaf } from 'obsidian';
 import { GridOptions, GridSystem, GridType } from "./grid/GridSystem";
+import { parseGridColor } from "./grid/gridContrastColor";
 import type { App } from 'obsidian';
 import type { ViewAtlasState, ViewAtlasStore } from './storeFactory';
 import { openContextMenuGlobal, type ContextMenuEntry } from './react/root/ContextMenuContext';
@@ -21,13 +22,13 @@ import { LaserPointerRenderer } from "./pixi/LaserPointerRenderer"; // Import La
 import { DrawingRenderer } from "./pixi/DrawingRenderer"; // Import DrawingRenderer
 import { DrawingInteraction } from "./pixi/DrawingInteraction";
 import { isViewportPanEnabled } from "./pixi/utils/viewportPan";
-import { BackgroundRenderer } from "./pixi/BackgroundRenderer"; // Import BackgroundRenderer
 import { TextRenderer } from "./pixi/TextRenderer"; // Import TextRenderer
 import { TextTool } from "./tools/TextTool"; // Import TextTool
 import { VisionRenderer } from './pixi/vision/VisionRenderer';
 import { WallRenderer } from './pixi/vision/WallRenderer';
 import { WallInteraction } from './pixi/vision/WallInteraction';
-import { WallTool } from './tools/WallTool';
+import { WallTool, type WallToolMode, type WallToolSubMode } from './tools/WallTool';
+import type { WallType } from './types/wallTypes';
 import { AudioTool } from './tools/AudioTool';
 import { openLightConfigPanel } from './pixi/vision/LightConfigPanel';
 import { WALLS_AND_LIGHTING_ENABLED } from './featureFlags';
@@ -51,7 +52,6 @@ export class PixiRendererOrchestrator { // Renamed class
   private drawingRenderer?: DrawingRenderer; // Add DrawingRenderer instance
   private drawingInteraction?: DrawingInteraction;
   private textRenderer?: TextRenderer; // Add TextRenderer instance
-  private backgroundRenderer?: BackgroundRenderer; // Add BackgroundRenderer instance
   private textTool?: TextTool; // Add TextTool instance
   /** IDs of wall segments created during the current drawing chain (for Escape undo). */
   private currentChainWallIds: string[] = [];
@@ -74,7 +74,6 @@ export class PixiRendererOrchestrator { // Renamed class
   private layerFog: Container | null = null; // Add fog layer
   private gridSystem?: GridSystem; // Instance of GridSystem
   private backgroundSprite: Sprite | null = null;
-  private backgroundTextureUrl: string | null = null; // Track loaded texture URL
   private obsApp: App;
   private eventBus: EventEmitter;
   private activeHoverLinkAnchorEl: HTMLElement | null = null;
@@ -87,7 +86,7 @@ export class PixiRendererOrchestrator { // Renamed class
   private _unsubscribeFromGridVisibility?: () => void; // Add grid visibility subscription cleanup
   private viewId: string;
   private keyboardHandler: ((e: KeyboardEvent) => void) | null = null;
-  private getViewportPositionHandler: ((e: Event) => void) | null = null;
+  private getViewportPositionHandler: ((e: WindowEventMap['get-viewport-position']) => void) | null = null;
   private eventBusUnsubscribers: Array<() => void> = [];
   private gridInitRetryTimeout: number | null = null;
 
@@ -152,7 +151,7 @@ export class PixiRendererOrchestrator { // Renamed class
       // Subscribe to tool changes from the isolated view store
       this._unsubscribeFromToolChanges = this.store.subscribe(
         (state: ViewAtlasState) => state.activeTool,
-        (tool: any, previousTool: any) => {
+        (tool) => {
           // Use getter to always get current viewport, not the one from closure
           const vp = this.viewport;
           if (!vp) return;
@@ -187,18 +186,13 @@ export class PixiRendererOrchestrator { // Renamed class
       // Subscribe to grid changes (including visibility and offset)
       this._unsubscribeFromGridVisibility = this.store.subscribe(
         (state: ViewAtlasState) => state.grid,
-        (grid: any) => {
+        (grid) => {
           if (this.gridSystem && grid) {
             
             // Get current options BEFORE any updates to compare what actually changed
             const currentOptions = this.gridSystem.getOptions();
-            // Log what we're comparing
-            // Convert color for comparison if it's a string
-            const gridColorNum = grid.color !== undefined && typeof grid.color === 'string' 
-              ? parseInt(grid.color.replace('#', '0x')) 
-              : grid.color;
-            
-            // Debug each comparison individually
+            const gridColorNum = parseGridColor(grid.color);
+
             const visibleChanged = grid.visible !== undefined && grid.visible !== currentOptions.enabled;
             const typeChanged = grid.type !== undefined && grid.type !== currentOptions.type;
             const offsetXChanged = grid.offsetX !== undefined && grid.offsetX !== currentOptions.offsetX;
@@ -207,7 +201,7 @@ export class PixiRendererOrchestrator { // Renamed class
             const opacityChanged = grid.opacity !== undefined && grid.opacity !== currentOptions.alpha;
             const lineWidthChanged = grid.lineWidth !== undefined && grid.lineWidth !== currentOptions.lineWidth;
             const lineTypeChanged = grid.lineType !== undefined && grid.lineType !== currentOptions.lineType;
-            const colorChanged = gridColorNum !== undefined && gridColorNum !== currentOptions.color;
+            const colorChanged = gridColorNum !== currentOptions.color;
             
             const hasChanges = visibleChanged || typeChanged || offsetXChanged || offsetYChanged || 
                              sizeChanged || opacityChanged || lineWidthChanged || lineTypeChanged || colorChanged;
@@ -247,12 +241,8 @@ export class PixiRendererOrchestrator { // Renamed class
               updates.alpha = grid.opacity;
               needsOptionsUpdate = true;
             }
-            if (grid.color !== undefined && grid.color !== currentOptions.color) {
-              // Convert color string to hex number
-              const colorNum = typeof grid.color === 'string' 
-                ? parseInt(grid.color.replace('#', '0x')) 
-                : grid.color;
-              updates.color = colorNum;
+            if (colorChanged) {
+              updates.color = gridColorNum;
               needsOptionsUpdate = true;
             }
             if (grid.lineType !== undefined && grid.lineType !== currentOptions.lineType) {
@@ -291,10 +281,10 @@ export class PixiRendererOrchestrator { // Renamed class
 
       // Listen for requests to get viewport position for UI elements
       // Store the handler for cleanup
-      this.getViewportPositionHandler = ((e: Event) => {
+      this.getViewportPositionHandler = (e): void => {
         const vp = this.viewport; // Use getter
         if (!vp) return;
-        const detail = (e as CustomEvent).detail;
+        const detail = e.detail;
         if (detail && typeof detail.callback === 'function') {
           let clientX, clientY;
           if (typeof detail.worldX === 'number' && typeof detail.worldY === 'number') {
@@ -308,14 +298,11 @@ export class PixiRendererOrchestrator { // Renamed class
           }
           detail.callback(clientX, clientY);
         }
-      });
+      };
       window.addEventListener('get-viewport-position', this.getViewportPositionHandler);
 
       // Add keyboard handler for escape key to clear selection
       this.setupKeyboardHandlers();
-      
-      // Add click handler for clearing selection when clicking empty space
-      this.setupViewportClickHandler();
       
       // Drawing tool event handlers will be attached dynamically when needed
       
@@ -326,8 +313,8 @@ export class PixiRendererOrchestrator { // Renamed class
   }
   
   private setupRenderersAndManagers(viewport: Viewport): void {
-    // Initialize BackgroundRenderer first as it should be the bottom layer
-    this.backgroundRenderer = new BackgroundRenderer(viewport, this.eventBus, this.store, this.pixiAppManager.app);
+    // The map sprite draws the background; the canvas around it stays black
+    this.pixiAppManager.app.renderer.background.color = 0x000000;
     
     // Initialize TokenRenderer first if GridSystem is ready
     // This also means tokenContainer will be added to viewport earlier
@@ -361,7 +348,7 @@ export class PixiRendererOrchestrator { // Renamed class
     );
 
     // Initialize FogOfWarRenderer after pins so it can be on top when active
-    this.fogRenderer = new FogOfWarRenderer(viewport, this.app, this.eventBus as any, this.store);
+    this.fogRenderer = new FogOfWarRenderer(viewport, this.app, this.eventBus, this.store);
     
     // Add fog layer to viewport - it should be on top for interaction when the fog tool is active
     const fogContainer = this.fogRenderer.getContainer();
@@ -446,7 +433,6 @@ export class PixiRendererOrchestrator { // Renamed class
         this.gridSystem,
         () => this.selectionManager?.updateSelectionOverlay(),
         this.store,
-        this.eventBus,
         isPlayerView
       );
       // Add text container to viewport
@@ -582,7 +568,6 @@ export class PixiRendererOrchestrator { // Renamed class
         this.gridSystem,
         () => this.selectionManager?.updateSelectionOverlay(),
         this.store,
-        this.eventBus,
         isPlayerView
       );
       // Add text container to viewport
@@ -609,22 +594,11 @@ export class PixiRendererOrchestrator { // Renamed class
       if (this.backgroundSprite.parent) {
         currentViewport.removeChild(this.backgroundSprite);
       }
-      // Unload the old texture if we have its URL
-      if (this.backgroundTextureUrl) {
-        Assets.unload(this.backgroundTextureUrl).catch(err => {
-          console.warn('[PixiRendererOrchestrator] Failed to unload texture:', err);
-        });
-        this.backgroundTextureUrl = null;
-      }
-      // Destroy the old sprite
+      // Destroy the old sprite; its texture is unloaded by whoever loaded it
       this.backgroundSprite.destroy({ children: true, texture: false });
     }
     this.backgroundSprite = sprite;
-    
-    // Try to get the texture URL from the sprite
-    if (sprite.texture && sprite.texture.source && (sprite.texture.source as any).src) {
-      this.backgroundTextureUrl = (sprite.texture.source as any).src;
-    }
+
     // Ensure new background is at the bottom
     if (!sprite.parent) {
         currentViewport.addChildAt(sprite, 0);
@@ -703,6 +677,7 @@ export class PixiRendererOrchestrator { // Renamed class
     if (grid) layers.push({ layer: grid, visible: settings.showGrid });
     layers.push(...(this.tokenRenderer?.getPlayerViewLayers(settings) ?? []));
     layers.push(...(this.fogRenderer?.getPlayerViewLayers() ?? []));
+    layers.push(...(this.selectionManager?.getPlayerViewLayers() ?? []));
     captureWithLayerVisibility(layers, () => app.renderer.render(app.stage), capture);
   }
 
@@ -908,12 +883,6 @@ export class PixiRendererOrchestrator { // Renamed class
       if (!collectionId) return undefined;
       return assetService.getCollectionSettings(collectionId).gridDefaults;
     };
-  }
-
-  private setupViewportClickHandler(): void {
-    // Empty — clear-selection-on-empty-space logic is now handled by
-    // TokenRenderer.onViewportPointerDown (step 4) where all hit-testing
-    // is centralized, avoiding listener ordering issues.
   }
 
   // ─── Wall tool viewport handlers ─────────────────────────────────────
@@ -1370,12 +1339,6 @@ export class PixiRendererOrchestrator { // Renamed class
       this.peekKeyupHandler = null;
     }
     
-    // Remove viewport click handler
-    if ((this as any)._viewportClickHandler && this.viewport) {
-      this.viewport.off('pointerdown', (this as any)._viewportClickHandler);
-      (this as any)._viewportClickHandler = null;
-    }
-    
     // Remove drawing tool handlers
 
     this.tokenRenderer?.destroy(); // Destroy TokenRenderer
@@ -1386,7 +1349,6 @@ export class PixiRendererOrchestrator { // Renamed class
     this.drawingRenderer?.destroy(); // Destroy DrawingRenderer
     this.drawingInteraction?.destroy();
     this.textRenderer?.destroy(); // Destroy TextRenderer
-    this.backgroundRenderer?.destroy(); // Destroy BackgroundRenderer
     this.textTool?.destroy(); // Destroy TextTool
     this.visionRenderer?.destroy();
     this.wallRenderer?.destroy();
@@ -1402,14 +1364,6 @@ export class PixiRendererOrchestrator { // Renamed class
       // Remove from parent if needed
       if (this.backgroundSprite.parent) {
         this.backgroundSprite.parent.removeChild(this.backgroundSprite);
-      }
-      
-      // Unload the texture if we have its URL
-      if (this.backgroundTextureUrl) {
-        Assets.unload(this.backgroundTextureUrl).catch(err => {
-          console.warn('[PixiRendererOrchestrator] Failed to unload texture:', err);
-        });
-        this.backgroundTextureUrl = null;
       }
       
       // Destroy the sprite
@@ -1437,10 +1391,9 @@ export class PixiRendererOrchestrator { // Renamed class
     on('wait-for-tokens-loaded', (callback: () => void) => {
       if (this.tokenRenderer) {
         // Force sync tokens before checking if they're loaded
-        if ((this.tokenRenderer as any).forceSyncTokens) {
-          (this.tokenRenderer as any).forceSyncTokens();
-        }
-        
+        this.tokenRenderer.forceSyncTokens();
+
+
         this.tokenRenderer.onWhenAllTokensLoaded(() => {
           callback();
         });
@@ -1451,20 +1404,20 @@ export class PixiRendererOrchestrator { // Renamed class
     });
 
     // Listen for wall tool settings changes from toolbar UI
-    on('wall-submode-changed', (subMode: string) => {
-      this.wallTool?.setSubMode(subMode as 'draw' | 'place-light');
+    on('wall-submode-changed', (subMode: WallToolSubMode) => {
+      this.wallTool?.setSubMode(subMode);
     });
-    on('wall-type-changed', (type: string) => {
-      this.wallTool?.setWallType(type as any);
+    on('wall-type-changed', (type: WallType) => {
+      this.wallTool?.setWallType(type);
     });
-    on('wall-mode-changed', (mode: string) => {
-      this.wallTool?.setMode(mode as 'point-to-point' | 'freeform');
+    on('wall-mode-changed', (mode: WallToolMode) => {
+      this.wallTool?.setMode(mode);
     });
 
     // Listen for wall segment creation from WallTool
-    on('wall-segment-created', (data: { p1: { x: number; y: number }; p2: { x: number; y: number }; type: string; chainId: string }) => {
+    on('wall-segment-created', (data: { p1: { x: number; y: number }; p2: { x: number; y: number }; type: WallType; chainId: string }) => {
       const id = this.store.getState().addWall({
-        type: data.type as any,
+        type: data.type,
         p1: data.p1,
         p2: data.p2,
         chainId: data.chainId,

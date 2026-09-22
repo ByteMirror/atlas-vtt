@@ -4,6 +4,7 @@ import { useAtlasUI } from '../../root/AtlasUIContext';
 import { useAtlasStore } from '../../ViewStoreContext';
 import { useDiceHistory } from './useDiceHistory';
 import { DiceRollEntry } from './DiceRollEntry';
+import { LabelTooltip } from '../../../packages/components/primitives/tooltip';
 import type { DiceTool } from '../../../tools/DiceTool';
 
 interface DiceRollLogProps {
@@ -95,28 +96,31 @@ export function DiceRollLog({ isOpen, onClose }: DiceRollLogProps): React.ReactE
         <span className="dice-roll-log__title">Dice Log</span>
         <div className="dice-roll-log__actions">
           {history.length > 0 && (
+            <LabelTooltip label="Clear history">
+              <button
+                className="btn btn--ghost btn--icon dice-roll-log__action-btn"
+                onClick={clearHistory}
+              >
+                <Trash2 />
+              </button>
+            </LabelTooltip>
+          )}
+          <LabelTooltip label={isPinned ? 'Unpin panel' : 'Pin panel open'}>
+            <button
+              className={`btn btn--ghost btn--icon dice-roll-log__action-btn ${isPinned ? 'dice-roll-log__action-btn--active' : ''}`}
+              onClick={() => setIsPinned(prev => !prev)}
+            >
+              {isPinned ? <PinOff /> : <Pin />}
+            </button>
+          </LabelTooltip>
+          <LabelTooltip label="Close (Enter or Esc)">
             <button
               className="btn btn--ghost btn--icon dice-roll-log__action-btn"
-              onClick={clearHistory}
-              title="Clear history"
+              onClick={handleClose}
             >
-              <Trash2 />
+              <X />
             </button>
-          )}
-          <button
-            className={`btn btn--ghost btn--icon dice-roll-log__action-btn ${isPinned ? 'dice-roll-log__action-btn--active' : ''}`}
-            onClick={() => setIsPinned(prev => !prev)}
-            title={isPinned ? 'Unpin panel' : 'Pin panel open'}
-          >
-            {isPinned ? <PinOff /> : <Pin />}
-          </button>
-          <button
-            className="btn btn--ghost btn--icon dice-roll-log__action-btn"
-            onClick={handleClose}
-            title="Close (Enter or Esc)"
-          >
-            <X />
-          </button>
+          </LabelTooltip>
         </div>
       </div>
 

@@ -3,8 +3,7 @@ import { createRoot, Root } from 'react-dom/client';
 import React from 'react';
 import AssetManager from '../packages/components/asset-manager/AssetManager';
 import { AtlasUIContext } from '../react/root/AtlasUIContext';
-import { ViewStoreProvider } from '../react/ViewStoreContext';
-import { create } from 'zustand';
+import { ContextMenuProvider } from '../react/root/ContextMenuContext';
 import type { Tab } from '../packages/components/asset-manager/types';
 
 export class GlobalAssetManagerService {
@@ -44,24 +43,15 @@ export class GlobalAssetManagerService {
       view: null,
       pixiApp: null,
       renderer: null,
-      mapData: null,
-      layerMgr: null,
       isPlayerMode: false,
       setPlayerMode: () => {}
     };
     
-    // Create a minimal dummy store for global context
-    const dummyStore = create(() => ({
-      addToken: () => '',
-      setSelection: () => {},
-      selectedIds: []
-    }));
-    
+    // No ViewStoreProvider: there is no map view here, the asset manager reads the store optionally.
     this.root.render(
-      React.createElement(ViewStoreProvider, {
-        store: dummyStore,
-        children: React.createElement(AtlasUIContext.Provider, {
-          value: contextValue,
+      React.createElement(AtlasUIContext.Provider, {
+        value: contextValue,
+        children: React.createElement(ContextMenuProvider, {
           children: React.createElement(AssetManager, {
             isOpen: true,
             onClose: () => this.close(),

@@ -4,12 +4,13 @@ import { App } from 'obsidian';
 import { Search, Check, Plus, Minus, Tag as TagIcon } from 'lucide-react';
 import { CloseButton } from '../primitives/CloseButton';
 import { Button } from '../primitives/button';
+import type { AnyAsset, Tag } from './types';
 
 interface TagSearchModalProps {
-  selectedAssets: any[];
-  availableTags: { id: string; name: string }[];
-  allAssets: any[];
-  onToggleTag: (tagId: string, selectedAssets: any[]) => void;
+  selectedAssets: AnyAsset[];
+  availableTags: Tag[];
+  allAssets: AnyAsset[];
+  onToggleTag: (tagId: string, selectedAssets: AnyAsset[]) => void;
   onCreateTag: (tagName: string) => void;
   onClose: () => void;
 }
@@ -71,7 +72,7 @@ function TagSearchModalInner({
       prev.map(asset => {
         const current = asset.tags || [];
         const has = current.includes(tagId);
-        return { ...asset, tags: has ? current.filter((t: string) => t !== tagId) : [...current, tagId] };
+        return { ...asset, tags: has ? current.filter((t) => t !== tagId) : [...current, tagId] };
       }),
     );
   };
@@ -85,7 +86,12 @@ function TagSearchModalInner({
   };
 
   return (
-    <div className="atlas-modal-overlay" onClick={onClose}>
+    <div
+      className="atlas-modal-overlay"
+      onClick={onClose}
+      // This separate React root must not trigger the asset manager's outside-click listener.
+      onMouseDown={(e) => e.stopPropagation()}
+    >
       <div className="atlas-modal atlas-tag-search-modal" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="atlas-modal-header">

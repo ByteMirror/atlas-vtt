@@ -16,6 +16,8 @@ export interface NavigationSettings {
 export type TutorialId = 'assets' | 'palette' | 'tokenStatblocks';
 
 export interface AtlasSettings {
+  showChangelogOnUpdate: boolean;
+  changelogMajorUpdatesOnly: boolean;
   hotkeys: MapHotkeys;
   onboarding: { enabled: boolean; completed: Partial<Record<TutorialId, boolean>>; tokenImported: boolean };
   navigation: NavigationSettings;
@@ -28,11 +30,14 @@ export interface AtlasSettings {
     showNotePreviews: boolean;
     showGrid: boolean;
     showWidgets: boolean;
+    showInitiative: boolean;
     showCommandPalette: boolean;
   };
 }
 
 const DEFAULT_SETTINGS: AtlasSettings = {
+  showChangelogOnUpdate: true,
+  changelogMajorUpdatesOnly: false,
   hotkeys: DEFAULT_MAP_HOTKEYS,
   onboarding: { enabled: true, completed: {}, tokenImported: false },
   navigation: {
@@ -47,6 +52,7 @@ const DEFAULT_SETTINGS: AtlasSettings = {
     showNotePreviews: false, // Hide note previews
     showGrid: true, // Show grid by default
     showWidgets: true,
+    showInitiative: true,
     showCommandPalette: false // Hide command palette
   },
 };

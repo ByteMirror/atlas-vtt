@@ -4,11 +4,13 @@ import { App } from 'obsidian';
 import { getFantasyStatblocksApi } from '../../../services/FantasyStatblocksService';
 import { CloseButton } from '../primitives/CloseButton';
 import { Button } from '../primitives/button';
+import type { TokenAsset } from './types';
 
 interface StatblockLinkModalProps {
   isOpen: boolean;
   onClose: () => void;
-  asset: any;
+  /** Only the name and current link are shown, so callers without a full asset can use the modal. */
+  asset: Pick<TokenAsset, 'name' | 'statblockPath'>;
   onLink: (statblockPath: string | null) => void;
   app: App;
 }
@@ -87,7 +89,7 @@ const StatblockLinkModal: React.FC<StatblockLinkModalProps> = ({
 
   return (
     <div className="atlas-modal-overlay" onClick={onClose}>
-      <div className="atlas-modal-content atlas-statblock-link-modal" onClick={(e) => e.stopPropagation()}>
+      <div className="atlas-modal atlas-statblock-link-modal" onClick={(e) => e.stopPropagation()}>
         <div className="atlas-modal-header">
           <h2>Link Statblock to {asset.name}</h2>
           <CloseButton onClick={onClose} />

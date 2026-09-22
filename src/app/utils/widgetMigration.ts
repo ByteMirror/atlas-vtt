@@ -1,48 +1,39 @@
-import type { AnyWidget } from '../types/widgetTypes';
+import type { PersistedMapEnvelope } from '../services/MapPersistence';
 
 /**
  * Migrates widgets from map-level to split storage.
  * Extracts widget values into a separate `widgetValues` map
  * so definitions and per-map values are stored independently.
  */
-export async function migrateWidgetsToCollection(
-  _plugin: any,
-  mapData: any,
-  _collectionId: string
-): Promise<any> {
-  if (!mapData.state?.widgetSettings?.widgets) {
+export function migrateWidgetsToCollection(mapData: PersistedMapEnvelope): PersistedMapEnvelope {
+  const mapWidgets = mapData.state?.widgetSettings?.widgets;
+  if (!mapData.state || !mapWidgets) {
     return mapData;
   }
 
-  // Extract widget values from the map
-  const mapWidgets = mapData.state.widgetSettings.widgets;
-  const widgetValues: Record<string, any> = {};
-
+  const widgetValues: Record<string, number> = {};
   for (const [widgetId, widget] of Object.entries(mapWidgets)) {
-    const anyWidget = widget as AnyWidget;
-    widgetValues[widgetId] = anyWidget.value;
+    widgetValues[widgetId] = widget.value;
   }
 
-  // Update map data: keep widget definitions in widgetSettings and
-  // store extracted values in the new widgetValues field
-  const updatedMapData = {
+  // Keep widget definitions in widgetSettings and store the extracted values in widgetValues
+  return {
     ...mapData,
     state: {
       ...mapData.state,
       widgetValues,
     }
   };
-
-  return updatedMapData;
 }
 
 /**
  * Checks if a map needs widget migration
  */
-export function needsWidgetMigration(mapData: any): boolean {
+export function needsWidgetMigration(mapData: PersistedMapEnvelope): boolean {
+  const state = mapData.state;
   return !!(
-    mapData.state?.widgetSettings?.widgets &&
-    Object.keys(mapData.state.widgetSettings.widgets).length > 0 &&
-    !mapData.state.widgetValues
+    state?.widgetSettings?.widgets &&
+    Object.keys(state.widgetSettings.widgets).length > 0 &&
+    !state.widgetValues
   );
 }

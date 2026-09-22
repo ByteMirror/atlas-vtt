@@ -14,6 +14,8 @@ import { isActiveAtlasLeaf } from '../../utils/activeLeafGuard';
 import { InitiativeCard } from './InitiativeCard';
 import { StatblockHoverPreview, useStatblockHoverPreview } from './StatblockHoverPreview';
 import type { InitiativeEntry } from '../../types/initiativeTypes';
+import type { Character } from '../../types';
+import type { ViewAtlasState } from '../../storeFactory';
 import './initiative-tracker.scss';
 
 /**
@@ -108,6 +110,24 @@ function EditInitiativePopup({
   );
 }
 
+type NewInitiativeEntry = Parameters<ViewAtlasState['addToInitiative']>[0];
+type Vitals = { current: number; max: number };
+
+/** Characters store HP either as a single number or as current/max. */
+function readHp(character: Character): Vitals | null {
+  if (!character.hp) return null;
+  return typeof character.hp === 'object'
+    ? { current: character.hp.current, max: character.hp.max }
+    : { current: character.hp, max: character.hp };
+}
+
+function readStress(character: Character): Vitals | undefined {
+  if (character.stress === undefined) return undefined;
+  return typeof character.stress === 'object'
+    ? { current: character.stress.current, max: character.stress.max }
+    : { current: character.stress, max: character.maxStress ?? 10 };
+}
+
 /**
  * Initiative Tracker Panel
  * Modern minimal design with floating cards - auto-syncs with map tokens
@@ -147,7 +167,7 @@ export const InitiativeTracker: React.FC = () => {
   const nextBtnRef = useRef<HTMLButtonElement>(null);
 
   // Use shared statblock hover preview hook
-  const [previewState, previewActions] = useStatblockHoverPreview({ app });
+  const [previewState, previewActions] = useStatblockHoverPreview<InitiativeEntry>({ app });
 
   // Listen for hotkey events to provide visual feedback
   useEffect(() => {
@@ -175,46 +195,22 @@ export const InitiativeTracker: React.FC = () => {
       const token = tokens[tokenId];
       if (!token) return;
 
-      const isCharacter = token.kind === 'character';
-      const character = token as any;
+      const character = token.kind === 'character' ? token : null;
+      const hp = (character && readHp(character)) ?? { current: 10, max: 10 };
+      const stress = character ? readStress(character) : undefined;
 
-      // Extract HP
-      let hp: { current: number; max: number };
-      if (isCharacter && character.hp) {
-        if (typeof character.hp === 'object') {
-          hp = { current: character.hp.current, max: character.hp.max };
-        } else {
-          hp = { current: character.hp, max: character.hp };
-        }
-      } else {
-        hp = { current: 10, max: 10 };
-      }
-
-      // Build entry object
-      const entry: any = {
+      const entry: NewInitiativeEntry = {
         tokenId,
-        name: isCharacter ? character.name : 'Token',
+        name: character ? character.name : 'Token',
         initiative: 0,
         initiativeModifier: 0,
         hp,
         imagePath: token.imagePath,
         isDefeated: hp.current <= 0,
-        isNPC: !isCharacter || !character.playerLinked,
+        isNPC: !character?.playerLinked,
+        ...(stress ? { stress } : {}),
+        ...(character?.statblockPath ? { statblockPath: character.statblockPath } : {}),
       };
-
-      // Add stress if present
-      if (isCharacter && character.stress !== undefined) {
-        if (typeof character.stress === 'object') {
-          entry.stress = { current: character.stress.current, max: character.stress.max };
-        } else {
-          entry.stress = { current: character.stress, max: character.maxStress ?? 10 };
-        }
-      }
-
-      // Add statblockPath if present
-      if (isCharacter && character.statblockPath) {
-        entry.statblockPath = character.statblockPath;
-      }
 
       addToInitiative(entry);
     });
@@ -234,43 +230,24 @@ export const InitiativeTracker: React.FC = () => {
       const token = tokens[entry.tokenId];
       if (!token) return;
 
-      const isCharacter = token.kind === 'character';
-      const character = token as any;
-      const updates: Partial<typeof entry> = {};
-
-      if (entry.name !== character.name) {
-        updates.name = character.name;
-      }
+      const updates: Partial<InitiativeEntry> = {};
 
       if (entry.imagePath !== token.imagePath) {
         updates.imagePath = token.imagePath;
       }
 
-      if (isCharacter) {
-        let tokenHp: { current: number; max: number } | null = null;
-        if (character.hp) {
-          if (typeof character.hp === 'object') {
-            tokenHp = { current: character.hp.current, max: character.hp.max };
-          } else {
-            // Simple number format - use as both current and max
-            tokenHp = { current: character.hp, max: character.hp };
-          }
+      if (token.kind === 'character') {
+        if (entry.name !== token.name) {
+          updates.name = token.name;
         }
 
+        const tokenHp = readHp(token);
         if (tokenHp && (entry.hp.current !== tokenHp.current || entry.hp.max !== tokenHp.max)) {
           updates.hp = tokenHp;
           updates.isDefeated = tokenHp.current <= 0;
         }
 
-        let stressUpdate: { current: number; max: number } | undefined;
-        if (character.stress !== undefined) {
-          if (typeof character.stress === 'object') {
-            stressUpdate = { current: character.stress.current, max: character.stress.max };
-          } else {
-            stressUpdate = { current: character.stress, max: character.maxStress ?? 10 };
-          }
-        }
-
+        const stressUpdate = readStress(token);
         const existingStress = entry.stress;
         const stressChanged = stressUpdate
           ? !existingStress
@@ -282,9 +259,7 @@ export const InitiativeTracker: React.FC = () => {
           updates.stress = stressUpdate;
         }
 
-        const tokenStatblockPath = typeof character.statblockPath === 'string' && character.statblockPath.trim()
-          ? character.statblockPath
-          : undefined;
+        const tokenStatblockPath = token.statblockPath?.trim() ? token.statblockPath : undefined;
 
         if (entry.statblockPath !== tokenStatblockPath) {
           updates.statblockPath = tokenStatblockPath;
@@ -422,6 +397,7 @@ export const InitiativeTracker: React.FC = () => {
           previewState.hoveredEntry && {
             ...previewState.hoveredEntry,
             ringColor: tokens[previewState.hoveredEntry.tokenId]?.ringColor,
+            showRing: tokens[previewState.hoveredEntry.tokenId]?.showRing,
           }
         }
         isVisible={previewState.isVisible}

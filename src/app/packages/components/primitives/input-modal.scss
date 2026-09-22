@@ -11,10 +11,6 @@
     @include atlas-modal-header;
   }
 
-  .atlas-modal-content {
-    @include atlas-modal-body;
-  }
-
   .atlas-modal-footer {
     @include atlas-modal-footer;
   }

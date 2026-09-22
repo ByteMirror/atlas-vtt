@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { FileText, Search, SearchX } from 'lucide-react';
 import { App, TFile, moment } from 'obsidian';
 
@@ -36,6 +36,7 @@ export function rankNotes(files: TFile[], query: string): TFile[] {
 }
 
 export default function LinkedNotePicker({ app, onSelect }: LinkedNotePickerProps): React.ReactElement {
+  const searchLabelId = useId();
   const [query, setQuery] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
@@ -66,13 +67,14 @@ export default function LinkedNotePicker({ app, onSelect }: LinkedNotePickerProp
     <div className="atlas-linked-note-picker">
       <div className="atlas-linked-note-search">
         <Search className="atlas-linked-note-search-icon" />
+        <span id={searchLabelId} hidden>Search notes</span>
         <input
           type="text"
           placeholder="Search notes..."
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={handleKeyDown}
-          aria-label="Search notes"
+          aria-labelledby={searchLabelId}
         />
       </div>
 

@@ -1,5 +1,6 @@
 import { App } from 'obsidian';
 import { AssetService, Asset } from './AssetService';
+import { isPersistedMapEnvelope } from './MapPersistence';
 import { normalizeImagePath } from '../utils/pathUtils';
 
 /**
@@ -47,13 +48,8 @@ export class FileReferenceService {
     const assetService = AssetService.getInstance(this.app);
     await assetService.initialize();
 
-    const metadata = (assetService as any).metadata;
-    if (!metadata?.assets) return false;
-
-    let changed = false;
-    const assets: Record<string, Asset> = metadata.assets;
-
-    for (const asset of Object.values(assets)) {
+    return assetService.rewriteAssets((asset: Asset): boolean => {
+      let changed = false;
       switch (asset.type) {
         case 'token': {
           if (this.pathMatches(asset.imagePath, oldPath, normalizedOld)) {
@@ -97,12 +93,8 @@ export class FileReferenceService {
           break;
         }
       }
-    }
-
-    if (changed) {
-      await (assetService as any).saveMetadata();
-    }
-    return changed;
+      return changed;
+    });
   }
 
   // ---------------------------------------------------------------------------
@@ -118,19 +110,21 @@ export class FileReferenceService {
 
     /** Returns the rewritten map JSON, or null when the map does not reference the old path. */
     const rewriteMap = (content: string): string | null => {
-      const mapData = JSON.parse(content);
+      const mapData: unknown = JSON.parse(content);
+      if (!isPersistedMapEnvelope(mapData)) return null;
 
-      if (!mapData.state?.objects?.tokens) return null;
+      const tokens = mapData.state?.objects?.tokens;
+      if (!tokens) return null;
 
       let modified = false;
-      const tokens: Record<string, any> = mapData.state.objects.tokens;
 
       for (const token of Object.values(tokens)) {
         if (token.imagePath && this.pathMatches(token.imagePath, oldPath, normalizedOld)) {
           token.imagePath = newPath;
           modified = true;
         }
-        if (token.statblockPath && this.pathMatches(token.statblockPath, oldPath, normalizedOld)) {
+        // Checked by presence, not `kind`: linking writes statblockPath onto plain tokens too.
+        if ('statblockPath' in token && token.statblockPath && this.pathMatches(token.statblockPath, oldPath, normalizedOld)) {
           token.statblockPath = newPath;
           modified = true;
         }
@@ -168,12 +162,12 @@ export class FileReferenceService {
         const cache = this.app.metadataCache.getFileCache(mdFile);
         if (!cache?.frontmatter) continue;
 
-        const tokenImage = cache.frontmatter['token-image'];
-        if (!tokenImage) continue;
+        const tokenImage: unknown = cache.frontmatter['token-image'];
+        if (typeof tokenImage !== 'string' || !tokenImage) continue;
 
         if (!this.pathMatches(tokenImage, oldPath, normalizedOld)) continue;
 
-        await this.app.fileManager.processFrontMatter(mdFile, (frontmatter) => {
+        await this.app.fileManager.processFrontMatter(mdFile, (frontmatter: Record<string, unknown>) => {
           frontmatter['token-image'] = newPath;
         });
       } catch (error) {

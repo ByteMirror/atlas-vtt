@@ -1,6 +1,7 @@
 import * as React from 'react';
 import { X } from 'lucide-react';
 import { Button, type ButtonProps } from './button';
+import { LabelTooltip } from './tooltip';
 import { cn } from '../../../../utils/cn';
 
 export type CloseButtonProps = Omit<ButtonProps, 'variant' | 'size' | 'children'>;
@@ -12,18 +13,18 @@ export type CloseButtonProps = Omit<ButtonProps, 'variant' | 'size' | 'children'
  */
 export const CloseButton = React.forwardRef<HTMLButtonElement, CloseButtonProps>(
   ({ className, 'aria-label': ariaLabel = 'Close', title, ...props }, ref) => (
-    <Button
-      ref={ref}
-      type="button"
-      variant="ghost"
-      size="icon"
-      className={cn('atlas-close-btn', className)}
-      aria-label={ariaLabel}
-      title={title ?? ariaLabel}
-      {...props}
-    >
-      <X />
-    </Button>
+    <LabelTooltip label={title ?? ariaLabel}>
+      <Button
+        ref={ref}
+        type="button"
+        variant="ghost"
+        size="icon"
+        className={cn('atlas-close-btn', className)}
+        {...props}
+      >
+        <X />
+      </Button>
+    </LabelTooltip>
   ),
 );
 

@@ -23,6 +23,18 @@ export interface LayerVisibility {
   alpha?: number;
 }
 
+/** Sprites of hidden tokens: the DM sees them translucent, players must not see them at all. */
+export function hiddenTokenLayers(
+  tokens: Record<string, { isHidden?: boolean }>,
+  sprites: Record<string, HideableLayer | null>,
+): LayerVisibility[] {
+  const layers: LayerVisibility[] = [];
+  for (const [tokenId, sprite] of Object.entries(sprites)) {
+    if (sprite && tokens[tokenId]?.isHidden) layers.push({ layer: sprite, visible: false });
+  }
+  return layers;
+}
+
 /** Temporarily apply player visibility and opacity, then restore the DM frame. */
 export function captureWithLayerVisibility(
   layers: readonly LayerVisibility[],

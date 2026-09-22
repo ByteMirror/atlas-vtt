@@ -2,14 +2,15 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useStore } from 'zustand';
 import { useMapHotkeys, useAtlasSettings, useHotkeyLabels } from '../../keyboard/useMapHotkeys';
 import { canRunMapHotkeys, matchesMapHotkey } from '../../keyboard/mapHotkeys';
-import type { WidgetSyncService } from '../../services/WidgetSyncService';
+import type { WidgetSyncService, WidgetAnimationType, WidgetAnimationPayloads } from '../../services/WidgetSyncService';
+import type { ViewAtlasStore } from '../../storeFactory';
 import type { AnyWidget } from '../../types/widgetTypes';
 import { TimerWidgetDisplay } from './TimerWidgetDisplay';
 import { CounterWidgetDisplay, stepCounter } from './CounterWidgetDisplay';
 
 interface ResponsiveWidgetBarProps {
   isPlayerView?: boolean;
-  store: any;
+  store: ViewAtlasStore;
   viewId?: string;
   widgetSyncService?: WidgetSyncService;
 }
@@ -27,7 +28,7 @@ export function ResponsiveWidgetBar({ isPlayerView = false, store, viewId, widge
   
   // Select only what this component renders so drag ticks and selection
   // changes elsewhere in the store do not re-render the widget bar.
-  const storedWidgetSettings = useStore(store, (state: any) => state.widgetSettings);
+  const storedWidgetSettings = useStore(store, (state) => state.widgetSettings);
   const [isActive, setIsActive] = useState(true);
   const [activeWidgets, setActiveWidgets] = useState<Set<string>>(new Set());
   const [pulsingWidgets, setPulsingWidgets] = useState<Set<string>>(new Set());
@@ -55,7 +56,7 @@ export function ResponsiveWidgetBar({ isPlayerView = false, store, viewId, widge
   }, [componentId, widgetSyncService]);
   
   // Helper to broadcast animations
-  const broadcastAnimation = useCallback((animationType: 'pulse' | 'active' | 'key-held', widgetId: string, data?: any) => {
+  const broadcastAnimation = useCallback(<T extends WidgetAnimationType>(animationType: T, widgetId: string, data?: WidgetAnimationPayloads[T]): void => {
     if (widgetSyncService) {
       widgetSyncService.broadcastWidgetAnimation(componentId, animationType, widgetId, data);
     }

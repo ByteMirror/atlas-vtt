@@ -1,4 +1,5 @@
-import { App, Plugin } from 'obsidian';
+import { App } from 'obsidian';
+import type AtlasVTTPlugin from '../../../main';
 import { EventEmitter } from 'events';
 import { RendererService } from './RendererService';
 import { LayerGraph } from './LayerGraph';
@@ -11,8 +12,6 @@ import { AssetService } from './AssetService';
 import { SettingsService } from './SettingsService';
 import { MapThumbnailService } from './MapThumbnailService';
 import { WidgetSyncService } from './WidgetSyncService';
-import { GlobalAudioService } from './GlobalAudioService';
-import { getQueueService } from './QueueService';
 import { SoundEffectService } from './SoundEffectService';
 import { DiceToastObserver } from './DiceToastObserver';
 import type { ViewAtlasStore } from '../storeFactory';
@@ -40,7 +39,7 @@ export class ServiceManager {
   private thumbnailUnsubs: Array<() => void> = [];
   private thumbnailGenerationTimeout: number | null = null;
   
-  constructor(private app: App, private store: ViewAtlasStore, private plugin?: Plugin, viewId?: string) {
+  constructor(private app: App, private store: ViewAtlasStore, private plugin?: AtlasVTTPlugin, viewId?: string) {
     // Create event bus for inter-service communication
     this.eventBus = new EventEmitter();
     this.eventBus.setMaxListeners(30); // Increase max listeners
@@ -49,7 +48,7 @@ export class ServiceManager {
     this.viewId = viewId || `view-${Date.now()}`;
 
     // Share the plugin-wide settings service so every view sees the same settings
-    this.settingsService = (plugin as { settingsService?: SettingsService } | undefined)?.settingsService ?? new SettingsService(app);
+    this.settingsService = plugin?.settingsService ?? new SettingsService(app);
 
     // Initialize all services with the view store
     this.rendererService = new RendererService(app, this.eventBus, store, this.viewId, this.settingsService);
@@ -67,7 +66,6 @@ export class ServiceManager {
     this.notePreviewUIManager = new NotePreviewUIManager(app, this.eventBus);
 
     this.assetService = AssetService.getInstance(app);
-    getQueueService().attachApp(app);
     this.mapThumbnailService = new MapThumbnailService(app);
 
     void Promise.all([this.settingsService.initialize(), this.assetService.initialize()]);
@@ -78,13 +76,11 @@ export class ServiceManager {
     // Initialize widget sync service if plugin is available
     if (plugin) {
       // Get or create singleton widget sync service from plugin
-      if (!(plugin as any).widgetSyncService) {
-        (plugin as any).widgetSyncService = new WidgetSyncService(plugin);
-      }
-      this.widgetSyncService = (plugin as any).widgetSyncService;
-      
+      plugin.widgetSyncService ??= new WidgetSyncService(plugin);
+      this.widgetSyncService = plugin.widgetSyncService;
+
       // Register this store with widget sync
-      this.widgetSyncService?.registerStore(this.viewId, store);
+      this.widgetSyncService.registerStore(this.viewId, store);
     }
     
   }
@@ -200,8 +196,8 @@ export class ServiceManager {
       return;
     }
     
-    const pixiApp = (renderer as any).app;
-    const viewport = (renderer as any).viewport;
+    const pixiApp = renderer.getAppInstance();
+    const viewport = renderer.getViewportInstance();
     
     if (!pixiApp || !viewport) {
       console.warn('[ServiceManager] Cannot generate thumbnail: PIXI app or viewport not available');
@@ -278,9 +274,6 @@ export class ServiceManager {
       this.widgetSyncService.unregisterStore(this.viewId);
     }
     
-    // Note: We don't cleanup global audio here since it persists across all maps
-    // Audio cleanup is handled at the plugin level when the plugin is unloaded
-    
     // Destroy services in reverse order of dependency
     this.diceToastObserver.destroy();
     this.soundEffectService.destroy();
@@ -301,12 +294,4 @@ export class ServiceManager {
     this.eventBus.removeAllListeners();
     
   }
-  
-  /**
-   * Cleanup all audio services
-   * Should be called when the plugin is unloaded
-   */
-  public static destroyAllAudio(): void {
-    GlobalAudioService.getInstance().destroy();
-  }
-} 
+}

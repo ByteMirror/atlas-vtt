@@ -5,9 +5,32 @@
  * to enable future refactoring into focused modules.
  */
 
-import type { Container, Texture, Application } from 'pixi.js';
+import type { Container, Graphics, Sprite, Texture, Application, TickerCallback } from 'pixi.js';
 import type { TokenEntity } from '../../types';
 import type { GridSystem } from '../../grid/GridSystem';
+import type { TokenUIRenderer } from '../TokenUIRenderer';
+
+/**
+ * A token's root container. `SpriteFactory` attaches the metadata when it
+ * builds the container, so every token container in the renderer carries it.
+ */
+export interface TokenGroupContainer extends Container {
+  tokenId: string;
+  tokenData: TokenEntity;
+  /** Rendered diameter in world pixels. */
+  tokenSize: number;
+  strokeWidth: number;
+  /** Ticker callback of the movement animation in flight, if any. */
+  currentAnimation?: TickerCallback<unknown> | null;
+}
+
+/** Round drag handle drawn by the token resize and rotation UIs. */
+export interface TokenHandleContainer extends Container {
+  bg: Graphics;
+  isDarkMode: boolean;
+  iconSprite?: Sprite;
+  direction?: string;
+}
 
 /**
  * Token sprite creation and management
@@ -19,7 +42,7 @@ export interface ITokenSpriteFactory {
    * @param texture The loaded texture for the token
    * @returns Promise resolving to the created container with token visuals
    */
-  createTokenSprite(token: TokenEntity, texture: Texture): Promise<Container>;
+  createTokenSprite(token: TokenEntity, texture: Texture): Promise<TokenGroupContainer>;
   
   /**
    * Updates the size of a token sprite based on grid changes
@@ -27,7 +50,7 @@ export interface ITokenSpriteFactory {
    * @param container The token container to update
    * @param size The new size multiplier
    */
-  updateTokenSize(tokenId: string, container: Container, size: number): void;
+  updateTokenSize(tokenId: string, container: TokenGroupContainer, size: number): void;
   
   /**
    * Updates the position of a token sprite
@@ -68,7 +91,7 @@ export interface ITextureCache {
    * @param character The character object containing imagePath
    * @returns Promise resolving to the loaded texture
    */
-  loadTokenTexture(character: any): Promise<Texture>;
+  loadTokenTexture(character: Pick<TokenEntity, 'imagePath'>): Promise<Texture>;
   
   /**
    * Gets a ring texture from cache or generates it
@@ -112,7 +135,7 @@ export interface ITokenUIManager {
    * @param token The token entity data
    * @returns The TokenUIRenderer instance or null if not a character token
    */
-  createTokenUI(tokenId: string, container: Container, token: TokenEntity): any;
+  createTokenUI(tokenId: string, container: TokenGroupContainer, token: TokenEntity): TokenUIRenderer | null;
   
   /**
    * Updates UI elements for a token

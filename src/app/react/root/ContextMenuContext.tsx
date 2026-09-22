@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { renderEntries, type ContextMenuEntry } from '../components/context-menu/AtlasContextMenu';
 import { useAtlasStore } from '../ViewStoreContext';
+import { LabelTooltip } from '../../packages/components/primitives/tooltip';
 
 // Re-export the entry type so consumers only import from this file
 export type { ContextMenuEntry } from '../components/context-menu/AtlasContextMenu';
@@ -24,20 +25,21 @@ export const useContextMenu = (): ContextMenuController => {
 
 // ── Global helpers (non-React callers like PIXI renderers) ──────────────────
 
-type OpenContextMenuFn = (entries: ContextMenuEntry[], position: { x: number; y: number }) => void;
-
-let globalOpen: OpenContextMenuFn | null = null;
-let globalClose: (() => void) | null = null;
+/**
+ * Every mounted provider registers here. The newest one serves callers outside
+ * React, so a provider that unmounts never disables the ones still on screen.
+ */
+const controllers: ContextMenuController[] = [];
 
 export function openContextMenuGlobal(
   entries: ContextMenuEntry[],
   position: { x: number; y: number },
 ): void {
-  globalOpen?.(entries, position);
+  controllers[controllers.length - 1]?.open(entries, position);
 }
 
 export function closeContextMenuGlobal(): void {
-  globalClose?.();
+  for (const controller of controllers) controller.close();
 }
 
 // ── Provider ────────────────────────────────────────────────────────────────
@@ -56,13 +58,11 @@ export const ContextMenuProvider: React.FC<{ children: React.ReactNode }> = ({ c
     setMenuState({ entries, position });
   }, []);
 
-  // Wire up global helpers
   useEffect(() => {
-    globalOpen = open;
-    globalClose = close;
+    const controller: ContextMenuController = { open, close };
+    controllers.push(controller);
     return () => {
-      if (globalOpen === open) globalOpen = null;
-      if (globalClose === close) globalClose = null;
+      controllers.splice(controllers.indexOf(controller), 1);
     };
   }, [open, close]);
 
@@ -150,24 +150,23 @@ export function RingColorGrid({ tokenId, closeMenu }: { tokenId: string; closeMe
       {colors.map((c) => {
         const hex = resolveHex(c.cssVar, c.fallback);
         return (
-          <button
-            key={c.name}
-            type="button"
-            className="atlas-ring-swatch"
-            title={`Ring colour ${c.name}`}
-            aria-label={`Ring colour ${c.name}`}
-            style={{ background: hex }}
-            onClick={() => handleSelect(hex)}
-          />
+          <LabelTooltip key={c.name} label={`Ring colour ${c.name}`}>
+            <button
+              type="button"
+              className="atlas-ring-swatch"
+              style={{ background: hex }}
+              onClick={() => handleSelect(hex)}
+            />
+          </LabelTooltip>
         );
       })}
-      <button
-        type="button"
-        className="atlas-ring-swatch atlas-none"
-        title="Clear ring"
-        aria-label="Clear ring"
-        onClick={() => handleSelect(null)}
-      />
+      <LabelTooltip label="Clear ring">
+        <button
+          type="button"
+          className="atlas-ring-swatch atlas-none"
+          onClick={() => handleSelect(null)}
+        />
+      </LabelTooltip>
     </div>
   );
 }

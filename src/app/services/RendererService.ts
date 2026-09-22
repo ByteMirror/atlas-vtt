@@ -2,6 +2,8 @@ import { App } from 'obsidian';
 import { PixiRendererOrchestrator } from '../PixiRendererOrchestrator'; // New import
 import { PixiAppManager } from '../pixi/PixiAppManager'; // Import PixiAppManager
 import type { Viewport } from 'pixi-viewport';
+import type { Application } from 'pixi.js';
+import type { GridSystem } from '../grid/GridSystem';
 import { EventEmitter } from 'events';
 import type { ViewAtlasStore } from '../storeFactory';
 import type { SettingsService } from './SettingsService';
@@ -35,7 +37,7 @@ export class RendererService {
    * @param containerEl The HTML element to attach the renderer to
    * @returns The PixiJS application instance
    */
-  public async init(containerEl: HTMLElement): Promise<any> {
+  public async init(containerEl: HTMLElement): Promise<Application | null> {
     if (!this.renderer) {
       // Create PixiAppManager instance with container dimensions for split-view support
       if (!this.pixiAppManager) {
@@ -85,7 +87,7 @@ export class RendererService {
    * Get the Pixi application
    * @returns The Pixi application or null if not initialized
    */
-  public getApp(): any { // PixiRendererOrchestrator has getAppInstance()
+  public getApp(): Application | null {
     return this.renderer ? this.renderer.getAppInstance() : null;
   }
   
@@ -109,7 +111,7 @@ export class RendererService {
    * Get the grid system
    * @returns The grid system or null if not initialized
    */
-  public getGridSystem(): any {
+  public getGridSystem(): GridSystem | null {
     return this.renderer ? this.renderer.getGridSystem() : null;
   }
   
@@ -134,7 +136,7 @@ export class RendererService {
    * @param containerEl The HTML element to attach the renderer to
    * @returns The new PixiJS application instance
    */
-  public async recreate(containerEl: HTMLElement): Promise<any> {
+  public async recreate(containerEl: HTMLElement): Promise<Application | null> {
     // Destroy the old renderer completely
     this.destroy();
     

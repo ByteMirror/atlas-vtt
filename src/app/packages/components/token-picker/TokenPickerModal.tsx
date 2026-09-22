@@ -1,8 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { Modal, App, TFile } from 'obsidian';
-import { AssetService } from '../../../services/AssetService';
+import type { Root } from 'react-dom/client';
+import { AssetService, type TokenAsset } from '../../../services/AssetService';
 import { TokenStatblockLinkService } from '../../../services/TokenStatblockLinkService';
+import { LabelTooltip } from '../primitives/tooltip';
+import { resourceUrl } from '../asset-manager/utils/assetFormatters';
 import './token-picker.scss';
+
+/** A token asset whose image exists in the vault, with its resolved resource URL. */
+interface PickableToken extends TokenAsset {
+  imageUrl: string;
+}
 
 interface TokenPickerModalProps {
   app: App;
@@ -12,7 +20,7 @@ interface TokenPickerModalProps {
 }
 
 export class TokenPickerModal extends Modal {
-  private root: any;
+  private root: Root | null = null;
   private statblockFile: TFile;
   private onTokenSelected: (tokenPath: string) => void;
 
@@ -26,7 +34,7 @@ export class TokenPickerModal extends Modal {
     this.onTokenSelected = onTokenSelected;
   }
 
-  onOpen() {
+  onOpen(): void {
     const { contentEl } = this;
     contentEl.empty();
     
@@ -56,7 +64,7 @@ export class TokenPickerModal extends Modal {
     });
   }
 
-  onClose() {
+  onClose(): void {
     if (this.root) {
       this.root.unmount();
       this.root = null;
@@ -70,7 +78,7 @@ const TokenPickerContent: React.FC<TokenPickerModalProps> = ({
   onTokenSelected,
   onClose
 }) => {
-  const [tokens, setTokens] = useState<any[]>([]);
+  const [tokens, setTokens] = useState<PickableToken[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -86,39 +94,18 @@ const TokenPickerContent: React.FC<TokenPickerModalProps> = ({
     };
   }, []);
 
-  const loadTokens = async () => {
+  const loadTokens = async (): Promise<void> => {
     try {
       const assetService = AssetService.getInstance(app);
       await assetService.initialize();
       
-      // Get all token assets (undefined = all collections)
-      const allAssets = await assetService.getAssets(undefined, 'token');
-      // Transform to include image URLs
-      const tokenAssets = await Promise.all(
-        allAssets.map(async (asset) => {
-          try {
-            // Use imagePath property for tokens (from TokenAsset type)
-            const imagePath = (asset as any).imagePath || (asset as any).path;
-            const file = app.vault.getAbstractFileByPath(imagePath);
-            if (file instanceof TFile) {
-              const resourceUrl = app.vault.getResourcePath(file);
-              return {
-                ...asset,
-                path: imagePath, // Ensure path is set for later use
-                imageUrl: resourceUrl
-              };
-            }
-          } catch (error) {
-            console.warn('Failed to load token image:', (asset as any).imagePath || (asset as any).path, error);
-          }
-          return null;
-        })
-      );
-      
-      const validTokens = tokenAssets.filter(
-        (token): token is NonNullable<(typeof tokenAssets)[number]> => Boolean(token?.imageUrl),
-      );
-      setTokens(validTokens);
+      // Tokens of all collections; those whose image is missing cannot be picked
+      const pickable: PickableToken[] = [];
+      for (const asset of await assetService.getTokenAssets()) {
+        const imageUrl = resourceUrl(app, asset.imagePath);
+        if (imageUrl) pickable.push({ ...asset, imageUrl: resourceUrl(app, asset.thumbnailPath) || imageUrl });
+      }
+      setTokens(pickable);
       setLoading(false);
     } catch (error) {
       console.error('[TokenPicker] Failed to load tokens:', error);
@@ -126,10 +113,10 @@ const TokenPickerContent: React.FC<TokenPickerModalProps> = ({
     }
   };
 
-  const handleTokenClick = async (token: any) => {
+  const handleTokenClick = async (token: PickableToken): Promise<void> => {
     try {
       const tokenStatblockService = TokenStatblockLinkService.getInstance(app);
-      const tokenImagePath = token.imagePath || token.path;
+      const tokenImagePath = token.imagePath;
       
       // Use the centralized service to link the token to the statblock
       const success = await tokenStatblockService.linkTokenToStatblock(
@@ -154,14 +141,11 @@ const TokenPickerContent: React.FC<TokenPickerModalProps> = ({
     token.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const handleRemoveToken = async () => {
+  const handleRemoveToken = async (): Promise<void> => {
     try {
       const tokenStatblockService = TokenStatblockLinkService.getInstance(app);
-      
-      // Get current token assignment
-      const metadata = app.metadataCache.getFileCache(statblockFile);
-      const currentTokenImage = metadata?.frontmatter?.['token-image'];
-      
+      const currentTokenImage = tokenStatblockService.readStatblockImage(statblockFile);
+
       if (currentTokenImage) {
         // Use the centralized service to unlink
         const success = await tokenStatblockService.unlinkToken(
@@ -180,10 +164,10 @@ const TokenPickerContent: React.FC<TokenPickerModalProps> = ({
   };
 
   // Get current token assignment
-  const metadata = app.metadataCache.getFileCache(statblockFile);
-  const currentTokenImage = metadata?.frontmatter?.['token-image'];
-  const currentlyAssignedToken = currentTokenImage ? 
-    tokens.find(t => (t.imagePath || t.path) === currentTokenImage) : null;
+  const currentTokenImage = TokenStatblockLinkService.getInstance(app).readStatblockImage(statblockFile);
+  const currentlyAssignedToken = currentTokenImage
+    ? tokens.find(t => t.imagePath === currentTokenImage) ?? null
+    : null;
 
   return (
     <div className="token-picker-container">
@@ -196,13 +180,14 @@ const TokenPickerContent: React.FC<TokenPickerModalProps> = ({
           className="token-picker-search-input"
         />
         {currentlyAssignedToken && (
-          <button 
-            onClick={() => { void handleRemoveToken(); }}
-            className="token-picker-remove-btn"
-            title="Remove current token assignment"
-          >
-            Unassign Token
-          </button>
+          <LabelTooltip label="Remove current token assignment">
+            <button 
+              onClick={() => { void handleRemoveToken(); }}
+              className="token-picker-remove-btn"
+            >
+              Unassign Token
+            </button>
+          </LabelTooltip>
         )}
       </div>
       

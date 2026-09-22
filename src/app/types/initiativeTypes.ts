@@ -45,8 +45,8 @@ export interface InitiativeEntry {
   /** Path to token image for avatar display */
   imagePath: string;
 
-  /** Path to linked statblock note (for CMD+hover preview) */
-  statblockPath?: string;
+  /** Path to linked statblock note (for CMD+hover preview); `undefined` clears it when patched */
+  statblockPath?: string | undefined;
 
   /** Whether this entry has the current turn */
   isActive: boolean;

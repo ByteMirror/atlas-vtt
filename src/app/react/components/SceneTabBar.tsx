@@ -6,7 +6,7 @@ import { useAtlasUI } from '../root/AtlasUIContext';
 import { createTabMetaStore } from '../../stores/tabMetaStore';
 import { playerWindowStore } from '../../stores/playerWindowStore';
 import type { SceneTab } from '../../types/sceneTabTypes';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../packages/components/primitives/tooltip';
+import { LabelTooltip, TooltipProvider } from '../../packages/components/primitives/tooltip';
 import './scene-tab-bar.scss';
 
 /** Static empty store used as safe fallback when view.tabMetaStore is unavailable. */
@@ -27,24 +27,10 @@ interface TabActionButtonProps {
   onClick: () => void;
 }
 
-/** Wraps `children` in the shared Atlas tooltip showing `label`. */
-function LabelTooltip({ label, children }: { label: string; children: React.ReactElement }): React.ReactElement {
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>{children}</TooltipTrigger>
-      <TooltipContent side="bottom" sideOffset={10}>
-        <div className="tooltip-inner">
-          <span className="tooltip-label">{label}</span>
-        </div>
-      </TooltipContent>
-    </Tooltip>
-  );
-}
-
 /** Icon button inside a tab; keeps its events from activating or closing the tab. */
 function TabActionButton({ icon: Icon, label, isActive, onClick }: TabActionButtonProps): React.ReactElement {
   return (
-    <LabelTooltip label={label}>
+    <LabelTooltip side="bottom" label={label}>
       <button
         type="button"
         className={cn('atlas-scene-tab__action', isActive && 'atlas-scene-tab__action--active')}
@@ -54,7 +40,6 @@ function TabActionButton({ icon: Icon, label, isActive, onClick }: TabActionButt
         }}
         onMouseDown={(e) => e.stopPropagation()}
         onKeyDown={(e) => e.stopPropagation()}
-        aria-label={label}
         aria-pressed={isActive}
       >
         <Icon size={12} />
@@ -67,8 +52,8 @@ export function SceneTabBar({ onSwitchTab, onCloseTab, onAddTab, onPresentTab }:
   const { view } = useAtlasUI();
   const store = view?.tabMetaStore ?? EMPTY_TAB_STORE;
 
-  const tabs = useStore(store, (s) => (s as any).tabs as SceneTab[]);
-  const activeTabId = useStore(store, (s) => (s as any).activeTabId as string | null);
+  const tabs = useStore(store, (s) => s.tabs);
+  const activeTabId = useStore(store, (s) => s.activeTabId);
   const presentedTabId = useStore(playerWindowStore, (s) => s.presentedTabId);
   const isPlayerWindowOpen = useStore(playerWindowStore, (s) => s.isOpen);
 
@@ -106,7 +91,7 @@ export function SceneTabBar({ onSwitchTab, onCloseTab, onAddTab, onPresentTab }:
                 }
               }}
             >
-              <LabelTooltip label={tab.filePath}>
+              <LabelTooltip side="bottom" label={tab.filePath}>
                 <span className="atlas-scene-tab__name">{tab.displayName}</span>
               </LabelTooltip>
               {tab.isDirty && <span className="atlas-scene-tab__dirty" />}
@@ -120,11 +105,10 @@ export function SceneTabBar({ onSwitchTab, onCloseTab, onAddTab, onPresentTab }:
             </div>
           );
         })}
-        <LabelTooltip label="Open scene">
+        <LabelTooltip side="bottom" label="Open scene">
           <button
             className="atlas-scene-tab atlas-scene-tab-bar__add"
             onClick={onAddTab}
-            aria-label="Open scene"
           >
             <Plus size={14} />
           </button>

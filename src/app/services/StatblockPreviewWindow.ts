@@ -3,6 +3,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { App as ObsidianApp } from 'obsidian';
 import FantasyStatblock from '../react/components/FantasyStatblock';
 import { toTokenVitals } from './statblockVitalsSync';
+import type { NotePreviewUIManager, TokenPreviewAnchor } from './NotePreviewUIManager';
 import './statblock-preview-window.scss';
 
 /**
@@ -11,16 +12,20 @@ import './statblock-preview-window.scss';
 export class StatblockPreviewWindow {
   public notePath: string;
   public element: HTMLElement | null = null;
-  public originatingToken: any = null;
-  public originatingPin?: any;
-  private manager: any;
+  public originatingPin: TokenPreviewAnchor;
+  private manager: NotePreviewUIManager;
   private initialPos?: { x: number; y: number } | undefined;
   private reactRoot: Root | null = null;
   private resizeObserver: ResizeObserver | null = null;
 
-  constructor(private app: ObsidianApp, notePath: string, originatingToken: any, manager: any, initialPos?: { x: number; y: number }) {
+  constructor(
+    private app: ObsidianApp,
+    notePath: string,
+    originatingToken: TokenPreviewAnchor,
+    manager: NotePreviewUIManager,
+    initialPos?: { x: number; y: number },
+  ) {
     this.notePath = notePath;
-    this.originatingToken = originatingToken;
     this.originatingPin = originatingToken;
     this.manager = manager;
     this.initialPos = initialPos;
@@ -33,7 +38,7 @@ export class StatblockPreviewWindow {
     }
 
     // The pin carries the hovered token's vitals; the statblock mirrors them.
-    const vitals = originatingToken ? [toTokenVitals(originatingToken)] : [];
+    const vitals = [toTokenVitals(originatingToken)];
     this.reactRoot = createRoot(this.element);
     this.reactRoot.render(
       React.createElement(FantasyStatblock, {
@@ -69,14 +74,13 @@ export class StatblockPreviewWindow {
     window.requestAnimationFrame(() => {
       if (!this.element) return;
 
+      // Cap the window to the viewport first, so the measurement below is of
+      // the clamped box; the card body scrolls when the statblock is taller.
+      this.element.style.maxHeight = `${winHeight - padding * 2}px`;
+
       const rect = this.element.getBoundingClientRect();
       const elementWidth = rect.width || 400;
       const elementHeight = rect.height || 600;
-
-      // Only clip-and-scroll when the statblock genuinely cannot fit, so the
-      // card's drop shadow stays intact in the common case.
-      this.element.style.overflowY =
-        this.element.scrollHeight > winHeight - padding * 2 ? 'auto' : 'visible';
 
       let finalX = x + 15;
       let finalY = y + 15;
@@ -130,9 +134,7 @@ export class StatblockPreviewWindow {
       this.element = null;
     }
 
-    if (this.manager && this.manager.handleStatblockPreviewClosed) {
-      this.manager.handleStatblockPreviewClosed(this.notePath, this.originatingToken);
-    }
+    this.manager.handlePreviewClosed(this.notePath, this.originatingPin);
   }
 
   getIsPinned(): boolean {

@@ -4,8 +4,9 @@
 
 - Widget icons come from [game-icons.net](https://game-icons.net) by Lorc, Delapouite, Skoll, sbed and Carl Olsen, licensed under [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/). The black background was removed and the glyphs recoloured.
 - Dice result sounds are built from the "Impact Sounds" and "Casino Audio" packs by [Kenney](https://kenney.nl), released under [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) and converted from OGG to MP3.
+- The dice toast knotwork corners are cropped from "Celtic knot border" by pitr on [ClipSafari](https://www.clipsafari.com/clips/o213700-celtic-knot-border), released under [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/).
 - Interface icons are [Lucide](https://lucide.dev) (ISC), provided by Obsidian and the bundled lucide-react package.
-- The token ring and the timer sound are original works by the Atlas VTT author and are covered by this repository's [PolyForm Noncommercial License 1.0.0](LICENSE).
+- The token ring and the timer sound are original works by the Atlas VTT author and are covered by this repository's [GNU Affero General Public License v3.0](LICENSE).
 
 ## Bundled packages
 
@@ -936,6 +937,38 @@ SOFTWARE.
 ### @radix-ui/rect@1.1.1
 
 Licence: MIT
+
+### @tanstack/react-virtual@3.14.13
+
+Licence: MIT
+
+```
+MIT License
+
+Copyright (c) 2021-present Tanner Linsley
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+### @tanstack/virtual-core@3.17.11
+
+Licence: MIT (same text as @tanstack/react-virtual)
 
 ### @webgpu/types@0.1.60
 

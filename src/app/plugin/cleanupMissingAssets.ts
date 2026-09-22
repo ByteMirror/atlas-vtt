@@ -19,10 +19,8 @@ export async function cleanupMissingAssets(app: App, view: AtlasView): Promise<v
 
   const state = store.getState();
   const validation = await new AssetValidationService({ app }).validateMapAssets({
-    background: state.background ? { imagePath: state.background } : null,
-    tokens: state.objects?.tokens ?? {},
-    pins: state.objects?.pins ?? {},
-    grid: state.grid,
+    background: state.background,
+    objects: { tokens: state.objects?.tokens ?? {} },
   });
 
   const missingTokenIds = validation.missingAssets.filter((a) => a.type === 'token').map((a) => a.objectId);

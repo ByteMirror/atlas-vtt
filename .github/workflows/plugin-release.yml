@@ -1,10 +1,16 @@
-name: Plugin Release
+name: Prepare Plugin Release
 
 on:
   workflow_dispatch:
-  release:
-    types:
-      - published
+    inputs:
+      version:
+        description: 'Version to prepare (must match the selected ref manifest, e.g. 0.1.7)'
+        required: true
+        type: string
+
+concurrency:
+  group: plugin-release-${{ inputs.version }}
+  cancel-in-progress: false
 
 permissions:
   contents: write
@@ -12,34 +18,53 @@ permissions:
   attestations: write
 
 jobs:
-  build-and-attach-assets:
+  prepare-draft:
     runs-on: ubuntu-latest
+    env:
+      RELEASE_VERSION: ${{ inputs.version }}
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Checkout selected commit
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+          fetch-depth: 0
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: npm
 
-      - name: Verify tag matches manifest version
-        if: github.event_name == 'release'
-        env:
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
+      - name: Verify stable version from main
         run: |
-          MANIFEST_VERSION=$(node -p "require('./manifest.json').version")
-          if [ "$RELEASE_TAG" != "$MANIFEST_VERSION" ]; then
-            echo "Release tag $RELEASE_TAG does not match manifest version $MANIFEST_VERSION"
-            exit 1
+          node scripts/release-channel.js --expect stable
+          test "$RELEASE_VERSION" = "$(node -p "require('./manifest.json').version")" || { echo "::error::Input version $RELEASE_VERSION does not match manifest.json"; exit 1; }
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main || { echo "::error::Stable releases are only prepared from commits on main. Promote beta first."; exit 1; }
+
+      - name: Refuse published releases or drafts from another commit
+        run: |
+          if gh release view "$RELEASE_VERSION" --json isDraft,targetCommitish > existing-release.json; then
+            jq -e --arg sha "$GITHUB_SHA" '.isDraft == true and .targetCommitish == $sha' existing-release.json
+          fi
+          if git ls-remote --exit-code --tags origin "refs/tags/$RELEASE_VERSION" > /dev/null; then
+            git fetch origin "refs/tags/$RELEASE_VERSION:refs/tags/$RELEASE_VERSION"
+            test "$(git rev-list -n 1 "$RELEASE_VERSION")" = "$GITHUB_SHA"
           fi
 
       - name: Install dependencies
         run: npm ci
 
+      - name: Validate release notes
+        run: npm run changelog:check
+
       - name: Typecheck
         run: npx tsc --noEmit
+
+      - name: Lint
+        run: npm run lint
 
       - name: Test
         run: npx vitest run
@@ -50,29 +75,31 @@ jobs:
       - name: Preflight
         run: npm run preflight
 
-      - name: Prepare release assets
+      - name: Prepare release assets and notes
         run: npm run release:prepare
 
       - name: Attest build provenance
-        if: github.event_name == 'release'
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
         with:
           subject-path: |
             release/main.js
             release/styles.css
 
       - name: Upload build artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: obsidian-plugin-assets
           path: release/
 
-      - name: Attach assets to GitHub release
-        if: github.event_name == 'release'
-        uses: softprops/action-gh-release@v2
-        with:
-          fail_on_unmatched_files: true
-          files: |
-            release/main.js
-            release/manifest.json
-            release/styles.css
+      - name: Create or refresh draft with verified assets
+        run: |
+          if gh release view "$RELEASE_VERSION" --json isDraft,targetCommitish > existing-release.json; then
+            jq -e --arg sha "$GITHUB_SHA" '.isDraft == true and .targetCommitish == $sha' existing-release.json
+            gh release edit "$RELEASE_VERSION" --notes-file release/release-notes.md
+          else
+            gh release create "$RELEASE_VERSION" --draft --target "$GITHUB_SHA" --title "Atlas VTT $RELEASE_VERSION" --notes-file release/release-notes.md
+          fi
+          gh release upload "$RELEASE_VERSION" release/main.js release/manifest.json release/styles.css --clobber
+          gh release view "$RELEASE_VERSION" --json assets --jq '[.assets[].name] | sort' > attached-assets.json
+          jq -e '. == ["main.js", "manifest.json", "styles.css"]' attached-assets.json
+          echo "Draft $RELEASE_VERSION is ready for review and manual publication." >> "$GITHUB_STEP_SUMMARY"

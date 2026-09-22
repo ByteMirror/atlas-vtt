@@ -8,6 +8,7 @@ import { Texture, Graphics, Assets, CanvasSource, ImageSource } from 'pixi.js';
 import { App as ObsidianApp, TFile } from 'obsidian';
 import type { ITextureCache } from './types';
 import type { Application } from 'pixi.js';
+import type { TokenEntity } from '../../types';
 import { normalizeImagePath } from '../../utils/pathUtils';
 
 /**
@@ -98,8 +99,8 @@ export class TextureCache implements ITextureCache {
    * Load a texture for a token character object
    * This is a compatibility method that extracts the image path and calls getTexture
    */
-  async loadTokenTexture(character: any): Promise<Texture> {
-    const imagePath = character?.imagePath || '';
+  async loadTokenTexture(character: Pick<TokenEntity, 'imagePath'>): Promise<Texture> {
+    const imagePath = character.imagePath || '';
     return this.getTexture(imagePath);
   }
 
@@ -124,7 +125,7 @@ export class TextureCache implements ITextureCache {
         normalizedPath.startsWith('https://') ||
         normalizedPath.startsWith('app://')
       ) {
-        const texture = await Assets.load({
+        const texture = await Assets.load<Texture>({
           src: normalizedPath,
           loadParser: 'loadTextures',
           data: {

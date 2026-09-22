@@ -1,0 +1,78 @@
+@use '../../../../../styles/tokens' as *;
+@use '../../../../../styles/mixins' as *;
+
+// Select primitive (see Select.tsx): Atlas-styled replacement for native <select>.
+.atlas-select {
+  position: relative;
+  width: 100%;
+
+  &.atlas-open { z-index: $z-popover; }
+}
+
+.atlas-select-trigger {
+  @include atlas-select-trigger;
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  &:focus-visible {
+    border-color: var(--background-modifier-border-focus) !important;
+  }
+}
+
+.atlas-select-value {
+  @include atlas-truncate;
+  flex: 1;
+  min-width: 0;
+}
+
+.atlas-select-chevron {
+  flex-shrink: 0;
+  width: $icon-s;
+  height: $icon-s;
+  color: var(--text-faint);
+  transition: transform $transition-fast $transition-ease;
+
+  &.atlas-rotated { transform: rotate(180deg); }
+}
+
+.atlas-select-content {
+  @include atlas-select-popover;
+  @include atlas-flex-col($gap: 2px);
+  padding: $spacing-xs;
+  overflow-y: auto;
+}
+
+.atlas-select-option {
+  @include atlas-select-option;
+}
+
+.atlas-select-option-text {
+  @include atlas-truncate;
+  flex: 1;
+  min-width: 0;
+}
+
+.atlas-select-check {
+  flex-shrink: 0;
+  width: $icon-xs;
+  height: $icon-xs;
+  color: var(--text-accent);
+  opacity: 0;
+  transform: scale(0.8);
+  transition: opacity $transition-fast $transition-ease, transform $transition-fast $transition-ease;
+}
+
+// Written flat: a parent-referencing `&` would also capture the plugin scope this file is imported into.
+.atlas-select-option.atlas-selected .atlas-select-check {
+  opacity: 1;
+  transform: scale(1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .atlas-select-content,
+  .atlas-select-chevron,
+  .atlas-select-check { transition: none; }
+}

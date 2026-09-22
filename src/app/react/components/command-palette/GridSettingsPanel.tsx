@@ -1,13 +1,15 @@
 import React from 'react';
 import { Check } from 'lucide-react';
 import { cn } from '../../../../utils/cn';
+import { LabelTooltip } from '../../../packages/components/primitives/tooltip';
 import { ObsidianMenuDropdown } from '../ObsidianMenuDropdown';
 import { SettingRow, SettingSliderRow, SettingToggleRow } from './SettingRows';
 import type { AtlasView } from '../../../atlas-view';
 import type { GridType } from '../../../grid/GridSystem';
 
-const GRID_COLORS = [
-  { value: '#00FFFF', label: 'Cyan' },
+/** `undefined` leaves the colour to the grid, which picks black or white from the map's brightness. */
+const GRID_COLORS: ReadonlyArray<{ value: string | undefined; label: string }> = [
+  { value: undefined, label: 'Auto' },
   { value: '#FFFFFF', label: 'White' },
   { value: '#000000', label: 'Black' },
   { value: '#FF0000', label: 'Red' },
@@ -19,7 +21,7 @@ const GRID_COLORS = [
   { value: '#FFA500', label: 'Orange' },
   { value: '#800080', label: 'Purple' },
   { value: '#FFC0CB', label: 'Pink' },
-] as const;
+];
 
 const GRID_TYPE_OPTIONS = {
   square: 'Square',
@@ -64,9 +66,10 @@ export function GridSettingsPanel({
   debouncedOpacityUpdate,
   debouncedLineWidthUpdate,
 }: GridSettingsPanelProps): React.ReactElement {
+  const colourLabelId = React.useId();
   const currentGrid = view?.atlasStore?.getState()?.grid;
   const currentType: string = currentGrid?.type ?? 'square';
-  const currentColor: string = currentGrid?.color ?? '#00FFFF';
+  const currentColor: string | undefined = currentGrid?.color;
   const currentLineType: string = currentGrid?.lineType ?? 'solid';
 
   const patchGrid = (patch: Record<string, unknown>): void => {
@@ -91,7 +94,7 @@ export function GridSettingsPanel({
 
       <SettingToggleRow
         label="Snap to grid"
-        hint="Tokens and pins settle on cell centres"
+        hint="Tokens, pins and measurements settle on cell centres"
         value={localSnapToGrid}
         onToggle={() => {
           const next = !localSnapToGrid;
@@ -152,24 +155,28 @@ export function GridSettingsPanel({
 
       <div className="atlas-command-palette-panel-column">
       <div className="atlas-setting-group">
-        <span className="atlas-setting-label">Colour</span>
-        <div className="atlas-command-palette-swatches" role="radiogroup" aria-label="Grid colour">
+        <span id={colourLabelId} className="atlas-setting-label">Colour</span>
+        <div className="atlas-command-palette-swatches" role="radiogroup" aria-labelledby={colourLabelId}>
           {GRID_COLORS.map((color) => {
             const isActive = currentColor === color.value;
+            const isAuto = color.value === undefined;
             return (
-              <button
-                key={color.value}
-                type="button"
-                className={cn('atlas-command-palette-swatch', isActive && 'atlas-active')}
-                onClick={() => patchGrid({ color: color.value })}
-                title={color.label}
-                aria-label={color.label}
-                role="radio"
-                aria-checked={isActive}
-                style={{ backgroundColor: color.value }}
-              >
-                {isActive && <Check className="atlas-command-palette-swatch-check" />}
-              </button>
+              <LabelTooltip key={color.label} label={color.label}>
+                <button
+                  type="button"
+                  className={cn(
+                    'atlas-command-palette-swatch',
+                    isAuto && 'atlas-command-palette-swatch--auto',
+                    isActive && 'atlas-active',
+                  )}
+                  onClick={() => patchGrid({ color: color.value })}
+                  role="radio"
+                  aria-checked={isActive}
+                  style={isAuto ? undefined : { backgroundColor: color.value }}
+                >
+                  {isActive && <Check className="atlas-command-palette-swatch-check" />}
+                </button>
+              </LabelTooltip>
             );
           })}
         </div>

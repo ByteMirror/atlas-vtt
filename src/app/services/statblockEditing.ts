@@ -47,8 +47,8 @@ export async function writeStatblockValue(
   if (!(file instanceof TFile) || !path.length) return false;
 
   try {
-    await app.fileManager.processFrontMatter(file, (frontmatter) => {
-      let target: Record<string | number, unknown> = frontmatter;
+    await app.fileManager.processFrontMatter(file, (frontmatter: Record<string | number, unknown>) => {
+      let target = frontmatter;
 
       for (const segment of path.slice(0, -1)) {
         const next = target[segment];

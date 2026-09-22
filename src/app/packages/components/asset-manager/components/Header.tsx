@@ -1,10 +1,11 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useId } from 'react';
 import {
   Search, X, Plus, ChevronLeft, ChevronRight, FolderPlus, RefreshCw,
   ArrowUp, ArrowDown, PanelLeft,
-  Gamepad2, Map as MapIcon, FolderOpen,
+  Gamepad2, Map as MapIcon, FolderOpen, FileInput,
 } from 'lucide-react';
 import { Button } from '../../primitives/button';
+import { LabelTooltip } from '../../primitives/tooltip';
 import type { Tab, SortOption } from '../types';
 import { tabs, getTabDisplayName } from '../types';
 import type { SelectionState } from '../hooks/useSelectionHandlers';
@@ -17,6 +18,7 @@ export interface HeaderProps {
   onTabChange: (tab: Tab) => void;
   assetCounts: Record<Tab, number>;
   onCreateTokens?: () => void;
+  onImportStatblocks?: () => void;
   onCreateMap?: () => void;
   onCreateCollection?: () => void;
   onCreateFolder: () => void;
@@ -56,6 +58,7 @@ export function Header({
   onTabChange,
   assetCounts,
   onCreateTokens,
+  onImportStatblocks,
   onCreateMap,
   onCreateCollection,
   onCreateFolder,
@@ -66,6 +69,8 @@ export function Header({
 }: HeaderProps): React.JSX.Element {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const createRef = useRef<HTMLDivElement>(null);
+  const tabsLabelId = useId();
+  const searchLabelId = useId();
 
   useEffect(() => {
     if (!isCreateOpen) return;
@@ -85,6 +90,7 @@ export function Header({
   const createOptions: CreateOption[] = [
     { label: 'Create Token', icon: <Gamepad2 />, onSelect: onCreateTokens },
     { label: 'Add Map', icon: <MapIcon />, onSelect: onCreateMap },
+    { label: 'Import from Fantasy Statblocks…', icon: <FileInput />, onSelect: onImportStatblocks },
   ];
 
   const cycleSort = (): void => {
@@ -100,54 +106,54 @@ export function Header({
   return (
     <header className="atlas-asset-manager-header">
       <div className="atlas-am-toolbar-left">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="atlas-am-icon-btn atlas-sidebar-toggle-btn"
-          onClick={onToggleSidebar}
-          title={isSidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'}
-          aria-label={isSidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'}
-        >
-          <PanelLeft className={`atlas-toggle-icon ${isSidebarCollapsed ? 'atlas-rotated' : ''}`} />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="atlas-am-icon-btn"
-          onClick={sel.handleNavigateBack}
-          disabled={!canGoBack}
-          title="Back"
-          aria-label="Back"
-        >
-          <ChevronLeft />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="atlas-am-icon-btn"
-          onClick={sel.handleNavigateForward}
-          disabled={!canGoForward}
-          title="Forward"
-          aria-label="Forward"
-        >
-          <ChevronRight />
-        </Button>
+        <LabelTooltip label={isSidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'}>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="atlas-am-icon-btn atlas-sidebar-toggle-btn"
+            onClick={onToggleSidebar}
+          >
+            <PanelLeft className={`atlas-toggle-icon ${isSidebarCollapsed ? 'atlas-rotated' : ''}`} />
+          </Button>
+        </LabelTooltip>
+        <LabelTooltip label="Back">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="atlas-am-icon-btn"
+            onClick={sel.handleNavigateBack}
+            disabled={!canGoBack}
+          >
+            <ChevronLeft />
+          </Button>
+        </LabelTooltip>
+        <LabelTooltip label="Forward">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="atlas-am-icon-btn"
+            onClick={sel.handleNavigateForward}
+            disabled={!canGoForward}
+          >
+            <ChevronRight />
+          </Button>
+        </LabelTooltip>
 
         {selectionCount > 0 ? (
           <>
             <div className="atlas-am-toolbar-divider" />
             <div className="atlas-selection-info">
               <span>{selectionCount} selected</span>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="atlas-clear-selection-btn"
-                onClick={sel.handleClearSelection}
-                title="Clear selection"
-                aria-label="Clear selection"
-              >
-                <X />
-              </Button>
+              <LabelTooltip label="Clear selection">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="atlas-clear-selection-btn"
+                  onClick={sel.handleClearSelection}
+                >
+                  <X />
+                </Button>
+              </LabelTooltip>
             </div>
           </>
         ) : sel.selectedFolderId ? (
@@ -164,19 +170,20 @@ export function Header({
       </div>
 
       <div className="atlas-am-toolbar-center">
-        <nav className="atlas-asset-manager-tabs" aria-label="Asset type">
+        <nav className="atlas-asset-manager-tabs" aria-labelledby={tabsLabelId}>
+          <span id={tabsLabelId} hidden>Asset type</span>
           {tabs.map((tab, index) => (
-            <button
-              key={tab}
-              type="button"
-              className={`atlas-tab-button ${activeTab === tab ? 'atlas-active' : ''}`}
-              onClick={() => onTabChange(tab)}
-              title={`${getTabDisplayName(tab)} (⌘${index + 1})`}
-              aria-current={activeTab === tab ? 'page' : undefined}
-            >
-              <span>{getTabDisplayName(tab)}</span>
-              <span className="atlas-tab-count">{assetCounts[tab]}</span>
-            </button>
+            <LabelTooltip key={tab} label={`${getTabDisplayName(tab)} (⌘${index + 1})`}>
+              <button
+                type="button"
+                className={`atlas-tab-button ${activeTab === tab ? 'atlas-active' : ''}`}
+                onClick={() => onTabChange(tab)}
+                aria-current={activeTab === tab ? 'page' : undefined}
+              >
+                <span>{getTabDisplayName(tab)}</span>
+                <span className="atlas-tab-count">{assetCounts[tab]}</span>
+              </button>
+            </LabelTooltip>
           ))}
         </nav>
       </div>
@@ -184,88 +191,90 @@ export function Header({
       <div className="atlas-am-toolbar-right">
         <div className="atlas-asset-manager-search">
           <Search />
+          <span id={searchLabelId} hidden>Search assets</span>
           <input
             type="text"
             value={search}
             placeholder="Search…"
             onChange={(e) => onSearch(e.target.value)}
-            aria-label="Search assets"
+            aria-labelledby={searchLabelId}
           />
           {search && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="atlas-am-icon-btn"
-              onClick={() => onSearch('')}
-              aria-label="Clear search"
-            >
-              <X />
-            </Button>
+            <LabelTooltip label="Clear search">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="atlas-am-icon-btn"
+                onClick={() => onSearch('')}
+              >
+                <X />
+              </Button>
+            </LabelTooltip>
           )}
         </div>
 
-        <Button
-          variant="ghost"
-          className="atlas-am-sort"
-          onClick={cycleSort}
-          title="Sort by (click to change)"
-          aria-label={`Sort by ${SORT_LABELS[sel.sortBy]}`}
-        >
-          {/* Every label is rendered in the same cell so the button is always as wide as the longest one */}
-          <span className="atlas-am-sort-stack">
-            {SORT_ORDER.map((option) => (
-              <span key={option} aria-hidden={option !== sel.sortBy} className={option === sel.sortBy ? 'atlas-current' : ''}>
-                {SORT_LABELS[option]}
-              </span>
-            ))}
-          </span>
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="atlas-am-icon-btn"
-          onClick={() => sel.setSortOrder(sel.sortOrder === 'asc' ? 'desc' : 'asc')}
-          title={sel.sortOrder === 'asc' ? 'Ascending' : 'Descending'}
-          aria-label="Toggle sort order"
-        >
-          {sel.sortOrder === 'asc' ? <ArrowUp /> : <ArrowDown />}
-        </Button>
+        <LabelTooltip label={`Sort by ${SORT_LABELS[sel.sortBy]} (click to change)`}>
+          <Button
+            variant="ghost"
+            className="atlas-am-sort"
+            onClick={cycleSort}
+          >
+            {/* Every label is rendered in the same cell so the button is always as wide as the longest one */}
+            <span className="atlas-am-sort-stack">
+              {SORT_ORDER.map((option) => (
+                <span key={option} aria-hidden={option !== sel.sortBy} className={option === sel.sortBy ? 'atlas-current' : ''}>
+                  {SORT_LABELS[option]}
+                </span>
+              ))}
+            </span>
+          </Button>
+        </LabelTooltip>
+        <LabelTooltip label={sel.sortOrder === 'asc' ? 'Ascending' : 'Descending'}>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="atlas-am-icon-btn"
+            onClick={() => sel.setSortOrder(sel.sortOrder === 'asc' ? 'desc' : 'asc')}
+          >
+            {sel.sortOrder === 'asc' ? <ArrowUp /> : <ArrowDown />}
+          </Button>
+        </LabelTooltip>
 
         <div className="atlas-am-toolbar-divider" />
 
-        <Button
-          variant="ghost"
-          size="icon"
-          className="atlas-am-icon-btn"
-          onClick={onCreateFolder}
-          title="New folder"
-          aria-label="New folder"
-        >
-          <FolderPlus />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="atlas-am-icon-btn"
-          onClick={onRefresh}
-          title="Refresh"
-          aria-label="Refresh"
-        >
-          <RefreshCw />
-        </Button>
+        <LabelTooltip label="New folder">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="atlas-am-icon-btn"
+            onClick={onCreateFolder}
+          >
+            <FolderPlus />
+          </Button>
+        </LabelTooltip>
+        <LabelTooltip label="Refresh">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="atlas-am-icon-btn"
+            onClick={onRefresh}
+          >
+            <RefreshCw />
+          </Button>
+        </LabelTooltip>
 
         <div className="atlas-asset-manager-create-dropdown" ref={createRef}>
-          <Button
-            variant="default"
-            size="icon"
-            className={`atlas-asset-manager-create-btn ${isCreateOpen ? 'atlas-active' : ''}`}
-            onClick={() => setIsCreateOpen(!isCreateOpen)}
-            aria-label="Create"
-            aria-expanded={isCreateOpen}
-            title="Create"
-          >
-            <Plus />
-          </Button>
+          <LabelTooltip label="Create">
+            <Button
+              variant="default"
+              size="icon"
+              className={`atlas-asset-manager-create-btn ${isCreateOpen ? 'atlas-active' : ''}`}
+              onClick={() => setIsCreateOpen(!isCreateOpen)}
+              aria-expanded={isCreateOpen}
+            >
+              <Plus />
+            </Button>
+          </LabelTooltip>
 
           {isCreateOpen && (
             <div className="atlas-asset-manager-create-dropdown-content" role="menu">

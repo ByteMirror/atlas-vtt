@@ -1,0 +1,79 @@
+@use '../../../styles/tokens' as *;
+@use '../../../styles/mixins' as *;
+
+.atlas-player-initiative {
+  @include atlas-elevated-surface;
+  position: absolute;
+  top: 50%;
+  right: $spacing-m;
+  transform: translateY(-50%);
+  width: 96px;
+  max-height: calc(100% - 100px);
+  padding: $spacing-s;
+  gap: $spacing-s;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  overflow: hidden;
+  z-index: $z-base;
+  color: var(--text-normal);
+  font-family: var(--font-interface);
+  font-size: $font-ui-small;
+  font-variant-numeric: tabular-nums;
+  -webkit-app-region: no-drag;
+
+  &__list {
+    display: flex;
+    flex-direction: column;
+    gap: $spacing-s;
+    min-height: 0;
+    overflow-y: auto;
+    scrollbar-width: none;
+  }
+
+  &__card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: $spacing-s;
+    padding: $spacing-s;
+    background: var(--background-modifier-hover);
+    border: $border-width-s solid var(--background-modifier-border);
+    border-radius: $radius-l;
+
+    &--active {
+      border-color: var(--interactive-accent);
+      box-shadow: inset 0 0 0 $border-width-s var(--interactive-accent);
+    }
+  }
+
+  &__avatar {
+    width: 100%;
+    aspect-ratio: 1;
+    object-fit: cover;
+    border-radius: $radius-s;
+  }
+
+  &__value {
+    font-weight: $font-weight-semibold;
+  }
+
+  &__name {
+    width: 100%;
+    overflow-wrap: anywhere;
+    text-align: center;
+    font-size: $font-ui-smaller;
+  }
+
+  &__hp {
+    width: 100%;
+    height: $spacing-xs;
+    accent-color: var(--color-green);
+  }
+
+  &__round {
+    text-align: center;
+    color: var(--text-muted);
+    font-size: $font-ui-smaller;
+  }
+}

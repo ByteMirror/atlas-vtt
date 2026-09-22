@@ -30,3 +30,10 @@
     object-fit: cover;
   }
 }
+
+.atlas-token-portrait--unframed .atlas-token-image-wrapper {
+  inset: 0;
+  border-radius: 0;
+  box-shadow: none;
+  img { object-fit: contain; }
+}

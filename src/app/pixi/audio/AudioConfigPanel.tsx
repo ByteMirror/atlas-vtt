@@ -9,6 +9,7 @@ import type { SoundRegistry } from '../../audio/SoundRegistry';
 
 import './audio-config-panel.scss';
 import { CloseButton } from '../../packages/components/primitives/CloseButton';
+import { LabelTooltip } from '../../packages/components/primitives/tooltip';
 
 /** Convert game units (feet/meters) to world pixels. */
 function unitsToPixels(units: number, gridSize: number, unitDistance: number): number {
@@ -179,13 +180,14 @@ function AudioConfigPanelInner({
               ))}
           </select>
           {onPreview && (
-            <button
-              className="atlas-audio-config__preview-btn"
-              onClick={() => onPreview(soundId)}
-              title="Preview sound"
-            >
-              <Play size={14} />
-            </button>
+            <LabelTooltip label="Preview sound">
+              <button
+                className="atlas-audio-config__preview-btn"
+                onClick={() => onPreview(soundId)}
+              >
+                <Play size={14} />
+              </button>
+            </LabelTooltip>
           )}
         </div>
 

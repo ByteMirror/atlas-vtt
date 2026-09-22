@@ -1,0 +1,22 @@
+{
+  "ISSUE_TYPES": {
+    "bug": "Something doesn't work",
+    "crash": "Crash or freeze",
+    "performance": "Slow or laggy",
+    "compatibility": "Conflict with another plugin or theme",
+    "feature": "Feature request",
+    "question": "Question or something else"
+  },
+  "ISSUE_AREAS": {
+    "maps": "Maps, scenes and grid",
+    "tokens": "Tokens",
+    "notes": "Notes, pins and statblocks",
+    "vision": "Fog of war and lighting",
+    "combat": "Initiative and combat",
+    "dice": "Dice",
+    "asset-manager": "Asset manager",
+    "player-view": "Player view",
+    "settings": "Settings, commands and updates",
+    "unknown": "Not sure / other"
+  }
+}

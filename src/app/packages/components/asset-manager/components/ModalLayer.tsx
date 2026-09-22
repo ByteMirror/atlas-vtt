@@ -5,6 +5,7 @@ import EditAssetTagsModal from '../EditAssetTagsModal';
 import CreateSceneModal from '../CreateSceneModal';
 import StatblockLinkModal from '../StatblockLinkModal';
 import InputModal from '../../primitives/InputModal';
+import { ProgressModal } from '../../primitives/ProgressModal';
 import { CollectionSettingsModal } from '../../../../react/components/CollectionSettingsModal';
 import { MoveModal } from './MoveModal';
 import { CreateFolderModal } from './CreateFolderModal';
@@ -16,6 +17,7 @@ import type { TagsAndCollectionsState } from '../hooks/useTagsAndCollections';
 import type { StatblockLinkState } from '../hooks/useStatblockLink';
 
 export interface ModalLayerProps {
+  tokenCreatorSource?: 'images' | 'statblocks';
   isOpen: boolean;
   activeTab: Tab;
   selectedCollection: string | null;
@@ -28,7 +30,7 @@ export interface ModalLayerProps {
 }
 
 export function ModalLayer({
-  isOpen, activeTab, selectedCollection, onClose, data, sel, crud, tags, statblock,
+  tokenCreatorSource = 'images', isOpen, activeTab, selectedCollection, onClose, data, sel, crud, tags, statblock,
 }: ModalLayerProps): React.JSX.Element {
   const collectionOrDefault = selectedCollection || 'default';
 
@@ -54,9 +56,18 @@ export function ModalLayer({
 
   return (
     <>
+      {crud.transfer && (
+        <ProgressModal
+          title={crud.transfer.kind === 'export' ? 'Exporting collection' : 'Importing collection'}
+          message={crud.transfer.progress.message}
+          fraction={crud.transfer.progress.fraction}
+        />
+      )}
+
       {/* Token Creator */}
       {isOpen && crud.isTokenCreatorOpen && (
         <TokenCreator
+          initialSource={crud.editingToken ? 'images' : tokenCreatorSource}
           isOpen={crud.isTokenCreatorOpen}
           selectedCollection={collectionOrDefault}
           onClose={() => {
@@ -68,7 +79,10 @@ export function ModalLayer({
             id: crud.editingToken.id,
             name: crud.editingToken.name,
             imageUrl: (crud.editingToken as TokenAsset).imageUrl,
+            imagePath: (crud.editingToken as TokenAsset).imagePath,
             tags: crud.editingToken.tags || [],
+            showRing: (crud.editingToken as TokenAsset).showRing ?? true,
+            size: (crud.editingToken as TokenAsset).size,
           } : null}
         />
       )}
@@ -125,7 +139,7 @@ export function ModalLayer({
         onCreateCollection={crud.handleCreateCollection}
         onUpdateTag={tags.handleUpdateTag}
         onUpdateCollection={tags.handleUpdateCollection}
-        onDeleteTag={(tagId) => { void tags.handleDeleteTag(tagId); }}
+        onDeleteTag={tags.handleDeleteTag}
         onDeleteCollection={tags.handleDeleteCollection}
       />
 

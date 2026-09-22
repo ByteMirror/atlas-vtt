@@ -30,7 +30,6 @@
 @mixin atlas-interactive-surface {
   background: var(--background-secondary);
   border-radius: $radius-m;
-  transition: background-color $transition-fast $transition-ease;
 
   &:hover {
     background: var(--background-modifier-hover);
@@ -64,7 +63,7 @@
   justify-content: center;
   border: none;
   cursor: pointer;
-  transition: all $transition-fast $transition-ease;
+  transition: transform $transition-press $transition-ease-out;
 
   @if $size == 's' {
     width: $button-height-s;
@@ -116,9 +115,7 @@
     height: $icon-s;
   }
 
-  transition: transform $transition-press $transition-ease-out,
-              background-color $transition-fast $transition-ease,
-              color $transition-fast $transition-ease;
+  transition: transform $transition-press $transition-ease-out;
 
   &:hover:not(:disabled) {
     color: var(--text-normal);
@@ -229,6 +226,96 @@
 
   &:hover:not(:disabled) {
     background-color: var(--interactive-accent-hover);
+  }
+}
+
+// ── Select ───────────────────────────────────────────────────────────────────
+// One look for every custom select: the closed trigger, the floating listbox
+// and its options. Shared by the Select primitive and the collection pickers.
+
+/// Closed select control. `!important` outranks Obsidian's button styling.
+/// @param {Length} $height - control height
+@mixin atlas-select-trigger($height: var(--input-height)) {
+  appearance: none;
+  outline: none;
+  box-shadow: none !important;
+  width: 100%;
+  height: $height;
+  padding: 0 $spacing-s;
+  @include atlas-flex-row($gap: $spacing-s);
+  justify-content: space-between;
+  font-size: $font-ui-small;
+  font-weight: $font-weight-medium;
+  border-radius: $radius-m;
+  background-color: var(--background-primary) !important;
+  color: var(--text-normal);
+  border: $border-width-s solid var(--background-modifier-border) !important;
+  cursor: pointer;
+  text-align: left;
+
+  &:hover {
+    border-color: var(--background-modifier-border-hover) !important;
+  }
+
+  &.atlas-open {
+    border-color: var(--background-modifier-border-focus) !important;
+  }
+}
+
+/// Floating listbox below a select trigger, entering with a short scale-in.
+@mixin atlas-select-popover {
+  position: absolute;
+  top: calc(100% + #{$spacing-xs});
+  left: 0;
+  right: 0;
+  z-index: $z-popover;
+  max-height: 300px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--menu-background);
+  border: var(--menu-border-width, #{$border-width-s}) solid var(--menu-border-color);
+  border-radius: $radius-xl;
+  box-shadow: var(--menu-shadow, #{$shadow-md});
+
+  transform-origin: top left;
+  opacity: 1;
+  transform: scale(1);
+  transition: opacity 150ms $transition-ease-out, transform 150ms $transition-ease-out;
+
+  @starting-style {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+
+/// One row inside a select listbox.
+/// @param {Length} $height - row height
+@mixin atlas-select-option($height: var(--input-height)) {
+  appearance: none;
+  width: 100%;
+  height: $height;
+  padding: 0 $spacing-s;
+  margin: 0;
+  @include atlas-flex-row($gap: $spacing-s);
+  justify-content: space-between;
+  font-size: $font-ui-small;
+  background-color: transparent !important;
+  color: var(--text-normal);
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  border-radius: $radius-m;
+  cursor: pointer;
+  text-align: left;
+
+  &:hover,
+  &:focus-visible {
+    background-color: var(--background-modifier-hover) !important;
+  }
+
+  &:active {
+    background-color: var(--background-modifier-active-hover) !important;
   }
 }
 
@@ -373,6 +460,32 @@ $modal-corner-inset: calc(#{$border-width-m} + #{$spacing-l});
   }
 }
 
+/// Obsidian's own `Modal` with $spacing-l padding: the native close control
+/// sits $spacing-s from the corner at the standard control size, so its outer
+/// corner runs concentric with --modal-radius.
+@mixin atlas-native-modal-close-control {
+  > :is(.modal-close-button, .modal-header-button) {
+    top: $spacing-s;
+    right: $spacing-s;
+    width: $button-height-l;
+    height: $button-height-l;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: max(0px, calc(var(--modal-radius) - #{$spacing-s} - var(--modal-border-width, 1px)));
+  }
+
+  // Reserve the control's width so long titles cannot run underneath it.
+  > .modal-header .modal-title { padding-inline-end: $button-height-l; }
+}
+
+/// Action button flush with the bottom-right corner of an Obsidian `Modal`
+/// with $spacing-l padding: concentric with --modal-radius.
+@mixin atlas-native-modal-corner-button {
+  border-radius: max(0px, calc(var(--modal-radius) - #{$spacing-l} - var(--modal-border-width, 1px)));
+}
+
 /// Field label above an input.
 @mixin atlas-field-label {
   font-size: $font-ui-small;
@@ -448,8 +561,13 @@ $modal-corner-inset: calc(#{$border-width-m} + #{$spacing-l});
 
 // ── Scrollbars ───────────────────────────────────────────────────────────────
 
-/// Custom scrollbar styling matching Obsidian's design.
+/// Custom scrollbar styling matching Obsidian's design. Obsidian sets
+/// `scrollbar-color` on the body, which makes Chromium ignore the
+/// `::-webkit-scrollbar` rules, so the standard properties carry the look.
 @mixin atlas-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb-bg) transparent;
+
   &::-webkit-scrollbar {
     width: 8px;
     height: 8px;
@@ -485,4 +603,19 @@ $modal-corner-inset: calc(#{$border-width-m} + #{$spacing-l});
   -webkit-line-clamp: $lines;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+// ── Accessibility ────────────────────────────────────────────────────────────
+
+/// Keeps content available to assistive technology while removing it visually.
+@mixin atlas-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
 }

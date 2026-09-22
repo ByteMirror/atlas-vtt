@@ -14,28 +14,22 @@
 "type:question":
   - '### What kind of issue is this\?\s+Question or something else'
 "area:maps":
-  - '### Which part of Atlas is affected\?\s+Maps and scenes'
-"area:grid":
-  - '### Which part of Atlas is affected\?\s+Grid and alignment'
+  - '### Which part of Atlas is affected\?\s+Maps, scenes and grid'
 "area:tokens":
-  - '### Which part of Atlas is affected\?\s+Tokens and creatures'
-"area:statblocks":
-  - '### Which part of Atlas is affected\?\s+Statblocks, notes and pins'
-"area:asset-manager":
-  - '### Which part of Atlas is affected\?\s+Asset manager and collections'
+  - '### Which part of Atlas is affected\?\s+Tokens'
+"area:notes":
+  - '### Which part of Atlas is affected\?\s+Notes, pins and statblocks'
 "area:vision":
-  - '### Which part of Atlas is affected\?\s+Fog of war, vision and lighting'
+  - '### Which part of Atlas is affected\?\s+Fog of war and lighting'
 "area:combat":
   - '### Which part of Atlas is affected\?\s+Initiative and combat'
 "area:dice":
   - '### Which part of Atlas is affected\?\s+Dice'
+"area:asset-manager":
+  - '### Which part of Atlas is affected\?\s+Asset manager'
 "area:player-view":
-  - '### Which part of Atlas is affected\?\s+Player view window'
-"area:audio":
-  - '### Which part of Atlas is affected\?\s+Music and ambience'
+  - '### Which part of Atlas is affected\?\s+Player view'
 "area:settings":
-  - '### Which part of Atlas is affected\?\s+Settings, hotkeys and commands'
-"area:install":
-  - '### Which part of Atlas is affected\?\s+Installing or updating Atlas'
+  - '### Which part of Atlas is affected\?\s+Settings, commands and updates'
 "area:unknown":
-  - '### Which part of Atlas is affected\?\s+Not sure / something else'
+  - '### Which part of Atlas is affected\?\s+Not sure \/ other'

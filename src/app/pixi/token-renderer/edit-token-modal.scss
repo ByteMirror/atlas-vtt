@@ -3,11 +3,6 @@
 .atlas-edit-token-modal {
   width: 340px;
   max-width: 90vw;
-
-  .atlas-modal-content {
-    @include atlas-flex-col($spacing-m);
-    padding: $spacing-l;
-  }
 }
 
 .atlas-edit-token__field {

@@ -13,7 +13,6 @@ import type { TextElement } from '../types';
 import type { GridSystem } from '../grid/GridSystem';
 import type { ViewAtlasState } from '../storeFactory';
 import type { StoreApi } from 'zustand';
-import { EventEmitter } from 'events';
 import { TextRotationUI } from './TextRotationUI';
 import { TextResizeUI } from './TextResizeUI';
 import { promptForText } from '../ui/textInputDialog';
@@ -22,7 +21,6 @@ export class TextRenderer {
   private viewport: Viewport;
   private gridSystem: GridSystem;
   private store: StoreApi<ViewAtlasState>;
-  private eventBus: EventEmitter;
   private textContainer: Container;
   private textElements: Record<string, Container> = {};
   private selectionOverlayUpdater: () => void;
@@ -50,14 +48,12 @@ export class TextRenderer {
     gridSystem: GridSystem,
     selectionOverlayUpdater: () => void,
     store: StoreApi<ViewAtlasState>,
-    eventBus: EventEmitter,
     isPlayerView: boolean = false
   ) {
     this.viewport = viewport;
     this.gridSystem = gridSystem;
     this.selectionOverlayUpdater = selectionOverlayUpdater;
     this.store = store;
-    this.eventBus = eventBus;
     this.isPlayerView = isPlayerView;
     
     // Create container for all text elements
@@ -77,9 +73,6 @@ export class TextRenderer {
     
     // Subscribe to store changes
     this.subscribeToStore();
-    
-    // Listen for text creation events
-    this.eventBus.on('text-created', this.handleTextCreated);
     
     // Initial sync
     this.syncTexts(this.store.getState().objects.texts, {});
@@ -527,10 +520,6 @@ export class TextRenderer {
     }
   }
 
-  private handleTextCreated = (data: any): void => {
-    // Text will be created through store subscription
-  };
-
   getContainer(): Container {
     return this.textContainer;
   }
@@ -552,6 +541,5 @@ export class TextRenderer {
     }
 
     // Remove event listeners
-    this.eventBus.off('text-created', this.handleTextCreated);
   }
 }

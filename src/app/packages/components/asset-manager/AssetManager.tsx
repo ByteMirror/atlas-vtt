@@ -10,7 +10,7 @@ import { Sidebar } from './components/Sidebar';
 import { Content } from './components/Content';
 import { ModalLayer } from './components/ModalLayer';
 import { useAssetData } from './hooks/useAssetData';
-import { useSelectionHandlers } from './hooks/useSelectionHandlers';
+import { useSelectionHandlers, type VisibleIds } from './hooks/useSelectionHandlers';
 import { useAssetCrud } from './hooks/useAssetCrud';
 import { useTagsAndCollections } from './hooks/useTagsAndCollections';
 import { useContextMenus } from './hooks/useContextMenus';
@@ -42,6 +42,7 @@ const containerVariants = {
 };
 
 export default function AssetManager({ isOpen, onClose, initialTab }: AssetManagerProps): React.JSX.Element | null {
+  const [tokenCreatorSource, setTokenCreatorSource] = useState<'images' | 'statblocks'>('images');
   const [search, setSearch] = useState('');
   const [activeTab, setActiveTab] = useState<Tab>('tokens');
   const [selectedCollection, setSelectedCollection] = useState<string | null>('default');
@@ -55,12 +56,8 @@ export default function AssetManager({ isOpen, onClose, initialTab }: AssetManag
   const data = useAssetData(activeTab, selectedCollection, isOpen);
   const settings = useAtlasSettings(SettingsService.forApp(data.app));
 
-  const displayedFolders = useMemo(
-    () => data.folders.filter(f => f.type === activeTab && f.parentId === null),
-    [data.folders, activeTab],
-  );
-
-  const sel = useSelectionHandlers([], displayedFolders, data.folders, activeTab, isOpen);
+  const visibleIds = useRef<VisibleIds>({ assets: [], folders: [] });
+  const sel = useSelectionHandlers(visibleIds, data.folders, activeTab, isOpen);
 
   const displayedAssets = useMemo(() => {
     const searchLower = search.toLowerCase();
@@ -83,6 +80,16 @@ export default function AssetManager({ isOpen, onClose, initialTab }: AssetManag
         return sel.sortOrder === 'asc' ? cmp : -cmp;
       });
   }, [data.assets, data.availableTags, sel.selectedFolderId, activeTab, search, sel.selectedTagIds, sel.sortBy, sel.sortOrder]);
+
+  const displayedFolders = useMemo(
+    () => data.folders.filter((folder) => folder.type === activeTab && folder.parentId === sel.selectedFolderId),
+    [data.folders, activeTab, sel.selectedFolderId],
+  );
+
+  visibleIds.current = {
+    assets: displayedAssets.map((asset) => asset.id),
+    folders: displayedFolders.map((folder) => folder.id),
+  };
 
   const crud = useAssetCrud(
     data.app, data.assetService, activeTab, selectedCollection,
@@ -112,9 +119,8 @@ export default function AssetManager({ isOpen, onClose, initialTab }: AssetManag
 
   const handleEditCollectionSettings = async (collectionName: string): Promise<void> => {
     if (!data.assetService) return;
-    const cols = await data.assetService.getCollections();
-    const match = cols.find(c => c.name === collectionName || c.id === collectionName);
-    if (match) crud.setSettingsModalCollectionId(match.id);
+    const id = await data.assetService.resolveCollectionId(collectionName);
+    if (id) crud.setSettingsModalCollectionId(id);
   };
 
   if (!isOpen) return null;
@@ -173,7 +179,8 @@ export default function AssetManager({ isOpen, onClose, initialTab }: AssetManag
               activeTab={activeTab}
               onTabChange={setActiveTab}
               assetCounts={data.assetCounts}
-              onCreateTokens={() => crud.setIsTokenCreatorOpen(true)}
+              onCreateTokens={() => { setTokenCreatorSource('images'); crud.setIsTokenCreatorOpen(true); }}
+              onImportStatblocks={() => { setTokenCreatorSource('statblocks'); crud.setIsTokenCreatorOpen(true); }}
               onCreateMap={crud.handleCreateMap}
               onCreateCollection={crud.handleCreateCollection}
               onCreateFolder={crud.handleCreateFolder}
@@ -191,7 +198,7 @@ export default function AssetManager({ isOpen, onClose, initialTab }: AssetManag
                 <Content
                   activeTab={activeTab}
                   assets={displayedAssets}
-                  folders={data.folders}
+                  folders={displayedFolders}
                   selectedAssetIds={sel.selectedAssetIds}
                   selectedFolderIds={sel.selectedFolderIds}
                   selectedFolderId={sel.selectedFolderId}
@@ -236,6 +243,7 @@ export default function AssetManager({ isOpen, onClose, initialTab }: AssetManag
       )}
 
       <ModalLayer
+        tokenCreatorSource={tokenCreatorSource}
         isOpen={isOpen}
         activeTab={activeTab}
         selectedCollection={selectedCollection}

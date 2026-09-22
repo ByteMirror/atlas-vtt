@@ -21,6 +21,7 @@ export interface TokenVitals {
   /** Token artwork, shown on the statblock and alongside dice rolls made from it. */
   imagePath?: string | undefined;
   ringColor?: string | undefined;
+  showRing?: boolean | undefined;
 }
 
 /**
@@ -29,8 +30,8 @@ export interface TokenVitals {
  * values locked rather than syncing anything.
  */
 export function toTokenVitals(entity: unknown): TokenVitals {
-  const { id, name, hp, stress, maxStress, imagePath, ringColor, instanceNumber, hope, statblockResources } = (entity ?? {}) as TokenVitals;
-  return { id, name, hp, stress, maxStress, imagePath, ringColor, instanceNumber, hope, statblockResources };
+  const { id, name, hp, stress, maxStress, imagePath, ringColor, showRing, instanceNumber, hope, statblockResources } = (entity ?? {}) as TokenVitals;
+  return { id, name, hp, stress, maxStress, imagePath, ringColor, showRing, instanceNumber, hope, statblockResources };
 }
 
 type TrackKind = 'hp' | 'stress';

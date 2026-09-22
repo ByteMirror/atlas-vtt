@@ -142,10 +142,10 @@ type AssetUpdatesOf<A> = A extends Asset
 /** Fields to change on an asset; an explicit `undefined` removes the field. */
 export type AssetUpdates = AssetUpdatesOf<Asset>;
 
-type GroupAsset = EncounterAsset | PlayerAsset;
+export type GroupAsset = EncounterAsset | PlayerAsset;
 
 /** Token lists of a group asset: the top-level one and the copy inside its JSON payload. */
-function groupTokenRefs(asset: GroupAsset): GroupTokenRef[] {
+export function groupTokenRefs(asset: GroupAsset): GroupTokenRef[] {
   if (Array.isArray(asset.tokens)) return asset.tokens;
   return Array.isArray(asset.data?.tokens) ? asset.data.tokens : [];
 }
@@ -930,6 +930,25 @@ export class AssetService {
     });
   }
 
+  private listGroups(): GroupAsset[] {
+    return Object.values(this.metadata!.assets)
+      .filter((asset): asset is GroupAsset => asset.type === 'encounter' || asset.type === 'player');
+  }
+
+  /** Encounters that contain any of the given token assets. */
+  async getGroupsUsingTokens(tokenIds: readonly string[]): Promise<GroupAsset[]> {
+    await this.ensureLoaded();
+    const ids = new Set(tokenIds);
+    return this.listGroups().filter((group) => groupTokenRefs(group).some((ref) => ids.has(ref.id)));
+  }
+
+  /** Deletes the given encounters if their token list is now empty. */
+  private async deleteEmptiedGroups(groups: GroupAsset[]): Promise<void> {
+    for (const group of groups) {
+      if (groupTokenRefs(group).length === 0) await this.deleteAsset(group.id);
+    }
+  }
+
   // Collection management
   async createCollection(name: string, description?: string): Promise<CollectionMetadata> {
     await this.ensureLoaded();
@@ -1195,6 +1214,7 @@ export class AssetService {
       }
     }
 
+    const emptiedGroups = asset.type === 'token' ? await this.getGroupsUsingTokens([asset.id]) : [];
     if (asset.type === 'token') {
       this.removeTokenReferencesFromGroups(asset.id);
       await this.trashFileIfPresent(asset.thumbnailPath);
@@ -1203,6 +1223,8 @@ export class AssetService {
     // Remove from metadata
     delete this.metadata!.assets[id];
     await this.saveMetadata();
+
+    await this.deleteEmptiedGroups(emptiedGroups);
   }
 
   private async trashFileIfPresent(path: string | undefined): Promise<void> {

@@ -18,6 +18,7 @@ import { runInBackground } from '../../../../utils/backgroundTask';
 import { confirmAction } from '../../../../ui/confirmDialog';
 import type { AtlasView } from '../../../../atlas-view';
 import type { ViewAtlasState } from '../../../../storeFactory';
+import { applyTokenDeleteImpact, describeTokenDeleteImpact, findTokenDeleteImpact } from '../utils/tokenDeleteImpact';
 
 export interface AssetContextMenuDeps {
   app: ObsidianApp;
@@ -250,14 +251,18 @@ export function buildAssetContextMenuEntries(
       const msg = deleteCount > 1
         ? `Are you sure you want to delete ${deleteCount} selected items?`
         : `Are you sure you want to delete "${asset.name}"?`;
+      const impact = deps.assetService
+        ? await findTokenDeleteImpact(deps.app, deps.assetService, selectedAssets)
+        : null;
       const confirmed = await confirmAction({
         title: deleteCount > 1 ? 'Delete items' : 'Delete item',
-        message: [msg],
+        message: [msg, ...(impact ? describeTokenDeleteImpact(impact) : [])],
         confirmLabel: 'Delete',
         destructive: true,
       });
       if (!confirmed) return;
 
+      if (impact) await applyTokenDeleteImpact(deps.app, impact);
       for (const a of selectedAssets) {
         const ok = await deps.deleteAssetFromVault(a);
         if (ok) {

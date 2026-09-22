@@ -6,8 +6,8 @@ import type { StoreApi } from 'zustand';
 import { colors, barDimensions } from '../styles/designTokens';
 import { toError } from '../utils/errors';
 import type { TokenGestureEventDetail } from '../types/atlasWindowEvents';
-import { openValueEditor, type ResourceValue, type ResourceField } from './tokenValueEditor';
-import { resourceNumberX } from './ResourceBarLabel';
+import { openResourceEditor, type BarAnchor, type ResourceEditor, type ResourceValue } from './tokenValueEditor';
+import { ResourceBarHitArea } from './ResourceBarHitArea';
 
 type ControlIconType = 'plus' | 'minus';
 
@@ -34,10 +34,11 @@ export class TokenControlsUI {
   private stressMinusBtn: ControlButton;
   private stressPlusBtn: ControlButton;
 
-  // Transparent hit areas over the bars; click opens the inline value editor
-  private hpHit: Graphics;
-  private stressHit: Graphics;
-  private closeEditor: (() => void) | null = null;
+  // Overlays on the bars; click opens the value popover below the bar
+  private hpHit: ResourceBarHitArea;
+  private stressHit: ResourceBarHitArea;
+  private editor: ResourceEditor | null = null;
+  private followEditor: (() => void) | null = null;
 
   // Colors from design tokens
   private readonly HP_COLOR = colors.health.healthy;
@@ -105,8 +106,8 @@ export class TokenControlsUI {
       console.error('[TokenControlsUI] Failed to initialize textures:', err);
     });
     
-    this.hpHit = this.createBarHitArea();
-    this.stressHit = this.createBarHitArea();
+    this.hpHit = new ResourceBarHitArea(this.HP_COLOR);
+    this.stressHit = new ResourceBarHitArea(this.STRESS_COLOR);
     this.container.addChild(this.hpHit);
     this.container.addChild(this.stressHit);
 
@@ -199,36 +200,44 @@ export class TokenControlsUI {
     return button;
   }
   
-  private createBarHitArea(): Graphics {
-    const hit = new Graphics();
-    hit.eventMode = 'static';
-    hit.cursor = 'text';
-    hit.visible = false;
-    return hit;
+  /** Wires a bar overlay so clicking it opens the popover for `value` under that bar. */
+  private bindBarEditor(hit: ResourceBarHitArea, barTop: number, value: ResourceValue, resourceLabel: string, onCommit: (next: ResourceValue) => void): void {
+    hit.layout(barTop);
+    hit.on('pointerdown', (e) => {
+      e.preventDefault(); // Keep the canvas's default focus from stealing the popover's focus.
+      e.stopPropagation();
+      this.openEditor(hit, barTop, value, resourceLabel, onCommit);
+    });
   }
 
-  /** Draws the hit rectangle over a bar whose top edge sits at `barTop`. */
-  private layoutBarHitArea(hit: Graphics, barTop: number): void {
-    hit.clear();
-    hit.rect(-this.barWidth / 2, barTop, this.barWidth, this.barHeight).fill({ color: 0xffffff, alpha: 0 });
-    hit.visible = true;
-  }
-
-  private openEditor(barCenterY: number, value: ResourceValue, field: ResourceField, resourceLabel: string, onCommit: (next: ResourceValue) => void): void {
-    this.closeEditor?.();
-    const global = this.container.toGlobal({ x: resourceNumberX(field), y: barCenterY });
-    this.closeEditor = openValueEditor({
+  private openEditor(hit: ResourceBarHitArea, barTop: number, value: ResourceValue, resourceLabel: string, onCommit: (next: ResourceValue) => void): void {
+    this.editor?.close();
+    hit.setActive(true);
+    const follow = (): void => this.editor?.reposition(this.barAnchor(barTop));
+    this.followEditor = follow;
+    this.viewport.on('moved', follow);
+    this.viewport.on('zoomed', follow);
+    this.editor = openResourceEditor({
       anchorEl: this.viewport.options.events.domElement,
-      screenX: global.x,
-      screenY: global.y,
+      anchor: this.barAnchor(barTop),
       value,
-      field,
       resourceLabel,
-      onCommit: (next) => {
-        this.closeEditor = null;
-        onCommit(next);
+      onCommit,
+      onClose: () => {
+        this.viewport.off('moved', follow);
+        this.viewport.off('zoomed', follow);
+        this.editor = null;
+        this.followEditor = null;
+        if (!hit.destroyed) hit.setActive(false);
       },
     });
+  }
+
+  /** Screen-space anchor of the bar at `barTop`, in canvas-local pixels. */
+  private barAnchor(barTop: number): BarAnchor {
+    const topLeft = this.container.toGlobal({ x: -this.barWidth / 2, y: barTop });
+    const bottomRight = this.container.toGlobal({ x: this.barWidth / 2, y: barTop + this.barHeight });
+    return { x: (topLeft.x + bottomRight.x) / 2, top: topLeft.y, bottom: bottomRight.y };
   }
 
   private drawButtonState(button: ControlButton, isHover: boolean): void {
@@ -315,10 +324,9 @@ export class TokenControlsUI {
   public hide(): void {
     this.currentTokenId = null;
     this.container.visible = false;
-    this.closeEditor?.();
-    this.closeEditor = null;
-    this.hpHit.visible = false;
-    this.stressHit.visible = false;
+    this.editor?.close();
+    this.hpHit.hide();
+    this.stressHit.hide();
     
     // Remove all click handlers
     this.hpMinusBtn.removeAllListeners('pointerdown');
@@ -333,6 +341,7 @@ export class TokenControlsUI {
     this.tokenSize = tokenSize;
     this.container.position.set(worldX, worldY);
     this.updateScale();
+    this.followEditor?.();
   }
   
   private get isVisible(): boolean {
@@ -360,10 +369,7 @@ export class TokenControlsUI {
     this.hpHit.removeAllListeners('pointerdown');
     this.stressHit.removeAllListeners('pointerdown');
     
-    // Use design tokens (this.barWidth / this.barHeight) — not hardcoded values
-    const barWidth = this.barWidth;
     const barHeight = this.barHeight;
-    const buttonSize = 10;
     const gap = barDimensions.token.gap;
     const baseGap = 2;
     
@@ -375,97 +381,61 @@ export class TokenControlsUI {
     // Match TokenUIRenderer positioning - currentY is top of bar, not center
     let currentY = tokenRadiusInUIUnits + baseGap; // Top of first bar
     
-    // HP buttons
     if (token.hp && typeof token.hp === 'object' && typeof token.hp.max === 'number') {
-      this.hpMinusBtn.visible = true;
-      this.hpPlusBtn.visible = true;
-      
-      // Redraw buttons to ensure they display correctly
-      this.drawButtonState(this.hpMinusBtn, false);
-      this.drawButtonState(this.hpPlusBtn, false);
-      
-      // Position beside the bar — gap matches the vertical inter-bar gap
-      const buttonOffset = barWidth / 2 + buttonSize / 2 + gap;
-      const barTop = currentY;
-      const barCenterY = barTop + barHeight / 2; // Center of the bar
-      this.hpMinusBtn.position.set(-buttonOffset, barCenterY);
-      this.hpPlusBtn.position.set(buttonOffset, barCenterY);
-      
-      // Add click handlers
-      this.hpMinusBtn.on('pointerdown', (e) => {
-        e.stopPropagation();
-        this.updateTokenHP(token, -1);
-      });
-      this.hpPlusBtn.on('pointerdown', (e) => {
-        e.stopPropagation();
-        this.updateTokenHP(token, 1);
-      });
-
       const hp = token.hp;
-      this.layoutBarHitArea(this.hpHit, barTop);
-      this.hpHit.on('pointerdown', (e) => {
-        e.preventDefault(); // Keep the canvas's default focus from closing the editor.
-        e.stopPropagation();
-        const field = e.getLocalPosition(this.hpHit).x < 0 ? 'current' : 'max';
-        this.openEditor(barCenterY, hp, field, 'HP', (next) => this.setTokenValue({
+      this.bindResourceBar(this.hpHit, this.hpMinusBtn, this.hpPlusBtn, currentY, hp, 'HP',
+        (delta) => this.updateTokenHP(token, delta),
+        (next) => this.setTokenValue({
           hp: { ...hp, ...next },
           ...(next.max !== hp.max ? { maxHpOverridden: true } : {}),
         }));
-      });
-      
       currentY += barHeight + gap;
     } else {
-      this.hpMinusBtn.visible = false;
-      this.hpPlusBtn.visible = false;
-      this.hpHit.visible = false;
+      this.hideResourceBar(this.hpHit, this.hpMinusBtn, this.hpPlusBtn);
     }
-    
-    // Stress buttons — mirror TokenUIRenderer's hasStress logic
+
+    // Mirror TokenUIRenderer's hasStress logic
     const tokenSettings = this.store.getState().tokenSettings || { showStressBars: true };
     const hasStress = token.stress !== undefined && tokenSettings.showStressBars;
     if (hasStress && typeof token.stress === 'number' && typeof token.maxStress === 'number') {
-      this.stressMinusBtn.visible = true;
-      this.stressPlusBtn.visible = true;
-      
-      // Redraw buttons to ensure they display correctly
-      this.drawButtonState(this.stressMinusBtn, false);
-      this.drawButtonState(this.stressPlusBtn, false);
-      
-      // Position beside the bar — gap matches the vertical inter-bar gap
-      const buttonOffset = barWidth / 2 + buttonSize / 2 + gap;
-      const barTop = currentY;
-      const barCenterY = barTop + barHeight / 2; // Center of the bar
-      this.stressMinusBtn.position.set(-buttonOffset, barCenterY);
-      this.stressPlusBtn.position.set(buttonOffset, barCenterY);
-      
-      // Add click handlers
-      this.stressMinusBtn.on('pointerdown', (e) => {
-        e.stopPropagation();
-        this.updateTokenStress(token, -1);
-      });
-      this.stressPlusBtn.on('pointerdown', (e) => {
-        e.stopPropagation();
-        this.updateTokenStress(token, 1);
-      });
-
       const stress = { current: token.stress, max: token.maxStress };
-      this.layoutBarHitArea(this.stressHit, barTop);
-      this.stressHit.on('pointerdown', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        const field = e.getLocalPosition(this.stressHit).x < 0 ? 'current' : 'max';
-        this.openEditor(barCenterY, stress, field, 'secondary resource', (next) => this.setTokenValue({
+      this.bindResourceBar(this.stressHit, this.stressMinusBtn, this.stressPlusBtn, currentY, stress, 'secondary resource',
+        (delta) => this.updateTokenStress(token, delta),
+        (next) => this.setTokenValue({
           stress: next.current, maxStress: next.max,
           ...(next.max !== stress.max ? { maxStressOverridden: true } : {}),
         }));
-      });
     } else {
-      this.stressMinusBtn.visible = false;
-      this.stressPlusBtn.visible = false;
-      this.stressHit.visible = false;
+      this.hideResourceBar(this.stressHit, this.stressMinusBtn, this.stressPlusBtn);
     }
   }
-  
+
+  /** Shows one bar's +/- buttons beside it and its click-to-edit overlay on top of it. */
+  private bindResourceBar(
+    hit: ResourceBarHitArea, minusBtn: ControlButton, plusBtn: ControlButton, barTop: number,
+    value: ResourceValue, resourceLabel: string, onDelta: (delta: number) => void, onCommit: (next: ResourceValue) => void,
+  ): void {
+    const buttonSize = 10;
+    const buttonOffset = this.barWidth / 2 + buttonSize / 2 + barDimensions.token.gap;
+    const barCenterY = barTop + this.barHeight / 2;
+    for (const [button, delta] of [[minusBtn, -1], [plusBtn, 1]] as const) {
+      button.visible = true;
+      this.drawButtonState(button, false);
+      button.position.set(Math.sign(delta) * buttonOffset, barCenterY);
+      button.on('pointerdown', (e) => {
+        e.stopPropagation();
+        onDelta(delta);
+      });
+    }
+    this.bindBarEditor(hit, barTop, value, resourceLabel, onCommit);
+  }
+
+  private hideResourceBar(hit: ResourceBarHitArea, minusBtn: ControlButton, plusBtn: ControlButton): void {
+    minusBtn.visible = false;
+    plusBtn.visible = false;
+    hit.hide();
+  }
+
   private updateTokenHP(token: Character, delta: number): void {
     if (!this.currentTokenId || !token.hp || typeof token.hp !== 'object') return;
     
@@ -571,8 +541,7 @@ export class TokenControlsUI {
     window.removeEventListener('atlas-token-rotation-started', this.onRotationStarted);
     window.removeEventListener('atlas-token-rotation-ended', this.onRotationEnded);
     
-    this.closeEditor?.();
-    this.closeEditor = null;
+    this.editor?.close();
 
     // Remove all listeners
     this.buttons.forEach(btn => {

@@ -56,11 +56,6 @@
   @import '../src/app/react/components/undo-redo-controls.scss';
   @import '../src/app/react/components/dm-dashboard.scss';
   @import '../src/app/react/components/linked-note-panel.scss';
-  @import '../src/app/react/components/music-player.scss';
-  @import '../src/app/react/components/music-library.scss';
-  @import '../src/app/react/components/track-card.scss';
-  @import '../src/app/react/components/playlist-modal.scss';
-  @import '../src/app/react/components/standalone-music-player.scss';
   @import '../src/app/react/components/player-dashboard.scss';
   @import '../src/app/react/components/dashboard.scss';
   @import '../src/app/react/components/dice-log/dice-roll-log.scss';
@@ -79,18 +74,34 @@
     border-radius: $radius-l;
   }
 
-  // Inline HP/stress editor placed on document.body over the Pixi bar
+  // Popover under a selected token's HP/stress bar; mounted on document.body
   &.atlas-token-value-editor {
     @include atlas-elevated-surface;
     position: fixed;
-    transform: translate(-50%, -50%);
-    width: 72px;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: $spacing-xs;
     padding: $spacing-xs;
-    border-radius: $radius-l;
-    text-align: center;
-    font-size: var(--font-ui-small);
-    font-variant-numeric: tabular-nums;
     z-index: var(--layer-popover, 1000);
+    font-size: $font-ui-small;
+    color: var(--text-normal);
+  }
+
+  .atlas-token-value-editor__input {
+    width: 56px;
+    text-align: center;
+    border-radius: $radius-l;
+    font-variant-numeric: tabular-nums;
+
+    &[aria-invalid] {
+      border-color: var(--text-error);
+      box-shadow: 0 0 0 2px color-mix(in oklch, var(--text-error) 30%, transparent);
+    }
+  }
+
+  .atlas-token-value-editor__separator {
+    color: var(--text-muted);
   }
 
   // Scene tabs and widgets share one row so they can never overlap:

@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import 'pixi.js/events';
 import { Container, EventBoundary, FederatedPointerEvent, Graphics, Point, Text } from 'pixi.js';
+import { ResourceBarHitArea } from '../../src/app/pixi/ResourceBarHitArea';
 import type { Viewport } from 'pixi-viewport';
 import { TokenUIRenderer } from '../../src/app/pixi/TokenUIRenderer';
 import { TokenControlsUI } from '../../src/app/pixi/TokenControlsUI';
-import { openValueEditor } from '../../src/app/pixi/tokenValueEditor';
 import { ResourceBarLabel, RESOURCE_NUMBER_GAP } from '../../src/app/pixi/ResourceBarLabel';
 import { createViewAtlasStore } from '../../src/app/storeFactory';
 import type { Character } from '../../src/app/types';
@@ -74,55 +74,145 @@ describe('resource label layout', () => {
   });
 });
 
-describe('resource value click editing', () => {
-  it('closes once when removing the focused input triggers blur', () => {
-    const anchor = document.body.createEl('canvas');
-    const close = openValueEditor({ anchorEl: anchor, screenX: 0, screenY: 0,
-      value: { current: 1, max: 50 }, field: 'current', resourceLabel: 'HP', onCommit: vi.fn() });
-    const input = document.querySelector<HTMLInputElement>('.atlas-token-value-editor')!;
-    const remove = input.remove.bind(input);
-    const spy = vi.spyOn(input, 'remove').mockImplementation(() => {
-      // Chromium sends blur while the focused node is being removed.
-      if (spy.mock.calls.length === 1) input.dispatchEvent(new Event('blur'));
-      remove();
-    });
-    close();
-    expect(spy).toHaveBeenCalledTimes(1);
-  });
-
-  it.each([{ index: 0, field: 'current' }, { index: 0, field: 'max' }, { index: 1, field: 'current' }, { index: 1, field: 'max' }] as const)('edits only $field in resource $index after clicking its number', ({ index, field }) => {
+describe('resource value popover editing', () => {
+  function mount() {
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
     const canvas = document.body.createEl('canvas');
     canvas.tabIndex = 0;
     const viewport = Object.assign(new Container(), { options: { events: { domElement: canvas } } }) as Viewport;
     const store = setup();
     const controls = new TokenControlsUI(viewport, store);
-    try {
-      controls.show('hero', 0, 0, 70);
-      const target = controls.getContainer().children.filter(c => c.cursor === 'text')[index]!;
+    controls.show('hero', 0, 0, 70);
+    const bars = controls.getContainer().children.filter((c): c is ResourceBarHitArea => c instanceof ResourceBarHitArea);
+    const click = (index: number, x = 0): void => {
+      const target = bars[index]!;
       const event = new FederatedPointerEvent(new EventBoundary(viewport));
       event.nativeEvent = new MouseEvent('pointerdown', { cancelable: true });
-      event.global.copyFrom(target.toGlobal({ x: field === 'current' ? -16 : 16, y: 42 + index * 12 }));
+      event.global.copyFrom(target.toGlobal({ x, y: 42 + index * 12 }));
       target.emit('pointerdown', event);
       // Model the browser's default canvas focus after pointerdown listeners finish.
       if (!event.nativeEvent.defaultPrevented) canvas.focus();
-      const input = document.querySelector<HTMLInputElement>('.atlas-token-value-editor');
-      expect(input).not.toBeNull();
-      expect(document.activeElement).toBe(input);
-      expect(input!.value).toBe(field === 'current' ? '1' : '50');
-      expect(input!.getAttribute('aria-label')).toBe(`${field === 'current' ? 'Current' : 'Maximum'} ${index === 0 ? 'HP' : 'secondary resource'}`);
-      input!.value = field === 'current' ? '7' : '60';
-      input!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-      const token = store.getState().objects.tokens.hero as Character;
-      if (index === 0) {
-        expect(token.hp).toEqual({ current: field === 'current' ? 7 : 1, max: field === 'max' ? 60 : 50 });
-        expect(token.maxHpOverridden).toBe(field === 'max' ? true : undefined);
-      } else {
-        expect(token.stress).toBe(field === 'current' ? 7 : 1);
-        expect(token.maxStress).toBe(field === 'max' ? 60 : 50);
-        expect(token.maxStressOverridden).toBe(field === 'max' ? true : undefined);
-      }
+    };
+    const inputs = (): HTMLInputElement[] => Array.from(document.querySelectorAll<HTMLInputElement>('.atlas-token-value-editor__input'));
+    const key = (target: Element, key: string, init: KeyboardEventInit = {}): void => {
+      target.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...init }));
+    };
+    const token = (): Character => store.getState().objects.tokens.hero as Character;
+    return { store, controls, viewport, canvas, bars, click, inputs, key, token };
+  }
+
+  it('shows the whole bar as a pointer target and highlights it on hover', () => {
+    const { bars, controls, viewport } = mount();
+    try {
+      const [hpBar] = bars;
+      expect(hpBar!.cursor).toBe('pointer');
+      expect(hpBar!.containsPoint(new Point(-30, 42))).toBe(true);
+      expect(hpBar!.containsPoint(new Point(30, 42))).toBe(true);
+      expect(hpBar!.containsPoint(new Point(0, 36))).toBe(false);
+      // Idle draws only the transparent target; hover adds a ring around the bar.
+      expect(hpBar!.context.instructions).toHaveLength(1);
+      hpBar!.emit('pointerover');
+      expect(hpBar!.context.instructions).toHaveLength(2);
+      hpBar!.emit('pointerout');
+      expect(hpBar!.context.instructions).toHaveLength(1);
+    } finally { controls.destroy(); viewport.destroy(); }
+  });
+
+  it.each([0, 1])('opens a two-field popover below resource bar %i and focuses the current value', (index) => {
+    const { click, inputs, controls, viewport, bars } = mount();
+    try {
+      click(index, 20);
+      const popover = document.querySelector<HTMLElement>('.atlas-token-value-editor')!;
+      expect(popover.getAttribute('aria-label')).toBe(`Edit ${index === 0 ? 'HP' : 'secondary resource'}`);
+      const [current, max] = inputs();
+      expect(current!.value).toBe('1');
+      expect(max!.value).toBe('50');
+      expect(document.activeElement).toBe(current);
+      const barBottom = bars[index]!.toGlobal({ x: 0, y: 47 + index * 12 }).y;
+      expect(parseFloat(popover.style.top)).toBeGreaterThan(barBottom);
+      expect(parseFloat(popover.style.left)).toBeGreaterThanOrEqual(8);
+    } finally { controls.destroy(); viewport.destroy(); }
+  });
+
+  it('applies both values on Enter and records a maximum override', () => {
+    const { click, inputs, key, token, controls, viewport } = mount();
+    try {
+      click(0);
+      const [current, max] = inputs();
+      current!.value = '7';
+      max!.value = '60';
+      key(max!, 'Enter');
+      expect(token().hp).toEqual({ current: 7, max: 60 });
+      expect(token().maxHpOverridden).toBe(true);
       expect(document.querySelector('.atlas-token-value-editor')).toBeNull();
+
+      click(1);
+      inputs()[0]!.value = '+3';
+      key(inputs()[0]!, 'Enter');
+      expect(token().stress).toBe(4);
+      expect(token().maxStress).toBe(50);
+      expect(token().maxStressOverridden).toBeUndefined();
+    } finally { controls.destroy(); viewport.destroy(); }
+  });
+
+  it('steps the focused value with the arrow keys', () => {
+    const { click, inputs, key, controls, viewport } = mount();
+    try {
+      click(0);
+      const [current] = inputs();
+      key(current!, 'ArrowUp');
+      key(current!, 'ArrowUp', { shiftKey: true });
+      expect(current!.value).toBe('12');
+      key(current!, 'ArrowDown');
+      expect(current!.value).toBe('11');
+    } finally { controls.destroy(); viewport.destroy(); }
+  });
+
+  it('keeps the popover open with the bad field marked when a value is invalid', () => {
+    const { click, inputs, key, token, controls, viewport } = mount();
+    try {
+      click(0);
+      const [current, max] = inputs();
+      max!.value = '0';
+      key(current!, 'Enter');
+      expect(document.querySelector('.atlas-token-value-editor')).not.toBeNull();
+      expect(max!.hasAttribute('aria-invalid')).toBe(true);
+      expect(document.activeElement).toBe(max);
+      expect(token().hp).toEqual({ current: 1, max: 50 });
+    } finally { controls.destroy(); viewport.destroy(); }
+  });
+
+  it('discards on Escape and commits edited values when clicking outside', () => {
+    const { click, inputs, key, token, controls, viewport, canvas } = mount();
+    try {
+      click(0);
+      inputs()[0]!.value = '9';
+      key(inputs()[0]!, 'Escape');
+      expect(document.querySelector('.atlas-token-value-editor')).toBeNull();
+      expect(token().hp.current).toBe(1);
+
+      click(0);
+      inputs()[0]!.value = '9';
+      canvas.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }));
+      expect(document.querySelector('.atlas-token-value-editor')).toBeNull();
+      expect(token().hp.current).toBe(9);
+    } finally { controls.destroy(); viewport.destroy(); }
+  });
+
+  it('follows the bar while the viewport moves and closes when the token is deselected', () => {
+    const { click, controls, viewport } = mount();
+    try {
+      controls.getContainer().position.x = 100;
+      click(0);
+      const popover = document.querySelector<HTMLElement>('.atlas-token-value-editor')!;
+      const before = parseFloat(popover.style.left);
+      expect(before).toBe(100);
+      controls.getContainer().position.x += 40;
+      viewport.emit('moved');
+      expect(parseFloat(popover.style.left)).toBeCloseTo(before + 40, 3);
+      controls.hide();
+      expect(document.querySelector('.atlas-token-value-editor')).toBeNull();
+      expect(viewport.listenerCount('moved')).toBe(0);
     } finally { controls.destroy(); viewport.destroy(); }
   });
 });

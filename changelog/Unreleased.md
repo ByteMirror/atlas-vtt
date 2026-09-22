@@ -5,7 +5,7 @@
 - Choose a token's size from its right-click menu on the map: Medium (1×1), Large (2×2), Huge (3×3) or Gargantuan (4×4).
 - Give token assets a default size in the token creator, when editing a token, or from the asset manager's right-click menu. Tokens spawn at that size, and it travels with collection exports. Fantasy Statblocks imports pick it up from the creature's size.
 - The ruler follows the grid's Snap to grid setting: switch snapping off to measure from any point.
-- Click a selected token's HP or stress bar to type a value directly: `15` sets the current value, `15/40` sets current and maximum, `+5` or `-3` adjusts it. Enter applies, Escape cancels.
+- Click a selected token's HP or secondary-resource bar to edit it: the bar highlights on hover, and a popover opens below it with current and maximum fields. Type a number or a `+5`/`-3` adjustment, use the arrow keys to step (Shift for tens), Tab between fields, Enter or click away to apply, Escape to cancel.
 - Choose whether to share the DM’s initiative tracker in the local player view. The read-only player panel appears only while the DM tracker is open and player sharing is enabled, independently of other widgets. Turn order and rounds update live; hidden tokens stay private.
 
 - Select several assets or folders in the asset manager like in a file manager: Ctrl/Cmd-click adds or removes single items, Shift-click selects everything between the last clicked item and the one you click.
@@ -38,7 +38,7 @@
 
 ## Fixed
 
-- Click the current or maximum number on a selected token’s HP or secondary-resource gauge to edit that value separately. The two numbers sit close together around the slash. Changing a maximum preserves it as a token override.
+- The current and maximum numbers on token gauges sit close together around the slash. Changing a maximum in the bar popover preserves it as a token override.
 - Deleting an open scene no longer makes Atlas and Obsidian both close its view. Closing the active scene loads the next scene and restores its viewport and undo history.
 - Closing a map waits for its pending saves to finish, and overlapping saves keep their original order.
 

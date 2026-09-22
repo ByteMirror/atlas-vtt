@@ -4,8 +4,11 @@ import { cn } from '../../../../utils/cn';
 import type { DiceRollResult } from '../../../tools/DiceTool';
 import { getDiceCrit } from '../../../tools/diceCrit';
 import { useDiceAvatarUrl } from './useDiceAvatarUrl';
+import { DICE_TOAST_KNOT_SYMBOL_ID } from './diceToastOrnament';
 
-type ToastPhase = 'entering' | 'visible' | 'exiting';
+export type ToastPhase = 'entering' | 'visible' | 'exiting';
+
+const CORNERS = ['tl', 'tr', 'bl', 'br'] as const;
 
 interface DiceToastProps {
   result: DiceRollResult;
@@ -17,58 +20,61 @@ export function DiceToast({ result, phase, onDismiss }: DiceToastProps): React.R
   const [isExpanded, setIsExpanded] = useState(false);
 
   const crit = getDiceCrit(result);
-  const isCritSuccess = crit === 'high';
-  const isCritFail = crit === 'low';
-
   const source = result.source;
   const sourceTokenName = source?.tokenName ?? 'Unknown';
   const avatarUrl = useDiceAvatarUrl(source);
-  const hasSource = source?.type === 'statblock' && source.tokenName;
+  const hasSource = source?.type === 'statblock' && Boolean(source.tokenName);
 
   const handleToggleDetails = (e: React.MouseEvent): void => {
     e.stopPropagation();
-    setIsExpanded(prev => !prev);
+    setIsExpanded((prev) => !prev);
   };
 
   return (
     <div
       className={cn(
         'atlas-dice-toast',
-        hasSource && 'atlas-dice-toast--has-source',
         phase === 'entering' && 'atlas-dice-toast--entering',
         phase === 'exiting' && 'atlas-dice-toast--exiting',
-        isCritSuccess && 'atlas-dice-toast--crit-success',
-        isCritFail && 'atlas-dice-toast--crit-fail',
+        crit === 'high' && 'atlas-dice-toast--crit-success',
+        crit === 'low' && 'atlas-dice-toast--crit-fail',
       )}
       onClick={onDismiss}
     >
-      {/* Avatar — top-aligned left column */}
-      {hasSource && (
-        avatarUrl ? (
-          <img className="atlas-dice-toast__avatar" src={avatarUrl} alt={sourceTokenName} />
-        ) : (
-          <div className="atlas-dice-toast__avatar atlas-dice-toast__avatar--fallback">
-            {sourceTokenName.charAt(0).toUpperCase()}
-          </div>
-        )
-      )}
-      <div className="atlas-dice-toast__content">
-        {hasSource && (
-          <span className="atlas-dice-toast__name">{sourceTokenName}</span>
-        )}
-        {source?.abilityName && (
-          <span className="atlas-dice-toast__ability">{source.abilityName}</span>
-        )}
-        <div className="atlas-dice-toast__summary">
+      {CORNERS.map((corner) => (
+        <svg
+          key={corner}
+          className={cn('atlas-dice-toast__corner', `atlas-dice-toast__corner--${corner}`)}
+          viewBox="188 0 260 260"
+          aria-hidden="true"
+        >
+          <use href={`#${DICE_TOAST_KNOT_SYMBOL_ID}`} />
+        </svg>
+      ))}
+      <div className="atlas-dice-toast__body">
+        <div className="atlas-dice-toast__main">
+          {hasSource &&
+          (avatarUrl ? (
+            <img className="atlas-dice-toast__avatar" src={avatarUrl} alt={sourceTokenName} />
+          ) : (
+            <div className="atlas-dice-toast__avatar atlas-dice-toast__avatar--fallback">
+              {sourceTokenName.charAt(0).toUpperCase()}
+            </div>
+          ))}
+        <div className="atlas-dice-toast__content">
+          {hasSource && <span className="atlas-dice-toast__name">{sourceTokenName}</span>}
+          {source?.abilityName && (
+            <span className="atlas-dice-toast__ability">{source.abilityName}</span>
+          )}
           <span className="atlas-dice-toast__formula">{result.formula}</span>
-          <span className="atlas-dice-toast__eq">=</span>
-          <span className="atlas-dice-toast__total">{result.total}</span>
         </div>
-        {/* Collapsible details */}
+        </div>
         <div className="atlas-dice-toast__details-toggle" onClick={handleToggleDetails}>
-          <ChevronDown className={cn('atlas-dice-toast__chevron', isExpanded && 'atlas-dice-toast__chevron--open')} />
-          <span className="atlas-dice-toast__details-label">Details</span>
-        </div>
+        <ChevronDown
+          className={cn('atlas-dice-toast__chevron', isExpanded && 'atlas-dice-toast__chevron--open')}
+        />
+        <span className="atlas-dice-toast__details-label">Details</span>
+      </div>
         {isExpanded && (
           <div className="atlas-dice-toast__details">
             {result.rolls.map((roll, i) => (
@@ -85,6 +91,9 @@ export function DiceToast({ result, phase, onDismiss }: DiceToastProps): React.R
             ))}
           </div>
         )}
+      </div>
+      <div className="atlas-dice-toast__result">
+        <span className="atlas-dice-toast__total">{result.total}</span>
       </div>
     </div>
   );

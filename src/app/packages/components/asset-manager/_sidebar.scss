@@ -45,7 +45,6 @@
       position: absolute;
       inset: 0;
       background: var(--divider-color);
-      transition: background $sidebar-hover-animation;
     }
 
     &:hover::after {

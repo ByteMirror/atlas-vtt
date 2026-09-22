@@ -230,9 +230,7 @@
     font-size: $font-ui-small;
     font-weight: $font-weight-normal;
     color: var(--text-muted);
-    transition: background-color $transition-fast $transition-ease,
-                color $transition-fast $transition-ease,
-                transform $transition-press $transition-ease-out;
+    transition: transform $transition-press $transition-ease-out;
   }
 
   &:hover {
@@ -276,8 +274,7 @@
     flex-shrink: 0;
   }
 
-  transition: transform $transition-press $transition-ease-out,
-              background-color $transition-fast $transition-ease;
+  transition: transform $transition-press $transition-ease-out;
 
   svg {
     width: $icon-s;
@@ -333,7 +330,6 @@
   border-radius: $radius-m;
   cursor: pointer;
   text-align: left;
-  transition: background-color $transition-fast $transition-ease;
 
   &:hover {
     background-color: var(--background-modifier-hover) !important;

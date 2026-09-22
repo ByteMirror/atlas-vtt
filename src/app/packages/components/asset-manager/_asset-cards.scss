@@ -21,8 +21,7 @@
   cursor: pointer;
   outline: none;
   color: var(--text-normal);
-  transition: background-color $transition-fast $transition-ease,
-              box-shadow $transition-fast $transition-ease;
+  transition: box-shadow $transition-fast $transition-ease;
 
   &:hover {
     background: var(--background-modifier-hover);
@@ -34,6 +33,10 @@
     .atlas-asset-card-name {
       color: var(--text-normal);
     }
+  }
+
+  &:active {
+    background: var(--background-modifier-active-hover);
   }
 
   &:active .atlas-asset-card-thumb {
@@ -155,7 +158,6 @@
   line-height: var(--line-height-tight);
   color: var(--text-muted);
   @include atlas-truncate;
-  transition: color $transition-fast $transition-ease;
 }
 
 // ── Badges ──────────────────────────────────────────────────────────────────
@@ -194,7 +196,7 @@
   justify-content: center;
   cursor: pointer;
   box-shadow: 0 1px 3px color-mix(in oklch, var(--mono-0) 40%, transparent);
-  transition: background-color $transition-fast $transition-ease, transform $transition-fast $transition-ease;
+  transition: transform $transition-fast $transition-ease;
 
   &:hover {
     background: var(--interactive-accent-hover);
@@ -230,8 +232,7 @@
     font-size: $font-ui-small;
     font-weight: $font-weight-bold;
     cursor: pointer;
-    transition: background-color $transition-fast $transition-ease,
-                transform $transition-press $transition-ease-out;
+    transition: transform $transition-press $transition-ease-out;
 
     &:hover {
       background: color-mix(in oklch, var(--text-on-accent) 18%, transparent);

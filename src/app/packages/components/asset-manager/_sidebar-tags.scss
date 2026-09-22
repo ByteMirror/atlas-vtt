@@ -77,9 +77,7 @@
   font-size: $font-ui-small;
   text-align: left;
   cursor: pointer;
-  transition: background-color $transition-fast $transition-ease,
-              color $transition-fast $transition-ease,
-              transform $transition-press $transition-ease-out;
+  transition: transform $transition-press $transition-ease-out;
 
   &:hover {
     background-color: var(--nav-item-background-hover) !important;
@@ -87,6 +85,7 @@
   }
 
   &:active {
+    background-color: var(--background-modifier-active-hover) !important;
     transform: scale(0.98);
   }
 

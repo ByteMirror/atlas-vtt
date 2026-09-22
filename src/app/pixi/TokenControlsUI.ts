@@ -6,6 +6,7 @@ import type { StoreApi } from 'zustand';
 import { colors, barDimensions } from '../styles/designTokens';
 import { toError } from '../utils/errors';
 import type { TokenGestureEventDetail } from '../types/atlasWindowEvents';
+import { openValueEditor, type ResourceValue } from './tokenValueEditor';
 
 type ControlIconType = 'plus' | 'minus';
 
@@ -31,6 +32,11 @@ export class TokenControlsUI {
   private hpPlusBtn: ControlButton;
   private stressMinusBtn: ControlButton;
   private stressPlusBtn: ControlButton;
+
+  // Transparent hit areas over the bars; click opens the inline value editor
+  private hpHit: Graphics;
+  private stressHit: Graphics;
+  private closeEditor: (() => void) | null = null;
 
   // Colors from design tokens
   private readonly HP_COLOR = colors.health.healthy;
@@ -98,6 +104,11 @@ export class TokenControlsUI {
       console.error('[TokenControlsUI] Failed to initialize textures:', err);
     });
     
+    this.hpHit = this.createBarHitArea();
+    this.stressHit = this.createBarHitArea();
+    this.container.addChild(this.hpHit);
+    this.container.addChild(this.stressHit);
+
     // Add all buttons to container
     this.container.addChild(this.hpMinusBtn);
     this.container.addChild(this.hpPlusBtn);
@@ -187,6 +198,36 @@ export class TokenControlsUI {
     return button;
   }
   
+  private createBarHitArea(): Graphics {
+    const hit = new Graphics();
+    hit.eventMode = 'static';
+    hit.cursor = 'text';
+    hit.visible = false;
+    return hit;
+  }
+
+  /** Draws the hit rectangle over a bar whose top edge sits at `barTop`. */
+  private layoutBarHitArea(hit: Graphics, barTop: number): void {
+    hit.clear();
+    hit.rect(-this.barWidth / 2, barTop, this.barWidth, this.barHeight).fill({ color: 0xffffff, alpha: 0 });
+    hit.visible = true;
+  }
+
+  private openEditor(barCenterY: number, value: ResourceValue, onCommit: (next: ResourceValue) => void): void {
+    this.closeEditor?.();
+    const global = this.container.toGlobal({ x: 0, y: barCenterY });
+    this.closeEditor = openValueEditor({
+      anchorEl: this.viewport.options.events.domElement,
+      screenX: global.x,
+      screenY: global.y,
+      value,
+      onCommit: (next) => {
+        this.closeEditor = null;
+        onCommit(next);
+      },
+    });
+  }
+
   private drawButtonState(button: ControlButton, isHover: boolean): void {
     const { bg, iconType, iconColor } = button;
     
@@ -272,6 +313,10 @@ export class TokenControlsUI {
   public hide(): void {
     this.currentTokenId = null;
     this.container.visible = false;
+    this.closeEditor?.();
+    this.closeEditor = null;
+    this.hpHit.visible = false;
+    this.stressHit.visible = false;
     
     // Remove all click handlers
     this.hpMinusBtn.removeAllListeners('pointerdown');
@@ -310,6 +355,8 @@ export class TokenControlsUI {
     this.hpPlusBtn.removeAllListeners('pointerdown');
     this.stressMinusBtn.removeAllListeners('pointerdown');
     this.stressPlusBtn.removeAllListeners('pointerdown');
+    this.hpHit.removeAllListeners('pointerdown');
+    this.stressHit.removeAllListeners('pointerdown');
     
     // Use design tokens (this.barWidth / this.barHeight) — not hardcoded values
     const barWidth = this.barWidth;
@@ -337,7 +384,8 @@ export class TokenControlsUI {
       
       // Position beside the bar — gap matches the vertical inter-bar gap
       const buttonOffset = barWidth / 2 + buttonSize / 2 + gap;
-      const barCenterY = currentY + barHeight / 2; // Center of the bar
+      const barTop = currentY;
+      const barCenterY = barTop + barHeight / 2; // Center of the bar
       this.hpMinusBtn.position.set(-buttonOffset, barCenterY);
       this.hpPlusBtn.position.set(buttonOffset, barCenterY);
       
@@ -350,11 +398,19 @@ export class TokenControlsUI {
         e.stopPropagation();
         this.updateTokenHP(token, 1);
       });
+
+      const hp = token.hp;
+      this.layoutBarHitArea(this.hpHit, barTop);
+      this.hpHit.on('pointerdown', (e) => {
+        e.stopPropagation();
+        this.openEditor(barCenterY, hp, (next) => this.setTokenValue({ hp: { ...hp, ...next } }));
+      });
       
       currentY += barHeight + gap;
     } else {
       this.hpMinusBtn.visible = false;
       this.hpPlusBtn.visible = false;
+      this.hpHit.visible = false;
     }
     
     // Stress buttons — mirror TokenUIRenderer's hasStress logic
@@ -371,7 +427,8 @@ export class TokenControlsUI {
       
       // Position beside the bar — gap matches the vertical inter-bar gap
       const buttonOffset = barWidth / 2 + buttonSize / 2 + gap;
-      const barCenterY = currentY + barHeight / 2; // Center of the bar
+      const barTop = currentY;
+      const barCenterY = barTop + barHeight / 2; // Center of the bar
       this.stressMinusBtn.position.set(-buttonOffset, barCenterY);
       this.stressPlusBtn.position.set(buttonOffset, barCenterY);
       
@@ -384,9 +441,17 @@ export class TokenControlsUI {
         e.stopPropagation();
         this.updateTokenStress(token, 1);
       });
+
+      const stress = { current: token.stress, max: token.maxStress };
+      this.layoutBarHitArea(this.stressHit, barTop);
+      this.stressHit.on('pointerdown', (e) => {
+        e.stopPropagation();
+        this.openEditor(barCenterY, stress, (next) => this.setTokenValue({ stress: next.current, maxStress: next.max }));
+      });
     } else {
       this.stressMinusBtn.visible = false;
       this.stressPlusBtn.visible = false;
+      this.stressHit.visible = false;
     }
   }
   
@@ -397,14 +462,7 @@ export class TokenControlsUI {
     const maxHP = token.hp.max;
     const newHP = Math.max(0, Math.min(maxHP, currentHP + delta));
     
-    this.store.getState().updateToken(this.currentTokenId, { hp: { ...token.hp, current: newHP } });
-    
-    // Refresh buttons with updated token data
-    const updatedToken = this.store.getState().objects.tokens[this.currentTokenId] as Character;
-    if (updatedToken) {
-      this.updateButtons(updatedToken);
-      this.updateScale(); // Ensure scale is consistent
-    }
+    this.setTokenValue({ hp: { ...token.hp, current: newHP } });
   }
   
   private updateTokenStress(token: Character, delta: number): void {
@@ -414,13 +472,17 @@ export class TokenControlsUI {
     const maxStress = token.maxStress;
     const newStress = Math.max(0, Math.min(maxStress, currentStress + delta));
     
-    this.store.getState().updateToken(this.currentTokenId, { stress: newStress });
-    
-    // Refresh buttons with updated token data
-    const updatedToken = this.store.getState().objects.tokens[this.currentTokenId] as Character;
+    this.setTokenValue({ stress: newStress });
+  }
+
+  /** Writes the update to the store and re-lays out controls from the fresh token. */
+  private setTokenValue(updates: Parameters<ViewAtlasState['updateToken']>[1]): void {
+    if (!this.currentTokenId) return;
+    this.store.getState().updateToken(this.currentTokenId, updates);
+    const updatedToken = this.store.getState().objects.tokens[this.currentTokenId] as Character | undefined;
     if (updatedToken) {
       this.updateButtons(updatedToken);
-      this.updateScale(); // Ensure scale is consistent
+      this.updateScale();
     }
   }
   
@@ -494,6 +556,9 @@ export class TokenControlsUI {
     window.removeEventListener('atlas-token-rotation-started', this.onRotationStarted);
     window.removeEventListener('atlas-token-rotation-ended', this.onRotationEnded);
     
+    this.closeEditor?.();
+    this.closeEditor = null;
+
     // Remove all listeners
     this.buttons.forEach(btn => {
       btn.removeAllListeners();

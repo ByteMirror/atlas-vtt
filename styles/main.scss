@@ -78,6 +78,20 @@
     border-radius: $radius-l;
   }
 
+  // Inline HP/stress editor placed on document.body over the Pixi bar
+  &.atlas-token-value-editor {
+    @include atlas-elevated-surface;
+    position: fixed;
+    transform: translate(-50%, -50%);
+    width: 72px;
+    padding: $spacing-xs;
+    border-radius: $radius-l;
+    text-align: center;
+    font-size: var(--font-ui-small);
+    font-variant-numeric: tabular-nums;
+    z-index: var(--layer-popover, 1000);
+  }
+
   // Center the main toolbar independently of the undo/redo controls.
   .atlas-bottom-toolbar-row {
     position: fixed;

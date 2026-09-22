@@ -16,8 +16,8 @@ interface TagManagerProps {
   onCreateCollection: (collection: string) => void;
   onUpdateTag: (oldTag: string, newTag: string) => void;
   onUpdateCollection: (oldCollection: string, newCollection: string) => void | Promise<void>;
-  onDeleteTag: (tag: string) => void;
-  onDeleteCollection: (collection: string) => void | Promise<void>;
+  onDeleteTag: (tag: string) => Promise<void>;
+  onDeleteCollection: (collection: string) => Promise<void>;
 }
 
 const TagManager: React.FC<TagManagerProps> = ({
@@ -156,7 +156,7 @@ const TagManager: React.FC<TagManagerProps> = ({
   };
 
   const handleDelete = async (item: string): Promise<void> => {
-    if (await confirmDelete([item])) void deleteItem(item);
+    if (await confirmDelete([item])) await deleteItem(item);
   };
 
   const handleDeleteSelected = async (): Promise<void> => {

@@ -401,6 +401,7 @@ export class TokenControlsUI {
       const hp = token.hp;
       this.layoutBarHitArea(this.hpHit, barTop);
       this.hpHit.on('pointerdown', (e) => {
+        e.preventDefault(); // Keep the canvas's default focus from closing the editor.
         e.stopPropagation();
         this.openEditor(barCenterY, hp, (next) => this.setTokenValue({ hp: { ...hp, ...next } }));
       });
@@ -443,6 +444,7 @@ export class TokenControlsUI {
       const stress = { current: token.stress, max: token.maxStress };
       this.layoutBarHitArea(this.stressHit, barTop);
       this.stressHit.on('pointerdown', (e) => {
+        e.preventDefault();
         e.stopPropagation();
         this.openEditor(barCenterY, stress, (next) => this.setTokenValue({ stress: next.current, maxStress: next.max }));
       });

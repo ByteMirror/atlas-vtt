@@ -60,7 +60,10 @@ export function openValueEditor({ anchorEl, screenX, screenY, value, onCommit }:
   input.style.left = `${rect.left + screenX}px`;
   input.style.top = `${rect.top + screenY}px`;
 
+  let closed = false;
   const close = (): void => {
+    if (closed) return;
+    closed = true;
     input.remove();
   };
 

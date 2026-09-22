@@ -9,6 +9,7 @@ import { ConditionDotsRenderer } from './token-renderer/ConditionDotsRenderer';
 import { ConditionHoverPanel } from './token-renderer/ConditionHoverPanel';
 import type { ConditionDefinition } from '../types/collectionSettingsTypes';
 import type { TokenGestureEventDetail } from '../types/atlasWindowEvents';
+import { resourceBarFill } from './resourceBarFill';
 
 /**
  * Text is drawn at scale 0.333 and the viewport zooms to at most 5x, so a
@@ -397,7 +398,7 @@ export class TokenUIRenderer {
     
     // Quick change detection without JSON stringify
     const hpString = token.hp === undefined ? 'no-hp' : (typeof token.hp === 'object' ? `${token.hp.current}/${token.hp.max}` : String(token.hp));
-    const stressString = token.stress === undefined ? 'no-stress' : (typeof token.stress === 'object' ? `${token.stress.current}/${token.stress.max}` : String(token.stress));
+    const stressString = token.stress === undefined ? 'no-stress' : (typeof token.stress === 'object' ? `${token.stress.current}/${token.stress.max}` : `${token.stress}/${token.maxStress ?? 10}`);
     const showNameplate = playerSettings ? playerSettings.showTokenNameplates : tokenSettings.showNameplates || token.showNameplate === true;
     const conditionsKey = token.conditions?.join(',') ?? '';
     const updateKey = `${hpString}_${stressString}_${spriteWidth}_${gridPx}_${this.isHovered}_${this.isSelected}_${token.name || ''}_${showNameplate}_${token.statblockName || ''}_${tokenSettings.showHPBars}_${tokenSettings.showStressBars}_${conditionsKey}`;
@@ -500,13 +501,12 @@ export class TokenUIRenderer {
       const fillY = innerY + fillPadding;
       const fillableWidth = innerWidth - fillPadding * 2;
       const fillHeight = innerHeight - fillPadding * 2;
-      const fillRadius = fillHeight / 2;
       const fillWidth = fillableWidth * (hpPercentage / 100);
       
       if (fillWidth > 0) {
         const fillGradient = getBarGradient(baseColor);
         
-        this.hpFill.roundRect(fillX, fillY, fillWidth, fillHeight, fillRadius)
+        resourceBarFill(this.hpFill, fillX, fillY, fillWidth, fillHeight)
           .fill(fillGradient);
       }
       
@@ -567,13 +567,12 @@ export class TokenUIRenderer {
       const fillY = innerY + fillPadding;
       const fillableWidth = innerWidth - fillPadding * 2;
       const fillHeight = innerHeight - fillPadding * 2;
-      const fillRadius = fillHeight / 2;
       const fillWidth = fillableWidth * (stressPercentage / 100);
       
       if (fillWidth > 0) {
         const fillGradient = getBarGradient(baseStressColor);
         
-        this.stressFill.roundRect(fillX, fillY, fillWidth, fillHeight, fillRadius)
+        resourceBarFill(this.stressFill, fillX, fillY, fillWidth, fillHeight)
           .fill(fillGradient);
       }
       

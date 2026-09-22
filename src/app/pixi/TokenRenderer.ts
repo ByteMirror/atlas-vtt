@@ -1666,8 +1666,8 @@ export class TokenRenderer {
       return;
     }
 
-    // 2. Hit-test selection bounding box (drag from within the selected group)
-    if (e.button === 0) {
+    // 2. Hit-test selection bounding box (drag from within the selected group; shift is picking, not dragging)
+    if (e.button === 0 && !e.shiftKey) {
       const selectedIds = this.store.getState().selectedIds;
       if (selectedIds.length > 1 && this.isPointInSelectionBounds(worldPos.x, worldPos.y, selectedIds)) {
         markHandled(e);
@@ -1697,8 +1697,8 @@ export class TokenRenderer {
       }
     }
 
-    // 5. Nothing hit — clear selection for move tool on empty-space left-click
-    if (e.button === 0 && activeTool === 'move') {
+    // 5. Nothing hit — clear selection for move tool on empty-space left-click (shift keeps it)
+    if (e.button === 0 && activeTool === 'move' && !e.shiftKey) {
       const selectedIds = this.store.getState().selectedIds;
       if (selectedIds.length > 0) {
         this.store.getState().clearSelection();

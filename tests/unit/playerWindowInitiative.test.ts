@@ -11,7 +11,7 @@ import { createInMemoryApp } from '../mocks/inMemoryVault';
 vi.mock('../../src/app/atlas-view', () => ({ AtlasView: class {}, ATLAS_VIEW_TYPE: 'atlas-vtt' }));
 afterEach(() => { PlayerWindowService.getInstance()?.destroy(); vi.useRealTimers(); vi.restoreAllMocks(); });
 
-function scene(name = 'Hero'): StoreApi<ViewAtlasState> {
+function scene(name = 'Hero', initiativeTrackerOpen = true): StoreApi<ViewAtlasState> {
   const token: TokenEntity = { id: 'hero', kind: 'token', x: 0, y: 0, imagePath: '' };
   const entry: InitiativeEntry = {
     id: 'entry', tokenId: token.id, name, initiative: 18, initiativeModifier: 2,
@@ -20,18 +20,18 @@ function scene(name = 'Hero'): StoreApi<ViewAtlasState> {
   };
   return createStore(() => ({
     initiative: { ...createDefaultInitiativeState(), entries: [entry], isActive: true, round: 1 },
-    objects: { tokens: { hero: token } }, initiativeTrackerOpen: false,
+    objects: { tokens: { hero: token } }, initiativeTrackerOpen,
   })) as StoreApi<ViewAtlasState>;
 }
 
-function setup(): { service: PlayerWindowService; settings: SettingsService; store: StoreApi<ViewAtlasState>; doc: Document; source: PlayerFrameSource } {
+function setup(initiativeTrackerOpen = true): { service: PlayerWindowService; settings: SettingsService; store: StoreApi<ViewAtlasState>; doc: Document; source: PlayerFrameSource } {
   vi.useFakeTimers();
   vi.spyOn(window, 'requestAnimationFrame').mockReturnValue(1);
   vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => {});
   vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
   const { app } = createInMemoryApp();
   const settings = new SettingsService(app);
-  const store = scene();
+  const store = scene('Hero', initiativeTrackerOpen);
   const service = new PlayerWindowService(app, store, settings);
   const doc = document.implementation.createHTMLDocument();
   Object.defineProperty(doc, 'readyState', { value: 'complete' });
@@ -45,7 +45,7 @@ function setup(): { service: PlayerWindowService; settings: SettingsService; sto
 }
 
 describe('player initiative panel', () => {
-  it('toggles live independently of the DM panel and other widgets, and follows combat changes', () => {
+  it('gates player sharing independently of other widgets and follows combat changes', () => {
     const { settings, store, doc } = setup();
     const panel = (): Element | null => doc.querySelector('[aria-label="Initiative order"]');
     expect(panel()).not.toBeNull();
@@ -59,7 +59,26 @@ describe('player initiative panel', () => {
     store.setState({ initiative: { ...store.getState().initiative, round: 2 } });
     settings.setLocalPlayerViewSettings({ showInitiative: true });
     expect(panel()?.textContent).toContain('Round 2');
-    expect(store.getState().initiativeTrackerOpen).toBe(false);
+    expect(store.getState().initiativeTrackerOpen).toBe(true);
+  });
+
+  it('requires the DM tracker to be open and reacts immediately to visibility changes', () => {
+    const { settings, store, doc } = setup(false);
+    const panel = (): Element | null => doc.querySelector('[aria-label="Initiative order"]');
+    expect(settings.getLocalPlayerViewSettings().showInitiative).toBe(true);
+    expect(panel()).toBeNull();
+    store.setState({ initiativeTrackerOpen: true });
+    expect(panel()).not.toBeNull();
+    store.setState({ initiativeTrackerOpen: false });
+    expect(panel()).toBeNull();
+    settings.setLocalPlayerViewSettings({ showInitiative: false });
+    store.setState({ initiativeTrackerOpen: true });
+    expect(panel()).toBeNull();
+    store.setState({ initiativeTrackerOpen: false });
+    settings.setLocalPlayerViewSettings({ showInitiative: true });
+    expect(panel()).toBeNull();
+    store.setState({ initiativeTrackerOpen: true });
+    expect(panel()).not.toBeNull();
   });
 
   it('excludes hidden and deleted tokens, and respects the player name and HP settings', () => {
@@ -82,6 +101,11 @@ describe('player initiative panel', () => {
     service.holdCurrentFrame();
     store.setState({ initiative: { ...store.getState().initiative, round: 9 } });
     settings.setLocalPlayerViewSettings({ showTokenNameplates: true });
+    expect(doc.body.textContent).toContain('Round 1');
+    expect(doc.body.textContent).not.toContain('Round 9');
+    store.setState({ initiativeTrackerOpen: false });
+    expect(doc.querySelector('[aria-label="Initiative order"]')).toBeNull();
+    store.setState({ initiativeTrackerOpen: true });
     expect(doc.body.textContent).toContain('Round 1');
     expect(doc.body.textContent).not.toContain('Round 9');
     service.releaseHeldFrame(source);

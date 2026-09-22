@@ -5,6 +5,7 @@
 
 - Select several assets or folders in the asset manager like in a file manager: Ctrl/Cmd-click adds or removes single items, Shift-click selects everything between the last clicked item and the one you click.
 - Tab and Shift+Tab cycle through the asset manager tabs, like in the command palette.
+- Ctrl/Cmd+F in the asset manager jumps to the search box.
 - Ctrl/Cmd+A in the asset manager selects all items of one kind: every folder when a folder is selected, otherwise every asset in the current view.
 - Import tokens from Fantasy Statblocks in bulk. Preview creatures with local artwork, choose a collection, and create linked tokens while skipping existing imports and preserving original notes and images.
 - Hold Shift and click tokens to add them to or remove them from the selection, then drag any of them to move the whole group.

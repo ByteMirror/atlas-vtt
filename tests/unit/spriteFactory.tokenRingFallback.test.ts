@@ -21,3 +21,11 @@ describe('SpriteFactory token ring fallback', () => {
     expect(container.getChildByLabel('tokenRing')).toBe(ring);
   });
 });
+
+it('never adds a ring to a token whose ring is disabled', () => {
+  const factory = new SpriteFactory({ getOptions: () => ({ size: 70, type: 'square' }) } as never);
+  const container = Object.assign(new Container(), { tokenSize: 70, tokenData: { showRing: false } });
+  vi.spyOn(factory as never, 'getTokenRingTexture').mockReturnValue(Texture.EMPTY);
+  expect(factory.createTokenRing(container as never, '#ffffff', 70)).toBeNull();
+  expect(container.getChildByLabel('tokenRing')).toBeNull();
+});

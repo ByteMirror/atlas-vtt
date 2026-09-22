@@ -4,6 +4,7 @@ import './token-portrait.scss';
 
 interface TokenPortraitProps {
   src: string;
+  showRing?: boolean | undefined;
   alt: string;
   /** Tints the ring like the canvas does; untinted (white) when omitted. */
   ringColor?: string | undefined;
@@ -12,18 +13,18 @@ interface TokenPortraitProps {
 }
 
 /** Circular token art framed by the same ring image the canvas draws. */
-export function TokenPortrait({ src, alt, ringColor, className, style }: TokenPortraitProps): React.JSX.Element {
+export function TokenPortrait({ src, alt, ringColor, showRing = true, className, style }: TokenPortraitProps): React.JSX.Element {
   const ringStyle = {
     '--atlas-token-ring-image': `url("${tokenRingImageUrl}")`,
     ...(ringColor ? { '--atlas-token-ring-color': ringColor } : {}),
   } as React.CSSProperties;
 
   return (
-    <div className={`atlas-token-portrait ${className ?? ''}`} style={style}>
+    <div className={`atlas-token-portrait ${showRing ? '' : 'atlas-token-portrait--unframed'} ${className ?? ''}`} style={style}>
       <div className="atlas-token-image-wrapper">
         <img src={src} alt={alt} draggable={false} />
       </div>
-      <div className="atlas-token-ring" style={ringStyle} />
+      {showRing && <div className="atlas-token-ring" style={ringStyle} />}
     </div>
   );
 }

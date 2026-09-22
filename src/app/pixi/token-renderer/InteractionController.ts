@@ -190,6 +190,7 @@ export class InteractionController implements ITokenInteractionController {
             maxStress: token.maxStress,
             imagePath: token.imagePath,
             ringColor: token.ringColor,
+            showRing: token.showRing,
           },
           screenX: e.clientX,
           screenY: e.clientY,

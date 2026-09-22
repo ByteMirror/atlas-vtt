@@ -86,6 +86,7 @@ export interface ViewAtlasState {
     notePath?: string;
     snapped?: boolean;
     ringColor?: string;
+    showRing?: boolean;
   }) => string;
 
   addTokenWithId: (
@@ -613,6 +614,7 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
               ...(data.notePath && { notePath: data.notePath }),
               ...(data.snapped !== undefined && { snapped: data.snapped }),
               ...(data.ringColor && { ringColor: data.ringColor }),
+              ...(data.showRing !== undefined && { showRing: data.showRing }),
             };
             set((draft) => {
               draft.objects.tokens[id] = token;

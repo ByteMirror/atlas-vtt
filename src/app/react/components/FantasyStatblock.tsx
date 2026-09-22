@@ -117,12 +117,13 @@ export function FantasyStatblock({
   const portraitToken = tokens.find((token) => token.imagePath);
   const portraitPath = portraitToken?.imagePath;
   const portraitRingColor = portraitToken?.ringColor;
+  const portraitShowRing = portraitToken?.showRing;
   const portrait = useMemo((): StatblockPortrait | undefined => {
     if (!portraitPath) return undefined;
     const file = app.vault.getAbstractFileByPath(portraitPath);
     if (!(file instanceof TFile)) return undefined;
-    return { src: app.vault.getResourcePath(file), ringColor: portraitRingColor };
-  }, [app, portraitPath, portraitRingColor]);
+    return { src: app.vault.getResourcePath(file), ringColor: portraitRingColor, showRing: portraitShowRing };
+  }, [app, portraitPath, portraitRingColor, portraitShowRing]);
 
   // One block per token, matching the vitals sync. The token portrait replaces
   // the layout's own image block, so the artwork never shows twice.

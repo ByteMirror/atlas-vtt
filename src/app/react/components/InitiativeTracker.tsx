@@ -397,6 +397,7 @@ export const InitiativeTracker: React.FC = () => {
           previewState.hoveredEntry && {
             ...previewState.hoveredEntry,
             ringColor: tokens[previewState.hoveredEntry.tokenId]?.ringColor,
+            showRing: tokens[previewState.hoveredEntry.tokenId]?.showRing,
           }
         }
         isVisible={previewState.isVisible}

@@ -1,8 +1,7 @@
-import { StatblockImportModal } from './statblock-import/StatblockImportModal';
 import { Tutorial } from '../../../onboarding/Tutorial';
 import { useAtlasSettings } from '../../../keyboard/useMapHotkeys';
 import { SettingsService } from '../../../services/SettingsService';
-import React, { useState, useRef, useMemo, useEffect } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { AssetManagerProps, Tab } from './types';
 
@@ -43,9 +42,7 @@ const containerVariants = {
 };
 
 export default function AssetManager({ isOpen, onClose, initialTab }: AssetManagerProps): React.JSX.Element | null {
-  const [isStatblockImportOpen, setIsStatblockImportOpen] = useState(false);
-  const importerRef = useRef<StatblockImportModal | null>(null);
-  useEffect(() => () => importerRef.current?.close(), []);
+  const [tokenCreatorSource, setTokenCreatorSource] = useState<'images' | 'statblocks'>('images');
   const [search, setSearch] = useState('');
   const [activeTab, setActiveTab] = useState<Tab>('tokens');
   const [selectedCollection, setSelectedCollection] = useState<string | null>('default');
@@ -114,7 +111,7 @@ export default function AssetManager({ isOpen, onClose, initialTab }: AssetManag
     useContextMenus({ data, sel, crud, tags, statblock, onClose });
 
   useAssetManagerEffects({
-    isOpen, onClose, initialTab, isStatblockImportOpen,
+    isOpen, onClose, initialTab,
     modalRef, containerRef,
     setSearch, setActiveTab, setIsSidebarCollapsed, setSelectedCollection,
     data, sel, crud, tags, statblock,
@@ -129,7 +126,7 @@ export default function AssetManager({ isOpen, onClose, initialTab }: AssetManag
 
   if (!isOpen) return null;
 
-  const anyModalOpen = crud.isTokenCreatorOpen || crud.isMapCreatorOpen || isStatblockImportOpen;
+  const anyModalOpen = crud.isTokenCreatorOpen || crud.isMapCreatorOpen;
 
   return (
     <>
@@ -183,16 +180,8 @@ export default function AssetManager({ isOpen, onClose, initialTab }: AssetManag
               activeTab={activeTab}
               onTabChange={setActiveTab}
               assetCounts={data.assetCounts}
-              onCreateTokens={() => crud.setIsTokenCreatorOpen(true)}
-              onImportStatblocks={() => {
-                setIsStatblockImportOpen(true);
-                importerRef.current = new StatblockImportModal(data.app, selectedCollection ?? 'default', () => {
-                  setIsStatblockImportOpen(false);
-                  importerRef.current = null;
-                  void data.loadAssetsForActiveTab();
-                });
-                importerRef.current.open();
-              }}
+              onCreateTokens={() => { setTokenCreatorSource('images'); crud.setIsTokenCreatorOpen(true); }}
+              onImportStatblocks={() => { setTokenCreatorSource('statblocks'); crud.setIsTokenCreatorOpen(true); }}
               onCreateMap={crud.handleCreateMap}
               onCreateCollection={crud.handleCreateCollection}
               onCreateFolder={crud.handleCreateFolder}
@@ -255,6 +244,7 @@ export default function AssetManager({ isOpen, onClose, initialTab }: AssetManag
       )}
 
       <ModalLayer
+        tokenCreatorSource={tokenCreatorSource}
         isOpen={isOpen}
         activeTab={activeTab}
         selectedCollection={selectedCollection}

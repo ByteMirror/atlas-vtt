@@ -298,3 +298,11 @@
     }
   }
 }
+
+.atlas-token-card__ring {
+  position: absolute;
+  inset: 6%;
+  width: 88%;
+  height: 88%;
+  pointer-events: none;
+}

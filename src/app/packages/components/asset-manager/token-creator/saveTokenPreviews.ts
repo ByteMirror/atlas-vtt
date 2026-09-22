@@ -33,7 +33,7 @@ async function writeImage(app: App, name: string, blob: Blob): Promise<string> {
 
 /** Tokens are cropped as shown in the preview and re-optimized; maps use the background-optimized whole image. */
 async function resolveImageBlob(preview: TokenPreview, mode: CreatorMode, waitForOptimized: (id: string) => Promise<Blob | undefined>): Promise<Blob | undefined> {
-  if (mode === 'token' && preview.file) {
+  if (mode === 'token' && preview.file && preview.showRing !== false) {
     const cropped = await bakeTokenCrop(preview.file, preview.imageScale, preview.imagePosition);
     return (await optimizeImage(cropped, OPTIMIZATION_PRESETS.token)).blob;
   }
@@ -54,7 +54,7 @@ export async function saveTokenPreviews(options: SaveTokenPreviewsOptions): Prom
   if (editToken) {
     const preview = previews[0];
     if (!preview) return 0;
-    let imagePath = editToken.imageUrl;
+    let imagePath = editToken.imagePath ?? editToken.imageUrl;
     if (preview.file) {
       const blob = await resolveImageBlob(preview, mode, waitForOptimized);
       if (!blob) {
@@ -63,7 +63,7 @@ export async function saveTokenPreviews(options: SaveTokenPreviewsOptions): Prom
       }
       imagePath = await writeImage(app, preview.name, blob);
     }
-    await assetService.updateTokenAsset(editToken.id, { name: preview.name, imagePath, ...meta });
+    await assetService.updateTokenAsset(editToken.id, { name: preview.name, imagePath, showRing: preview.showRing !== false, ...meta });
     return 1;
   }
 
@@ -83,7 +83,8 @@ export async function saveTokenPreviews(options: SaveTokenPreviewsOptions): Prom
         ...meta,
       });
     } else {
-      await assetService.addTokenAsset({ name: preview.name, imagePath, ...meta });
+      await assetService.addTokenAsset({
+        showRing: preview.showRing !== false, name: preview.name, imagePath, ...meta });
     }
     saved += 1;
   }

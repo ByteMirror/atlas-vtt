@@ -12,8 +12,6 @@ import { AssetService } from './AssetService';
 import { SettingsService } from './SettingsService';
 import { MapThumbnailService } from './MapThumbnailService';
 import { WidgetSyncService } from './WidgetSyncService';
-import { GlobalAudioService } from './GlobalAudioService';
-import { getQueueService } from './QueueService';
 import { SoundEffectService } from './SoundEffectService';
 import { DiceToastObserver } from './DiceToastObserver';
 import type { ViewAtlasStore } from '../storeFactory';
@@ -68,7 +66,6 @@ export class ServiceManager {
     this.notePreviewUIManager = new NotePreviewUIManager(app, this.eventBus);
 
     this.assetService = AssetService.getInstance(app);
-    getQueueService().attachApp(app);
     this.mapThumbnailService = new MapThumbnailService(app);
 
     void Promise.all([this.settingsService.initialize(), this.assetService.initialize()]);
@@ -277,9 +274,6 @@ export class ServiceManager {
       this.widgetSyncService.unregisterStore(this.viewId);
     }
     
-    // Note: We don't cleanup global audio here since it persists across all maps
-    // Audio cleanup is handled at the plugin level when the plugin is unloaded
-    
     // Destroy services in reverse order of dependency
     this.diceToastObserver.destroy();
     this.soundEffectService.destroy();
@@ -300,12 +294,4 @@ export class ServiceManager {
     this.eventBus.removeAllListeners();
     
   }
-  
-  /**
-   * Cleanup all audio services
-   * Should be called when the plugin is unloaded
-   */
-  public static destroyAllAudio(): void {
-    GlobalAudioService.getInstance().destroy();
-  }
-} 
+}

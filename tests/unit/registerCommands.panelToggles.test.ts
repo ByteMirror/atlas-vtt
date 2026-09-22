@@ -6,12 +6,30 @@ vi.mock('../../src/app/dashboard-view', () => ({ DASHBOARD_VIEW_TYPE: 'dashboard
 vi.mock('../../src/app/services/PlayerWindowPresenter', () => ({ presentActiveTabInPlayerWindow: vi.fn() }));
 vi.mock('../../src/app/services/TokenStatblockLinkService', () => ({ TokenStatblockLinkService: {} }));
 vi.mock('../../src/app/plugin/cleanupMissingAssets', () => ({ cleanupMissingAssets: vi.fn() }));
-vi.mock('../../src/app/plugin/createMapFromImage', () => ({ promptNewMapFromImage: vi.fn() }));
-vi.mock('../../src/app/plugin/imageOptimizationFlows', () => ({ optimizeFolderImages: vi.fn(), optimizeVaultImages: vi.fn() }));
 
 import { registerCommands, type CommandDependencies } from '../../src/app/plugin/registerCommands';
 
 describe('Obsidian panel toggle commands', () => {
+  it('keeps supported commands available without retired features', () => {
+    const commands: Command[] = [];
+    const plugin = {
+      app: { workspace: {} },
+      addCommand: (command: Command) => commands.push(command),
+      addRibbonIcon: vi.fn(),
+    } as unknown as Plugin;
+
+    registerCommands(plugin, {} as CommandDependencies);
+
+    const ids = commands.map((command) => command.id);
+    expect(ids).toEqual(expect.arrayContaining([
+      'open-dashboard', 'open-scene-browser', 'import-statblock-tokens',
+    ]));
+    expect(ids).not.toContain('open-music-player');
+    expect(ids).not.toContain('optimize-vault-images');
+    expect(ids).not.toContain('optimize-folder-images');
+    expect(ids).not.toContain('new-map-from-image');
+  });
+
   it.each([
     ['toggle-initiative-tracker', 'initiativeTrackerOpen'],
     ['toggle-dice-log', 'isDiceLogOpen'],

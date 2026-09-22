@@ -8,11 +8,8 @@ import { PlayerView, PLAYER_VIEW_TYPE } from './src/app/player-view';
 import { DashboardView, DASHBOARD_VIEW_TYPE } from './src/app/dashboard-view';
 import { initializeAtlasStorage } from './src/app/atlasStorageInit';
 import { GlobalAssetManagerService } from './src/app/services/GlobalAssetManagerService';
-import { GlobalMusicPlayerService } from './src/app/services/GlobalMusicPlayerService';
 import { ImageDisplayService } from './src/app/services/ImageDisplayService';
-import { ImageOptimizationService } from './src/app/services/ImageOptimizationService';
 import { PlayerWindowService } from './src/app/services/PlayerWindowService';
-import { ServiceManager } from './src/app/services/ServiceManager';
 import { SettingsService } from './src/app/services/SettingsService';
 import type { WidgetSyncService } from './src/app/services/WidgetSyncService';
 import { AtlasSettingTab } from './src/app/settings/AtlasSettingTab';
@@ -40,7 +37,6 @@ export default class AtlasVTTPlugin extends Plugin {
 
   /** Opened by each view for its scene browser. */
   public globalAssetManager!: GlobalAssetManagerService;
-  private globalMusicPlayer!: GlobalMusicPlayerService;
   private imageDisplayService!: ImageDisplayService;
   private changelogService: ChangelogService | undefined;
 
@@ -72,7 +68,6 @@ export default class AtlasVTTPlugin extends Plugin {
     this.addCommand({ id: 'view-changelog', name: 'View changelog', callback: () => changelogService.open() });
 
     this.globalAssetManager = new GlobalAssetManagerService(this.app);
-    this.globalMusicPlayer = new GlobalMusicPlayerService(this.app);
     this.imageDisplayService = new ImageDisplayService(this.app);
 
     this.addSettingTab(new AtlasSettingTab(this.app, this, () => [
@@ -87,8 +82,6 @@ export default class AtlasVTTPlugin extends Plugin {
     registerCommands(this, {
       imageDisplay: this.imageDisplayService,
       assetManager: this.globalAssetManager,
-      musicPlayer: this.globalMusicPlayer,
-      imageOptimization: new ImageOptimizationService(this.app),
     });
 
     this.app.workspace.onLayoutReady(() => {
@@ -105,12 +98,6 @@ export default class AtlasVTTPlugin extends Plugin {
     this.widgetSyncService?.destroy();
     this.widgetSyncService = undefined;
 
-    this.globalMusicPlayer?.destroy();
-    try {
-      ServiceManager.destroyAllAudio();
-    } catch (error) {
-      console.error('[Atlas] Error cleaning up audio services:', error);
-    }
     this.imageDisplayService?.destroy();
     PlayerWindowService.getInstance()?.destroy(false);
     this.globalAssetManager?.close();

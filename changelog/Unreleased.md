@@ -51,7 +51,7 @@
 
 - Resize and rotation handles on selected tokens respond to clicks and drags again instead of deselecting the token.
 - Deleting or renaming a collection in Manage Tags & Collections now sticks: the collection and its assets are removed from the vault, and the dropdown no longer shows it after reopening the asset manager. Deleting asks for confirmation first, and the default collection cannot be deleted.
-- Right-clicking assets, folders, tags and music in the asset manager and music player opened from the dashboard shows the context menu again, including when no map is open or another map tab was closed.
+- Right-clicking assets, folders and tags in the asset manager opened from the dashboard shows the context menu again, including when no map is open or another map tab was closed.
 - Fantasy Statblocks import actions stay in a padded footer while the list scrolls, and the system/layout filter uses the Atlas dropdown.
 
 - The local player window no longer shows hidden tokens, the selection outline, marquee, token controls or resize and rotation handles from the DM view.
@@ -70,3 +70,9 @@
 - Grid settings dropdowns keep opening after other map tabs close, and size to their button unless longer options need more room.
 - The unit type picker in collection default settings uses the Atlas dropdown menu instead of the native system menu.
 - Ctrl/Cmd+hover statblock previews open when you press the key while already over a token, and tall statblocks scroll inside the card with a soft edge shadow instead of running off the screen.
+
+## Important changes
+
+- Removed the music and ambience player.
+- Removed the vault-wide and current-folder image optimization commands. Images are still optimized during import.
+- Removed the New map from image command. Create scenes through the scene browser.

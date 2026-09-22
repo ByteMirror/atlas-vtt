@@ -3,21 +3,15 @@ import { Notice, Plugin, TFile } from 'obsidian';
 import { AtlasView } from '../atlas-view';
 import { DASHBOARD_VIEW_TYPE } from '../dashboard-view';
 import type { GlobalAssetManagerService } from '../services/GlobalAssetManagerService';
-import type { GlobalMusicPlayerService } from '../services/GlobalMusicPlayerService';
 import type { ImageDisplayService } from '../services/ImageDisplayService';
-import type { ImageOptimizationService } from '../services/ImageOptimizationService';
 import { presentActiveTabInPlayerWindow } from '../services/PlayerWindowPresenter';
 import { hasBestiaryFrontmatter } from '../services/statblockNoteSource';
 import { TokenStatblockLinkService } from '../services/TokenStatblockLinkService';
 import { cleanupMissingAssets } from './cleanupMissingAssets';
-import { promptNewMapFromImage } from './createMapFromImage';
-import { optimizeFolderImages, optimizeVaultImages } from './imageOptimizationFlows';
 
 export interface CommandDependencies {
   imageDisplay: ImageDisplayService;
   assetManager: GlobalAssetManagerService;
-  musicPlayer: GlobalMusicPlayerService;
-  imageOptimization: ImageOptimizationService;
 }
 
 const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'svg', 'webp'];
@@ -87,21 +81,9 @@ function registerMapCommands(plugin: Plugin, deps: CommandDependencies): void {
   });
 
   plugin.addCommand({
-    id: 'new-map-from-image',
-    name: 'New map from image…',
-    callback: () => promptNewMapFromImage(app),
-  });
-
-  plugin.addCommand({
     id: 'open-scene-browser',
     name: 'Open scene browser',
     callback: () => deps.assetManager.open('scenes'),
-  });
-
-  plugin.addCommand({
-    id: 'open-music-player',
-    name: 'Open music and ambience player',
-    callback: () => deps.musicPlayer.open(),
   });
 
   plugin.addCommand({
@@ -144,27 +126,6 @@ function registerMapCommands(plugin: Plugin, deps: CommandDependencies): void {
   });
 }
 
-function registerImageOptimizationCommands(plugin: Plugin, service: ImageOptimizationService): void {
-  const { app } = plugin;
-
-  plugin.addCommand({
-    id: 'optimize-vault-images',
-    name: 'Optimize large images in vault',
-    callback: () => void optimizeVaultImages(app, service),
-  });
-
-  plugin.addCommand({
-    id: 'optimize-folder-images',
-    name: 'Optimize images in current folder',
-    checkCallback: (checking) => {
-      const file = app.workspace.getActiveFile();
-      if (!file) return false;
-      if (!checking) void optimizeFolderImages(app, service, file.parent?.path ?? '');
-      return true;
-    },
-  });
-}
-
 function registerStatblockCommands(plugin: Plugin): void {
   const { app } = plugin;
 
@@ -191,6 +152,5 @@ function registerStatblockCommands(plugin: Plugin): void {
 export function registerCommands(plugin: Plugin, deps: CommandDependencies): void {
   registerPlayerViewCommands(plugin, deps.imageDisplay);
   registerMapCommands(plugin, deps);
-  registerImageOptimizationCommands(plugin, deps.imageOptimization);
   registerStatblockCommands(plugin);
 }

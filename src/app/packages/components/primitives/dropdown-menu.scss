@@ -12,7 +12,6 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: background-color $transition-normal $transition-ease;
   border-radius: $radius-m;
 
   &.atlas-is-active {
@@ -22,6 +21,10 @@
 
   &:hover:not(.atlas-is-active) {
     background-color: var(--background-modifier-hover);
+  }
+
+  &:active:not(.atlas-is-active) {
+    background-color: var(--background-modifier-active-hover);
   }
 }
 
@@ -206,11 +209,14 @@
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
-  transition: background-color $transition-normal $transition-ease;
 
   &:hover {
     background: var(--background-modifier-hover);
     color: var(--text-normal);
+  }
+
+  &:active {
+    background: var(--background-modifier-active-hover);
   }
 
   &--active {

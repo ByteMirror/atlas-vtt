@@ -47,8 +47,7 @@
   color: var(--text-normal);
   cursor: pointer;
   outline: none;
-  transition: background-color $transition-fast $transition-ease,
-              box-shadow $transition-fast $transition-ease,
+  transition: box-shadow $transition-fast $transition-ease,
               transform $transition-press $transition-ease-out;
 
   &:hover {
@@ -82,7 +81,6 @@
     height: $icon-s;
     color: var(--text-muted);
     flex-shrink: 0;
-    transition: color $transition-fast $transition-ease;
   }
 
   .atlas-folder-name {

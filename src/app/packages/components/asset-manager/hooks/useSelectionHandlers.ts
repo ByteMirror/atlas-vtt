@@ -2,7 +2,7 @@ import type * as React from 'react';
 import { useState, useEffect, useRef } from 'react';
 import type { Folder, Tab, SortOption, SortOrder, SelectionEvent } from '../types';
 import { NavigationHistory } from '../NavigationHistory';
-import { applyClickSelection } from '../utils/clickSelection';
+import { applyClickSelection, resolveSelectAll } from '../utils/clickSelection';
 
 /** IDs currently rendered, in display order, so Shift-click can span them. */
 export interface VisibleIds {
@@ -176,21 +176,14 @@ export function useSelectionHandlers(
     const handler = (event: KeyboardEvent): void => {
       if ((event.metaKey || event.ctrlKey) && event.key === 'a') {
         event.preventDefault();
-        const allA = visibleIds.current.assets;
-        const allF = visibleIds.current.folders;
-        const total = selectedAssetIds.length + selectedFolderIds.length;
-        if (total === allA.length + allF.length) {
-          setSelectedAssetIds([]);
-          setSelectedFolderIds([]);
-        } else {
-          setSelectedAssetIds(allA);
-          setSelectedFolderIds(allF);
-        }
+        const next = resolveSelectAll({ visible: visibleIds.current, selectedAssetIds, selectedFolderIds });
+        setSelectedAssetIds(next.assets);
+        setSelectedFolderIds(next.folders);
       }
     };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
-  }, [isOpen, visibleIds, selectedAssetIds.length, selectedFolderIds.length]);
+  }, [isOpen, visibleIds, selectedAssetIds, selectedFolderIds]);
 
   return {
     selectedAssetIds, selectedFolderIds, selectedFolderId, selectedTagIds,

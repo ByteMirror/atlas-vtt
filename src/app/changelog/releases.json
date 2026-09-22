@@ -1,6 +1,12 @@
 {
-  "version": "0.2.0",
+  "version": "0.2.1",
   "releases": [
+    {
+      "version": "0.2.1",
+      "date": "2026-09-22",
+      "title": "Maintenance release",
+      "markdown": "## Fixed\n\n- Obsidian's community directory can review the plugin source again. The lint configuration no longer aborts on `package.json`. The plugin itself is unchanged from 0.2.0."
+    },
     {
       "version": "0.2.0",
       "date": "2026-09-22",

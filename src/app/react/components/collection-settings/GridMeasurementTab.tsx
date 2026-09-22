@@ -7,6 +7,7 @@ import React from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { Button } from '../../../packages/components/primitives/button';
 import { LabelTooltip } from '../../../packages/components/primitives/tooltip';
+import { ObsidianMenuDropdown } from '../ObsidianMenuDropdown';
 import type {
   CollectionGridDefaults,
   GridUnitType,
@@ -18,12 +19,12 @@ interface GridMeasurementTabProps {
   onChange: (gridDefaults: CollectionGridDefaults) => void;
 }
 
-const UNIT_OPTIONS: { value: GridUnitType; label: string }[] = [
-  { value: 'feet', label: 'Feet' },
-  { value: 'meters', label: 'Meters' },
-  { value: 'units', label: 'Units' },
-  { value: 'custom', label: 'Custom' },
-];
+const UNIT_OPTIONS: Record<GridUnitType, string> = {
+  feet: 'Feet',
+  meters: 'Meters',
+  units: 'Units',
+  custom: 'Custom',
+};
 
 export function GridMeasurementTab({
   gridDefaults,
@@ -59,17 +60,12 @@ export function GridMeasurementTab({
       {/* Unit type */}
       <div className="atlas-csm-field">
         <label className="atlas-csm-label">Unit Type</label>
-        <select
-          className="atlas-csm-select"
+        <ObsidianMenuDropdown
+          className="atlas-setting-dropdown atlas-csm-dropdown"
           value={gridDefaults.unitType}
-          onChange={(e) => updateField('unitType', e.target.value as GridUnitType)}
-        >
-          {UNIT_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
+          options={UNIT_OPTIONS}
+          onChange={(value) => updateField('unitType', value as GridUnitType)}
+        />
       </div>
 
       {/* Distance per square */}

@@ -34,3 +34,4 @@
 - Creating a token from a statblock image no longer mistakes the source artwork for an existing token.
 - Opening a settings dropdown closes the previous one, including when switching with the keyboard or between map views.
 - Grid settings dropdowns keep opening after other map tabs close, and size to their button unless longer options need more room.
+- The unit type picker in collection default settings uses the Atlas dropdown menu instead of the native system menu.

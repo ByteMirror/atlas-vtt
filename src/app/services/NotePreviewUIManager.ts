@@ -934,6 +934,13 @@ export class NotePreviewUIManager {
   private activePreviews: Map<string, IPreviewWindow> = new Map();
   private isModifierKeyDown = false;
   private lastHoveredPinId: string | null = null;
+  /** Element under the pointer, kept until it leaves; replayed on each CMD/Ctrl press. */
+  private currentHover: {
+    pin: PreviewAnchor;
+    screenX: number;
+    screenY: number;
+    sourceLeaf: WorkspaceLeaf | null;
+  } | null = null;
   private boundHideAllUnpinnedPreviewsOnBlur!: () => void;
   private boundHandleKeyDown!: (e: KeyboardEvent) => void;
   private boundHandleKeyUp!: (e: KeyboardEvent) => void;
@@ -967,20 +974,20 @@ export class NotePreviewUIManager {
         modifierKeyDown = data.pixiEvent.metaKey || data.pixiEvent.ctrlKey;
       }
       
-      // Only process hover preview if modifier key is down
-      if (!modifierKeyDown) {
-        return;
+      // Hover events only fire when the hovered element changes, so remember
+      // the hover: every later modifier press replays it.
+      this.currentHover = { pin: data.pin, screenX: data.screenX, screenY: data.screenY, sourceLeaf: data.sourceLeaf ?? null };
+      if (modifierKeyDown) {
+        this.showPreviewFor(this.currentHover);
       }
-      
-      runInBackground(
-        this.showOrCreatePreview(data.pin, data.screenX, data.screenY, data.sourceLeaf ?? null),
-        'Showing note preview',
-      );
     });
 
     this.eventBus.on('pin-hide-preview', (data: { pin: PreviewAnchor }) => {
       if (this.lastHoveredPinId === data.pin.id) {
           this.lastHoveredPinId = null; // Clear last hovered if mouse moves off it
+      }
+      if (this.currentHover?.pin.id === data.pin.id) {
+        this.currentHover = null;
       }
       // Only hide if not pinned and modifier is not down.
       // If modifier is still down, a new 'pin-hover-preview' will trigger for the new element.
@@ -1017,9 +1024,20 @@ export class NotePreviewUIManager {
     });
   }
 
+  private showPreviewFor(hover: NonNullable<typeof this.currentHover>): void {
+    runInBackground(
+      this.showOrCreatePreview(hover.pin, hover.screenX, hover.screenY, hover.sourceLeaf),
+      'Showing note preview',
+    );
+  }
+
   private handleKeyDown(e: KeyboardEvent): void {
     if (e.metaKey || e.ctrlKey) {
+      const justPressed = !this.isModifierKeyDown;
       this.isModifierKeyDown = true;
+      if (justPressed && this.currentHover) {
+        this.showPreviewFor(this.currentHover);
+      }
     } else if (e.key === 'Escape') {
         this.hideAllUnpinnedPreviews(); // Or all previews including pinned ones
     }

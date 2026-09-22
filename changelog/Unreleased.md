@@ -39,3 +39,4 @@
 - Opening a settings dropdown closes the previous one, including when switching with the keyboard or between map views.
 - Grid settings dropdowns keep opening after other map tabs close, and size to their button unless longer options need more room.
 - The unit type picker in collection default settings uses the Atlas dropdown menu instead of the native system menu.
+- Ctrl/Cmd+hover statblock previews open when you press the key while already over a token, and tall statblocks scroll inside the card with a soft edge shadow instead of running off the screen.

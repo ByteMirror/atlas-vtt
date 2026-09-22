@@ -12,7 +12,7 @@ export async function statblockPreviewImages(app: App, rows: readonly StatblockI
     const data = await app.vault.readBinary(file);
     const extension = file.extension.toLowerCase();
     const type = `image/${extension === 'jpg' ? 'jpeg' : extension === 'svg' ? 'svg+xml' : extension}`;
-    images.push({ file: new File([data], file.name, { type }), name: row.name, statblockPath: row.path });
+    images.push({ file: new File([data], file.name, { type }), name: row.name, statblockPath: row.path, ...(row.size !== undefined && { size: row.size }) });
   }
   return signal.aborted ? [] : images;
 }

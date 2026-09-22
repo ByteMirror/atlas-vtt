@@ -56,7 +56,7 @@ async function seedSourceVault(): Promise<{ vault: InMemoryApp; assets: AssetSer
   }
   await assets.createTag('source', 'Dragon');
   await assets.updateCollectionSettings('source', { conditions: [{ id: 'c1', name: 'Poisoned', color: '#0f0' }] });
-  await assets.addTokenAsset({ name: 'Goblin', imagePath: TOKEN_IMAGE, thumbnailPath: TOKEN_THUMB, statblockPath: NOTE_PATH, showRing: false, collection: 'source', tags: ['dragon'] });
+  await assets.addTokenAsset({ name: 'Goblin', imagePath: TOKEN_IMAGE, thumbnailPath: TOKEN_THUMB, statblockPath: NOTE_PATH, showRing: false, size: 1.5, collection: 'source', tags: ['dragon'] });
   await assets.addAsset({ type: 'scene', name: 'Cave', collection: 'source', tags: [], data: { mapPath: MAP_PATH } });
   await assets.addAsset({ type: 'encounter', name: 'Ambush', collection: 'source', tags: [], tokens: [{ id: 'g', name: 'Goblin', imagePath: TOKEN_IMAGE, statblockPath: NOTE_PATH }] });
   return { vault, assets };
@@ -102,7 +102,7 @@ describe('collection bundle', () => {
 
     const statblocks = 'atlas-vtt/collections/source-2/statblocks';
     const [token] = await assets.getAssets('source-2', 'token');
-    expect(token).toMatchObject({ showRing: false, tags: ['dragon'], imagePath: TOKEN_IMAGE, thumbnailPath: TOKEN_THUMB, statblockPath: `${statblocks}/Goblin.md` });
+    expect(token).toMatchObject({ showRing: false, size: 1.5, tags: ['dragon'], imagePath: TOKEN_IMAGE, thumbnailPath: TOKEN_THUMB, statblockPath: `${statblocks}/Goblin.md` });
 
     const newMapPath = 'atlas-vtt/collections/source-2/scenes/Cave.atlasmap';
     const [scene] = await assets.getAssets('source-2', 'scene');

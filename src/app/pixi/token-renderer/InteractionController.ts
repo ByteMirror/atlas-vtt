@@ -26,6 +26,7 @@ import type { ConditionDefinition } from '../../types/collectionSettingsTypes';
 import { WALLS_AND_LIGHTING_ENABLED } from '../../featureFlags';
 import { saveMapTokensAsEncounter } from '../../encounters/saveMapTokensAsEncounter';
 import { runInBackground } from '../../utils/backgroundTask';
+import { tokenSizeSubmenu } from '../../react/components/context-menu/tokenSizeMenu';
 
 interface DragState {
   isDragging: boolean;
@@ -497,6 +498,10 @@ export class InteractionController implements ITokenInteractionController {
       });
       entries.push({ type: 'separator' });
     }
+
+    // Size
+    entries.push(tokenSizeSubmenu(token.size, size => this.store.getState().updateToken(token.id, { size })));
+    entries.push({ type: 'separator' });
 
     // Hide/Show
     const currentToken = this.store.getState().objects.tokens[token.id];

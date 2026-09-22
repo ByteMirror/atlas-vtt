@@ -194,12 +194,9 @@ export class MeasureRenderer {
     if (e.button === 0) {
       e.stopPropagation();
       
-      const worldPos = this.viewport.toWorld(e.global);
-      // Snap to grid center
-      const snappedPos = this.gridSystem.snapToCellCenter(worldPos.x, worldPos.y);
-      
-      this.startPoint = snappedPos;
-      this.endPoint = snappedPos;
+      const point = this.measurePoint(e);
+      this.startPoint = point;
+      this.endPoint = point;
       this.isDrawing = true;
       
       this.updateMeasurement();
@@ -220,12 +217,15 @@ export class MeasureRenderer {
     
     e.stopPropagation();
     
-    const worldPos = this.viewport.toWorld(e.global);
-    // Snap to grid center
-    const snappedPos = this.gridSystem.snapToCellCenter(worldPos.x, worldPos.y);
-    
-    this.endPoint = snappedPos;
+    this.endPoint = this.measurePoint(e);
     this.updateMeasurement();
+  }
+
+  /** Pointer position in world space, snapped to the cell centre while the grid's snap setting is on. */
+  private measurePoint(e: FederatedPointerEvent): { x: number; y: number } {
+    const world = this.viewport.toWorld(e.global);
+    const snapToGrid = this.store.getState().grid?.snapToGrid ?? true;
+    return snapToGrid ? this.gridSystem.snapToCellCenter(world.x, world.y) : { x: world.x, y: world.y };
   }
   
   private handlePointerUp(e: FederatedPointerEvent): void {

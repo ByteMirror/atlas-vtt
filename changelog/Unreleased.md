@@ -1,5 +1,6 @@
 ## New
 
+- Click a selected token's HP or stress bar to type a value directly: `15` sets the current value, `15/40` sets current and maximum, `+5` or `-3` adjusts it. Enter applies, Escape cancels.
 - Choose whether to share the DM’s initiative tracker in the local player view. The read-only player panel appears only while the DM tracker is open and player sharing is enabled, independently of other widgets. Turn order and rounds update live; hidden tokens stay private.
 
 - Select several assets or folders in the asset manager like in a file manager: Ctrl/Cmd-click adds or removes single items, Shift-click selects everything between the last clicked item and the one you click.

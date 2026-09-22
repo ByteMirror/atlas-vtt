@@ -15,13 +15,14 @@ export interface StatblockImportCandidate {
 }
 
 /** YAML interprets unquoted [[links]] as nested arrays. */
-function imageReference(value: unknown): string | undefined {
+export function imageReference(value: unknown): string | undefined {
   if (typeof value === 'string') return value.trim() || undefined;
   if (Array.isArray(value)) return value.flat(Infinity).find((item: unknown): item is string => typeof item === 'string' && Boolean(item.trim()))?.trim();
   return undefined;
 }
 
-function localImage(app: App, reference: string, sourcePath: string): TFile | null {
+/** The vault image a frontmatter reference (wikilink or path) points at, resolved relative to `sourcePath`. */
+export function localImage(app: App, reference: string, sourcePath: string): TFile | null {
   const path = reference.replace(/^!?\[\[|\]\]$/g, '').split('|')[0]?.split('#')[0]?.trim();
   if (!path) return null;
   const resolved = app.metadataCache.getFirstLinkpathDest(path, sourcePath) ?? app.vault.getAbstractFileByPath(normalizePath(path));

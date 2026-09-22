@@ -15,6 +15,18 @@ export interface InMemoryApp {
 
 const ALREADY_EXISTS = 'File already exists.';
 
+/** Minimal `key: value` frontmatter, enough for the statblock fields the services read. */
+export function parseFrontmatter(content: string): Record<string, unknown> | undefined {
+  const match = /^---\n([\s\S]*?)\n---/.exec(content);
+  if (!match) return undefined;
+  const frontmatter: Record<string, unknown> = {};
+  for (const line of (match[1] ?? '').split('\n')) {
+    const colon = line.indexOf(':');
+    if (colon > 0) frontmatter[line.slice(0, colon).trim()] = line.slice(colon + 1).trim().replace(/^"|"$/g, '');
+  }
+  return frontmatter;
+}
+
 const parentOf = (path: string): string => path.slice(0, path.lastIndexOf('/'));
 
 /** Obsidian does not index dot-folders, so they are only reachable through the adapter. */
@@ -93,12 +105,31 @@ export function createInMemoryApp(seed: InMemoryVaultSeed = {}): InMemoryApp {
       files.delete(file.path);
       folders.delete(file.path);
     }),
+    processFrontMatter: vi.fn(async (file: TFile, fn: (frontmatter: Record<string, unknown>) => void) => {
+      const content = files.get(file.path) ?? '';
+      const frontmatter = parseFrontmatter(content) ?? {};
+      fn(frontmatter);
+      const body = content.replace(/^---\n[\s\S]*?\n---\n?/, '');
+      const yaml = Object.entries(frontmatter).map(([key, value]) => `${key}: ${String(value)}`).join('\n');
+      files.set(file.path, `---\n${yaml}\n---\n${body}`);
+    }),
+  };
+
+  app.workspace = {
+    getLeavesOfType: vi.fn(() => []),
+    on: vi.fn(() => ({})),
+    offref: vi.fn(),
+    trigger: vi.fn(),
   };
 
   app.metadataCache = {
     on: vi.fn(() => ({})),
     offref: vi.fn(),
     getFileCache: vi.fn(() => null),
+    getFirstLinkpathDest: vi.fn((linkpath: string): TFile | null => {
+      const path = [...files.keys()].find((candidate) => candidate === linkpath || candidate.endsWith(`/${linkpath}`));
+      return path ? new TFile(path) : null;
+    }),
   };
 
   return { app, files, folders };

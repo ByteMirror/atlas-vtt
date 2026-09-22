@@ -1,15 +1,4 @@
-import type { Asset, AssetMetadata, CollectionMetadata, EncounterTokenRef } from './AssetService';
-
-/** metadata.json inside an exported collection zip. */
-export interface CollectionExport {
-  collection: CollectionMetadata;
-  assets: Asset[];
-  version: number;
-  exportDate: number;
-  /** Absent in exports written before collections had a uid/version. */
-  collectionUid?: string;
-  collectionVersion?: number;
-}
+import type { AssetMetadata, EncounterTokenRef } from './AssetService';
 
 /** Pre-collections metadata: a flat token index without `assets` or `collections`. */
 export interface LegacyAssetMetadata {
@@ -37,15 +26,6 @@ export function isAssetMetadata(value: unknown): value is AssetMetadata {
     && isRecord(value.assets)
     && isRecord(value.collections)
     && typeof value.version === 'number';
-}
-
-/** Trust boundary for an imported collection zip; checks containers, not every asset field. */
-export function isCollectionExport(value: unknown): value is CollectionExport {
-  return isRecord(value)
-    && isRecord(value.collection)
-    && typeof value.collection.name === 'string'
-    && Array.isArray(value.assets)
-    && value.assets.every((asset) => isRecord(asset) && typeof asset.id === 'string');
 }
 
 export function isLegacyAssetMetadata(value: unknown): value is LegacyAssetMetadata {

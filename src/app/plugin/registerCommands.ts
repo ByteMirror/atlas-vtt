@@ -1,3 +1,4 @@
+import { StatblockImportModal } from '../packages/components/asset-manager/statblock-import/StatblockImportModal';
 import { Notice, Plugin, TFile } from 'obsidian';
 import { AtlasView } from '../atlas-view';
 import { DASHBOARD_VIEW_TYPE } from '../dashboard-view';
@@ -166,6 +167,12 @@ function registerImageOptimizationCommands(plugin: Plugin, service: ImageOptimiz
 
 function registerStatblockCommands(plugin: Plugin): void {
   const { app } = plugin;
+
+  plugin.addCommand({
+    id: 'import-statblock-tokens',
+    name: 'Import tokens from Fantasy Statblocks',
+    callback: () => new StatblockImportModal(app).open(),
+  });
 
   plugin.addCommand({
     id: 'create-token-from-statblock',

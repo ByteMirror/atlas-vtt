@@ -11,7 +11,7 @@ export default defineConfig([
     rules: {
       // "Atlas" is the product name. `ignoreWords` rather than `brands`,
       // because `brands` replaces the rule's built-in list (Obsidian, GitHub, …).
-      "obsidianmd/ui/sentence-case": ["warn", { ignoreWords: ["Atlas"] }],
+      "obsidianmd/ui/sentence-case": ["warn", { ignoreWords: ["Atlas", "Fantasy", "Statblocks"] }],
       // Stricter than the scorecard: type errors are fixed, not silenced.
       "@typescript-eslint/ban-ts-comment": ["error", {
         "ts-ignore": true,

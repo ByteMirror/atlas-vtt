@@ -19,7 +19,7 @@ function setup() {
   app.metadataCache.getFirstLinkpathDest = (path: string) => files.has(path) ? new TFile(path) : null;
   Object.assign(window, { FantasyStatblocks: { isResolved: () => true, getBestiaryCreatures: () => [] } });
   const assetService = AssetService.getInstance(app);
-  const preview: TokenPreview = { id: 'goblin', name: 'Custom Goblin', statblockPath: note, tags: ['Enemy'], showRing: false, file: new File(['art'], 'goblin.webp'), previewUrl: 'blob:art', imageScale: 1, imagePosition: { x: 0, y: 0 }, isSelected: false, isOptimizing: false };
+  const preview: TokenPreview = { id: 'goblin', name: 'Custom Goblin', statblockPath: note, tags: ['Enemy'], showRing: false, size: 2, file: new File(['art'], 'goblin.webp'), previewUrl: 'blob:art', imageScale: 1, imagePosition: { x: 0, y: 0 }, isSelected: false, isOptimizing: false };
   const options = { app, assetService, mode: 'token' as const, previews: [preview], collection: 'default', tags: [], waitForOptimized: async () => blob, onSaved: vi.fn() };
   return { app, files, assetService, preview, options };
 }
@@ -28,7 +28,7 @@ it('saves queued statblock identity, subset tags and ring choice with an owned i
   const { files, assetService, options } = setup();
   expect(await saveTokenPreviews(options)).toBe(1);
   const [token] = await assetService.getTokenAssets();
-  expect(token).toMatchObject({ name: 'Custom Goblin', statblockPath: note, tags: ['Enemy'], showRing: false });
+  expect(token).toMatchObject({ name: 'Custom Goblin', statblockPath: note, tags: ['Enemy'], showRing: false, size: 2 });
   expect(token!.imagePath).not.toBe(image);
   expect(files.get(image)).toBe('original art');
   expect(files.get(note)).toBe('original note');

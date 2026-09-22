@@ -30,6 +30,8 @@ export interface TokenAsset extends BaseAsset {
   showRing?: boolean;
   type: 'token';
   imagePath: string;
+  /** Default footprint of spawned tokens as the size multiplier from `tokenSizing.ts`; missing means 1×1. */
+  size?: number;
   /** Small preview written by TokenThumbnailService; regenerated when missing. */
   thumbnailPath?: string;
   statblockPath?: string; // Optional link to statblock note

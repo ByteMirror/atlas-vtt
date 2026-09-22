@@ -20,6 +20,23 @@ export function tokenDiameterInCells(sizeInCells: number): number {
   return 2 * sizeInCells - 1;
 }
 
+/** Named footprints offered in menus, stored as the multiplier `tokenDiameterInCells` expects. */
+export const TOKEN_SIZE_OPTIONS: ReadonlyArray<{ label: string; size: number }> = [
+  { label: 'Medium (1×1)', size: 1 },
+  { label: 'Large (2×2)', size: 1.5 },
+  { label: 'Huge (3×3)', size: 2 },
+  { label: 'Gargantuan (4×4)', size: 2.5 },
+];
+
+const CREATURE_SIZE_MULTIPLIERS: Record<string, number> = { tiny: 1, small: 1, medium: 1, large: 1.5, huge: 2, gargantuan: 2.5 };
+
+/** Size multiplier for a creature size word from statblock data ("Large", "Huge or larger"); undefined when unknown. */
+export function tokenSizeFromCreatureSize(value: unknown): number | undefined {
+  if (typeof value !== 'string') return undefined;
+  const word = value.trim().toLowerCase().split(/\s+/)[0] ?? '';
+  return CREATURE_SIZE_MULTIPLIERS[word];
+}
+
 /** Token sprite diameter in pixels for a token covering `sizeInCells` cells. */
 export function computeTokenPixelSize(gridSize: number, sizeInCells: number): number {
   const strokeWidth = computeTokenStrokeWidth(gridSize);

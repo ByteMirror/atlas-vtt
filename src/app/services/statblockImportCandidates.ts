@@ -2,6 +2,7 @@ import { TFile, normalizePath, type App } from 'obsidian';
 import { getFantasyStatblocksApi, resolveCreatureFromFence, resolveLayout, type FantasyStatblocksCreature } from './FantasyStatblocksService';
 import { resolveStatblockNote } from './statblockNoteSource';
 import type { TokenAsset } from './AssetService';
+import { tokenSizeFromCreatureSize } from '../pixi/token-renderer/tokenSizing';
 
 export type StatblockImportStatus = 'ready' | 'imported' | 'missing-image' | 'remote-image' | 'conflict';
 export interface StatblockImportCandidate {
@@ -12,6 +13,8 @@ export interface StatblockImportCandidate {
   imagePath?: string;
   layoutName?: string;
   showRing?: boolean;
+  /** Default token footprint read from the creature's size, when it names one. */
+  size?: number;
 }
 
 /** YAML interprets unquoted [[links]] as nested arrays. */
@@ -63,5 +66,6 @@ export async function statblockImportCandidate(
   if (/^(?:[a-z][a-z0-9+.-]*:|\/\/)/i.test(image)) return { ...row, status: 'remote-image', detail: 'Save the image in your vault and link it from the statblock.' };
   const imageFile = localImage(app, image, path);
   if (!imageFile) return { ...row, status: 'missing-image', detail: 'The linked image is missing or its format is unsupported.' };
-  return { ...row, status: 'ready', detail: 'Ready to create a linked token.', imagePath: imageFile.path };
+  const size = tokenSizeFromCreatureSize(creature.size);
+  return { ...row, status: 'ready', detail: 'Ready to create a linked token.', imagePath: imageFile.path, ...(size !== undefined && { size }) };
 }

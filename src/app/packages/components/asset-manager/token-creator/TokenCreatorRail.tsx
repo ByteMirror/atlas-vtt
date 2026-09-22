@@ -1,4 +1,5 @@
 import { TokenRingToggle } from './TokenRingToggle';
+import { TokenSizeSelect } from './TokenSizeSelect';
 import React, { useId, useState } from 'react';
 import { Check, Minus, MoveHorizontal, Plus, Trash2, X } from 'lucide-react';
 import { Button } from '../../primitives/button';
@@ -35,6 +36,7 @@ interface TokenCreatorRailProps {
 export function TokenCreatorRail(props: TokenCreatorRailProps): React.JSX.Element {
   const { mode, isEditing, isDragging, previews, onFiles, collection, collections, onCollectionChange, availableTags, selectedTags, onToggleTag } = props;
   const [batchScale, setBatchScale] = useState(1);
+  const [batchSize, setBatchSize] = useState<number | undefined>(undefined);
   const zoomLabelId = useId();
 
   const count = previews.previews.length;
@@ -44,6 +46,11 @@ export function TokenCreatorRail(props: TokenCreatorRailProps): React.JSX.Elemen
     const next = clampZoom(scale);
     setBatchScale(next);
     previews.updateSelected({ imageScale: next });
+  };
+
+  const applyBatchSize = (size: number): void => {
+    setBatchSize(size);
+    previews.updateSelected({ size });
   };
 
   return (
@@ -134,6 +141,8 @@ export function TokenCreatorRail(props: TokenCreatorRailProps): React.JSX.Elemen
             <MoveHorizontal />
             <span>Reset crop</span>
           </Button>
+          <div className="atlas-token-creator__label-row"><span>Size</span></div>
+          <TokenSizeSelect className="atlas-setting-dropdown" value={batchSize} onChange={applyBatchSize} />
         </section>
       )}
       </>}

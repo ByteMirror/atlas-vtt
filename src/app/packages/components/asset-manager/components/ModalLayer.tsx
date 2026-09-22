@@ -82,6 +82,7 @@ export function ModalLayer({
             imagePath: (crud.editingToken as TokenAsset).imagePath,
             tags: crud.editingToken.tags || [],
             showRing: (crud.editingToken as TokenAsset).showRing ?? true,
+            size: (crud.editingToken as TokenAsset).size,
           } : null}
         />
       )}

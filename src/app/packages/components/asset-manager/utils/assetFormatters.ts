@@ -105,6 +105,7 @@ export function formatServiceAsset(
         imageUrl,
         imagePath: asset.imagePath,
         ...(asset.showRing !== undefined && { showRing: asset.showRing }),
+        ...(asset.size !== undefined && { size: asset.size }),
         ...(asset.statblockPath !== undefined && { statblockPath: asset.statblockPath }),
       };
     }

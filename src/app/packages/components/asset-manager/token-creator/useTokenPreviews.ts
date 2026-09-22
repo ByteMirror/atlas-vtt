@@ -45,6 +45,7 @@ function previewFromEdit(token: EditTokenInput): TokenPreview {
     id: token.id,
     tags: token.tags,
     showRing: token.showRing ?? true,
+    ...(token.size !== undefined && { size: token.size }),
     file: null,
     previewUrl: token.imageUrl,
     name: token.name,

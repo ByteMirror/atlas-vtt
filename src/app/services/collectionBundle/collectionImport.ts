@@ -121,7 +121,11 @@ class BundleWriter {
     const text = this.decoder.decode(content);
     try {
       const remapped: unknown = remapPaths(JSON.parse(text), this.rewrites);
-      return this.encoder.encode(JSON.stringify(remapped)).buffer as ArrayBuffer;
+      const bytes = this.encoder.encode(JSON.stringify(remapped));
+      // Copy into a fresh ArrayBuffer: TextEncoder's view may sit on a shared or offset buffer.
+      const buffer = new ArrayBuffer(bytes.byteLength);
+      new Uint8Array(buffer).set(bytes);
+      return buffer;
     } catch {
       return content;
     }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyClickSelection } from '../../src/app/packages/components/asset-manager/utils/clickSelection';
+import { applyClickSelection, resolveSelectAll } from '../../src/app/packages/components/asset-manager/utils/clickSelection';
 
 const orderedIds = ['a', 'b', 'c', 'd', 'e'];
 const click = (mods: Partial<MouseEvent> = {}): MouseEvent => ({ shiftKey: false, ctrlKey: false, metaKey: false, ...mods }) as MouseEvent;
@@ -31,5 +31,33 @@ describe('applyClickSelection', () => {
   it('shift click without a visible anchor falls back to a plain select', () => {
     expect(applyClickSelection({ selected: ['a'], orderedIds, id: 'c', anchorId: 'gone', event: click({ shiftKey: true }) }))
       .toEqual({ selected: ['c'], anchorId: 'c' });
+  });
+});
+
+describe('resolveSelectAll', () => {
+  const visible = { assets: ['t1', 't2'], folders: ['f1', 'f2'] };
+
+  it('selects all assets when nothing is selected', () => {
+    expect(resolveSelectAll({ visible, selectedAssetIds: [], selectedFolderIds: [] })).toEqual({ assets: ['t1', 't2'], folders: [] });
+  });
+
+  it('selects all assets when an asset is selected', () => {
+    expect(resolveSelectAll({ visible, selectedAssetIds: ['t2'], selectedFolderIds: [] })).toEqual({ assets: ['t1', 't2'], folders: [] });
+  });
+
+  it('selects all folders when a folder is selected', () => {
+    expect(resolveSelectAll({ visible, selectedAssetIds: [], selectedFolderIds: ['f1'] })).toEqual({ assets: [], folders: ['f1', 'f2'] });
+  });
+
+  it('falls back to folders when the view has no assets', () => {
+    expect(resolveSelectAll({ visible: { assets: [], folders: ['f1'] }, selectedAssetIds: [], selectedFolderIds: [] })).toEqual({ assets: [], folders: ['f1'] });
+  });
+
+  it('selects the visible assets when the selection holds other, filtered-out assets', () => {
+    expect(resolveSelectAll({ visible, selectedAssetIds: ['t9', 't8'], selectedFolderIds: [] })).toEqual({ assets: ['t1', 't2'], folders: [] });
+  });
+
+  it('clears the list when it is already fully selected', () => {
+    expect(resolveSelectAll({ visible, selectedAssetIds: ['t1', 't2'], selectedFolderIds: [] })).toEqual({ assets: [], folders: [] });
   });
 });

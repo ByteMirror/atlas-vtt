@@ -184,7 +184,7 @@ export function TokenPreviewCard({ preview, mode, index, onChange, onToggleSelec
 
   return (
     <div
-      className={cn('atlas-token-card', `atlas-token-card--${mode}`, preview.isSelected && 'atlas-selected')}
+      className={cn('atlas-token-card', `atlas-token-card--${mode}`, preview.isSelected && 'atlas-selected', !isCropEditable && 'atlas-token-card--unframed')}
       style={{ '--atlas-enter-index': Math.min(index, ENTER_STAGGER_CAP) } as React.CSSProperties}
     >
       {isCropEditable ? <LabelTooltip label="Drag to reposition · Scroll to zoom · Double-click to reset">{art}</LabelTooltip> : art}
@@ -200,6 +200,7 @@ export function TokenPreviewCard({ preview, mode, index, onChange, onToggleSelec
         aria-labelledby={nameLabelId}
       />
 
+      {preview.tags && preview.tags.length > 0 && <div className="atlas-token-card__tags">{preview.tags.join(' · ')}</div>}
       {mode === 'token' && <TokenRingToggle label={`Atlas ring for ${preview.name}`} value={preview.showRing !== false} onChange={showRing => onChange({ showRing })} />}
       {isCropEditable && (
         <div className="atlas-token-card__zoom">

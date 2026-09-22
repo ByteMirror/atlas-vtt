@@ -17,7 +17,17 @@ export interface ImagePosition {
   y: number;
 }
 
+export interface PreviewImage {
+  file: File;
+  tags?: string[];
+  showRing?: boolean;
+  name?: string;
+  statblockPath?: string;
+}
+
 export interface TokenPreview {
+  tags?: string[];
+  statblockPath?: string;
   showRing?: boolean;
   id: string;
   /** Original upload; null when editing an existing asset without replacing its image. */
@@ -32,7 +42,7 @@ export interface TokenPreview {
   optimizationResult?: OptimizedImageResult;
 }
 
-export type TokenPreviewPatch = Partial<Pick<TokenPreview, 'name' | 'imageScale' | 'imagePosition' | 'showRing'>>;
+export type TokenPreviewPatch = Partial<Pick<TokenPreview, 'name' | 'imageScale' | 'imagePosition' | 'showRing' | 'tags'>>;
 
 export const ZOOM_MIN = 0.5;
 export const ZOOM_MAX = 3;

@@ -1,3 +1,4 @@
+import { withStatblockImportLock } from './statblockImportLock';
 import { TFile, normalizePath, type App } from 'obsidian';
 import { AssetService, type TokenAsset } from './AssetService';
 import { TokenThumbnailService } from './TokenThumbnailService';
@@ -25,7 +26,6 @@ export interface StatblockImportOptions {
 
 /** A user-triggered local import. No network requests or changes to source notes. */
 export class StatblockTokenImportService {
-  private static readonly importing = new WeakSet<App>();
   constructor(private readonly app: App, private readonly assets = AssetService.getInstance(app)) {}
 
   async scan(signal?: AbortSignal): Promise<StatblockImportCandidate[]> {
@@ -48,8 +48,10 @@ export class StatblockTokenImportService {
   }
 
   async import(paths: readonly string[], collection: string, options: StatblockImportOptions = {}): Promise<StatblockImportResult> {
-    if (StatblockTokenImportService.importing.has(this.app)) throw new Error('A statblock import is already running. Wait for it to finish.');
-    StatblockTokenImportService.importing.add(this.app);
+    return withStatblockImportLock(this.app, () => this.importPaths(paths, collection, options));
+  }
+
+  private async importPaths(paths: readonly string[], collection: string, options: StatblockImportOptions): Promise<StatblockImportResult> {
     const result: StatblockImportResult = { items: [], cancelled: false, uncertain: false };
     try {
       requireResolvedBestiary();
@@ -65,7 +67,6 @@ export class StatblockTokenImportService {
       result.cancelled = Boolean(options.signal?.aborted);
       return result;
     } finally {
-      StatblockTokenImportService.importing.delete(this.app);
       if (result.items.some(item => item.status === 'created')) this.app.workspace.trigger('atlas-vtt:refresh-assets');
     }
   }

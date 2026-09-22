@@ -1,65 +1,52 @@
 import React from 'react';
 import { afterEach, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { StatblockImportContent } from '../../src/app/packages/components/asset-manager/statblock-import/StatblockImportContent';
 import { createInMemoryApp } from '../mocks/inMemoryVault';
 
-const fake = vi.hoisted(() => ({ scan: vi.fn(), import: vi.fn(), getCollections: vi.fn() }));
-vi.mock('../../src/app/services/StatblockTokenImportService', () => ({
-  StatblockTokenImportService: class { scan = fake.scan; import = fake.import; },
-}));
-vi.mock('../../src/app/services/AssetService', () => ({ AssetService: { getInstance: () => ({ getCollections: fake.getCollections }) } }));
+const fake = vi.hoisted(() => ({ scan: vi.fn() }));
+vi.mock('../../src/app/services/StatblockTokenImportService', () => ({ StatblockTokenImportService: class { scan = fake.scan; } }));
 afterEach(cleanup);
-
-function setup() {
+function setup(queuedPaths: string[] = []) {
   fake.scan.mockResolvedValue([
     { name: 'Goblin', path: 'Bestiary/Goblin.md', imagePath: 'goblin.webp', status: 'ready', detail: 'Ready', layoutName: 'Basic 5e Layout' },
     { name: 'Ogre', path: 'Bestiary/Ogre.md', imagePath: 'ogre.webp', status: 'ready', detail: 'Ready', layoutName: 'Daggerheart Adversary' },
     { name: 'Dragon', path: 'Bestiary/Dragon.md', status: 'missing-image', detail: 'Image missing' },
     { name: 'Rat', path: 'Bestiary/Rat.md', status: 'imported', detail: 'Already imported' },
   ]);
-  fake.getCollections.mockResolvedValue([{ id: 'default', name: 'Default' }, { id: 'campaign', name: 'My campaign' }]);
-  fake.import.mockResolvedValue({ items: [{ path: 'Bestiary/Goblin.md', name: 'Goblin', status: 'created', message: 'Token created' }], cancelled: false, uncertain: false });
-  const { app } = createInMemoryApp();
+  const { app } = createInMemoryApp({ files: { 'goblin.webp': 'art', 'ogre.webp': 'art' } });
   app.vault.getResourcePath = (p: { path: string }) => p.path;
   const controller = new AbortController();
-  render(<StatblockImportContent app={app} initialCollection="default" onClose={vi.fn()} controller={controller} />);
-  return controller;
+  const onAdd = vi.fn();
+  render(<StatblockImportContent app={app} queuedPaths={queuedPaths} onAdd={onAdd} onClose={vi.fn()} controller={controller} />);
+  return { app, controller, onAdd };
 }
-
-it('selects only ready creatures, preserves selection during search and imports into the chosen collection', async () => {
-  setup();
-  const goblin = await screen.findByRole('checkbox', { name: 'Select Goblin' });
-  expect((goblin as HTMLInputElement).checked).toBe(true);
+it('selects only ready creatures and stages only the chosen layout without saving assets', async () => {
+  const { app, onAdd } = setup();
+  await screen.findByRole('button', { name: 'Add 2 to import' });
   expect((screen.getByRole('checkbox', { name: 'Select Dragon' }) as HTMLInputElement).disabled).toBe(true);
   expect((screen.getByRole('checkbox', { name: 'Select Rat' }) as HTMLInputElement).disabled).toBe(true);
-  fireEvent.click(screen.getByRole('checkbox', { name: 'Select Ogre' }));
-  fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'Goblin' } });
-  fireEvent.change(screen.getByLabelText('Collection'), { target: { value: 'campaign' } });
-  fireEvent.click(screen.getByRole('button', { name: 'Import 1 token' }));
-  await waitFor(() => expect(fake.import).toHaveBeenCalledWith(['Bestiary/Goblin.md'], 'campaign', expect.objectContaining({ signal: expect.any(AbortSignal) })));
-  expect(await screen.findByText('1 created · 0 skipped · 0 failed')).toBeTruthy();
-});
-
-it('offers cancellation during a running import and blocks a second submission', async () => {
-  const controller = setup();
-  await screen.findByRole('button', { name: 'Import 2 tokens' });
-  let finish!: (value: unknown) => void;
-  fake.import.mockImplementation(() => new Promise(resolve => { finish = resolve; }));
-  fireEvent.click(screen.getByRole('button', { name: 'Import 2 tokens' }));
-  fireEvent.click(await screen.findByRole('button', { name: 'Stop import' }));
-  expect(controller.signal.aborted).toBe(true);
-  finish({ items: [], cancelled: true, uncertain: false });
-  expect(await screen.findByText(/Import stopped/)).toBeTruthy();
-});
-
-it('imports only the chosen layout and carries per-token ring overrides', async () => {
-  setup();
-  await screen.findByRole('button', { name: 'Import 2 tokens' });
   fireEvent.change(screen.getByLabelText('System / layout'), { target: { value: 'Daggerheart Adversary' } });
   expect(screen.queryByRole('checkbox', { name: 'Select Goblin' })).toBeNull();
-  fireEvent.click(screen.getByRole('switch', { name: 'Atlas ring for all' }));
-  fireEvent.click(screen.getByRole('switch', { name: 'Atlas ring for Ogre' }));
-  fireEvent.click(screen.getByRole('button', { name: 'Import 1 token' }));
-  await waitFor(() => expect(fake.import).toHaveBeenLastCalledWith(['Bestiary/Ogre.md'], 'default', expect.objectContaining({ ringByPath: { 'Bestiary/Ogre.md': false } })));
+  fireEvent.click(screen.getByRole('button', { name: 'Add 1 to import' }));
+  await waitFor(() => expect(onAdd).toHaveBeenCalledWith([expect.objectContaining({ name: 'Ogre', statblockPath: 'Bestiary/Ogre.md', file: expect.any(File) })]));
+  expect(app.vault.adapter.write).not.toHaveBeenCalled();
+});
+it('keeps queued notes out of subsequent additions and preserves selection while searching', async () => {
+  const { onAdd } = setup(['Bestiary/Goblin.md']);
+  await screen.findByRole('button', { name: 'Add 1 to import' });
+  expect((screen.getByRole('checkbox', { name: 'Select Goblin' }) as HTMLInputElement).disabled).toBe(true);
+  fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'Goblin' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Add 1 to import' }));
+  await waitFor(() => expect(onAdd).toHaveBeenCalledWith([expect.objectContaining({ name: 'Ogre' })]));
+});
+it('does not stage partially read images after cancellation', async () => {
+  const { app, controller, onAdd } = setup();
+  await screen.findByRole('button', { name: 'Add 2 to import' });
+  let finish!: (buffer: ArrayBuffer) => void;
+  app.vault.readBinary = vi.fn(() => new Promise(resolve => { finish = resolve; }));
+  fireEvent.click(screen.getByRole('button', { name: 'Add 2 to import' }));
+  expect((screen.getByRole('button', { name: 'Loading images…' }) as HTMLButtonElement).disabled).toBe(true);
+  await act(async () => { controller.abort(); finish(new ArrayBuffer(1)); });
+  expect(onAdd).not.toHaveBeenCalled();
 });

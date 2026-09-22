@@ -22,6 +22,8 @@
 - Grids draw in black or white, whichever stands out against the map image, instead of cyan. Maps still on the old cyan default switch over automatically; pick Auto in the grid colour swatches to return to this after choosing a colour.
 
 ## Fixed
+
+- Clicking controls in Manage Tags or closing the dialog no longer closes the asset manager behind it.
 - Token import ring controls now share the editable preview state, and fast-loading images no longer get stuck optimizing.
 
 - Shift+2 centers the selected token at a readable on-screen size across map resolutions and window sizes, with room around it in small panes.

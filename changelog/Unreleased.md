@@ -26,6 +26,8 @@
 
 ## Fixed
 
+- Fantasy Statblocks import actions stay in a padded footer while the list scrolls, and the system/layout filter uses the Atlas dropdown.
+
 - Token ring toggles keep their full button height in the importer sidebar and use the consistent label “Toggle token ring”.
 
 - Clicking controls in Manage Tags or closing the dialog no longer closes the asset manager behind it.

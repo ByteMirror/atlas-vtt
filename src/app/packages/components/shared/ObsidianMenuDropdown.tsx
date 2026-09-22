@@ -5,6 +5,8 @@ import { Button } from '../primitives/button';
 import { useExclusiveDropdown } from '../primitives/useExclusiveDropdown';
 
 interface ObsidianMenuDropdownProps {
+  id?: string;
+  disabled?: boolean;
   value: string;
   options: readonly string[] | Record<string, string>;
   onChange: (value: string) => void;
@@ -20,6 +22,8 @@ function formatOptionLabel(label: string): string {
 }
 
 export const ObsidianMenuDropdown: React.FC<ObsidianMenuDropdownProps> = ({
+  id,
+  disabled,
   value,
   options,
   onChange,
@@ -48,6 +52,8 @@ export const ObsidianMenuDropdown: React.FC<ObsidianMenuDropdownProps> = ({
     <DropdownMenu.Root open={isOpen} onOpenChange={setIsOpen} modal={false}>
       <DropdownMenu.Trigger asChild>
         <Button
+          id={id}
+          disabled={disabled}
           variant="ghost"
           className={`text-icon-button atlas-obsidian-menu-dropdown ${className || ''}`}
         >

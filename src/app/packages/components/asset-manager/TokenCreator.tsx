@@ -208,9 +208,9 @@ export function TokenCreator({ isOpen, onClose, mode = 'token', selectedCollecti
           <CloseButton onClick={() => { if (!isSubmitting) onClose(); }} />
         </header>
 
-        {usingStatblocks ? <div className="atlas-token-creator__previews">
+        {usingStatblocks ? (
           <StatblockImportContent app={app} queuedPaths={queuedPaths} onAdd={images => { previews.addImages(images); setSource('images'); }} onClose={() => { importController.abort(); setImportController(new AbortController()); setSource('images'); }} controller={importController} onRunningChange={setImportRunning} />
-        </div> : <div className={cn('atlas-token-creator__previews', count === 0 && 'atlas-empty')} inert={isSubmitting}>
+        ) : <div className={cn('atlas-token-creator__previews', count === 0 && 'atlas-empty')} inert={isSubmitting}>
           {count === 0 ? (
             <div className="atlas-token-creator__empty">
               <div className="atlas-token-creator__empty-icon"><ImageIcon /></div>

@@ -36,6 +36,8 @@ export interface Asset {
 }
 
 export interface TokenAsset extends Asset {
+  /** False preserves the whole artwork without an Atlas frame. Defaults to true. */
+  showRing?: boolean;
   type: 'tokens';
   imageUrl: string;
   imagePath?: string;

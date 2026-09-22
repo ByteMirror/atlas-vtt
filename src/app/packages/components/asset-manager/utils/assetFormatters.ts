@@ -104,6 +104,7 @@ export function formatServiceAsset(
         thumbnailUrl: resourceUrl(app, asset.thumbnailPath) || imageUrl,
         imageUrl,
         imagePath: asset.imagePath,
+        ...(asset.showRing !== undefined && { showRing: asset.showRing }),
         ...(asset.statblockPath !== undefined && { statblockPath: asset.statblockPath }),
       };
     }

@@ -3,9 +3,11 @@ import type { OptimizedImageResult } from '../../../../utils/imageOptimizer';
 export type CreatorMode = 'token' | 'map';
 
 export interface EditTokenInput {
+  showRing?: boolean;
   id: string;
   name: string;
   imageUrl: string;
+  imagePath?: string | undefined;
   tags: string[];
 }
 
@@ -16,6 +18,7 @@ export interface ImagePosition {
 }
 
 export interface TokenPreview {
+  showRing?: boolean;
   id: string;
   /** Original upload; null when editing an existing asset without replacing its image. */
   file: File | null;
@@ -29,7 +32,7 @@ export interface TokenPreview {
   optimizationResult?: OptimizedImageResult;
 }
 
-export type TokenPreviewPatch = Partial<Pick<TokenPreview, 'name' | 'imageScale' | 'imagePosition'>>;
+export type TokenPreviewPatch = Partial<Pick<TokenPreview, 'name' | 'imageScale' | 'imagePosition' | 'showRing'>>;
 
 export const ZOOM_MIN = 0.5;
 export const ZOOM_MAX = 3;

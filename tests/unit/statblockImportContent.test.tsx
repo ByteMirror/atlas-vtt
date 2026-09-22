@@ -13,8 +13,8 @@ afterEach(cleanup);
 
 function setup() {
   fake.scan.mockResolvedValue([
-    { name: 'Goblin', path: 'Bestiary/Goblin.md', imagePath: 'goblin.webp', status: 'ready', detail: 'Ready' },
-    { name: 'Ogre', path: 'Bestiary/Ogre.md', imagePath: 'ogre.webp', status: 'ready', detail: 'Ready' },
+    { name: 'Goblin', path: 'Bestiary/Goblin.md', imagePath: 'goblin.webp', status: 'ready', detail: 'Ready', layoutName: 'Basic 5e Layout' },
+    { name: 'Ogre', path: 'Bestiary/Ogre.md', imagePath: 'ogre.webp', status: 'ready', detail: 'Ready', layoutName: 'Daggerheart Adversary' },
     { name: 'Dragon', path: 'Bestiary/Dragon.md', status: 'missing-image', detail: 'Image missing' },
     { name: 'Rat', path: 'Bestiary/Rat.md', status: 'imported', detail: 'Already imported' },
   ]);
@@ -51,4 +51,15 @@ it('offers cancellation during a running import and blocks a second submission',
   expect(controller.signal.aborted).toBe(true);
   finish({ items: [], cancelled: true, uncertain: false });
   expect(await screen.findByText(/Import stopped/)).toBeTruthy();
+});
+
+it('imports only the chosen layout and carries per-token ring overrides', async () => {
+  setup();
+  await screen.findByRole('button', { name: 'Import 2 tokens' });
+  fireEvent.change(screen.getByLabelText('System / layout'), { target: { value: 'Daggerheart Adversary' } });
+  expect(screen.queryByRole('checkbox', { name: 'Select Goblin' })).toBeNull();
+  fireEvent.click(screen.getByRole('switch', { name: 'Atlas ring for all' }));
+  fireEvent.click(screen.getByRole('switch', { name: 'Atlas ring for Ogre' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Import 1 token' }));
+  await waitFor(() => expect(fake.import).toHaveBeenLastCalledWith(['Bestiary/Ogre.md'], 'default', expect.objectContaining({ ringByPath: { 'Bestiary/Ogre.md': false } })));
 });

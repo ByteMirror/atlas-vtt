@@ -34,7 +34,7 @@ async function writeImage(app: App, name: string, blob: Blob): Promise<string> {
 
 /** Tokens are cropped as shown in the preview and re-optimized; maps use the background-optimized whole image. */
 async function resolveImageBlob(preview: TokenPreview, mode: CreatorMode, waitForOptimized: (id: string) => Promise<Blob | undefined>): Promise<Blob | undefined> {
-  if (mode === 'token' && preview.file) {
+  if (mode === 'token' && preview.file && preview.showRing !== false) {
     const cropped = await bakeTokenCrop(preview.file, preview.imageScale, preview.imagePosition);
     return (await optimizeImage(cropped, OPTIMIZATION_PRESETS.token)).blob;
   }
@@ -56,7 +56,7 @@ export async function saveTokenPreviews(options: SaveTokenPreviewsOptions): Prom
   if (editToken) {
     const preview = previews[0];
     if (!preview) return 0;
-    let imagePath = editToken.imageUrl;
+    let imagePath = editToken.imagePath ?? editToken.imageUrl;
     let thumbnailPath: string | undefined;
     if (preview.file) {
       const blob = await resolveImageBlob(preview, mode, waitForOptimized);
@@ -69,7 +69,7 @@ export async function saveTokenPreviews(options: SaveTokenPreviewsOptions): Prom
     }
     // A new image invalidates the old thumbnail even when the new one could not be rendered.
     await assetService.updateAsset(editToken.id, {
-      name: preview.name, imagePath, ...meta, ...(preview.file && { thumbnailPath }),
+      name: preview.name, imagePath, showRing: preview.showRing !== false, ...meta, ...(preview.file && { thumbnailPath }),
     });
     return 1;
   }
@@ -91,7 +91,9 @@ export async function saveTokenPreviews(options: SaveTokenPreviewsOptions): Prom
       });
     } else {
       const thumbnailPath = await thumbnails.tryCreateForImage(imagePath);
-      await assetService.addTokenAsset({ name: preview.name, imagePath, ...meta, ...(thumbnailPath && { thumbnailPath }) });
+      await assetService.addTokenAsset({
+        showRing: preview.showRing !== false, name: preview.name, imagePath, ...meta, ...(thumbnailPath && { thumbnailPath }),
+      });
     }
     saved += 1;
   }

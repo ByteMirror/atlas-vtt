@@ -191,6 +191,7 @@ export async function spawnTokenAsset(
     const tokenData = await buildTokenData(
       ctx.app, pos, vaultPath, asset.name, statblockPath
     );
+    if (freshAsset.showRing !== undefined) Object.assign(tokenData, { showRing: freshAsset.showRing });
     spawnedIds.push(ctx.addToken(tokenData));
   }
 

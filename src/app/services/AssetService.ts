@@ -28,6 +28,8 @@ export interface BaseAsset {
 }
 
 export interface TokenAsset extends BaseAsset {
+  /** False preserves the whole artwork without an Atlas frame. Defaults to true. */
+  showRing?: boolean;
   type: 'token';
   imagePath: string;
   /** Small preview written by TokenThumbnailService; regenerated when missing. */

@@ -1,3 +1,4 @@
+import { StatblockImportContent } from './statblock-import/StatblockImportContent';
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { ImageIcon, Loader2, Save, Upload } from 'lucide-react';
 import { Platform } from 'obsidian';
@@ -21,16 +22,22 @@ interface TokenCreatorProps {
   mode?: CreatorMode;
   selectedCollection?: string;
   editToken?: EditTokenInput | null;
+  initialSource?: 'images' | 'statblocks';
 }
 
 function hasFiles(e: React.DragEvent): boolean {
   return Array.from(e.dataTransfer.types).includes('Files');
 }
 
-export function TokenCreator({ isOpen, onClose, mode = 'token', selectedCollection = 'default', editToken }: TokenCreatorProps): React.JSX.Element | null {
+export function TokenCreator({ isOpen, onClose, mode = 'token', selectedCollection = 'default', editToken, initialSource = 'images' }: TokenCreatorProps): React.JSX.Element | null {
   const { app } = useAtlasUI();
   const { assetService, collections } = useAssetCatalog(app, isOpen);
   const previews = useTokenPreviews(mode);
+  const [source, setSource] = useState(initialSource);
+  const [importController, setImportController] = useState(() => new AbortController());
+  const [importRunning, setImportRunning] = useState(false);
+  useEffect(() => () => importController.abort(), [importController]);
+  const usingStatblocks = mode === 'token' && !editToken && source === 'statblocks';
 
   const [collection, setCollection] = useState(selectedCollection);
   const { tags: availableTags, createTag, isCreatingTag } = useAssetTags(assetService, isOpen, collection);
@@ -72,7 +79,7 @@ export function TokenCreator({ isOpen, onClose, mode = 'token', selectedCollecti
   const canSubmit = previews.previews.length > 0 && !isSubmitting && !isCreatingTag && assetService !== null;
 
   const handleSubmit = useCallback(async (): Promise<void> => {
-    if (!canSubmit || !assetService || !app) return;
+    if (usingStatblocks || !canSubmit || !assetService || !app) return;
     setIsSubmitting(true);
     try {
       const saved = await saveTokenPreviews({
@@ -94,7 +101,7 @@ export function TokenCreator({ isOpen, onClose, mode = 'token', selectedCollecti
     } finally {
       setIsSubmitting(false);
     }
-  }, [app, assetService, canSubmit, collection, editToken, mode, onClose, previews, selectedTags]);
+  }, [usingStatblocks, app, assetService, canSubmit, collection, editToken, mode, onClose, previews, selectedTags]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -132,7 +139,7 @@ export function TokenCreator({ isOpen, onClose, mode = 'token', selectedCollecti
     e.preventDefault();
     dragDepthRef.current = 0;
     setIsDragging(false);
-    handleFiles(Array.from(e.dataTransfer.files));
+    if (!usingStatblocks) handleFiles(Array.from(e.dataTransfer.files));
   };
 
   if (!isOpen) return null;
@@ -159,6 +166,9 @@ export function TokenCreator({ isOpen, onClose, mode = 'token', selectedCollecti
         onDrop={handleDrop}
       >
         <TokenCreatorRail
+          source={source}
+          onSourceChange={next => { if (next === 'statblocks') setImportController(new AbortController()); setSource(next); }}
+          sourceDisabled={importRunning || isSubmitting}
           mode={mode}
           isEditing={Boolean(editToken)}
           isDragging={isDragging}
@@ -177,12 +187,14 @@ export function TokenCreator({ isOpen, onClose, mode = 'token', selectedCollecti
         <header className="atlas-token-creator__header">
           <h2>
             <span id={titleId}>{title}</span>
-            {count > 0 && <span className="atlas-token-creator__subtitle">{count} {noun}</span>}
+            {!usingStatblocks && count > 0 && <span className="atlas-token-creator__subtitle">{count} {noun}</span>}
           </h2>
           <CloseButton onClick={onClose} />
         </header>
 
-        <div className={cn('atlas-token-creator__previews', count === 0 && 'atlas-empty')}>
+        {usingStatblocks ? <div className="atlas-token-creator__previews">
+          <StatblockImportContent app={app} initialCollection={selectedCollection} onClose={onClose} controller={importController} onRunningChange={setImportRunning} />
+        </div> : <div className={cn('atlas-token-creator__previews', count === 0 && 'atlas-empty')}>
           {count === 0 ? (
             <div className="atlas-token-creator__empty">
               <div className="atlas-token-creator__empty-icon"><ImageIcon /></div>
@@ -204,9 +216,9 @@ export function TokenCreator({ isOpen, onClose, mode = 'token', selectedCollecti
               ))}
             </div>
           )}
-        </div>
+        </div>}
 
-        <footer className="atlas-token-creator__footer">
+        {!usingStatblocks && <footer className="atlas-token-creator__footer">
           <span className="atlas-token-creator__status">
             {isOptimizing && <Loader2 className="atlas-spin" />}
             {count === 0 ? `No ${modeNoun(mode, 2)} to create` : isOptimizing ? 'Optimizing images…' : `${count} ${noun} ready`}
@@ -219,7 +231,7 @@ export function TokenCreator({ isOpen, onClose, mode = 'token', selectedCollecti
               {!isSubmitting && <kbd className="atlas-token-creator__kbd">{Platform.isMacOS ? '⌘' : 'Ctrl'}↵</kbd>}
             </Button>
           </div>
-        </footer>
+        </footer>}
 
         {isDragging && (
           <div className="atlas-token-creator__drop-overlay">

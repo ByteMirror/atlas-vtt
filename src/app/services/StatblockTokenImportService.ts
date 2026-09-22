@@ -19,6 +19,7 @@ export interface StatblockImportResult {
 }
 export interface StatblockImportOptions {
   signal?: AbortSignal;
+  ringByPath?: Readonly<Record<string, boolean>>;
   onProgress?: (completed: number, total: number) => void;
 }
 
@@ -56,7 +57,7 @@ export class StatblockTokenImportService {
       const uniquePaths = [...new Set(paths.map(path => normalizePath(path)))];
       for (const path of uniquePaths) {
         if (options.signal?.aborted) break;
-        const item = await this.importNote(path, collection);
+        const item = await this.importNote(path, collection, options.ringByPath?.[path] ?? false);
         result.items.push(item);
         options.onProgress?.(result.items.length, uniquePaths.length);
         if (item.uncertain) { result.uncertain = true; break; }
@@ -69,7 +70,7 @@ export class StatblockTokenImportService {
     }
   }
 
-  private async importNote(path: string, collection: string): Promise<StatblockImportItem> {
+  private async importNote(path: string, collection: string, showRing: boolean): Promise<StatblockImportItem> {
     let name = path.split('/').pop()?.replace(/\.md$/, '') ?? path;
     let copied: TFile | undefined;
     let thumbnailPath: string | undefined;
@@ -88,7 +89,7 @@ export class StatblockTokenImportService {
       copied = await this.app.vault.createBinary(imagePath, await this.app.vault.readBinary(image));
       thumbnailPath = await TokenThumbnailService.getInstance(this.app, this.assets).tryCreateForImage(imagePath);
       const asset = await this.assets.addTokenAsset({
-        name, imagePath, statblockPath: path, tags: [], collection, ...(thumbnailPath && { thumbnailPath }),
+        name, imagePath, statblockPath: path, showRing, tags: [], collection, ...(thumbnailPath && { thumbnailPath }),
       });
       return { path, name, status: 'created', message: 'Token created.', asset };
     } catch (error) {

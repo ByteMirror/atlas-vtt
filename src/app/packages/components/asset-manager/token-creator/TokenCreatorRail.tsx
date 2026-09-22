@@ -1,3 +1,4 @@
+import { TokenRingToggle } from './TokenRingToggle';
 import React, { useId, useState } from 'react';
 import { Check, Minus, MoveHorizontal, Plus, Trash2, X } from 'lucide-react';
 import { Button } from '../../primitives/button';
@@ -12,6 +13,9 @@ import type { TokenPreviewsApi } from './useTokenPreviews';
 
 interface TokenCreatorRailProps {
   mode: CreatorMode;
+  source: 'images' | 'statblocks';
+  onSourceChange: (source: 'images' | 'statblocks') => void;
+  sourceDisabled: boolean;
   isEditing: boolean;
   isDragging: boolean;
   previews: TokenPreviewsApi;
@@ -43,6 +47,14 @@ export function TokenCreatorRail(props: TokenCreatorRailProps): React.JSX.Elemen
 
   return (
     <aside className="atlas-token-creator__rail">
+      {mode === 'token' && !isEditing && <section className="atlas-token-creator__section">
+        <div className="atlas-token-creator__section-title">Image source</div>
+        <Button variant={props.source === 'images' ? 'secondary' : 'outline'} disabled={props.sourceDisabled} onClick={() => props.onSourceChange('images')}>Upload images</Button>
+        <Button variant={props.source === 'statblocks' ? 'secondary' : 'outline'} disabled={props.sourceDisabled} onClick={() => props.onSourceChange('statblocks')}>Fantasy Statblocks</Button>
+      </section>}
+      {props.source === 'statblocks' && mode === 'token' && !isEditing ? <p>Import creatures from your vault. Filter by layout and choose how each token looks before importing.</p> : <>
+      {mode === 'token' && <TokenRingToggle label="Atlas ring for all" value={previews.defaultRing} onChange={previews.setAllRings} />}
+
       <section className="atlas-token-creator__section">
         <div className="atlas-token-creator__section-title">{isEditing ? 'Replace image' : 'Upload images'}</div>
         <UploadDropzone
@@ -122,6 +134,7 @@ export function TokenCreatorRail(props: TokenCreatorRailProps): React.JSX.Elemen
           </Button>
         </section>
       )}
+      </>}
     </aside>
   );
 }

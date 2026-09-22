@@ -22,6 +22,7 @@ import './statblock.scss';
 export interface StatblockPortrait {
   src: string;
   ringColor?: string | undefined;
+  showRing?: boolean | undefined;
 }
 
 export interface StatblockRendererProps {
@@ -243,7 +244,7 @@ export function StatblockRenderer({
       >
         <div className="atlas-statblock-body">
           {portrait && (
-            <TokenPortrait className="atlas-sb-portrait" src={portrait.src} alt="" ringColor={portrait.ringColor} />
+            <TokenPortrait className="atlas-sb-portrait" src={portrait.src} alt="" ringColor={portrait.ringColor} showRing={portrait.showRing} />
           )}
           {blocks.map((item) => (
             <StatblockBlockView

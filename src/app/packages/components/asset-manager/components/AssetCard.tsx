@@ -47,7 +47,7 @@ function Artwork({ asset }: { asset: AnyAsset }): React.JSX.Element {
   }
   if (asset.thumbnailUrl) {
     return asset.type === 'tokens'
-      ? <TokenPortrait src={asset.thumbnailUrl} alt={asset.name} lazy />
+      ? <TokenPortrait src={asset.thumbnailUrl} alt={asset.name} showRing={asset.showRing} lazy />
       : <img src={asset.thumbnailUrl} alt={asset.name} draggable={false} loading="lazy" decoding="async" />;
   }
   return (
@@ -71,7 +71,7 @@ export const AssetCard = memo(function AssetCard({
   const handleDoubleClick = (event: React.MouseEvent): void => {
     event.preventDefault();
     event.stopPropagation();
-    if (!event.shiftKey) onOpen(asset, spawnCount);
+    if (!event.shiftKey && !event.ctrlKey && !event.metaKey) onOpen(asset, spawnCount);
   };
 
   return (

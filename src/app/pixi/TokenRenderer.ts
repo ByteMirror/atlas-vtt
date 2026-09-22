@@ -1,3 +1,4 @@
+import { syncTokenArtwork } from './token-renderer/tokenArtwork';
 import type { AtlasSettings } from '../services/SettingsService';
 import type { LayerVisibility } from './playerSafeFrame';
 import { Sprite, Container, Graphics, Circle, Texture, Application, FederatedPointerEvent } from "pixi.js";
@@ -612,12 +613,15 @@ export class TokenRenderer {
       tokenRingSize: 1
     };
 
+    const current = this.store.getState().objects.tokens[tokenId];
+    if (current) tokenGroup.tokenData = current;
     const sizeWithMultiplier = size * tokenSettings.tokenRingSize;
     const resolvedRingColor = ringColor || '#ffffff';
 
     // Route all ring redraws through SpriteFactory to keep visuals consistent
     // between initial create and subsequent updates (size/color changes).
     const ring = this.spriteFactory.createTokenRing(tokenGroup, resolvedRingColor, sizeWithMultiplier);
+    syncTokenArtwork(tokenGroup, size);
     if (ring) {
       this.tokenRings[tokenId] = ring;
     } else {
@@ -890,7 +894,7 @@ export class TokenRenderer {
         // Update ring color if it changed
         const newRingColor = token.ringColor;
         const prevRingColor = prevToken?.ringColor;
-        if (newRingColor !== prevRingColor) {
+        if (newRingColor !== prevRingColor || token.showRing !== prevToken?.showRing) {
           // Calculate token size for ring update
           const currentSize = tempSize !== undefined ? tempSize : (token.size || 1);
           const tokenSize = computeTokenPixelSize(this.gridSystem.getOptions().size, currentSize);
@@ -1007,10 +1011,12 @@ export class TokenRenderer {
     }
 
     sprite.texture = texture;
+    tokenGroup.tokenData = token;
     const tokenSize = tokenGroup.tokenSize;
     if (Number.isFinite(tokenSize) && tokenSize > 0) {
       sprite.width = tokenSize;
       sprite.height = tokenSize;
+      syncTokenArtwork(tokenGroup, tokenSize);
     }
 
     if (!previousImagePath || previousImagePath === token.imagePath) {
@@ -1043,7 +1049,7 @@ export class TokenRenderer {
     if (token.size !== prevToken.size) return true;
 
     // Ring color changes
-    if (token.ringColor !== prevToken.ringColor) return true;
+    if (token.ringColor !== prevToken.ringColor || token.showRing !== prevToken.showRing) return true;
 
     // Visibility/hidden state changes
     if (token.isHidden !== prevToken.isHidden) return true;

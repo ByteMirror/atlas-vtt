@@ -26,6 +26,8 @@
 
 ## Fixed
 
+- Token ring toggles keep their full button height in the importer sidebar and use the consistent label “Toggle token ring”.
+
 - Clicking controls in Manage Tags or closing the dialog no longer closes the asset manager behind it.
 - Token import ring controls now share the editable preview state, and fast-loading images no longer get stuck optimizing.
 

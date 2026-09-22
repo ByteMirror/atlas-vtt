@@ -34,12 +34,12 @@ it('stages statblocks beside uploads and applies ring and tag edits to the same 
   expect(screen.getAllByRole('dialog')).toHaveLength(1);
   expect(container.querySelectorAll('.atlas-token-card')).toHaveLength(2);
   await waitFor(() => expect(container.querySelectorAll('.atlas-token-card__busy')).toHaveLength(0));
-  fireEvent.click(screen.getByRole('switch', { name: 'Atlas ring for all' }));
+  fireEvent.click(screen.getByRole('switch', { name: 'Toggle token ring for all' }));
   expect(container.querySelectorAll('.atlas-token-card__ring')).toHaveLength(0);
   expect(container.querySelectorAll('.atlas-token-card__mask')).toHaveLength(0);
-  fireEvent.click(screen.getByRole('switch', { name: 'Atlas ring for Goblin' }));
+  fireEvent.click(screen.getByRole('switch', { name: 'Toggle token ring for Goblin' }));
   expect(container.querySelectorAll('.atlas-token-card__ring')).toHaveLength(1);
-  expect(screen.getByRole('switch', { name: 'Atlas ring for all' }).textContent).toContain('mixed');
+  expect(screen.getByRole('switch', { name: 'Toggle token ring for all' }).getAttribute('title')).toBe('Mixed token ring settings');
   fireEvent.click(screen.getByRole('checkbox', { name: 'Select Wolf' }));
   fireEvent.click(screen.getByRole('button', { name: 'Enemy' }));
   fireEvent.click(screen.getByRole('button', { name: /Create.*↵/ }));

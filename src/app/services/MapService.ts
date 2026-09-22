@@ -5,6 +5,7 @@ import { RendererService } from './RendererService';
 import type { ViewAtlasState, ViewAtlasStore } from '../storeFactory';
 import type { MapFile } from './MapPersistence';
 import { getHistoryStore } from '../stores/history';
+import { autoDetectGridOnFirstLoad } from './gridAutoDetect';
 
 export class MapService {
   private currentMapFilePath: string | null = null;
@@ -202,6 +203,13 @@ export class MapService {
         throw new Error('[MapService] Failed to load map data from MapController');
       }
       
+      if (this.store.getState().grid?.autoDetect) {
+        storeState.setMapLoading(true, 85, 'Detecting grid...');
+        // Let the overlay paint before the CPU-bound detection blocks the thread.
+        await new Promise(resolve => window.setTimeout(resolve, 30));
+        autoDetectGridOnFirstLoad(this.store, renderer.getBackgroundSprite());
+      }
+
       // Legacy mapData is now mostly for the renderer
       // The state is managed by the persist middleware      
       // Update loading progress

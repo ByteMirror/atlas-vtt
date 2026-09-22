@@ -115,7 +115,8 @@ export default function CreateSceneModal({
             color: "#00FFFF",
             opacity: 0.5,
             lineType: 'solid' as const,
-            lineWidth: 1
+            lineWidth: 1,
+            autoDetect: true
           },
           objects: {
             tokens: {},

@@ -1,0 +1,59 @@
+@use '../../../../../styles/tokens' as *;
+@use '../../../../../styles/mixins' as *;
+
+.atlas-progress-modal-overlay {
+  @include atlas-modal-overlay($z-atlas-modal);
+}
+
+.atlas-progress-modal {
+  @include atlas-modal-window;
+  align-items: center;
+  width: 320px;
+  padding: $spacing-xl;
+  gap: $spacing-xl;
+  text-align: center;
+
+  &__spinner {
+    width: 40px;
+    height: 40px;
+    border: $border-width-m solid var(--background-modifier-border);
+    border-top-color: var(--interactive-accent);
+    border-radius: 50%;
+    animation: atlas-progress-modal-spin 0.9s linear infinite;
+  }
+
+  &__title {
+    margin: 0;
+    font-size: $font-ui-large;
+    font-weight: $font-weight-semibold;
+  }
+
+  &__message {
+    margin: 0;
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__bar {
+    width: 100%;
+    height: 6px;
+    border-radius: $radius-s;
+    background: var(--background-modifier-border);
+    overflow: hidden;
+  }
+
+  &__fill {
+    height: 100%;
+    border-radius: inherit;
+    background: var(--interactive-accent);
+    transition: width $transition-fast $transition-ease;
+  }
+}
+
+@keyframes atlas-progress-modal-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .atlas-progress-modal__spinner { animation-duration: 2s; }
+}

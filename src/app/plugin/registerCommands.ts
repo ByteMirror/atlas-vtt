@@ -1,4 +1,4 @@
-import { StatblockImportModal } from '../packages/components/asset-manager/statblock-import/StatblockImportModal';
+import { TokenCreatorModal } from '../packages/components/asset-manager/token-creator/TokenCreatorModal';
 import { Notice, Plugin, TFile } from 'obsidian';
 import { AtlasView } from '../atlas-view';
 import { DASHBOARD_VIEW_TYPE } from '../dashboard-view';
@@ -171,7 +171,7 @@ function registerStatblockCommands(plugin: Plugin): void {
   plugin.addCommand({
     id: 'import-statblock-tokens',
     name: 'Import tokens from Fantasy Statblocks',
-    callback: () => new StatblockImportModal(app).open(),
+    callback: () => new TokenCreatorModal(app).open(),
   });
 
   plugin.addCommand({

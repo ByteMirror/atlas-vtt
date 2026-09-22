@@ -178,7 +178,7 @@ export function AssetCard({
     }
     if (asset.thumbnailUrl) {
       return isToken ? (
-        <TokenPortrait src={asset.thumbnailUrl} alt={asset.name} />
+        <TokenPortrait showRing={isToken ? asset.showRing : undefined} src={asset.thumbnailUrl} alt={asset.name} />
       ) : (
         <img src={asset.thumbnailUrl} alt={asset.name} draggable={false} />
       );

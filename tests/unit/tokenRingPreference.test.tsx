@@ -1,0 +1,55 @@
+import React from 'react';
+import { cleanup, render } from '@testing-library/react';
+import { afterEach, expect, it, vi } from 'vitest';
+import { Container, Graphics, Sprite, Texture, TextureSource } from 'pixi.js';
+import { TokenPortrait } from '../../src/app/packages/components/shared/TokenPortrait';
+import { syncTokenArtwork } from '../../src/app/pixi/token-renderer/tokenArtwork';
+import { saveTokenPreviews } from '../../src/app/packages/components/asset-manager/token-creator/saveTokenPreviews';
+import { createInMemoryApp } from '../mocks/inMemoryVault';
+import { AssetService } from '../../src/app/services/AssetService';
+import type { TokenPreview } from '../../src/app/packages/components/asset-manager/token-creator/types';
+import type { TokenGroupContainer } from '../../src/app/pixi/token-renderer/types';
+const crop = vi.hoisted(() => vi.fn());
+vi.mock('../../src/app/packages/components/asset-manager/token-creator/bakeTokenCrop', () => ({ bakeTokenCrop: crop }));
+vi.mock('../../src/app/utils/imageOptimizer', () => ({ optimizeImage: vi.fn(async () => ({ blob: new Blob(['cropped']) })), OPTIMIZATION_PRESETS: { token: {} } }));
+afterEach(cleanup);
+
+it('preserves legacy portraits and removes the frame for an explicit opt-out', () => {
+  const view = render(<TokenPortrait src="goblin.webp" alt="Goblin" />);
+  expect(view.container.querySelector('.atlas-token-ring')).toBeTruthy();
+  view.rerender(<TokenPortrait src="goblin.webp" alt="Goblin" showRing={false} />);
+  expect(view.container.querySelector('.atlas-token-ring')).toBeNull();
+  expect(view.container.querySelector('.atlas-token-portrait--unframed')).toBeTruthy();
+});
+
+it('keeps unframed art proportional and unmasked when resized or reframed', () => {
+  const container = Object.assign(new Container(), { tokenData: { showRing: false } }) as TokenGroupContainer;
+  const sprite = new Sprite(new Texture({ source: new TextureSource({ width: 200, height: 100 }) }));
+  sprite.label = 'tokenSprite';
+  const mask = new Graphics(); mask.label = 'tokenArtMask';
+  const glass = new Sprite(Texture.EMPTY); glass.label = 'glassOverlay';
+  container.addChild(sprite, mask, glass);
+  syncTokenArtwork(container, 100);
+  expect(sprite.width).toBe(100);
+  expect(sprite.height).toBe(50);
+  expect(sprite.mask).toBeFalsy();
+  expect(glass.visible).toBe(false);
+  syncTokenArtwork(container, 200);
+  expect(sprite.height).toBe(100);
+  container.tokenData.showRing = true;
+  syncTokenArtwork(container, 100);
+  expect(sprite.mask).toBe(mask);
+  expect(glass.visible).toBe(true);
+});
+
+it('saves an unframed upload without baking a circular crop and persists the choice', async () => {
+  Reflect.set(AssetService, 'instance', null);
+  const { app, files } = createInMemoryApp();
+  app.vault.createBinary = vi.fn(async (path: string) => { files.set(path, 'image'); });
+  const assets = AssetService.getInstance(app);
+  const bytes = new Uint8Array([1, 2, 3]).buffer;
+  const preview: TokenPreview = { id: 'one', name: 'Goblin', file: new File(['art'], 'goblin.png'), previewUrl: 'blob:art', showRing: false, imageScale: 1, imagePosition: { x: 0, y: 0 }, isSelected: true, isOptimizing: false };
+  await saveTokenPreviews({ app, assetService: assets, mode: 'token', previews: [preview], collection: 'Default', tags: [], waitForOptimized: async () => ({ arrayBuffer: async () => bytes } as Blob) });
+  expect(crop).not.toHaveBeenCalled();
+  expect((await assets.getTokenAssets())[0]?.showRing).toBe(false);
+});

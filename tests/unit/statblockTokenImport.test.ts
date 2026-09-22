@@ -176,4 +176,16 @@ describe('bulk importing recognized statblock notes', () => {
     expect(files.get(note)).toBe('Original note');
   });
 
+  it('discovers explicit layouts and persists separate ring choices', async () => {
+    const { app, assets, files, frontmatter } = setup();
+    frontmatter[note]!.layout = 'Basic 5e Layout';
+    files.set('Ogre.md', 'Ogre');
+    frontmatter['Ogre.md'] = { ...frontmatter[note], name: 'Ogre', layout: 'Daggerheart Adversary' };
+    const importer = new StatblockTokenImportService(app, assets);
+    expect((await importer.scan()).map(r => r.layoutName)).toEqual(['Basic 5e Layout', 'Daggerheart Adversary']);
+    const result = await importer.import([note, 'Ogre.md'], 'default', { ringByPath: { [note]: false, 'Ogre.md': true } });
+    expect(result.items.map(i => i.asset?.showRing)).toEqual([false, true]);
+    expect((await assets.getTokenAssets()).map(t => t.showRing)).toEqual([false, true]);
+  });
+
 });

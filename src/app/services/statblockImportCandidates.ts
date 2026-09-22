@@ -1,5 +1,5 @@
 import { TFile, normalizePath, type App } from 'obsidian';
-import { getFantasyStatblocksApi, resolveCreatureFromFence, type FantasyStatblocksCreature } from './FantasyStatblocksService';
+import { getFantasyStatblocksApi, resolveCreatureFromFence, resolveLayout, type FantasyStatblocksCreature } from './FantasyStatblocksService';
 import { resolveStatblockNote } from './statblockNoteSource';
 import type { TokenAsset } from './AssetService';
 
@@ -10,6 +10,8 @@ export interface StatblockImportCandidate {
   status: StatblockImportStatus;
   detail: string;
   imagePath?: string;
+  layoutName?: string;
+  showRing?: boolean;
 }
 
 /** YAML interprets unquoted [[links]] as nested arrays. */
@@ -45,11 +47,15 @@ export async function statblockImportCandidate(
     ? await resolveCreatureFromFence(app, source.params, path)
     : entry ?? app.metadataCache.getFileCache(file)?.frontmatter;
   const name = typeof creature?.name === 'string' && creature.name.trim() ? creature.name : file.basename;
-  const row = { path, name };
+  const requested = typeof creature?.layout === 'string' ? creature.layout :
+    typeof creature?.statblock === 'string' && !['true', 'inline'].includes(creature.statblock) ? creature.statblock : undefined;
+  const layout = resolveLayout(app, requested);
+  const layoutName = requested ? (layout?.id === requested || layout?.name === requested ? layout.name : requested) : layout?.name ?? 'Unspecified';
+  const row = { path, name, layoutName };
   const linked = assets.filter(asset => asset.statblockPath && normalizePath(asset.statblockPath) === path);
   if (linked.length > 1) return { ...row, status: 'conflict', detail: 'Multiple tokens already link to this note. Review their links first.' };
   const existing = linked[0];
-  if (existing) return { ...row, status: 'imported', detail: 'An Atlas token already links to this note.', imagePath: existing.imagePath };
+  if (existing) return { ...row, status: 'imported', detail: 'An Atlas token already links to this note.', imagePath: existing.imagePath, showRing: existing.showRing !== false };
   if (!creature) return { ...row, status: 'conflict', detail: 'The statblock could not be resolved. Check its name or note reference.' };
   const image = imageReference(creature.image) ?? imageReference(creature['token-image']);
   if (!image) return { ...row, status: 'missing-image', detail: 'Add an image to this statblock to create a token.' };

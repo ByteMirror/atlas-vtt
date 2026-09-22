@@ -1,3 +1,5 @@
+import { TokenRingToggle } from './TokenRingToggle';
+import tokenRingImageUrl from '../../../../assets/token-ring.webp';
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { Check, Loader2, Trash2, ZoomIn, ZoomOut } from 'lucide-react';
 import { cn } from '../../../../../utils/cn';
@@ -61,7 +63,7 @@ export function TokenPreviewCard({ preview, mode, index, onChange, onToggleSelec
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
 
-  const isCropEditable = mode === 'token';
+  const isCropEditable = mode === 'token' && preview.showRing !== false;
   const aspect = useImageAspect(preview.previewUrl);
   const wellSize = useWellSize(artRef);
 
@@ -140,7 +142,7 @@ export function TokenPreviewCard({ preview, mode, index, onChange, onToggleSelec
         style={imageStyle}
         onPointerDown={isCropEditable ? handlePointerDown : undefined}
       />
-      <div className="atlas-token-card__mask" />
+      {isCropEditable && <><div className="atlas-token-card__mask" /><img className="atlas-token-card__ring" src={tokenRingImageUrl} alt="" /></>}
 
       <LabelTooltip label={`Select ${preview.name}`}>
         <button
@@ -198,6 +200,7 @@ export function TokenPreviewCard({ preview, mode, index, onChange, onToggleSelec
         aria-labelledby={nameLabelId}
       />
 
+      {mode === 'token' && <TokenRingToggle label={`Atlas ring for ${preview.name}`} value={preview.showRing !== false} onChange={showRing => onChange({ showRing })} />}
       {isCropEditable && (
         <div className="atlas-token-card__zoom">
           <LabelTooltip label="Zoom out">

@@ -1,3 +1,4 @@
+import { syncTokenArtwork } from './tokenArtwork';
 /**
  * Token Sprite Factory
  * 
@@ -54,6 +55,7 @@ export class SpriteFactory implements ITokenSpriteFactory {
 
     // Create circular mask
     const circleMask = new Graphics();
+    circleMask.label = 'tokenArtMask';
     const maskRadius = tokenSize / 2;
     circleMask.circle(0, 0, maskRadius);
     circleMask.fill(0xffffff);
@@ -135,6 +137,7 @@ export class SpriteFactory implements ITokenSpriteFactory {
     // Store updated size metadata
     container.tokenSize = tokenSize;
     container.strokeWidth = strokeWidth;
+    syncTokenArtwork(container, tokenSize);
   }
 
   updateTokenPosition(container: Container, x: number, y: number): void {
@@ -204,7 +207,8 @@ export class SpriteFactory implements ITokenSpriteFactory {
       }
     }
 
-    if (!ringColor) {
+    syncTokenArtwork(container, container.tokenSize ?? 70);
+    if (!ringColor || container.tokenData?.showRing === false) {
       return null;
     }
 

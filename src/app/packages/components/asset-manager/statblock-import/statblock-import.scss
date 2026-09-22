@@ -1,9 +1,5 @@
 @use '../../../../../../styles/tokens' as *;
 
-.atlas-statblock-import-modal {
-  width: min(860px, 94vw);
-  .modal-content { overflow: auto; }
-}
 .atlas-statblock-import {
   display: flex;
   flex-direction: column;
@@ -57,7 +53,7 @@
     background: var(--background-secondary);
     border-radius: $radius-m;
     color: var(--text-faint);
-    img { width: 100%; height: 100%; object-fit: contain; }
+    .atlas-token-portrait { width: 100%; height: 100%; }
   }
   &__identity {
     flex: 1;

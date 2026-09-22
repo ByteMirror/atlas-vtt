@@ -60,6 +60,7 @@ export function formatServiceAsset(
         thumbnailUrl: imageUrl,
         imageUrl,
         imagePath: asset.imagePath,
+        ...(asset.showRing !== undefined && { showRing: asset.showRing }),
         ...(asset.statblockPath !== undefined && { statblockPath: asset.statblockPath }),
       };
     }

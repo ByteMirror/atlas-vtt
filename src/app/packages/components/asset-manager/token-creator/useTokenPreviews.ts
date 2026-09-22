@@ -4,6 +4,8 @@ import type { CreatorMode, EditTokenInput, TokenPreview, TokenPreviewPatch } fro
 
 export interface TokenPreviewsApi {
   previews: TokenPreview[];
+  defaultRing: boolean;
+  setAllRings: (showRing: boolean) => void;
   selectedIds: string[];
   addFiles: (files: File[]) => void;
   reset: (editToken?: EditTokenInput | null) => void;
@@ -39,6 +41,7 @@ function previewFromFile(file: File): TokenPreview {
 function previewFromEdit(token: EditTokenInput): TokenPreview {
   return {
     id: token.id,
+    showRing: token.showRing ?? true,
     file: null,
     previewUrl: token.imageUrl,
     name: token.name,
@@ -55,6 +58,7 @@ function previewFromEdit(token: EditTokenInput): TokenPreview {
  * preview is removed, replaced by its optimized version, or on unmount.
  */
 export function useTokenPreviews(mode: CreatorMode): TokenPreviewsApi {
+  const [defaultRing, setDefaultRing] = useState(true);
   const [previews, setPreviews] = useState<TokenPreview[]>([]);
   const previewsRef = useRef(previews);
   previewsRef.current = previews;
@@ -90,7 +94,7 @@ export function useTokenPreviews(mode: CreatorMode): TokenPreviewsApi {
   }, [mode, patchPreview]);
 
   const addFiles = useCallback((files: File[]): void => {
-    const fresh = files.filter((f) => f.type.startsWith('image/')).map(previewFromFile);
+    const fresh = files.filter((f) => f.type.startsWith('image/')).map(file => ({ ...previewFromFile(file), showRing: defaultRing }));
     if (fresh.length === 0) return;
     setPreviews((prev) => [...prev, ...fresh]);
     for (const preview of fresh) {
@@ -98,7 +102,7 @@ export function useTokenPreviews(mode: CreatorMode): TokenPreviewsApi {
       pendingRef.current.set(preview.id, task);
       queueRef.current = task;
     }
-  }, [optimizeOne]);
+  }, [optimizeOne, defaultRing]);
 
   const reset = useCallback((editToken?: EditTokenInput | null): void => {
     previewsRef.current.forEach((p) => revokeIfBlob(p.previewUrl));
@@ -146,6 +150,8 @@ export function useTokenPreviews(mode: CreatorMode): TokenPreviewsApi {
 
   return {
     previews,
+    defaultRing,
+    setAllRings: (showRing) => { setDefaultRing(showRing); setPreviews(current => current.map(p => ({ ...p, showRing }))); },
     selectedIds,
     addFiles,
     reset,

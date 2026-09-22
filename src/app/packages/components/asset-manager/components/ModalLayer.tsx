@@ -16,6 +16,7 @@ import type { TagsAndCollectionsState } from '../hooks/useTagsAndCollections';
 import type { StatblockLinkState } from '../hooks/useStatblockLink';
 
 export interface ModalLayerProps {
+  tokenCreatorSource?: 'images' | 'statblocks';
   isOpen: boolean;
   activeTab: Tab;
   selectedCollection: string | null;
@@ -28,7 +29,7 @@ export interface ModalLayerProps {
 }
 
 export function ModalLayer({
-  isOpen, activeTab, selectedCollection, onClose, data, sel, crud, tags, statblock,
+  tokenCreatorSource = 'images', isOpen, activeTab, selectedCollection, onClose, data, sel, crud, tags, statblock,
 }: ModalLayerProps): React.JSX.Element {
   const collectionOrDefault = selectedCollection || 'default';
 
@@ -57,6 +58,7 @@ export function ModalLayer({
       {/* Token Creator */}
       {isOpen && crud.isTokenCreatorOpen && (
         <TokenCreator
+          initialSource={crud.editingToken ? 'images' : tokenCreatorSource}
           isOpen={crud.isTokenCreatorOpen}
           selectedCollection={collectionOrDefault}
           onClose={() => {
@@ -68,7 +70,9 @@ export function ModalLayer({
             id: crud.editingToken.id,
             name: crud.editingToken.name,
             imageUrl: (crud.editingToken as TokenAsset).imageUrl,
+            imagePath: (crud.editingToken as TokenAsset).imagePath,
             tags: crud.editingToken.tags || [],
+            showRing: (crud.editingToken as TokenAsset).showRing ?? true,
           } : null}
         />
       )}

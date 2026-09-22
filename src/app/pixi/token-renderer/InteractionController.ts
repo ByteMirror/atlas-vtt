@@ -205,27 +205,36 @@ export class InteractionController implements ITokenInteractionController {
   }
 
   private prepareInteraction(token: TokenEntity, e: FederatedPointerEvent): void {
+    const { selectedIds, setSelection } = this.store.getState();
+    const isTokenSelected = selectedIds.includes(token.id);
+
+    // Shift-click toggles membership; removing never starts a drag.
+    if (e.shiftKey && isTokenSelected) {
+      setSelection(selectedIds.filter((id) => id !== token.id));
+      return;
+    }
+
     this.viewport.plugins.pause('drag');
     
     // Clean up any existing listeners before attaching new ones
     // This prevents accumulation if previous interaction didn't clean up properly
     this.cleanupDragListeners();
     
-    const selectedIds = this.store.getState().selectedIds;
-    const isTokenSelected = selectedIds.includes(token.id);
-    
     // Store the token for potential click handling
     this.dragState.clickToken = token;
     this.dragState.hasMoved = false;
     
     // Determine which tokens to potentially drag
-    if (isTokenSelected && selectedIds.length > 1) {
+    if (e.shiftKey) {
+      this.dragState.dragIds = [...selectedIds, token.id];
+      setSelection(this.dragState.dragIds);
+    } else if (isTokenSelected && selectedIds.length > 1) {
       this.dragState.dragIds = [...selectedIds];
     } else {
       this.dragState.dragIds = [token.id];
       // Always select the clicked token immediately
       // This ensures clicking on a different token switches selection
-      this.store.getState().setSelection(this.dragState.dragIds);
+      setSelection(this.dragState.dragIds);
     }
 
     // Initialize drag state

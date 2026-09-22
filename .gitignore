@@ -71,3 +71,6 @@ party/
 .cursor/
 .mcp.json
 .playwright-mcp/
+
+# Also ignore a worktree dependency symlink.
+/node_modules

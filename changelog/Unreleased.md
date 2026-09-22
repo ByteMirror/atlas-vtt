@@ -1,7 +1,7 @@
 ## New
 
 - Import tokens from Fantasy Statblocks in bulk. Preview creatures with local artwork, choose a collection, and create linked tokens while skipping existing imports and preserving original notes and images.
-
+- Hold Shift and click tokens to add them to or remove them from the selection, then drag any of them to move the whole group.
 - New scenes align their grid to the map image on their own the first time they open. Maps without a grid simply open without one; the grid alignment tool remains available for corrections.
 - Read what's new after an Atlas update and browse previous releases in an offline changelog. Open it anytime with the View changelog command or from Atlas settings.
 - Turn automatic update announcements on or off in Atlas settings or in the changelog.
@@ -14,6 +14,5 @@
 ## Fixed
 
 - Creating a token from a statblock image no longer mistakes the source artwork for an existing token.
-
 - Opening a settings dropdown closes the previous one, including when switching with the keyboard or between map views.
 - Grid settings dropdowns keep opening after other map tabs close, and size to their button unless longer options need more room.

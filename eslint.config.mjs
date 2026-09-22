@@ -4,10 +4,18 @@ import obsidianmd from "eslint-plugin-obsidianmd";
 // Obsidian's community directory scores the plugin with `recommended`, so every
 // finding of those rules is a public scorecard row. Additions below only make
 // the local gate stricter, never looser.
+//
+// The overrides are limited to script files. `recommended` also lints
+// `package.json` (without the TypeScript plugin), and an unscoped
+// `@typescript-eslint/*` rule there is a fatal ESLint error, which is what
+// Obsidian's whole-repository scan runs into.
+const SCRIPT_FILES = ["**/*.{ts,cts,mts,tsx,js,cjs,mjs,jsx}"];
+
 export default defineConfig([
-  globalIgnores(["atlas-website/", "token-ui-examples/", "party/", "logs/", "benchmarks/", "release/", "dist/", "node_modules/", "test-vault/", "networking-test-vault/", "tests/", "scripts/", "docs/", "**/*.test.*", "*.js", "*.mjs", "*.config.ts"]),
+  globalIgnores(["atlas-website/", "token-ui-examples/", "party/", "logs/", "benchmarks/", "release/", "dist/", "node_modules/", "test-vault/", "networking-test-vault/", "tests/", "scripts/", "docs/", "vite/", "**/*.test.*", "*.js", "*.cjs", "*.mjs", "*.mts", "*.config.ts"]),
   ...obsidianmd.configs.recommended,
   {
+    files: SCRIPT_FILES,
     rules: {
       // "Atlas" is the product name. `ignoreWords` rather than `brands`,
       // because `brands` replaces the rule's built-in list (Obsidian, GitHub, …).
@@ -21,6 +29,7 @@ export default defineConfig([
     },
   },
   {
+    files: SCRIPT_FILES,
     languageOptions: {
       parserOptions: {
         projectService: true,

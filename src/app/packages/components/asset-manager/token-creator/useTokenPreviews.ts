@@ -109,7 +109,7 @@ export function useTokenPreviews(mode: CreatorMode): TokenPreviewsApi {
       if (!image.file.type.startsWith('image/') || (image.statblockPath && paths.has(image.statblockPath))) return false;
       if (image.statblockPath) paths.add(image.statblockPath);
       return true;
-    }).map(image => ({ ...previewFromFile(image.file), ...image, tags: [], showRing: defaultRing }));
+    }).map(image => ({ ...previewFromFile(image.file), ...image, tags: image.tags ?? [], showRing: image.showRing ?? defaultRing }));
     if (fresh.length === 0) return;
     changePreviews((prev) => [...prev, ...fresh]);
     for (const preview of fresh) {

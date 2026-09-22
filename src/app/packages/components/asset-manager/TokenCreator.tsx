@@ -76,8 +76,13 @@ export function TokenCreator({ isOpen, onClose, mode = 'token', selectedCollecti
 
   const handleFiles = useCallback((files: File[]): void => {
     if (editToken) {
+      const file = files[0];
+      if (!file) return;
+      const current = previews.previews[0];
+      const tags = current?.tags ?? editToken.tags;
+      const showRing = current?.showRing ?? editToken.showRing ?? true;
       previews.reset(null);
-      previews.addFiles(files.slice(0, 1));
+      previews.addImages([{ file, tags, showRing }]);
       return;
     }
     previews.addFiles(files);

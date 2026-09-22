@@ -50,3 +50,13 @@ it('stages statblocks beside uploads and applies ring and tag edits to the same 
     { name: 'Goblin', showRing: true, tags: ['Enemy'], statblockPath: 'Bestiary/Goblin.md' },
   ]);
 });
+
+it('preserves edited tags and ring choice when replacing a token image', async () => {
+  const { app } = createInMemoryApp();
+  app.workspace = { trigger: vi.fn() };
+  const { container } = render(<AtlasUIContext.Provider value={{ app, view: null, pixiApp: null, renderer: null }}><TokenCreator isOpen onClose={vi.fn()} editToken={{ id: 'existing', name: 'Goblin', imageUrl: 'goblin.webp', tags: ['Enemy'], showRing: false }} /></AtlasUIContext.Provider>);
+  fireEvent.change(container.querySelector('input[type=file]')!, { target: { files: [new File(['art'], 'Replacement.png', { type: 'image/png' })] } });
+  await screen.findByDisplayValue('Replacement');
+  expect(container.querySelector('.atlas-token-card__ring')).toBeNull();
+  expect(screen.getByRole('button', { name: 'Enemy' }).getAttribute('aria-pressed')).toBe('true');
+});

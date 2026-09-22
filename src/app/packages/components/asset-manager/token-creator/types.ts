@@ -19,6 +19,8 @@ export interface ImagePosition {
 
 export interface PreviewImage {
   file: File;
+  tags?: string[];
+  showRing?: boolean;
   name?: string;
   statblockPath?: string;
 }

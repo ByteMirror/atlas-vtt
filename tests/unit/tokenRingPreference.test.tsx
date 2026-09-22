@@ -46,6 +46,7 @@ it('keeps unframed art proportional and unmasked when resized or reframed', () =
 it('saves an unframed upload without baking a circular crop and persists the choice', async () => {
   Reflect.set(AssetService, 'instance', null);
   const { app, files } = createInMemoryApp();
+  app.workspace = { trigger: vi.fn() };
   app.vault.createBinary = vi.fn(async (path: string) => { files.set(path, 'image'); });
   const assets = AssetService.getInstance(app);
   const bytes = new Uint8Array([1, 2, 3]).buffer;

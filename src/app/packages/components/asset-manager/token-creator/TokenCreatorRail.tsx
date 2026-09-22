@@ -8,6 +8,7 @@ import { CollectionSelect } from './CollectionSelect';
 import { TagPicker } from './TagPicker';
 import { UploadDropzone } from './UploadDropzone';
 import { clampZoom, ZOOM_MAX, ZOOM_MIN, ZOOM_STEP } from './types';
+import type { CollectionMetadata } from '../../../../services/AssetService';
 import type { CreatorMode } from './types';
 import type { TokenPreviewsApi } from './useTokenPreviews';
 
@@ -21,7 +22,7 @@ interface TokenCreatorRailProps {
   previews: TokenPreviewsApi;
   onFiles: (files: File[]) => void;
   collection: string;
-  collections: string[];
+  collections: CollectionMetadata[];
   onCollectionChange: (collection: string) => void;
   availableTags: string[];
   selectedTags: string[];
@@ -46,14 +47,14 @@ export function TokenCreatorRail(props: TokenCreatorRailProps): React.JSX.Elemen
   };
 
   return (
-    <aside className="atlas-token-creator__rail">
+    <aside className="atlas-token-creator__rail" inert={props.sourceDisabled}>
       {mode === 'token' && !isEditing && <section className="atlas-token-creator__section">
         <div className="atlas-token-creator__section-title">Image source</div>
-        <Button variant={props.source === 'images' ? 'secondary' : 'outline'} disabled={props.sourceDisabled} onClick={() => props.onSourceChange('images')}>Upload images</Button>
+        <Button variant={props.source === 'images' ? 'secondary' : 'outline'} disabled={props.sourceDisabled} onClick={() => props.onSourceChange('images')}>Import previews</Button>
         <Button variant={props.source === 'statblocks' ? 'secondary' : 'outline'} disabled={props.sourceDisabled} onClick={() => props.onSourceChange('statblocks')}>Fantasy Statblocks</Button>
       </section>}
-      {props.source === 'statblocks' && mode === 'token' && !isEditing ? <p>Import creatures from your vault. Filter by layout and choose how each token looks before importing.</p> : <>
-      {mode === 'token' && <TokenRingToggle label="Atlas ring for all" value={previews.defaultRing} onChange={previews.setAllRings} />}
+      {props.source === 'statblocks' && mode === 'token' && !isEditing ? <p>Add creatures from your vault to the same preview cards as uploaded images.</p> : <>
+      {mode === 'token' && <TokenRingToggle label="Atlas ring for all" value={count ? previews.previews.every(p => p.showRing !== false) : previews.defaultRing} onChange={previews.setAllRings} />}
 
       <section className="atlas-token-creator__section">
         <div className="atlas-token-creator__section-title">{isEditing ? 'Replace image' : 'Upload images'}</div>
@@ -97,6 +98,7 @@ export function TokenCreatorRail(props: TokenCreatorRailProps): React.JSX.Elemen
         <CollectionSelect value={collection} options={collections} onChange={onCollectionChange} />
       </section>
 
+      <p className="atlas-token-creator__empty-note">Tags apply to {selectedCount} selected {selectedCount === 1 ? 'preview' : 'previews'}.</p>
       <TagPicker available={availableTags} selected={selectedTags} onToggle={onToggleTag} onCreate={props.onCreateTag} disabled={props.tagsDisabled} />
 
       {mode === 'token' && selectedCount > 0 && (

@@ -10,12 +10,14 @@
 - Report a bug or suggest a feature from inside Obsidian with the Report an issue command or from Atlas settings under Help and feedback. Atlas fills in your Atlas and Obsidian versions and submits your report directly, preserving the chosen issue type and affected area. No GitHub account or second form is needed.
 
 ## Improved
+- Fantasy Statblocks artwork now opens in the same token import cards as uploaded images, with crop controls, tags for selected tokens, and individual or global ring choices.
 
 - Fantasy Statblocks imports now open inside the existing token creator. Filter by system/layout and choose the Atlas ring for all tokens or individually. Tokens imported without a ring retain their full artwork on the map.
 
 - Grid auto-detect now lines up across the whole map instead of drifting towards the edges, finds faint grids on busy art, and no longer reports a grid on maps that have none or picks the wrong grid type. The result tells you how much of the map the grid was found on.
 
 ## Fixed
+- Token import ring controls now share the editable preview state, and fast-loading images no longer get stuck optimizing.
 
 - Creating a token from a statblock image no longer mistakes the source artwork for an existing token.
 - Opening a settings dropdown closes the previous one, including when switching with the keyboard or between map views.

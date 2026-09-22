@@ -1,4 +1,7 @@
-import { App, Notice } from 'obsidian';
+import { App, Notice, TFile } from 'obsidian';
+import { AssetRegistrationUncertainError } from '../../../../services/assetRegistrationRecovery';
+import { withStatblockImportLock } from '../../../../services/statblockImportLock';
+import { requireResolvedBestiary, statblockImportCandidate } from '../../../../services/statblockImportCandidates';
 import { AssetService } from '../../../../services/AssetService';
 import { optimizeImage, OPTIMIZATION_PRESETS } from '../../../../utils/imageOptimizer';
 import { bakeTokenCrop } from './bakeTokenCrop';
@@ -14,6 +17,8 @@ export interface SaveTokenPreviewsOptions {
   collection: string;
   tags: string[];
   editToken?: EditTokenInput | null;
+  onSaved?: (id: string) => void;
+  signal?: AbortSignal;
   waitForOptimized: (id: string) => Promise<Blob | undefined>;
 }
 
@@ -46,8 +51,17 @@ async function resolveImageBlob(preview: TokenPreview, mode: CreatorMode, waitFo
  * Returns the number of previews that were saved.
  */
 export async function saveTokenPreviews(options: SaveTokenPreviewsOptions): Promise<number> {
+  return options.previews.some(p => p.statblockPath)
+    ? withStatblockImportLock(options.app, () => savePreviews(options))
+    : savePreviews(options);
+}
+
+async function savePreviews(options: SaveTokenPreviewsOptions): Promise<number> {
   const { app, assetService, mode, previews, collection, tags, editToken, waitForOptimized } = options;
-  const meta = { tags, collection: collection.toLowerCase() };
+  const destinations = await assetService.getCollections();
+  const destination = destinations.find(c => c.id === collection) ?? destinations.find(c => c.name === collection);
+  if (!destination) throw new Error('The destination collection no longer exists. Choose another collection.');
+  const meta = { collection: destination.id };
   await ensureAssetsDir(app);
   let saved = 0;
 
@@ -63,30 +77,50 @@ export async function saveTokenPreviews(options: SaveTokenPreviewsOptions): Prom
       }
       imagePath = await writeImage(app, preview.name, blob);
     }
-    await assetService.updateTokenAsset(editToken.id, { name: preview.name, imagePath, showRing: preview.showRing !== false, ...meta });
+    await assetService.updateTokenAsset(editToken.id, { name: preview.name, imagePath, showRing: preview.showRing !== false, tags: preview.tags ?? tags, ...meta });
     return 1;
   }
 
-  for (const preview of previews) {
-    if (!preview.file) continue;
-    const blob = await resolveImageBlob(preview, mode, waitForOptimized);
-    if (!blob) {
-      new Notice(`Failed to optimize ${preview.name}. Try again with a smaller image.`);
-      continue;
+  try {
+    for (const preview of previews) {
+      if (options.signal?.aborted) break;
+      if (!preview.file) continue;
+      let imagePath: string | undefined;
+      try {
+        if (preview.statblockPath) {
+          const note = app.vault.getAbstractFileByPath(preview.statblockPath);
+          if (!(note instanceof TFile)) throw new Error('The statblock note no longer exists.');
+          const candidate = await statblockImportCandidate(app, note, await assetService.getTokenAssets(), requireResolvedBestiary());
+          if (!candidate || candidate.status !== 'ready') throw new Error(candidate?.detail ?? 'The statblock no longer resolves.');
+        }
+        const blob = await resolveImageBlob(preview, mode, waitForOptimized);
+        if (!blob) throw new Error('Could not optimize the image. Try again with a smaller image.');
+        if (options.signal?.aborted) break;
+        imagePath = await writeImage(app, preview.name, blob);
+        const metadata = { ...meta, tags: preview.tags ?? tags };
+        if (mode === 'map') {
+          await assetService.addAsset({ type: 'map', name: preview.name, mapFilePath: imagePath, ...metadata });
+        } else {
+          await assetService.addTokenAsset({
+            showRing: preview.showRing !== false, name: preview.name, imagePath,
+            ...(preview.statblockPath ? { statblockPath: preview.statblockPath } : {}), ...metadata,
+          });
+        }
+        saved += 1;
+        options.onSaved?.(preview.id);
+      } catch (error) {
+        if (error instanceof AssetRegistrationUncertainError) throw error;
+        if (imagePath && mode === 'token') {
+          const copied = app.vault.getAbstractFileByPath(imagePath);
+          if (copied instanceof TFile) {
+            try { await app.fileManager.trashFile(copied); } catch { /* Keep an unlinked copy if trash is unavailable. */ }
+          }
+        }
+        new Notice(`${preview.name}: ${error instanceof Error ? error.message : 'Could not save this preview.'}`);
+      }
     }
-    const imagePath = await writeImage(app, preview.name, blob);
-    if (mode === 'map') {
-      await assetService.addAsset({
-        type: 'map',
-        name: preview.name,
-        mapFilePath: imagePath,
-        ...meta,
-      });
-    } else {
-      await assetService.addTokenAsset({
-        showRing: preview.showRing !== false, name: preview.name, imagePath, ...meta });
-    }
-    saved += 1;
+  } finally {
+    if (saved) app.workspace.trigger('atlas-vtt:refresh-assets');
   }
   return saved;
 }

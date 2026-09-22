@@ -18,6 +18,20 @@ export interface StatblockVitals {
 export type StatblockLinkUpdates =
   Partial<Pick<Character, 'name' | 'hp' | 'stress' | 'maxStress' | 'difficulty'>> & { showNameplate: true };
 
+/** Clears every statblock-derived field when a token is unlinked. */
+export const STATBLOCK_UNLINK_UPDATES = {
+  statblockPath: undefined,
+  name: undefined,
+  statblockName: undefined,
+  hp: undefined,
+  stress: undefined,
+  maxStress: undefined,
+  maxHpOverridden: undefined,
+  maxStressOverridden: undefined,
+  difficulty: undefined,
+  showNameplate: false,
+} as const;
+
 function finiteNumber(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
 }

@@ -12,7 +12,9 @@ $tracker-width: 96px;
   right: 12px;
   transform: translateY(-50%);
   width: $tracker-width;
-  max-height: calc(100vh - 100px);
+  // Centred panel: symmetric clearance keeps its top below the top bar row
+  // (Obsidian tab header + row offset + expanded widget bar + gap).
+  max-height: calc(100vh - 2 * 160px);
   display: flex;
   flex-direction: column;
   align-items: stretch;

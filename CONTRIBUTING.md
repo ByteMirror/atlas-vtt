@@ -36,9 +36,11 @@ title: A short description of the update
 - Describe the problem that no longer occurs.
 ```
 
-Vite regenerates the bundled notes on build and on changelog edits during watch mode. `Unreleased.md` and versions newer than the installed build are excluded. Release history remains available offline through **Atlas VTT: View changelog** and Atlas settings; ordinary `npm run dev` builds do not auto-announce updates.
+Vite regenerates the bundled notes on build and on changelog edits during watch mode. Versions newer than the installed build are excluded. Stable builds exclude `Unreleased.md`; beta builds bundle it as their own headline entry (titled "Coming in x.y.z", without a date) so testers see the pending notes in the app. Release history remains available offline through **Atlas VTT: View changelog** and Atlas settings; ordinary `npm run dev` builds do not auto-announce updates.
 
-The announcement preference is stored with Atlas settings. Acknowledgment is device/vault-local (`atlas-vtt:changelog` in Obsidian local storage), increases monotonically, and is recorded only after the current notes render and the user closes the dialog. Fresh installations establish a baseline silently; existing Atlas data with no acknowledgment gets the current release once. Turning announcements off skips those updates without replaying them when the preference is enabled again. Plugin unload and render failures do not acknowledge a release.
+The announcement preferences are stored with Atlas settings. **Show changelog after updates** enables announcements; **Feature updates only** filters them to feature releases at any version (such as 0.1 → 0.2 or 1.2 → 1.3), including major-version changes, while skipping patch-only updates (such as 1.2.0 → 1.2.1). Turning the first checkbox off disables automatic announcements while preserving the feature-only preference. Manual history browsing is always available.
+
+Acknowledgment is device/vault-local (`atlas-vtt:changelog` in Obsidian local storage), increases monotonically, and is recorded after the current notes render and the user closes the dialog. Fresh installations establish a baseline silently; existing Atlas data with no acknowledgment gets the current release once. Disabled or filtered updates advance the baseline without opening the modal, so changing the preference does not replay them. Skipping directly across a feature-release boundary still announces the update (for example, 1.2.0 → 1.3.2). Plugin unload and render failures do not acknowledge a displayed release.
 
 Atlas VTT follows the [Obsidian plugin guidelines](https://docs.obsidian.md/Plugins/Releasing/Plugin+guidelines). Changes that add network requests must be disclosed in `README.md` and `PRIVACY.md`.
 

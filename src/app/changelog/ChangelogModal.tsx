@@ -22,6 +22,7 @@ export class ChangelogModal extends Modal {
       attr: { src: atlasIcon, alt: '', 'aria-hidden': 'true' },
     });
     this.titleEl.createSpan({ text: 'What’s new in Atlas' });
+    this.titleEl.createSpan({ cls: 'atlas-changelog-version', text: this.options.currentVersion });
     this.modalEl.addClass('atlas-vtt-plugin', 'atlas-changelog-modal');
     this.root = createRoot(this.contentEl);
     this.root.render(<ChangelogContent {...this.options} app={this.app}

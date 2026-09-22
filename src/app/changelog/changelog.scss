@@ -1,8 +1,32 @@
 @use '../../../styles/tokens' as *;
+@use '../../../styles/mixins' as *;
+
+$changelog-scroll-fade: $spacing-xl;
 
 .atlas-vtt-plugin.atlas-changelog-modal {
   width: min(640px, 90vw);
+  // Fixed height so expanding an accordion never resizes the modal; the history scrolls instead.
+  height: min(680px, 85vh);
+  padding: $spacing-l;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 
+  // Keep the native close control aligned with the panel edge, even with long
+  // histories. The wrappers stay overflow-visible so the history's scrollbar,
+  // which sits in the modal padding, is not clipped; the modal itself clips.
+  > .modal-header { flex-shrink: 0; }
+  > .modal-content {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: visible;
+  }
+
+  @include atlas-native-modal-close-control;
+
+  // ── Header ────────────────────────────────────────────────────────────────
   .atlas-changelog-title {
     display: flex;
     align-items: center;
@@ -16,28 +40,94 @@
     object-fit: contain;
   }
 
+  .atlas-changelog-version {
+    @include atlas-flex-row($gap: 0);
+    height: $icon-l;
+    padding: 0 $spacing-s;
+    border-radius: $radius-s;
+    background: var(--background-modifier-hover);
+    color: var(--text-muted);
+    font-size: $font-ui-smaller;
+    font-weight: $font-weight-medium;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  // ── Layout ────────────────────────────────────────────────────────────────
   .atlas-changelog-content {
+    flex: 1 1 auto;
     display: flex;
     flex-direction: column;
     gap: $spacing-l;
+    min-height: 0;
   }
 
-  .atlas-changelog-intro {
-    margin: 0;
-    color: var(--text-muted);
-    font-size: $font-ui-small;
-  }
-
+  // Only this region scrolls; the header and footer stay fixed. It reaches
+  // into the modal padding so the scrollbar lives in that gutter: the right
+  // padding is the modal padding minus the reserved scrollbar (measured by
+  // ChangelogContent, since CSS cannot read it), which keeps the cards flush
+  // with the header and footer on both sides. The bottom edge fades so a
+  // cut-off card reads as "more below", and the trailing padding lets the
+  // last card scroll clear of the fade.
   .atlas-changelog-history {
+    @include atlas-scrollbar;
+    flex: 1 1 0;
+    display: flex;
+    flex-direction: column;
+    gap: $spacing-s;
+    min-height: 0;
+    margin-inline: -$spacing-l;
+    padding: 0 calc(#{$spacing-l} - var(--atlas-scrollbar-size, 0px)) $changelog-scroll-fade $spacing-l;
+    overflow-y: auto;
+    scrollbar-gutter: stable;
+    mask-image: linear-gradient(to bottom, black calc(100% - #{$changelog-scroll-fade}), transparent 100%);
+  }
+
+  .atlas-changelog-previous {
     display: flex;
     flex-direction: column;
     gap: $spacing-s;
   }
 
+  .atlas-changelog-section-label {
+    margin: $spacing-s 0 0;
+    padding: 0 $spacing-xs;
+    color: var(--text-faint);
+    font-size: $font-ui-smaller;
+    font-weight: $font-weight-semibold;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .atlas-changelog-empty {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: $font-ui-small;
+  }
+
+  // ── Release cards ─────────────────────────────────────────────────────────
   .atlas-changelog-entry {
-    border: $border-width-s solid var(--background-modifier-border);
-    border-radius: $radius-l;
+    @include atlas-inset-surface;
+    flex-shrink: 0;
     overflow: hidden;
+    transition: background-color $transition-normal $transition-ease,
+                border-color $transition-normal $transition-ease,
+                box-shadow $transition-normal $transition-ease;
+
+    @media (hover: hover) and (pointer: fine) {
+      &:hover { border-color: var(--background-modifier-border-hover); }
+    }
+
+    &[data-expanded='true'] {
+      background: var(--background-primary);
+      border-color: var(--background-modifier-border-hover);
+    }
+
+    // The ring sits on the card, not inside it, so it never doubles the card stroke.
+    &:has(.atlas-changelog-trigger:focus-visible) {
+      border-color: var(--interactive-accent);
+      box-shadow: 0 0 0 2px color-mix(in oklch, var(--interactive-accent) 20%, transparent);
+    }
   }
 
   .atlas-changelog-heading { margin: 0; }
@@ -52,63 +142,193 @@
     white-space: normal;
     border-radius: 0;
     box-shadow: none;
+    background: transparent;
 
-    &:focus-visible {
-      outline: 2px solid var(--background-modifier-border-focus);
-      outline-offset: -3px;
-      box-shadow: none;
+    transition: background-color $transition-fast $transition-ease;
+
+    @media (hover: hover) and (pointer: fine) {
+      &:hover { background: color-mix(in oklch, var(--background-modifier-hover) 60%, transparent); }
     }
+    // A full-width row answers a press with tone, not scale; scaling a 600px bar wobbles.
+    &:active { background: var(--background-modifier-active-hover); }
+    &:focus-visible { outline: none; box-shadow: none; }
   }
 
   .atlas-changelog-release-label {
     display: flex;
     flex-direction: column;
     gap: $spacing-xs;
+    min-width: 0;
   }
 
   .atlas-changelog-meta {
-    display: flex;
+    @include atlas-flex-row($gap: $spacing-s);
     flex-wrap: wrap;
-    gap: $spacing-s;
     color: var(--text-muted);
     font-size: $font-ui-smaller;
     font-weight: $font-weight-normal;
     font-variant-numeric: tabular-nums;
   }
 
-  .atlas-changelog-release-title { font-size: $font-ui-medium; }
-  .atlas-changelog-new { color: var(--text-accent); font-size: $font-ui-smaller; }
-  .atlas-changelog-chevron { width: $icon-s; height: $icon-s; flex-shrink: 0; }
-  .atlas-changelog-trigger[aria-expanded='true'] .atlas-changelog-chevron { transform: rotate(180deg); }
-
-  .atlas-changelog-panel {
-    padding: $spacing-l;
-    border-top: $border-width-s solid var(--background-modifier-border);
+  .atlas-changelog-version-chip,
+  .atlas-changelog-badge {
+    @include atlas-flex-row($gap: 0);
+    height: $icon-m;
+    padding: 0 $spacing-s;
+    border-radius: $radius-s;
+    font-size: $font-ui-smaller;
+    font-weight: $font-weight-semibold;
+    line-height: 1;
+    white-space: nowrap;
   }
 
+  .atlas-changelog-version-chip {
+    background: var(--background-modifier-hover);
+    color: var(--text-normal);
+  }
+
+  .atlas-changelog-badge {
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+
+    &--new {
+      background: color-mix(in oklch, var(--interactive-accent) 16%, transparent);
+      color: var(--text-accent);
+    }
+    &--beta {
+      background: color-mix(in oklch, var(--color-orange) 14%, transparent);
+      color: var(--color-orange);
+    }
+  }
+
+  .atlas-changelog-release-title {
+    color: var(--text-normal);
+    font-size: $font-ui-medium;
+    font-weight: $font-weight-semibold;
+    line-height: var(--line-height-tight);
+  }
+
+  .atlas-changelog-chevron {
+    width: $icon-s;
+    height: $icon-s;
+    flex-shrink: 0;
+    color: var(--text-muted);
+    transition: transform $transition-normal $transition-ease-in-out;
+  }
+  .atlas-changelog-trigger[aria-expanded='true'] .atlas-changelog-chevron { transform: rotate(180deg); }
+
+  // Height animates through the grid track; the inner wrapper clips while the
+  // track grows. Opening takes the full beat, closing is quicker, and the notes
+  // fade with the height so late-arriving Markdown never pops into view.
+  .atlas-changelog-panel {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows $transition-press $transition-ease-out;
+
+    &[data-expanded='true'] {
+      grid-template-rows: 1fr;
+      transition-duration: $transition-normal;
+
+      .atlas-changelog-panel-body {
+        opacity: 1;
+        transition-duration: $transition-normal;
+      }
+    }
+  }
+
+  .atlas-changelog-panel-inner {
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .atlas-changelog-panel-body {
+    padding: $spacing-l;
+    border-top: $border-width-s solid var(--background-modifier-border);
+    opacity: 0;
+    transition: opacity $transition-press $transition-ease-out;
+  }
+
+  // ── Release notes ─────────────────────────────────────────────────────────
   .atlas-changelog-markdown {
+    display: flex;
+    flex-direction: column;
+    gap: $spacing-l;
     font-size: $font-ui-small;
     line-height: var(--line-height-normal);
-    h2 { font-size: $font-ui-medium; margin-top: $spacing-l; }
+  }
+
+  .atlas-changelog-section {
+    display: flex;
+    flex-direction: column;
+    gap: $spacing-s;
+  }
+
+  .atlas-changelog-category {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: $font-ui-smaller;
+    font-weight: $font-weight-semibold;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .atlas-changelog-section-body {
     > :first-child { margin-top: 0; }
     > :last-child { margin-bottom: 0; }
+    ul { padding-inline-start: $spacing-l; }
     li + li { margin-top: $spacing-s; }
+    li::marker { color: var(--text-faint); }
   }
 
   .atlas-changelog-fallback { white-space: pre-wrap; font-family: var(--font-interface); }
+
+  // ── Footer ────────────────────────────────────────────────────────────────
   .atlas-changelog-footer {
+    flex-shrink: 0;
     display: flex;
     flex-wrap: wrap;
     justify-content: space-between;
     align-items: center;
     gap: $spacing-l;
+    padding-top: $spacing-l;
+    border-top: $border-width-s solid var(--divider-color);
+
+    > .btn {
+      @include atlas-native-modal-corner-button;
+      margin-inline-start: auto;
+      transition: color $transition-normal $transition-ease,
+                  background-color $transition-normal $transition-ease,
+                  transform $transition-press $transition-ease-out;
+
+      &:active { transform: scale(0.97); }
+    }
   }
-  .atlas-changelog-preference {
+
+  .atlas-changelog-preferences {
     display: flex;
-    align-items: center;
-    gap: $spacing-s;
+    flex-wrap: wrap;
+    gap: $spacing-l;
+  }
+
+  .atlas-changelog-preference {
+    @include atlas-flex-row($gap: $spacing-s);
+    min-height: var(--input-height);
+    color: var(--text-normal);
     font-size: $font-ui-small;
     cursor: pointer;
-    input { margin: 0; }
+
+    &:has(input:disabled) {
+      color: var(--text-faint);
+      cursor: default;
+    }
+  }
+
+  .atlas-changelog-visually-hidden { @include atlas-visually-hidden; }
+
+  // Reduced motion keeps the colour and opacity cues but removes movement.
+  @media (prefers-reduced-motion: reduce) {
+    .atlas-changelog-chevron,
+    .atlas-changelog-panel { transition: none; }
+    .atlas-changelog-footer > .btn:active { transform: none; }
   }
 }

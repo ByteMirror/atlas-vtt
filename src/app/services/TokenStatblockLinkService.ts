@@ -17,7 +17,7 @@ export interface TokenStatblockLink {
  * writes them onto the token whatever its `kind`, so all are optional here.
  */
 type StoredStatblockFields = Pick<BaseToken, 'imagePath' | 'showNameplate'>
-  & Partial<Pick<Character, 'name' | 'hp' | 'stress' | 'maxStress' | 'difficulty' | 'statblockPath' | 'statblockName'>>
+  & Partial<Pick<Character, 'name' | 'hp' | 'stress' | 'maxStress' | 'maxHpOverridden' | 'maxStressOverridden' | 'difficulty' | 'statblockPath' | 'statblockName'>>
   & {
     /** Written by older versions and never read; still stripped on unlink. */
     maxHp?: number;
@@ -339,6 +339,8 @@ export class TokenStatblockLinkService extends EventEmitter {
               setOrDelete(token, 'stress', statblockData.stress);
               setOrDelete(token, 'maxStress', statblockData.maxStress);
               setOrDelete(token, 'difficulty', statblockData.difficulty);
+              delete token.maxHpOverridden;
+              delete token.maxStressOverridden;
             }
           } else {
             // Unlink from statblock - clear ALL statblock-derived data
@@ -349,6 +351,8 @@ export class TokenStatblockLinkService extends EventEmitter {
             delete token.maxHp;
             delete token.stress;
             delete token.maxStress;
+            delete token.maxHpOverridden;
+            delete token.maxStressOverridden;
             delete token.difficulty;
             delete token.showNameplate;
           }

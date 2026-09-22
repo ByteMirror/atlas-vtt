@@ -421,10 +421,9 @@ export class TokenUIRenderer {
     this.nameText.text = '';
     
     // Check if we have any data to display
-    // Only show HP/stress bars if token has a statblock assigned AND the setting is enabled
     const hasStatblock = !!token.statblockPath;
-    const hasHP = hasStatblock && token.hp !== undefined && tokenSettings.showHPBars;
-    const hasStress = hasStatblock && token.stress !== undefined && tokenSettings.showStressBars;
+    const hasHP = token.hp !== undefined && tokenSettings.showHPBars;
+    const hasStress = token.stress !== undefined && tokenSettings.showStressBars;
     // showNameplate is already calculated above for change detection
 
     const hasConditions = (token.conditions?.length ?? 0) > 0;

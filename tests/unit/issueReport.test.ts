@@ -15,7 +15,7 @@ describe('issue report markdown', () => {
   it('formats a markdown copy with only the filled sections', () => {
     const markdown = formatReportMarkdown({ ...report, steps: '' });
     expect(markdown).toContain('# Fog freezes Obsidian');
-    expect(markdown).toContain('Crash or freeze · Fog of war, vision and lighting');
+    expect(markdown).toContain('Crash or freeze · Fog of war and lighting');
     expect(markdown).toContain('## What happened?');
     expect(markdown).not.toContain('## Steps to reproduce');
     expect(markdown).toContain('## Recent errors');

@@ -1,48 +1,47 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { X, Check } from 'lucide-react';
 import { createRoot } from 'react-dom/client';
+import { TFile, type App } from 'obsidian';
 import type { StoreApi } from 'zustand';
 import type { ViewAtlasState } from '../../storeFactory';
+import type { TokenEntity } from '../../types';
 import { WALLS_AND_LIGHTING_ENABLED } from '../../featureFlags';
 import { CloseButton } from '../../packages/components/primitives/CloseButton';
-import { LabelTooltip } from '../../packages/components/primitives/tooltip';
+import { Button } from '../../packages/components/primitives/button';
+import { NumberOverrideField, parseNumberInput } from './NumberOverrideField';
+import { readStatblockVitals } from './statblockFrontmatter';
+import { buildResourceUpdates, statblockResourceDefaults, type ResourceDefaults } from './tokenResourceEdits';
 
-interface EditTokenModalProps {
+interface EditTokenValues {
   name: string;
   showNameplate: boolean;
-  playerLinked: boolean;
+  maxHp: number | undefined;
+  maxStress: number | undefined;
   visionInnerRadius: number | undefined;
   visionOuterRadius: number | undefined;
+}
+
+interface EditTokenModalProps {
+  initial: EditTokenValues;
+  playerLinked: boolean;
+  resourceDefaults: ResourceDefaults;
   unitLabel: string;
-  onSave: (name: string, showNameplate: boolean, visionInnerRadius: number | undefined, visionOuterRadius: number | undefined) => void;
+  onSave: (values: EditTokenValues) => void;
   onClose: () => void;
 }
 
-function parseVisionInput(value: string): number | undefined {
-  const trimmed = value.trim();
-  if (trimmed === '') return undefined;
-  const num = Number(trimmed);
-  return isNaN(num) ? undefined : num;
-}
+const numberInput = (value: number | undefined): string => (value === undefined ? '' : String(value));
 
-function EditTokenModalInner({
-  name: initialName,
-  showNameplate: initialShowNameplate,
-  playerLinked,
-  visionInnerRadius: initialVisionInnerRadius,
-  visionOuterRadius: initialVisionOuterRadius,
-  unitLabel,
-  onSave,
-  onClose,
-}: EditTokenModalProps): React.ReactElement {
-  const [name, setName] = useState(initialName);
-  const [showNameplate, setShowNameplate] = useState(initialShowNameplate);
-  const [visionInnerInput, setVisionInnerInput] = useState(
-    initialVisionInnerRadius !== undefined ? String(initialVisionInnerRadius) : '',
-  );
-  const [visionOuterInput, setVisionOuterInput] = useState(
-    initialVisionOuterRadius !== undefined ? String(initialVisionOuterRadius) : '',
-  );
+const defaultPlaceholder = (value: number | undefined): string =>
+  value === undefined ? 'None' : `Statblock default: ${value}`;
+
+function EditTokenModalInner({ initial, playerLinked, resourceDefaults, unitLabel, onSave, onClose }: EditTokenModalProps): React.ReactElement {
+  const [name, setName] = useState(initial.name);
+  const [showNameplate, setShowNameplate] = useState(initial.showNameplate);
+  const [maxHpInput, setMaxHpInput] = useState(numberInput(initial.maxHp));
+  const [maxStressInput, setMaxStressInput] = useState(numberInput(initial.maxStress));
+  const [visionInnerInput, setVisionInnerInput] = useState(numberInput(initial.visionInnerRadius));
+  const [visionOuterInput, setVisionOuterInput] = useState(numberInput(initial.visionOuterRadius));
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -52,6 +51,17 @@ function EditTokenModalInner({
     }, 50);
   }, []);
 
+  const handleSave = (): void => {
+    onSave({
+      name,
+      showNameplate,
+      maxHp: parseNumberInput(maxHpInput),
+      maxStress: parseNumberInput(maxStressInput),
+      visionInnerRadius: parseNumberInput(visionInnerInput),
+      visionOuterRadius: parseNumberInput(visionOuterInput),
+    });
+  };
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') {
@@ -60,39 +70,24 @@ function EditTokenModalInner({
         onClose();
       } else if (e.key === 'Enter') {
         e.preventDefault();
-        onSave(
-          name,
-          showNameplate,
-          parseVisionInput(visionInnerInput),
-          parseVisionInput(visionOuterInput),
-        );
+        handleSave();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [name, showNameplate, visionInnerInput, visionOuterInput, onSave, onClose]);
+  });
 
-  const handleSave = (): void => {
-    onSave(
-      name,
-      showNameplate,
-      parseVisionInput(visionInnerInput),
-      parseVisionInput(visionOuterInput),
-    );
-  };
+  const unitSuffix = unitLabel ? ` (${unitLabel})` : '';
 
   return (
     <div className="atlas-modal-overlay" onClick={onClose}>
       <div className="atlas-modal atlas-edit-token-modal" onClick={(e) => e.stopPropagation()}>
-        {/* Header */}
         <div className="atlas-modal-header">
           <h3>Edit Token</h3>
           <CloseButton onClick={onClose} />
         </div>
 
-        {/* Content */}
-        <div className="atlas-modal-content">
-          {/* Name field */}
+        <div className="atlas-modal-body">
           <div className="atlas-edit-token__field">
             <label className="atlas-edit-token__label">Name</label>
             <input
@@ -105,115 +100,79 @@ function EditTokenModalInner({
             />
           </div>
 
-          {/* Show Nameplate toggle */}
           <div className="atlas-edit-token__field atlas-edit-token__field--row">
             <label className="atlas-edit-token__label">Show Nameplate</label>
             <div className="atlas-toggle" onClick={() => setShowNameplate(!showNameplate)}>
-              <div className={showNameplate
-                ? 'atlas-toggle__switch atlas-toggle__switch--on'
-                : 'atlas-toggle__switch atlas-toggle__switch--off'
-              }>
-                <div className={showNameplate
-                  ? 'atlas-toggle__thumb atlas-toggle__thumb--on'
-                  : 'atlas-toggle__thumb atlas-toggle__thumb--off'
-                }>
-                  {showNameplate
-                    ? <Check className="atlas-toggle__icon" />
-                    : <X className="atlas-toggle__icon" />
-                  }
+              <div className={`atlas-toggle__switch atlas-toggle__switch--${showNameplate ? 'on' : 'off'}`}>
+                <div className={`atlas-toggle__thumb atlas-toggle__thumb--${showNameplate ? 'on' : 'off'}`}>
+                  {showNameplate ? <Check className="atlas-toggle__icon" /> : <X className="atlas-toggle__icon" />}
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Vision Override — only for player-linked tokens */}
+          <div className="atlas-edit-token__section-divider" />
+          <div className="atlas-edit-token__section-label">Resources</div>
+          <NumberOverrideField
+            label="Max HP"
+            value={maxHpInput}
+            onChange={setMaxHpInput}
+            placeholder={defaultPlaceholder(resourceDefaults.maxHp)}
+            resetLabel="Reset to statblock default"
+          />
+          <NumberOverrideField
+            label="Max Secondary Resource"
+            value={maxStressInput}
+            onChange={setMaxStressInput}
+            placeholder={defaultPlaceholder(resourceDefaults.maxStress)}
+            resetLabel="Reset to statblock default"
+          />
+
           {WALLS_AND_LIGHTING_ENABLED && playerLinked && (
             <>
               <div className="atlas-edit-token__section-divider" />
               <div className="atlas-edit-token__section-label">Vision Override</div>
-
-              <div className="atlas-edit-token__field">
-                <label className="atlas-edit-token__label">Bright Vision Range{unitLabel ? ` (${unitLabel})` : ''}</label>
-                <div className="atlas-edit-token__input-row">
-                  <input
-                    type="number"
-                    className="atlas-input"
-                    value={visionInnerInput}
-                    onChange={(e) => setVisionInnerInput(e.target.value)}
-                    placeholder="(collection default)"
-                    min={0}
-                  />
-                  {visionInnerInput !== '' && (
-                    <LabelTooltip label="Reset to collection default">
-                      <button
-                        className="atlas-button atlas-button-ghost atlas-edit-token__clear-btn"
-                        onClick={() => setVisionInnerInput('')}
-                      >
-                        <X size={12} />
-                      </button>
-                    </LabelTooltip>
-                  )}
-                </div>
-              </div>
-
-              <div className="atlas-edit-token__field">
-                <label className="atlas-edit-token__label">Dim Vision Range{unitLabel ? ` (${unitLabel})` : ''}</label>
-                <div className="atlas-edit-token__input-row">
-                  <input
-                    type="number"
-                    className="atlas-input"
-                    value={visionOuterInput}
-                    onChange={(e) => setVisionOuterInput(e.target.value)}
-                    placeholder="(collection default)"
-                    min={0}
-                  />
-                  {visionOuterInput !== '' && (
-                    <LabelTooltip label="Reset to collection default">
-                      <button
-                        className="atlas-button atlas-button-ghost atlas-edit-token__clear-btn"
-                        onClick={() => setVisionOuterInput('')}
-                      >
-                        <X size={12} />
-                      </button>
-                    </LabelTooltip>
-                  )}
-                </div>
-              </div>
+              <NumberOverrideField
+                label={`Bright Vision Range${unitSuffix}`}
+                value={visionInnerInput}
+                onChange={setVisionInnerInput}
+                placeholder="(collection default)"
+                resetLabel="Reset to collection default"
+              />
+              <NumberOverrideField
+                label={`Dim Vision Range${unitSuffix}`}
+                value={visionOuterInput}
+                onChange={setVisionOuterInput}
+                placeholder="(collection default)"
+                resetLabel="Reset to collection default"
+              />
             </>
           )}
         </div>
 
-        {/* Footer */}
         <div className="atlas-modal-footer">
-          <button className="atlas-button atlas-button-secondary" onClick={onClose}>
-            Cancel
-          </button>
-          <button className="atlas-button atlas-button-primary" onClick={handleSave}>
-            Save
-          </button>
+          <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
+          <Button variant="default" size="sm" onClick={handleSave}>Save</Button>
         </div>
       </div>
     </div>
   );
 }
 
+function readResourceDefaults(app: App, statblockPath: string | undefined): ResourceDefaults {
+  const file = statblockPath ? app.vault.getAbstractFileByPath(statblockPath) : null;
+  const frontmatter = file instanceof TFile ? app.metadataCache.getFileCache(file)?.frontmatter : undefined;
+  return frontmatter ? statblockResourceDefaults(readStatblockVitals(frontmatter)) : {};
+}
+
 /**
  * Imperatively opens an Edit Token modal by mounting a React root.
  * Call from non-React code (e.g. InteractionController).
  */
-export function openEditTokenModal(
-  token: {
-    id: string;
-    name?: string;
-    showNameplate?: boolean;
-    playerLinked?: boolean;
-    visionInnerRadius?: number;
-    visionOuterRadius?: number;
-  },
-  store: StoreApi<ViewAtlasState>,
-): void {
+export function openEditTokenModal(token: TokenEntity, store: StoreApi<ViewAtlasState>, app: App): void {
+  const character = token.kind === 'character' ? token : undefined;
+  const resourceDefaults = readResourceDefaults(app, character?.statblockPath);
   const container = document.body.createDiv({ cls: 'atlas-vtt-plugin atlas-vtt-root' });
-
   const root = createRoot(container);
 
   const cleanup = (): void => {
@@ -221,33 +180,32 @@ export function openEditTokenModal(
     container.remove();
   };
 
-  const handleSave = (
-    name: string,
-    showNameplate: boolean,
-    visionInnerRadius: number | undefined,
-    visionOuterRadius: number | undefined,
-  ): void => {
+  const handleSave = ({ name, showNameplate, maxHp, maxStress, visionInnerRadius, visionOuterRadius }: EditTokenValues): void => {
     store.getState().updateToken(token.id, {
       name,
       showNameplate,
       visionInnerRadius,
       visionOuterRadius,
+      ...buildResourceUpdates(character ?? {}, { maxHp, maxStress }, resourceDefaults),
     });
     cleanup();
   };
 
-  // Derive unit label from grid settings
-  const grid = store.getState().grid;
-  const unitType = grid?.unitType ?? 'feet';
+  const unitType = store.getState().grid?.unitType ?? 'feet';
   const unitLabel = unitType === 'meters' ? 'm' : unitType === 'feet' ? 'ft' : '';
 
   root.render(
     <EditTokenModalInner
-      name={token.name ?? ''}
-      showNameplate={token.showNameplate ?? false}
-      playerLinked={token.playerLinked ?? false}
-      visionInnerRadius={token.visionInnerRadius}
-      visionOuterRadius={token.visionOuterRadius}
+      initial={{
+        name: character?.name ?? '',
+        showNameplate: token.showNameplate ?? false,
+        maxHp: typeof character?.hp === 'object' ? character.hp.max : character?.hp,
+        maxStress: typeof character?.stress === 'object' ? character.stress.max : character?.maxStress,
+        visionInnerRadius: token.visionInnerRadius,
+        visionOuterRadius: token.visionOuterRadius,
+      }}
+      playerLinked={character?.playerLinked ?? false}
+      resourceDefaults={resourceDefaults}
       unitLabel={unitLabel}
       onSave={handleSave}
       onClose={cleanup}

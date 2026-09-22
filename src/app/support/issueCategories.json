@@ -8,18 +8,15 @@
     "question": "Question or something else"
   },
   "ISSUE_AREAS": {
-    "maps": "Maps and scenes",
-    "grid": "Grid and alignment",
-    "tokens": "Tokens and creatures",
-    "statblocks": "Statblocks, notes and pins",
-    "asset-manager": "Asset manager and collections",
-    "vision": "Fog of war, vision and lighting",
+    "maps": "Maps, scenes and grid",
+    "tokens": "Tokens",
+    "notes": "Notes, pins and statblocks",
+    "vision": "Fog of war and lighting",
     "combat": "Initiative and combat",
     "dice": "Dice",
-    "player-view": "Player view window",
-    "audio": "Music and ambience",
-    "settings": "Settings, hotkeys and commands",
-    "install": "Installing or updating Atlas",
-    "unknown": "Not sure / something else"
+    "asset-manager": "Asset manager",
+    "player-view": "Player view",
+    "settings": "Settings, commands and updates",
+    "unknown": "Not sure / other"
   }
 }

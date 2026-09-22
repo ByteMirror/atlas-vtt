@@ -186,19 +186,25 @@ export const UIRoot: React.FC<UIRootProps> = ({ app, view, pixiApp }) => {
           {/* Navigation controls - only for DM view when not loading */}
 
           
-          {/* View actions menu - only for DM view when not loading */}
-          {!isPlayerView && !isMapLoading && <ViewActionsMenu app={app} filePath={view?.file?.path} />}
-
-          {/* Scene Tab Bar - only for DM view when not loading */}
-          {!isPlayerView && !isMapLoading && (
-            <SceneTabBar
-              onSwitchTab={(tabId) => { if (view) runInBackground(view.switchToTab(tabId), 'Switching scene tab'); }}
-              onCloseTab={(tabId) => { if (view) runInBackground(view.closeTab(tabId), 'Closing scene tab'); }}
-              onAddTab={() => view?.openSceneBrowser()}
-              onPresentTab={(tabId) => {
-                if (view) void presentTabInPlayerWindow(app, view, tabId);
-              }}
-            />
+          {/* Top row — scene tabs (DM only) and widget bar share one flex row */}
+          {!isMapLoading && (
+            <div className="atlas-top-bar-row">
+              {!isPlayerView && (
+                <SceneTabBar
+                  onSwitchTab={(tabId) => { if (view) runInBackground(view.switchToTab(tabId), 'Switching scene tab'); }}
+                  onCloseTab={(tabId) => { if (view) runInBackground(view.closeTab(tabId), 'Closing scene tab'); }}
+                  onAddTab={() => view?.openSceneBrowser()}
+                  onPresentTab={(tabId) => {
+                    if (view) void presentTabInPlayerWindow(app, view, tabId);
+                  }}
+                />
+              )}
+              <ResponsiveWidgetBar
+                isPlayerView={isPlayerView}
+                store={store}
+                viewId={view?.viewId}
+              />
+            </div>
           )}
 
           {/* Bottom toolbar row — undo/redo docked left of main toolbar */}
@@ -208,16 +214,9 @@ export const UIRoot: React.FC<UIRootProps> = ({ app, view, pixiApp }) => {
               <MainToolbar viewId={view?.viewId} />
             </div>
           )}
-          
-          
-          {/* Widget Bar - visible to both DM and players when not loading */}
-          {!isMapLoading && (
-            <ResponsiveWidgetBar 
-              isPlayerView={isPlayerView}
-              store={store}
-              viewId={view?.viewId}
-            />
-          )}
+
+          {/* View actions menu — bottom right, DM only */}
+          {!isPlayerView && !isMapLoading && <ViewActionsMenu app={app} filePath={view?.file?.path} />}
           
           {/* Grid Settings Modal - only render when needed */}
           {isGridSettingsOpen && (

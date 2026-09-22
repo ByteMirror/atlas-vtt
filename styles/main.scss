@@ -45,6 +45,7 @@
   @import '../src/app/packages/components/primitives/dropdown-menu.scss';
   @import '../src/app/packages/components/primitives/toggle.scss';
   @import '../src/app/packages/components/primitives/input-modal.scss';
+  @import '../src/app/packages/components/primitives/select.scss';
   @import '../src/app/packages/components/primitives/progress-modal.scss';
   @import '../src/app/packages/components/primitives/close-button.scss';
   @import '../src/app/react/components/dice/dice-dropdown.scss';
@@ -90,6 +91,29 @@
     font-size: var(--font-ui-small);
     font-variant-numeric: tabular-nums;
     z-index: var(--layer-popover, 1000);
+  }
+
+  // Scene tabs and widgets share one row so they can never overlap:
+  // the tab strip shrinks and scrolls, the widget bar keeps its width.
+  .atlas-top-bar-row {
+    position: fixed;
+    top: $spacing-s;
+    left: $spacing-s;
+    right: $spacing-s;
+    display: flex;
+    align-items: flex-start;
+    gap: $spacing-s;
+    z-index: 100;
+    pointer-events: none;
+
+    // The row positions the widget bar here; the fixed variants in
+    // widget-bar.scss remain for the player window.
+    > .atlas-widget-bar.atlas-widget-bar-top {
+      position: static;
+      transform: none;
+      flex: none;
+      margin-left: auto;
+    }
   }
 
   // Center the main toolbar independently of the undo/redo controls.

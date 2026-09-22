@@ -50,30 +50,7 @@
 }
 
 .atlas-collection-dropdown-trigger {
-  appearance: none;
-  outline: none;
-  box-shadow: none !important;
-  width: 100%;
-  height: $control-height;
-  padding: 0 $spacing-s;
-  @include atlas-flex-row($gap: $spacing-s);
-  justify-content: space-between;
-  font-size: $font-ui-small;
-  font-weight: $font-weight-medium;
-  border-radius: $radius-m;
-  background-color: var(--background-primary) !important;
-  color: var(--text-normal);
-  border: $border-width-s solid var(--background-modifier-border) !important;
-  cursor: pointer;
-  text-align: left;
-
-  &:hover {
-    border-color: var(--background-modifier-border-hover) !important;
-  }
-
-  &.atlas-open {
-    border-color: var(--background-modifier-border-focus) !important;
-  }
+  @include atlas-select-trigger($control-height);
 
   .atlas-collection-selected {
     flex: 1;
@@ -106,29 +83,7 @@
 }
 
 .atlas-collection-dropdown-content {
-  position: absolute;
-  top: calc(100% + #{$spacing-xs});
-  left: 0;
-  right: 0;
-  z-index: $z-popover;
-  max-height: 300px;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  background: var(--menu-background);
-  border: var(--menu-border-width, #{$border-width-s}) solid var(--menu-border-color);
-  border-radius: $radius-xl;
-  box-shadow: var(--menu-shadow, #{$shadow-md});
-
-  transform-origin: top left;
-  opacity: 1;
-  transform: scale(1);
-  transition: opacity 150ms $transition-ease-out, transform 150ms $transition-ease-out;
-
-  @starting-style {
-    opacity: 0;
-    transform: scale(0.96);
-  }
+  @include atlas-select-popover;
 }
 
 .atlas-collection-search {
@@ -170,30 +125,7 @@
 }
 
 .atlas-collection-option {
-  appearance: none;
-  width: 100%;
-  height: $control-height;
-  padding: 0 $spacing-s;
-  margin: 0;
-  @include atlas-flex-row($gap: $spacing-s);
-  justify-content: space-between;
-  font-size: $font-ui-small;
-  background-color: transparent !important;
-  color: var(--text-normal);
-  border: none !important;
-  outline: none !important;
-  box-shadow: none !important;
-  border-radius: $radius-m;
-  cursor: pointer;
-  text-align: left;
-
-  &:hover {
-    background-color: var(--background-modifier-hover) !important;
-  }
-
-  &:active {
-    background-color: var(--background-modifier-active-hover) !important;
-  }
+  @include atlas-select-option($control-height);
 
   .atlas-collection-option-content {
     @include atlas-flex-row($gap: $spacing-s);

@@ -1,4 +1,7 @@
+import React from 'react';
+import { createRoot, type Root } from 'react-dom/client';
 import { Modal, Notice, Setting, type App } from 'obsidian';
+import { Select, type SelectOption } from '../packages/components/primitives/Select';
 import { runInBackground } from '../utils/backgroundTask';
 import { formatDiagnostics, type IssueDiagnostics } from './diagnostics';
 import { formatErrors, type LoggedError } from './errorLog';
@@ -19,6 +22,13 @@ export interface IssueReportModalOptions {
   submitReport: (report: IssueReport, requestId: string) => Promise<{ number: number; url: string }>;
 }
 
+const TYPE_LABEL_ID = 'atlas-issue-report-type-label';
+const AREA_LABEL_ID = 'atlas-issue-report-area-label';
+
+function selectOptions<T extends string>(labels: Record<T, string>): SelectOption<T>[] {
+  return (Object.entries(labels) as [T, string][]).map(([value, label]) => ({ value, label }));
+}
+
 /** Submits a report in Obsidian and keeps the draft until the service confirms creation. */
 export class IssueReportModal extends Modal {
   private type: IssueType;
@@ -35,6 +45,8 @@ export class IssueReportModal extends Modal {
   private descriptionSetting: Setting | undefined;
   private stepsSetting: Setting | undefined;
   private environmentEl: HTMLElement | undefined;
+  private typeRoot: Root | undefined;
+  private areaRoot: Root | undefined;
 
   constructor(app: App, private readonly options: IssueReportModalOptions) {
     super(app);
@@ -58,6 +70,13 @@ export class IssueReportModal extends Modal {
   }
 
   onClose(): void {
+    this.clearContent();
+  }
+
+  private clearContent(): void {
+    this.typeRoot?.unmount();
+    this.areaRoot?.unmount();
+    this.typeRoot = this.areaRoot = undefined;
     this.contentEl.empty();
   }
 
@@ -66,15 +85,30 @@ export class IssueReportModal extends Modal {
   }
 
   private renderChoices(): void {
-    new Setting(this.contentEl).setName('Kind of issue').addDropdown(dropdown => {
-      dropdown.addOptions(ISSUE_TYPES).setValue(this.type).onChange(value => {
-        this.type = value as IssueType;
-        this.applyWording();
-      });
-    });
-    new Setting(this.contentEl).setName('Part of Atlas affected').addDropdown(dropdown => {
-      dropdown.addOptions(ISSUE_AREAS).setValue(this.area).onChange(value => { this.area = value as IssueArea; });
-    });
+    const choices = this.contentEl.createDiv({ cls: 'atlas-issue-report-choices' });
+    this.typeRoot = createRoot(this.choiceField(choices, 'Issue type', TYPE_LABEL_ID));
+    this.areaRoot = createRoot(this.choiceField(choices, 'Area', AREA_LABEL_ID));
+    this.renderSelects();
+  }
+
+  /** A labelled field whose name element carries `id` so the select can reference it. */
+  private choiceField(container: HTMLElement, name: string, id: string): HTMLElement {
+    const setting = new Setting(container).setName(name).setClass('atlas-issue-report-field');
+    setting.nameEl.id = id;
+    return setting.controlEl;
+  }
+
+  /** Both selects are controlled from the modal's state, so every change re-renders them. */
+  private renderSelects(): void {
+    this.typeRoot?.render(<Select labelledBy={TYPE_LABEL_ID} value={this.type} options={selectOptions(ISSUE_TYPES)} onChange={value => {
+      this.type = value;
+      this.applyWording();
+      this.renderSelects();
+    }} />);
+    this.areaRoot?.render(<Select labelledBy={AREA_LABEL_ID} value={this.area} options={selectOptions(ISSUE_AREAS)} onChange={value => {
+      this.area = value;
+      this.renderSelects();
+    }} />);
   }
 
   private renderText(): void {
@@ -122,6 +156,9 @@ export class IssueReportModal extends Modal {
   }
 
   private renderActions(): void {
+    // The status sits above the actions so the buttons stay flush with the dialog's bottom edge.
+    this.statusEl = this.contentEl.createEl('p', { cls: 'atlas-issue-report-status' });
+    this.statusEl.setAttribute('role', 'alert');
     const actions = this.contentEl.createDiv({ cls: 'atlas-issue-report-actions' });
     new Setting(actions)
       .addButton(button => button.setButtonText('Copy report')
@@ -131,8 +168,6 @@ export class IssueReportModal extends Modal {
         button.setButtonText('Submit report').setCta()
           .onClick(() => { void this.submit(); });
       });
-    this.statusEl = this.contentEl.createEl('p', { cls: 'atlas-issue-report-status' });
-    this.statusEl.setAttribute('role', 'alert');
   }
 
   private applyWording(): void {
@@ -178,7 +213,7 @@ export class IssueReportModal extends Modal {
       this.submission = { body, id: crypto.randomUUID() };
     }
     this.submitting = true;
-    const controls = [...this.contentEl.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>('input, textarea, select')];
+    const controls = [...this.contentEl.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLButtonElement>('input, textarea, [role="combobox"]')];
     const disabled = controls.map(control => control.disabled);
     controls.forEach(control => { control.disabled = true; });
     this.statusEl?.setText('');
@@ -188,7 +223,7 @@ export class IssueReportModal extends Modal {
     }
     try {
       const receipt = await this.options.submitReport(report, this.submission.id);
-      this.contentEl.empty();
+      this.clearContent();
       this.setTitle('Report submitted');
       this.contentEl.createEl('p', { text: `Report submitted as #${receipt.number}. Thank you for helping improve Atlas.` });
       new Setting(this.contentEl)

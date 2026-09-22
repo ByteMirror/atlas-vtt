@@ -72,6 +72,10 @@ export interface Character extends BaseToken {
   hp: number | { current: number; max: number }; // Support both simple and complex HP
   stress?: number | { current: number; max: number }; // Current stress level
   maxStress?: number; // Maximum stress (defaults to 10)
+  /** Max HP was set on this token; statblock edits no longer replace it. */
+  maxHpOverridden?: boolean;
+  /** Max stress was set on this token; statblock edits no longer replace it. */
+  maxStressOverridden?: boolean;
   hope?: number | { current: number; max: number }; // Hope tokens for player characters
   difficulty?: string; // CR or tier from statblock
   notePath?: string;

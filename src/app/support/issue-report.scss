@@ -1,7 +1,33 @@
 @use '../../../styles/tokens' as *;
+@use '../../../styles/mixins' as *;
 
 .atlas-vtt-plugin.atlas-issue-report-modal {
+  @include atlas-native-modal-close-control;
   width: min(640px, 90vw);
+  // The whole form stays on screen: the dialog may use almost the full window
+  // height, and when even that is too short the text boxes give up height
+  // and scroll internally instead of the dialog.
+  max-height: calc(100vh - #{$spacing-2xl});
+
+  > .modal-content {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .setting-item:has(textarea) {
+    min-height: 0;
+
+    .setting-item-control {
+      flex: 1 1 auto;
+      min-height: 0;
+    }
+
+    textarea {
+      flex: 1 1 auto;
+      min-height: 3lh;
+    }
+  }
 
   .atlas-issue-report-intro {
     margin: 0 0 $spacing-l;
@@ -19,9 +45,25 @@
     }
 
     input,
-    textarea {
+    textarea,
+    select {
       width: 100%;
       resize: vertical;
+    }
+  }
+
+  // Issue type and area share one row; the row carries the divider the
+  // settings inside it would otherwise each draw.
+  .atlas-issue-report-choices {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: $spacing-l;
+    padding: $spacing-m 0;
+    border-top: $border-width-s solid var(--background-modifier-border);
+
+    .setting-item {
+      padding: 0;
+      border: 0;
     }
   }
 
@@ -37,6 +79,8 @@
     pre {
       margin: $spacing-s 0 0;
       padding: $spacing-m;
+      max-height: 160px;
+      overflow: auto;
       white-space: pre-wrap;
       overflow-wrap: anywhere;
       font-size: var(--font-ui-smaller);
@@ -45,12 +89,25 @@
     }
   }
 
+  .atlas-issue-report-status {
+    margin: $spacing-l 0 0;
+    color: var(--text-error);
+    font-size: $font-ui-small;
+
+    &:empty { display: none; }
+  }
+
   .atlas-issue-report-actions .setting-item {
     border: 0;
     padding: $spacing-l 0 0;
 
     .setting-item-control {
       gap: $spacing-s;
+    }
+
+    // The last action sits in the dialog's corner and runs concentric with it.
+    button:last-child {
+      @include atlas-native-modal-corner-button;
     }
   }
 }

@@ -10,6 +10,7 @@ import { Container, FederatedPointerEvent } from 'pixi.js';
 import { Viewport } from 'pixi-viewport';
 import { App } from 'obsidian';
 import { openEditTokenModal } from './EditTokenModal';
+import { STATBLOCK_UNLINK_UPDATES } from './statblockFrontmatter';
 import { openContextMenuGlobal, closeContextMenuGlobal, type ContextMenuEntry } from '../../react/root/ContextMenuContext';
 import { DestructiveActionRow } from './DestructiveActionRow';
 import type { ITokenInteractionController, TokenGroupContainer } from './types';
@@ -583,15 +584,7 @@ export class InteractionController implements ITokenInteractionController {
           if (obsApp && token.imagePath) {
             const linkService = TokenStatblockLinkService.getInstance(obsApp);
             await linkService.unlinkToken(token.imagePath);
-            this.store.getState().updateToken(token.id, {
-              statblockPath: undefined,
-              name: undefined,
-              statblockName: undefined,
-              hp: undefined,
-              stress: undefined,
-              difficulty: undefined,
-              showNameplate: false,
-            });
+            this.store.getState().updateToken(token.id, STATBLOCK_UNLINK_UPDATES);
           }
         },
       });
@@ -776,7 +769,7 @@ export class InteractionController implements ITokenInteractionController {
   }
 
   private showEditTokenModal(token: TokenEntity): void {
-    openEditTokenModal(token, this.store);
+    openEditTokenModal(token, this.store, this.obsApp);
   }
 
   destroyAll(): void {

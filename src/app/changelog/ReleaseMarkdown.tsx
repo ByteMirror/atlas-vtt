@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Component, MarkdownRenderer, type App } from 'obsidian';
+import { splitReleaseSections } from './releaseSections';
 
 interface Props {
   app: App;
@@ -7,6 +8,7 @@ interface Props {
   onRendered: () => void;
 }
 
+/** Renders release notes as labelled category sections; `onRendered` fires once every section is in place. */
 export function ReleaseMarkdown({ app, markdown, onRendered }: Props): React.JSX.Element {
   const host = useRef<HTMLDivElement>(null);
   const [failed, setFailed] = useState(false);
@@ -19,7 +21,11 @@ export function ReleaseMarkdown({ app, markdown, onRendered }: Props): React.JSX
     element.replaceChildren();
     void (async () => {
       try {
-        await MarkdownRenderer.render(app, markdown, element, '', owner);
+        for (const section of splitReleaseSections(markdown)) {
+          const container = element.createDiv({ cls: 'atlas-changelog-section' });
+          if (section.label) container.createEl('h4', { cls: 'atlas-changelog-category', text: section.label });
+          await MarkdownRenderer.render(app, section.markdown, container.createDiv({ cls: 'atlas-changelog-section-body' }), '', owner);
+        }
         if (active) onRendered();
       } catch (error) {
         if (!active) return;

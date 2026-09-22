@@ -1,5 +1,7 @@
 ## New
 
+- Set maximum HP and secondary resource values in Edit Token, with per-token overrides of linked statblock defaults.
+
 - Choose a token's size from its right-click menu on the map: Medium (1×1), Large (2×2), Huge (3×3) or Gargantuan (4×4).
 - Give token assets a default size in the token creator, when editing a token, or from the asset manager's right-click menu. Tokens spawn at that size, and it travels with collection exports. Fantasy Statblocks imports pick it up from the creature's size.
 - The ruler follows the grid's Snap to grid setting: switch snapping off to measure from any point.
@@ -19,6 +21,9 @@
 
 ## Improved
 
+- Browse release notes in a fixed-size changelog with a scrolling history, release sections and a feature-update-only announcement option. Beta builds include their pending notes.
+- The issue-report form uses Atlas dropdowns and grouped categories, with only its text fields scrolling.
+
 - Exporting a collection now packs everything it needs: scenes with their map files, backgrounds and previews, token art and thumbnails, encounters, and the Fantasy Statblocks notes tokens link to together with their artwork, plus the collection's tags and settings. Importing restores all of it into the new vault with working scene previews and statblock links, and a progress dialog shows what is being packed or written.
 - Hover highlights in the asset manager, dropdown menus and context menus now appear and disappear instantly, and every item also shows a pressed highlight while you click it.
 - Deleting a token asset now tells you which encounters and maps still use it, removes it from them on confirm, and deletes encounters that would be left empty.
@@ -32,6 +37,11 @@
 - Grids draw in black or white, whichever stands out against the map image, instead of cyan. Maps still on the old cyan default switch over automatically; pick Auto in the grid colour swatches to return to this after choosing a colour.
 
 ## Fixed
+
+- Token artwork and glass overlays update throughout resize and rotation gestures, including after release.
+- Edit Token no longer draws an extra frame around its fields, and its actions use the shared button states.
+
+- Scene tabs and widgets share the top row, with widgets aligned right and the initiative tracker kept clear. The view-actions menu sits at the bottom right.
 
 - Resize and rotation handles on selected tokens respond to clicks and drags again instead of deselecting the token.
 - Deleting or renaming a collection in Manage Tags & Collections now sticks: the collection and its assets are removed from the vault, and the dropdown no longer shows it after reopening the asset manager. Deleting asks for confirmation first, and the default collection cannot be deleted.

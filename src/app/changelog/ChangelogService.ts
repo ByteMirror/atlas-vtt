@@ -3,7 +3,7 @@ import type { SettingsService } from '../services/SettingsService';
 import { ChangelogModal } from './ChangelogModal';
 import releaseBundle from './releases.json';
 import type { ReleaseBundle } from './types';
-import { compareVersions, isReleaseVersion, releaseBaseVersion } from './version';
+import { compareVersions, crossesFeatureRelease, isReleaseVersion, releaseBaseVersion } from './version';
 
 export const CHANGELOG_STORAGE_KEY = 'atlas-vtt:changelog';
 
@@ -45,6 +45,11 @@ export class ChangelogService {
       return;
     }
     if (this.lastAcknowledged && compareVersions(this.options.installedVersion, this.lastAcknowledged) <= 0) return;
+    if (this.lastAcknowledged && this.settings.getSetting('changelogMajorUpdatesOnly')
+      && !crossesFeatureRelease(this.lastAcknowledged, this.options.installedVersion)) {
+      this.acknowledge();
+      return;
+    }
     if (!this.isMainWindowActive()) {
       this.waitForMainWindow('automatic');
       return;
@@ -62,8 +67,9 @@ export class ChangelogService {
     this.cancelPendingOpen();
     const currentVersion = this.options.installedVersion;
     const baseVersion = releaseBaseVersion(currentVersion);
-    const releases = this.bundle.releases.filter(release =>
-      baseVersion !== null && compareVersions(release.version, baseVersion) <= 0,
+    // Beta builds also carry their own pending notes, versioned as the build itself.
+    const releases = this.bundle.releases.filter(release => release.version === currentVersion
+      || (baseVersion !== null && compareVersions(release.version, baseVersion) <= 0),
     );
     const newVersions = new Set(releases.filter(release => this.lastAcknowledged
       ? compareVersions(release.version, this.lastAcknowledged) > 0
@@ -72,7 +78,9 @@ export class ChangelogService {
     const modal = new ChangelogModal(this.app, {
       releases, currentVersion, newVersions,
       showOnUpdate: this.settings.getSetting('showChangelogOnUpdate'),
+      majorUpdatesOnly: this.settings.getSetting('changelogMajorUpdatesOnly'),
       onPreferenceChange: enabled => this.settings.setSetting('showChangelogOnUpdate', enabled),
+      onMajorUpdatesChange: enabled => this.settings.setSetting('changelogMajorUpdatesOnly', enabled),
       onClose: rendered => {
         if (this.modal !== modal) return;
         this.modal = undefined;

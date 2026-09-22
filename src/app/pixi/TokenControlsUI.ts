@@ -288,8 +288,7 @@ export class TokenControlsUI {
     const state = this.store.getState();
     const token = state.objects.tokens[tokenId] as Character | undefined;
     
-    // Controls only apply to tokens with a linked statblock
-    if (!token?.statblockPath) {
+    if (token?.hp === undefined && token?.stress === undefined) {
       this.hide();
       return;
     }
@@ -415,8 +414,7 @@ export class TokenControlsUI {
     
     // Stress buttons — mirror TokenUIRenderer's hasStress logic
     const tokenSettings = this.store.getState().tokenSettings || { showStressBars: true };
-    const hasStatblock = !!token.statblockPath;
-    const hasStress = hasStatblock && token.stress !== undefined && tokenSettings.showStressBars;
+    const hasStress = token.stress !== undefined && tokenSettings.showStressBars;
     if (hasStress && typeof token.stress === 'number' && typeof token.maxStress === 'number') {
       this.stressMinusBtn.visible = true;
       this.stressPlusBtn.visible = true;

@@ -60,6 +60,13 @@ function readPendingNotes(root) {
   return markdown;
 }
 
+/** Beta builds carry the pending notes as their own entry so testers can read what changed. */
+function pendingRelease(root, version) {
+  const { base, channel } = parseVersion(version);
+  const markdown = channel === 'beta' ? readPendingNotes(root) : '';
+  return markdown ? { version, title: `Coming in ${base}`, markdown } : null;
+}
+
 function formatRelease(release) {
   return `# Atlas VTT ${release.version} — ${release.title}\n\n${release.date}\n\n${release.markdown}\n`;
 }
@@ -75,7 +82,8 @@ function generateChangelog(root, { check = false } = {}) {
   const pkg = JSON.parse(read(root, 'package.json'));
   if (manifest.version !== pkg.version) throw new Error('Manifest/package version mismatch');
   const releases = readReleases(root, manifest.version);
-  const bundle = { version: manifest.version, releases };
+  const pending = pendingRelease(root, manifest.version);
+  const bundle = { version: manifest.version, releases: pending ? [pending, ...releases] : releases };
   const outputs = {
     'src/app/changelog/releases.json': `${JSON.stringify(bundle, null, 2)}\n`,
     'CHANGELOG.md': '# Atlas VTT changelog\n\n<!-- Generated from changelog/*.md. Run npm run changelog:generate. -->\n\n' +
@@ -116,7 +124,7 @@ function validateBuild(root) {
   }
 }
 
-module.exports = { readReleases, readPendingNotes, generateChangelog, formatRelease, formatPrerelease, stampBuild, validateBuild };
+module.exports = { readReleases, readPendingNotes, pendingRelease, generateChangelog, formatRelease, formatPrerelease, stampBuild, validateBuild };
 
 if (require.main === module) {
   try {

@@ -431,6 +431,7 @@ export class TokenResizeUI {
   private onResizeEnd = (e: FederatedPointerEvent): void => {
     if (!this.isResizing) return;
     
+    let pendingUpdates: Array<{ id: string; changes: { size: number } }> = [];
     // If resize occurred, create a single undo state for all resizes
     if (this.hasResized) {
       const finalSizes: Array<{ id: string; size: number }> = [];
@@ -448,11 +449,7 @@ export class TokenResizeUI {
         }
       }
       
-      if (finalSizes.length > 0) {
-        this.store.getState().updateTokens(
-          finalSizes.map(({ id, size }) => ({ id, changes: { size } }))
-        );
-      }
+      pendingUpdates = finalSizes.map(({ id, size }) => ({ id, changes: { size } }));
     }
     
     // Store the token IDs before clearing resize state
@@ -466,6 +463,12 @@ export class TokenResizeUI {
     this.temporarySizes = {};
     this.activeHandle = null;
     
+    // Commit after clearing temporary sizes so TokenRenderer's store subscriber
+    // applies the final size instead of deferring to a temp override.
+    if (pendingUpdates.length > 0) {
+      this.store.getState().updateTokens(pendingUpdates);
+    }
+
     // Show other UI elements again after resize completes
     window.dispatchEvent(new CustomEvent('atlas-token-resize-ended', {
       detail: { tokenIds: resizedTokenIds }

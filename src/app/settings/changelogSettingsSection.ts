@@ -30,6 +30,25 @@ export function changelogSettingsSection(settings: SettingsService, changelog: C
           return unsubscribe;
         },
       },
+      {
+        name: 'Feature updates only',
+        desc: 'Show feature releases such as 1.2 and 1.3. Skip patches such as 1.2.1.',
+        render: setting => {
+          let unsubscribe: (() => void) | undefined;
+          setting.addToggle(toggle => {
+            toggle.setValue(settings.getSetting('changelogMajorUpdatesOnly'))
+              .setDisabled(!settings.getSetting('showChangelogOnUpdate'))
+              .onChange(enabled => {
+                if (settings.getSetting('changelogMajorUpdatesOnly') !== enabled) settings.setSetting('changelogMajorUpdatesOnly', enabled);
+              });
+            unsubscribe = settings.onChange(value => {
+              toggle.setValue(value.changelogMajorUpdatesOnly);
+              toggle.setDisabled(!value.showChangelogOnUpdate);
+            });
+          });
+          return unsubscribe;
+        },
+      },
     ],
   };
 }

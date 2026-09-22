@@ -11,19 +11,16 @@ body:
     attributes:
       label: Which part of Atlas is affected?
       options:
-        - Maps and scenes
-        - Grid and alignment
-        - Tokens and creatures
-        - Statblocks, notes and pins
-        - Asset manager and collections
-        - Fog of war, vision and lighting
+        - Maps, scenes and grid
+        - Tokens
+        - Notes, pins and statblocks
+        - Fog of war and lighting
         - Initiative and combat
         - Dice
-        - Player view window
-        - Music and ambience
-        - Settings, hotkeys and commands
-        - Installing or updating Atlas
-        - Not sure / something else
+        - Asset manager
+        - Player view
+        - Settings, commands and updates
+        - Not sure / other
     validations:
       required: true
   - type: textarea

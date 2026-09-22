@@ -14,3 +14,11 @@ export function releaseBaseVersion(value: string): string | null {
 export function compareVersions(a: string, b: string): number {
   return a.localeCompare(b, 'en', { numeric: true });
 }
+
+/** Feature announcements include minor and major releases, but skip patch-only updates. */
+export function crossesFeatureRelease(previous: string, current: string): boolean {
+  if (!isReleaseVersion(previous) || !isReleaseVersion(current) || compareVersions(current, previous) <= 0) return false;
+  const [previousMajor, previousMinor] = previous.split('.').map(Number);
+  const [currentMajor, currentMinor] = current.split('.').map(Number);
+  return currentMajor! > previousMajor! || (currentMajor === previousMajor && currentMinor! > previousMinor!);
+}

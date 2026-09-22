@@ -1,7 +1,7 @@
 import { syncTokenArtwork } from './token-renderer/tokenArtwork';
 import type { AtlasSettings } from '../services/SettingsService';
 import { hiddenTokenLayers, type LayerVisibility } from './playerSafeFrame';
-import { Sprite, Container, Graphics, Circle, Texture, Application, FederatedPointerEvent } from "pixi.js";
+import { Sprite, Container, Graphics, Texture, Application, FederatedPointerEvent } from "pixi.js";
 import { Viewport } from "pixi-viewport";
 import { App as ObsidianApp, TFile, parseYaml } from 'obsidian';
 import type { TokenEntity } from "../types";
@@ -21,7 +21,7 @@ import { UIManager } from './token-renderer/UIManager';
 import { InteractionController } from './token-renderer/InteractionController';
 import { SyncService } from './token-renderer/SyncService';
 import { updateInstanceBadge } from './token-renderer/InstanceBadge';
-import { buildStatblockLinkUpdates, readStatblockVitals } from './token-renderer/statblockFrontmatter';
+import { buildStatblockLinkUpdates, readStatblockVitals, STATBLOCK_UNLINK_UPDATES } from './token-renderer/statblockFrontmatter';
 import type { TokenGroupContainer } from './token-renderer/types';
 import type { ConditionDefinition } from '../types/collectionSettingsTypes';
 import { setCanvasCursor } from './utils/canvasCursor';
@@ -307,12 +307,14 @@ export class TokenRenderer {
       const tokenIds = event.detail?.tokenIds || [];
       const tokens = this.store.getState().objects.tokens;
 
-      // Force re-sync specific tokens to update their rotation
+      // Apply the temporary rotation directly; syncTokens would skip the
+      // token as unchanged because the store value has not moved yet.
       for (const tokenId of tokenIds) {
-        const token = tokens[tokenId];
-        if (token) {
-          // Trigger visual update by calling syncTokens with just this token
-          runInBackground(this.syncTokens({ [tokenId]: token }, { [tokenId]: token }), `Token sync for ${tokenId}`);
+        const tokenGroup = this.tokenSprites[tokenId];
+        const tempRotation = this.uiManager.getRotationUI()?.getTemporaryRotation(tokenId);
+        if (tokens[tokenId] && tokenGroup instanceof Container && tempRotation !== undefined) {
+          this.spriteFactory.updateTokenRotation(tokenGroup, tempRotation);
+          this.uiManager.updateHandlePositions();
         }
       }
     };
@@ -360,49 +362,10 @@ export class TokenRenderer {
             // Update the visual size without storing to state
             const tokenGroup = this.tokenSprites[tokenId];
             if (tokenGroup instanceof Container) {
-              // Find the sprite in the children (it's not always at index 0)
-              let sprite: Sprite | null = null;
-              for (const child of tokenGroup.children) {
-                if (child instanceof Sprite) {
-                  sprite = child;
-                  break;
-                }
-              }
-
-              if (sprite) {
-                const tokenSize = computeTokenPixelSize(this.gridSystem.getOptions().size, tempSize);
-
-                // Update sprite size
-                sprite.width = tokenSize;
-                sprite.height = tokenSize;
-
-                // Update mask and hit area
-                const maskRadius = tokenSize / 2;
-                const circleMask = sprite.mask as Graphics;
-                if (circleMask) {
-                  circleMask.clear();
-                  circleMask.circle(0, 0, maskRadius);
-                  circleMask.fill(0xffffff);
-                  circleMask.hitArea = new Circle(0, 0, maskRadius);
-                }
-                sprite.hitArea = new Circle(0, 0, maskRadius);
-
-                // Update background
-                const tokenBackground = tokenGroup.getChildByLabel('tokenBackground') as Graphics;
-                if (tokenBackground) {
-                  tokenBackground.clear();
-                  tokenBackground.circle(0, 0, maskRadius);
-                  tokenBackground.fill({ color: 0x000000, alpha: 0 });
-                  tokenBackground.hitArea = new Circle(0, 0, maskRadius);
-                }
-
-                // Update token UI (health bar, nameplate) scale
-                this.uiManager.syncUIScale(tokenId, tokenSize);
-
-                // Always refresh ring, even when token has no explicit ringColor,
-                // so default ring tokens stay in sync with renderer updates.
-                this.updateTokenRing(tokenId, tokenGroup, tokenSize, token.ringColor);
-              }
+              this.spriteFactory.updateTokenSize(tokenId, tokenGroup, tempSize);
+              const tokenSize = computeTokenPixelSize(this.gridSystem.getOptions().size, tempSize);
+              this.uiManager.syncUIScale(tokenId, tokenSize);
+              this.updateTokenRing(tokenId, tokenGroup, tokenSize, token.ringColor);
             }
           }
         }
@@ -467,7 +430,7 @@ export class TokenRenderer {
           // Refresh statblock-derived data but keep live values such as current HP and stress
           const updates: TokenUpdates = { name: vitals.name || token.name };
 
-          if (vitals.hp) {
+          if (vitals.hp && !token.maxHpOverridden) {
             const currentHp = typeof token.hp === 'object' ? token.hp.current : undefined;
             updates.hp = {
               current: currentHp ?? vitals.hp.current ?? vitals.hp.max ?? 0,
@@ -475,7 +438,7 @@ export class TokenRenderer {
             };
           }
 
-          if (vitals.maxStress !== undefined) {
+          if (vitals.maxStress !== undefined && !token.maxStressOverridden) {
             updates.maxStress = vitals.maxStress;
             if (token.stress === undefined) {
               updates.stress = 0;
@@ -509,15 +472,7 @@ export class TokenRenderer {
       } else if (event.type === 'unlinked') {
         // Token was unlinked from statblock - clear ALL statblock-derived data
         for (const tokenId of affectedTokenIds) {
-          this.store.getState().updateToken(tokenId, {
-            statblockPath: undefined,
-            name: undefined,
-            statblockName: undefined,
-            hp: undefined,
-            stress: undefined,
-            difficulty: undefined,
-            showNameplate: false
-          });
+          this.store.getState().updateToken(tokenId, STATBLOCK_UNLINK_UPDATES);
         }
       }
     };
@@ -824,19 +779,7 @@ export class TokenRenderer {
         // Update rotation if it changed or if there's a temporary rotation
         const tempRotation = this.uiManager.getRotationUI()?.getTemporaryRotation(token.id);
         const displayRotation = tempRotation !== undefined ? tempRotation : (token.rotation || 0);
-
-        // Find the sprite in the children (it's not always at index 0)
-        let sprite: Sprite | null = null;
-        for (const child of existingTokenGroup.children) {
-          if (child instanceof Sprite) {
-            sprite = child;
-            break;
-          }
-        }
-        
-        if (sprite) {
-          sprite.rotation = displayRotation * Math.PI / 180; // Convert degrees to radians
-        }
+        this.spriteFactory.updateTokenRotation(existingTokenGroup, displayRotation);
         
         // Update rotation handle positions when token rotates
         if (!prevToken || prevToken.rotation !== token.rotation || tempRotation !== undefined) {
@@ -1339,6 +1282,8 @@ export class TokenRenderer {
         const currentName = token.kind === 'character' ? token.name : undefined;
         this.store.getState().updateToken(tokenId, {
           statblockPath,
+          maxHpOverridden: undefined,
+          maxStressOverridden: undefined,
           ...buildStatblockLinkUpdates(frontmatter, currentName)
         });
       }

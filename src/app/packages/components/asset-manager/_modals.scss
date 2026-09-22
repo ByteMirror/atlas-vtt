@@ -153,11 +153,6 @@
   @include atlas-modal-overlay($z-atlas-modal);
 }
 
-.atlas-modal-content {
-  @include atlas-modal-window;
-  pointer-events: auto;
-}
-
 .atlas-modal-header {
   @include atlas-modal-header;
 }

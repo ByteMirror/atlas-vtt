@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { act } from 'react';
 import { Setting, type App } from 'obsidian';
 import { IssueReportModal, type IssueReportModalOptions } from '../../src/app/support/IssueReportModal';
 import { supportSettingsSection } from '../../src/app/settings/supportSettingsSection';
@@ -14,15 +15,21 @@ function openModal(overrides: Partial<IssueReportModalOptions> = {}) {
     ...overrides,
   };
   const modal = new IssueReportModal({} as App, options);
-  modal.onOpen();
+  act(() => modal.onOpen());
   const el = modal.contentEl;
-  const set = (element: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement, value: string) => {
+  const set = (element: HTMLInputElement | HTMLTextAreaElement, value: string) => {
     element.value = value;
     element.dispatchEvent(new Event('input'));
     element.dispatchEvent(new Event('change'));
   };
   const button = (text: string) => [...el.querySelectorAll('button')].find(entry => entry.textContent === text)!;
-  return { modal, el, options, set, button };
+  /** Opens the custom select named `label` and picks the option with `text`; each click renders before the next. */
+  const choose = async (label: string, text: string) => {
+    const trigger = [...el.querySelectorAll<HTMLButtonElement>('[role="combobox"]')].find(entry => el.querySelector(`#${entry.getAttribute('aria-labelledby')}`)?.textContent === label)!;
+    await act(() => trigger.click());
+    await act(() => [...el.querySelectorAll<HTMLButtonElement>('[role="option"]')].find(option => option.textContent === text)!.click());
+  };
+  return { modal, el, options, set, button, choose };
 }
 
 describe('issue report modal', () => {
@@ -32,10 +39,9 @@ describe('issue report modal', () => {
     expect(options.submitReport).not.toHaveBeenCalled();
   });
   it('submits the selected categories and diagnostics without opening GitHub', async () => {
-    const { el, set, button, options } = openModal();
-    const [type, area] = el.querySelectorAll('select');
-    set(type!, 'compatibility');
-    set(area!, 'tokens');
+    const { el, set, button, options, choose } = openModal();
+    await choose('Issue type', 'Conflict with another plugin or theme');
+    await choose('Area', 'Tokens');
     set(el.querySelector('input')!, 'Tokens vanish with Dataview');
     const [description, steps] = el.querySelectorAll('textarea');
     set(description!, 'After enabling Dataview the tokens disappear.');
@@ -62,6 +68,7 @@ describe('issue report modal', () => {
     expect(submitReport).toHaveBeenCalledTimes(1);
     expect(submit.disabled).toBe(true);
     expect(el.querySelector('input')!.disabled).toBe(true);
+    expect(el.querySelector<HTMLButtonElement>('[role="combobox"]')!.disabled).toBe(true);
     reject(new Error('Connection unavailable'));
     await vi.waitFor(() => expect(submit.disabled).toBe(false));
     expect(el.querySelector('input')!.value).toBe('Fog issue');
@@ -73,13 +80,16 @@ describe('issue report modal', () => {
     await vi.waitFor(() => expect(submit.disabled).toBe(false));
   });
   it('switches wording for feature requests and copies a markdown report', async () => {
-    const { modal, el, set, button, options } = openModal({ preset: { type: 'feature', area: 'dice' } });
+    const { modal, el, set, button, options, choose } = openModal({ preset: { type: 'feature', area: 'dice' } });
     expect(modal.titleEl.textContent).toBe('Suggest a feature');
     expect(el.textContent).toContain('What would you like to do?');
-    set(el.querySelector('select')!, 'bug');
+    expect(el.querySelectorAll('[role="combobox"]')[1]!.textContent).toBe('Dice');
+    expect(el.querySelector('[aria-label]')).toBeNull();
+    await choose('Issue type', "Something doesn't work");
     expect(modal.titleEl.textContent).toBe('Report an issue');
     expect(el.textContent).toContain('Steps to reproduce');
-    set(el.querySelector('select')!, 'feature');
+    expect(el.querySelector('[role="listbox"]')).toBeNull();
+    await choose('Issue type', 'Feature request');
     set(el.querySelector('input')!, 'Dice presets');
     set(el.querySelector('textarea')!, 'Save common rolls.');
     button('Copy report').click();

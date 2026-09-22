@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 
-const { readReleases, readPendingNotes, generateChangelog, validateBuild, stampBuild, formatRelease, formatPrerelease } = createRequire(import.meta.url)('../../scripts/changelog.js');
+const { readReleases, readPendingNotes, pendingRelease, generateChangelog, validateBuild, stampBuild, formatRelease, formatPrerelease } = createRequire(import.meta.url)('../../scripts/changelog.js');
 const roots: string[] = [];
 function fixture(): string {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'atlas-changelog-'));
@@ -51,6 +51,20 @@ describe('bundled changelog', () => {
     expect(notes).toContain('- Future feature.');
     fs.writeFileSync(pending, '## Validation\n\n- 500 tests passed.');
     expect(() => readPendingNotes(root)).toThrow(/heading/i);
+  });
+  it('bundles pending notes as the beta build itself and keeps them out of the published history', () => {
+    const root = fixture(); note(root, '0.1.10');
+    fs.writeFileSync(path.join(root, 'changelog', 'Unreleased.md'), '## New\n\n- Preview feature.\n');
+    expect(pendingRelease(root, '0.1.10')).toBeNull();
+    expect(pendingRelease(root, '0.1.11-beta.1')).toEqual({ version: '0.1.11-beta.1', title: 'Coming in 0.1.11', markdown: '## New\n\n- Preview feature.' });
+    fs.writeFileSync(path.join(root, 'manifest.json'), JSON.stringify({ version: '0.1.11-beta.1', minAppVersion: '1.8.7' }));
+    fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ version: '0.1.11-beta.1' }));
+    const bundle = generateChangelog(root);
+    expect(bundle.releases.map((entry: { version: string }) => entry.version)).toEqual(['0.1.11-beta.1', '0.1.10']);
+    expect(bundle.releases[0].date).toBeUndefined();
+    expect(fs.readFileSync(path.join(root, 'CHANGELOG.md'), 'utf8')).not.toContain('Preview feature');
+    fs.writeFileSync(path.join(root, 'changelog', 'Unreleased.md'), '');
+    expect(generateChangelog(root).releases.map((entry: { version: string }) => entry.version)).toEqual(['0.1.10']);
   });
   it.each(['2026-02-30', 'yesterday'])('rejects invalid dates: %s', date => {
     const root = fixture(); note(root, '0.1.10', date);

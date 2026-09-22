@@ -89,7 +89,7 @@ const StatblockLinkModal: React.FC<StatblockLinkModalProps> = ({
 
   return (
     <div className="atlas-modal-overlay" onClick={onClose}>
-      <div className="atlas-modal-content atlas-statblock-link-modal" onClick={(e) => e.stopPropagation()}>
+      <div className="atlas-modal atlas-statblock-link-modal" onClick={(e) => e.stopPropagation()}>
         <div className="atlas-modal-header">
           <h2>Link Statblock to {asset.name}</h2>
           <CloseButton onClick={onClose} />

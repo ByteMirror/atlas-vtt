@@ -8,6 +8,7 @@ describe('changelog settings integration', () => {
     const settings = new SettingsService(app as any);
     await settings.initialize();
     expect(settings.getSetting('showChangelogOnUpdate')).toBe(true);
+    expect(settings.getSetting('changelogMajorUpdatesOnly')).toBe(false);
     expect(settings.getSetting('onboarding').enabled).toBe(false);
   });
   it('keeps the settings toggle in sync with modal changes and releases the listener', () => {

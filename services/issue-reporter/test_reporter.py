@@ -25,7 +25,7 @@ class Reports(unittest.TestCase):
         payload = self.create.call_args.args[0]
         self.assertEqual(payload["labels"], ["needs-triage", "type:crash", "area:vision"])
         self.assertIn("Crash or freeze", payload["body"])
-        self.assertIn("Fog of war, vision and lighting", payload["body"])
+        self.assertIn("Fog of war and lighting", payload["body"])
         self.assertIn(REPORT["description"], payload["body"])
         self.assertIn(REPORT["environment"], payload["body"])
 

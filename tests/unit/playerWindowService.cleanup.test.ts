@@ -5,6 +5,7 @@ vi.mock('../../src/app/atlas-view', () => ({
 }));
 
 import { PlayerWindowService } from '../../src/app/services/PlayerWindowService';
+import { attachFakePlayerWindow } from '../mocks/playerPopout';
 
 describe('PlayerWindowService cleanup', () => {
   beforeEach(() => {
@@ -39,10 +40,8 @@ describe('PlayerWindowService cleanup', () => {
 
     const settings = { getLocalPlayerViewSettings: () => ({ showWidgets: true }), onChange: () => vi.fn() };
     const service = new PlayerWindowService({ workspace: {} } as any, store as any, settings as any);
-    const doc = document.implementation.createHTMLDocument();
-    Object.defineProperty(doc, 'readyState', { value: 'complete' });
-    (service as any).playerWindow = { document: doc, closed: false, addEventListener: vi.fn(), removeEventListener: vi.fn(), close: vi.fn() };
-    (service as any).setupPlayerWindow();
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
+    const doc = attachFakePlayerWindow(service, { canvas: createEl('canvas'), store: store as any, withPlayerSafeFrame: vi.fn() });
     expect(doc.getElementById('atlas-player-widgets')?.textContent).toContain('Action');
 
     expect(PlayerWindowService.getInstance()).toBe(service);

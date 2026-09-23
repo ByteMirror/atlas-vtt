@@ -1,12 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createStore, type StoreApi } from 'zustand/vanilla';
-import type { LocalPlayerView } from '../../src/app/local-player-view';
 import type { ViewAtlasState } from '../../src/app/storeFactory';
 import type { TokenEntity } from '../../src/app/types';
 import { createDefaultInitiativeState, type InitiativeEntry } from '../../src/app/types/initiativeTypes';
 import { PlayerWindowService, type PlayerFrameSource } from '../../src/app/services/PlayerWindowService';
 import { SettingsService } from '../../src/app/services/SettingsService';
 import { createInMemoryApp } from '../mocks/inMemoryVault';
+import { attachFakePlayerWindow } from '../mocks/playerPopout';
 
 vi.mock('../../src/app/atlas-view', () => ({ AtlasView: class {}, ATLAS_VIEW_TYPE: 'atlas-vtt' }));
 afterEach(() => { PlayerWindowService.getInstance()?.destroy(); vi.useRealTimers(); vi.restoreAllMocks(); });
@@ -26,21 +26,13 @@ function scene(name = 'Hero', initiativeTrackerOpen = true): StoreApi<ViewAtlasS
 
 function setup(initiativeTrackerOpen = true): { service: PlayerWindowService; settings: SettingsService; store: StoreApi<ViewAtlasState>; doc: Document; source: PlayerFrameSource } {
   vi.useFakeTimers();
-  vi.spyOn(window, 'requestAnimationFrame').mockReturnValue(1);
-  vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => {});
   vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
   const { app } = createInMemoryApp();
   const settings = new SettingsService(app);
   const store = scene('Hero', initiativeTrackerOpen);
   const service = new PlayerWindowService(app, store, settings);
-  const doc = document.implementation.createHTMLDocument();
-  Object.defineProperty(doc, 'readyState', { value: 'complete' });
-  Object.defineProperty(doc.body, 'win', { value: {
-    document: doc, closed: false, addEventListener: vi.fn(), removeEventListener: vi.fn(), close: vi.fn(),
-    requestAnimationFrame: window.requestAnimationFrame, cancelAnimationFrame: window.cancelAnimationFrame,
-  } });
   const source = { canvas: createEl('canvas'), withPlayerSafeFrame: vi.fn(), store };
-  service.attachToView({ contentEl: doc.body, updateSession: vi.fn() } as LocalPlayerView, source, 'scene-a');
+  const doc = attachFakePlayerWindow(service, source);
   return { service, settings, store, doc, source };
 }
 

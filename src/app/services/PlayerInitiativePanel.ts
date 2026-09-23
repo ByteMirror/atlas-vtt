@@ -1,37 +1,45 @@
 import type { App } from 'obsidian';
 import type { ViewAtlasState } from '../storeFactory';
 import type { InitiativeEntry } from '../types/initiativeTypes';
-import { PlayerSceneOverlay } from './PlayerSceneOverlay';
-import type { AtlasSettings, SettingsService } from './SettingsService';
+import { PlayerSceneOverlay, type PlayerSettings } from './PlayerSceneOverlay';
+import type { SettingsService } from './SettingsService';
 import './player-initiative.scss';
 
-type PlayerSettings = AtlasSettings['localPlayerView'];
+/** Separates token ids in `InitiativeScene.visibleTokenIds`. */
+const TOKEN_ID_SEPARATOR = '\n';
 
 interface InitiativeScene {
   initiative: ViewAtlasState['initiative'];
   initiativeTrackerOpen: boolean;
-  tokens: ViewAtlasState['objects']['tokens'] | undefined;
+  /** Initiative tokens players may see, joined into a key so edits to other tokens compare equal. */
+  visibleTokenIds: string;
 }
 
 /** Read-only initiative projection; never mounts the DM tracker or its controls. */
 export class PlayerInitiativePanel extends PlayerSceneOverlay<InitiativeScene> {
-  constructor(parent: HTMLElement, private readonly app: App, settings: SettingsService) {
-    super(parent.createDiv({ cls: 'atlas-player-initiative-container' }), settings);
+  constructor(private readonly app: App, settings: SettingsService) {
+    super({ cls: 'atlas-player-initiative-container' }, settings);
   }
 
-  protected select(state: ViewAtlasState): InitiativeScene {
-    return { initiative: state.initiative, initiativeTrackerOpen: state.initiativeTrackerOpen, tokens: state.objects?.tokens };
+  protected select({ initiative, initiativeTrackerOpen, objects }: ViewAtlasState): InitiativeScene {
+    const tokens = objects?.tokens;
+    const visibleTokenIds = (initiative?.entries ?? [])
+      .filter((entry) => tokens?.[entry.tokenId] && !tokens[entry.tokenId]?.isHidden)
+      .map((entry) => entry.tokenId)
+      .join(TOKEN_ID_SEPARATOR);
+    return { initiative, initiativeTrackerOpen, visibleTokenIds };
   }
 
-  protected render({ initiative, initiativeTrackerOpen, tokens }: InitiativeScene): void {
-    const settings = this.settings.getLocalPlayerViewSettings();
+  protected render(container: HTMLElement, scene: InitiativeScene, settings: PlayerSettings): void {
+    const { initiative, initiativeTrackerOpen } = scene;
     if (!settings.showInitiative || !initiativeTrackerOpen || !initiative) return;
+    const visibleTokenIds = new Set(scene.visibleTokenIds.split(TOKEN_ID_SEPARATOR));
     const entries = initiative.entries
-      .filter(entry => tokens?.[entry.tokenId] && !tokens[entry.tokenId]?.isHidden)
+      .filter(entry => visibleTokenIds.has(entry.tokenId))
       .sort((a, b) => a.order - b.order);
     if (!entries.length) return;
 
-    const panel = this.container.createDiv({
+    const panel = container.createDiv({
       cls: 'atlas-player-initiative',
       attr: { role: 'region', 'aria-label': 'Initiative order' },
     });

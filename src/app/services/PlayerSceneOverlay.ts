@@ -1,7 +1,9 @@
 import type { StoreApi } from 'zustand';
 import { shallow } from 'zustand/vanilla/shallow';
 import type { ViewAtlasState } from '../storeFactory';
-import type { SettingsService } from './SettingsService';
+import type { AtlasSettings, SettingsService } from './SettingsService';
+
+export type PlayerSettings = AtlasSettings['localPlayerView'];
 
 /**
  * A player window overlay drawn from the presented scene's view store.
@@ -12,12 +14,29 @@ import type { SettingsService } from './SettingsService';
  * `select` picks, so a held overlay never keeps the store or a closed map alive.
  */
 export abstract class PlayerSceneOverlay<Scene extends object> {
+  private container: HTMLElement | undefined;
   private scene: Scene | undefined;
+  private playerSettings: PlayerSettings;
   private unsubscribeStore: (() => void) | undefined;
   private readonly unsubscribeSettings: () => void;
 
-  protected constructor(protected readonly container: HTMLElement, protected readonly settings: SettingsService) {
-    this.unsubscribeSettings = settings.onChange(() => this.refresh());
+  protected constructor(private readonly containerInfo: DomElementInfo, settings: SettingsService) {
+    this.playerSettings = settings.getLocalPlayerViewSettings();
+    this.unsubscribeSettings = settings.onChange(() => {
+      const playerSettings = settings.getLocalPlayerViewSettings();
+      if (shallow(this.playerSettings, playerSettings)) return;
+      this.playerSettings = playerSettings;
+      this.refresh();
+    });
+  }
+
+  /**
+   * Draw into a new container in `parent`, the popout's content. The scene can be
+   * presented or held before the popout document has loaded.
+   */
+  mount(parent: HTMLElement): void {
+    this.container = parent.createDiv(this.containerInfo);
+    this.refresh();
   }
 
   /** Bind to the presented view, including when it belongs to a different Atlas leaf. */
@@ -27,7 +46,7 @@ export abstract class PlayerSceneOverlay<Scene extends object> {
     this.refresh();
     this.unsubscribeStore = store.subscribe((state) => {
       const scene = this.select(state);
-      if (this.scene && shallow(this.scene, scene)) return;
+      if (shallow(this.scene, scene)) return;
       this.scene = scene;
       this.refresh();
     });
@@ -50,11 +69,12 @@ export abstract class PlayerSceneOverlay<Scene extends object> {
   /** Picks the store values this overlay shows; a shallow change triggers a re-render. */
   protected abstract select(state: ViewAtlasState): Scene;
 
-  /** Fills the emptied container from the presented `scene`. */
-  protected abstract render(scene: Scene): void;
+  /** Fills the emptied `container` from the presented `scene`. */
+  protected abstract render(container: HTMLElement, scene: Scene, settings: PlayerSettings): void;
 
   private refresh(): void {
+    if (!this.container) return;
     this.container.empty();
-    if (this.scene) this.render(this.scene);
+    if (this.scene) this.render(this.container, this.scene, this.playerSettings);
   }
 }

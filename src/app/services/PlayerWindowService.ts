@@ -7,7 +7,6 @@ import './player-window.scss';
 import { PlayerInitiativePanel } from './PlayerInitiativePanel';
 import type { PlayerSceneOverlay } from './PlayerSceneOverlay';
 import { PlayerWidgetBar } from './PlayerWidgetBar';
-import { createSvgElement } from '../utils/svgElement';
 import { LocalPlayerView, LOCAL_PLAYER_VIEW_TYPE, type PlayerCameraState } from '../local-player-view';
 
 /** Scopes the rules in `player-window.scss` to the popout document. */
@@ -170,6 +169,13 @@ export class PlayerWindowService {
     this.streamSource = source;
     this.isMirrorStale = true;
     playerWindowStore.setState({ presentedTabId: tabId });
+    // Bind now: the popout may still be loading, and the DM can switch tabs before it has
+    this.destroySceneOverlays();
+    this.sceneOverlays = [
+      new PlayerWidgetBar(this.settingsService),
+      new PlayerInitiativePanel(this.app, this.settingsService),
+    ];
+    this.presentScene();
     this.setupPlayerWindow();
   }
 
@@ -266,12 +272,7 @@ export class PlayerWindowService {
       const canvas = content.createEl('canvas');
       canvas.id = 'atlas-player-canvas';
 
-      this.destroySceneOverlays();
-      this.sceneOverlays = [
-        new PlayerWidgetBar(content, this.settingsService),
-        new PlayerInitiativePanel(content, this.app, this.settingsService),
-      ];
-      this.presentScene();
+      this.sceneOverlays.forEach((overlay) => overlay.mount(content));
       this.settingsUnsubscribe?.();
       // Player view settings decide which layers players see
       this.settingsUnsubscribe = this.settingsService.onChange(() => { this.isMirrorStale = true; });
@@ -279,22 +280,19 @@ export class PlayerWindowService {
       // Create freeze indicator
       const freezeIndicator = content.createDiv();
       freezeIndicator.id = 'atlas-player-freeze-indicator';
-      const freezeIcon = createSvgElement(doc, 'svg', {
-        width: '16',
-        height: '16',
+      const freezeIcon = freezeIndicator.createSvg('svg', { attr: {
+        width: 16,
+        height: 16,
         viewBox: '0 0 24 24',
         fill: 'none',
         stroke: 'currentColor',
-        'stroke-width': '2',
+        'stroke-width': 2,
         'stroke-linecap': 'round',
         'stroke-linejoin': 'round',
-      });
-      freezeIcon.append(
-        createSvgElement(doc, 'line', { x1: '2', y1: '12', x2: '22', y2: '12' }),
-        createSvgElement(doc, 'line', { x1: '12', y1: '2', x2: '12', y2: '22' }),
-        createSvgElement(doc, 'path', { d: 'M20 16l-4-4 4-4M4 8l4 4-4 4M16 4l-4 4-4-4M8 20l4-4 4 4' }),
-      );
-      freezeIndicator.append(freezeIcon);
+      } });
+      freezeIcon.createSvg('line', { attr: { x1: 2, y1: 12, x2: 22, y2: 12 } });
+      freezeIcon.createSvg('line', { attr: { x1: 12, y1: 2, x2: 12, y2: 22 } });
+      freezeIcon.createSvg('path', { attr: { d: 'M20 16l-4-4 4-4M4 8l4 4-4 4M16 4l-4 4-4-4M8 20l4-4 4 4' } });
       freezeIndicator.createSpan({ text: 'Camera paused' });
       freezeIndicator.style.display = this.isCameraFrozen ? 'flex' : 'none';
       

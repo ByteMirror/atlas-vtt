@@ -11,7 +11,7 @@ import {
   type FormationSlot,
 } from '../../../../encounters/encounterFormation';
 import type { AtlasView } from '../../../../atlas-view';
-import type { ViewAtlasState } from '../../../../storeFactory';
+import type { TokenInput, ViewAtlasState } from '../../../../storeFactory';
 
 // ─── Viewport helpers ───────────────────────────────────────────────
 
@@ -34,7 +34,7 @@ interface GridSystemLike {
 export interface SpawnContext {
   app: ObsidianApp;
   view: AtlasView | null;
-  addToken: ViewAtlasState['addToken'];
+  addTokens: ViewAtlasState['addTokens'];
   setSelection: (ids: string[]) => void;
   assetService: AssetService | null;
 }
@@ -187,6 +187,13 @@ async function buildTokenData(
   return data;
 }
 
+/** Adds the tokens in one store write (a single undo step) and selects them. */
+function addSpawnedTokens(ctx: SpawnContext, tokens: TokenInput[]): string[] {
+  const ids = ctx.addTokens(tokens);
+  if (ids.length > 0) ctx.setSelection(ids);
+  return ids;
+}
+
 // ─── Public spawn functions ─────────────────────────────────────────
 
 /**
@@ -208,14 +215,13 @@ export async function spawnTokenAsset(
   const source = await resolveTokenSource(ctx, asset);
   if (!source) return [];
 
-  const spawnedIds: string[] = [];
-  for (let i = 0; i < count; i++) {
-    const pos = gridPosition(i, count, center.x, center.y, pitch, gridSystem);
-    spawnedIds.push(ctx.addToken(await buildTokenData(ctx.app, pos, source)));
-  }
-
-  ctx.setSelection(spawnedIds);
-  return spawnedIds;
+  // The statblock is read once; every copy shares that data at its own position.
+  const template = await buildTokenData(ctx.app, center, source);
+  const tokens = Array.from({ length: count }, (_, i) => ({
+    ...structuredClone(template),
+    ...gridPosition(i, count, center.x, center.y, pitch, gridSystem),
+  }));
+  return addSpawnedTokens(ctx, tokens);
 }
 
 /**
@@ -240,7 +246,7 @@ export async function spawnEncounterTokens(
     ? placeFormation(slots, encounter.formation, center, grid)
     : null;
 
-  const spawnedIds: string[] = [];
+  const tokens: TokenInput[] = [];
   for (let i = 0; i < tokensToSpawn.length; i++) {
     const token = tokensToSpawn[i];
     if (!token) continue;
@@ -279,14 +285,10 @@ export async function spawnEncounterTokens(
           statblockPath: token.statblockPath || null,
           size: token.size,
         });
-    spawnedIds.push(ctx.addToken(tokenData));
+    tokens.push(tokenData);
   }
 
-  if (spawnedIds.length > 0) {
-    ctx.setSelection(spawnedIds);
-  }
-
-  return spawnedIds;
+  return addSpawnedTokens(ctx, tokens);
 }
 
 /**
@@ -306,7 +308,7 @@ export async function spawnSelectedTokens(
   const center = getViewportCenter(viewport);
   const tokensToSpawn = selectedAssets.filter(a => a.type === 'tokens');
 
-  const spawnedIds: string[] = [];
+  const tokens: TokenInput[] = [];
   for (let i = 0; i < tokensToSpawn.length; i++) {
     const tokenAsset = tokensToSpawn[i];
     if (!tokenAsset) continue;
@@ -314,12 +316,8 @@ export async function spawnSelectedTokens(
     const source = await resolveTokenSource(ctx, tokenAsset);
     if (!source) continue;
     const pos = gridPosition(i, tokensToSpawn.length, center.x, center.y, pitch, gridSystem);
-    spawnedIds.push(ctx.addToken(await buildTokenData(ctx.app, pos, source)));
+    tokens.push(await buildTokenData(ctx.app, pos, source));
   }
 
-  if (spawnedIds.length > 0) {
-    ctx.setSelection(spawnedIds);
-  }
-
-  return spawnedIds;
+  return addSpawnedTokens(ctx, tokens);
 }

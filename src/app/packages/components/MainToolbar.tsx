@@ -42,6 +42,7 @@ import {
 
 import { LabelTooltip, TooltipProvider } from "./primitives/tooltip"
 import { useMapHotkeys, useHotkeyLabels } from "../../keyboard/useMapHotkeys"
+import { useMapClipboardHotkeys } from "../../clipboard/useMapClipboardHotkeys"
 import { CommandPalette } from "../../react/components/CommandPalette"
 import AssetManager from "./asset-manager/AssetManager"
 import { ToolButton } from "./primitives/ToolButton"
@@ -422,6 +423,7 @@ export const MainToolbar = forwardRef<HTMLDivElement, MainToolbarProps>(({ viewI
   }, [store]);
 
   const hotkeyLabel = useHotkeyLabels();
+  useMapClipboardHotkeys(store, view, viewId);
 
   // All map bindings come from the same registry as settings and help.
   useMapHotkeys({

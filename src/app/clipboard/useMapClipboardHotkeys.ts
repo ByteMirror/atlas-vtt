@@ -1,0 +1,46 @@
+import { useEffect, useRef } from 'react';
+import type { AtlasView } from '../atlas-view';
+import type { ViewAtlasStore } from '../storeFactory';
+import { useMapHotkeys } from '../keyboard/useMapHotkeys';
+import { runInBackground } from '../utils/backgroundTask';
+import { copySelection, cutSelection, duplicateSelection, pasteClipboard } from './mapClipboardActions';
+import type { Point } from './mapObjectContent';
+
+/**
+ * World position to paste at: the cursor while it is over this map's canvas,
+ * otherwise the centre of the visible map.
+ */
+function pasteTarget(view: AtlasView | null, pointer: Point | null): Point | null {
+  const rendererService = view?.serviceManager?.getRendererService();
+  const viewport = rendererService?.getViewport();
+  if (!viewport) return null;
+  const canvas = rendererService?.getApp()?.canvas;
+  if (pointer && canvas && canvas.ownerDocument.elementFromPoint(pointer.x, pointer.y) === canvas) {
+    const rect = canvas.getBoundingClientRect();
+    return viewport.toWorld(pointer.x - rect.left, pointer.y - rect.top);
+  }
+  return viewport.toWorld(viewport.screenWidth / 2, viewport.screenHeight / 2);
+}
+
+/** Copy, cut, paste and duplicate shortcuts for the map's selected objects. */
+export function useMapClipboardHotkeys(store: ViewAtlasStore, view: AtlasView | null, viewId?: string): void {
+  const pointer = useRef<Point | null>(null);
+
+  useEffect(() => {
+    const track = (event: PointerEvent): void => {
+      pointer.current = { x: event.clientX, y: event.clientY };
+    };
+    window.addEventListener('pointermove', track, { passive: true });
+    return () => window.removeEventListener('pointermove', track);
+  }, []);
+
+  useMapHotkeys({
+    copy: () => runInBackground(copySelection(store), 'Copying map objects', 'Could not copy the selection'),
+    cut: () => runInBackground(cutSelection(store), 'Cutting map objects', 'Could not cut the selection'),
+    paste: () => {
+      const target = pasteTarget(view, pointer.current);
+      if (target) runInBackground(pasteClipboard(store, target), 'Pasting map objects', 'Could not paste');
+    },
+    duplicate: () => duplicateSelection(store),
+  }, viewId);
+}

@@ -219,7 +219,7 @@ export default function AssetManager({ isOpen, onClose, initialTab }: AssetManag
                   setDropTarget={setDropTarget}
                   onDrop={crud.handleDrop}
                   view={data.view}
-                  addToken={data.addToken}
+                  addTokens={data.addTokens}
                   setSelection={data.setSelection}
                   app={data.app}
                   assetService={data.assetService}

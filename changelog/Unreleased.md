@@ -1,3 +1,8 @@
+## New
+
+- Copy, cut, paste and duplicate on maps. Select one or many tokens, drawings, texts or pins and press Ctrl/Cmd+C, Ctrl/Cmd+X or Ctrl/Cmd+D; Ctrl/Cmd+V pastes at the cursor, snapped to the grid with the group's layout intact, and works across open maps. Duplicate and Copy are also in the token right-click menu. Each paste, cut or duplicate is one undo step and is saved with the map.
+- Spawn several copies of a token at once: in the asset manager, hover a token and type a number (for example 6), then double-click it or press Go. Right-click → Spawn Multiple offers quick counts too. On the map, hold Alt/Option while dragging tokens to drag out copies and leave the originals in place. A multi-token spawn is now a single undo step.
+
 ## Improved
 
 - Relative dates in the linked-note picker follow the app language and no longer depend on the moment library.

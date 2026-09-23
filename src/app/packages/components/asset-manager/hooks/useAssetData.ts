@@ -31,13 +31,13 @@ export interface AssetData {
   // Store-provided
   app: ObsidianApp;
   view: AtlasView | null;
-  addToken: ViewAtlasState['addToken'];
+  addTokens: ViewAtlasState['addTokens'];
   setSelection: (ids: string[]) => void;
   mapPath: string | null;
 }
 
 // The global asset manager opens without a map view, so there is no store to spawn tokens into.
-const addTokenWithoutMap = (): string => '';
+const addTokensWithoutMap = (): string[] => [];
 const setSelectionWithoutMap = (): void => {};
 
 export function useAssetData(
@@ -46,7 +46,7 @@ export function useAssetData(
   isOpen: boolean
 ): AssetData {
   const { app, view } = useAtlasUI();
-  const addToken = useOptionalAtlasStore((s) => s.addToken, addTokenWithoutMap);
+  const addTokens = useOptionalAtlasStore((s) => s.addTokens, addTokensWithoutMap);
   const setSelection = useOptionalAtlasStore((s) => s.setSelection, setSelectionWithoutMap);
   const mapPath = useOptionalAtlasStore((s) => s.mapPath, null);
 
@@ -196,6 +196,6 @@ export function useAssetData(
     folders, assets, availableTags, collections, assetCounts, assetService,
     setFolders, setAssets, setAvailableTags, setCollections,
     loadFoldersForActiveTab, loadAssetsForActiveTab, reloadGlobalTags,
-    app, view, addToken, setSelection, mapPath,
+    app, view, addTokens, setSelection, mapPath,
   };
 }

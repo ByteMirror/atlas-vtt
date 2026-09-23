@@ -154,7 +154,7 @@ export class DrawingInteraction {
 
     entries.push(
       { type: 'separator' },
-      { type: 'item', label: 'Duplicate', icon: 'files', onClick: () => this.store.getState().duplicateDrawings(ids) },
+      { type: 'item', label: 'Duplicate', icon: 'files', onClick: () => this.store.getState().duplicateMapObjects(ids) },
       { type: 'separator' },
       { type: 'item', label: 'Delete', icon: 'trash', destructive: true, onClick: () => this.store.getState().deleteSelected() },
     );

@@ -2,7 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useStore } from 'zustand';
 import { Plus, Minus } from 'lucide-react';
 import type { CounterWidget } from '../../types/widgetTypes';
-import type { ViewAtlasState, ViewAtlasStore } from '../../storeFactory';
+import type { ViewAtlasStore } from '../../storeFactory';
+import { DEFAULT_COUNTER_COLOR, clampCounterValue, readCounterValue } from '../../utils/counterWidget';
 import { WidgetIconGlyph } from './WidgetIconGlyph';
 import { LabelTooltip } from '../../packages/components/primitives/tooltip';
 
@@ -17,19 +18,6 @@ interface CounterWidgetDisplayProps {
   isKeyHeld: boolean;
   onInteraction: (widgetId: string) => void;
   onValueChange: (widgetId: string) => void;
-}
-
-const DEFAULT_COUNTER_COLOR = '#ffc107';
-
-/** Clamps a counter value to the widget's range (0–99 unless configured). */
-export function clampCounterValue(widget: Pick<CounterWidget, 'min' | 'max'>, value: number): number {
-  return Math.min(widget.max ?? 99, Math.max(widget.min ?? 0, value));
-}
-
-/** Current value of a counter: the undo-tracked `widgetValues` entry wins over the definition's copy. */
-export function readCounterValue(state: Pick<ViewAtlasState, 'widgetValues'>, widget: CounterWidget): number {
-  const value = state.widgetValues?.[widget.id] ?? widget.value;
-  return typeof value === 'number' ? value : 0;
 }
 
 export function stepCounter(store: ViewAtlasStore, widgetId: string, delta: number): void {

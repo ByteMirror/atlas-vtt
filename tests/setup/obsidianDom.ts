@@ -17,15 +17,22 @@ interface ElementOptions {
 
 type ElementSpec = ElementOptions | string | undefined;
 
-function applyOptions(el: HTMLElement, spec: ElementSpec): void {
-  const options: ElementOptions = typeof spec === 'string' ? { cls: spec } : spec ?? {};
+const SVG_NAMESPACE = 'http://www.w3.org/2000/svg';
+
+/** Applies the options HTML and SVG elements share: classes, text and attributes. */
+function applyCommonOptions(el: Element, options: ElementOptions): void {
   if (options.cls) el.classList.add(...(Array.isArray(options.cls) ? options.cls : options.cls.split(' ').filter(Boolean)));
   if (options.text !== undefined) el.textContent = options.text;
-  if (options.title !== undefined) el.title = options.title;
   for (const [name, value] of Object.entries(options.attr ?? {})) {
     if (value === null) el.removeAttribute(name);
     else el.setAttribute(name, String(value));
   }
+}
+
+function applyOptions(el: HTMLElement, spec: ElementSpec): void {
+  const options: ElementOptions = typeof spec === 'string' ? { cls: spec } : spec ?? {};
+  applyCommonOptions(el, options);
+  if (options.title !== undefined) el.title = options.title;
   const input = el as HTMLInputElement;
   if (options.type !== undefined) input.type = options.type;
   if (options.value !== undefined) input.value = options.value;
@@ -50,6 +57,13 @@ const helpers: Record<string, (this: HTMLElement, ...args: never[]) => unknown> 
   },
   createSpan(this: HTMLElement, spec?: ElementSpec, callback?: (el: HTMLElement) => void) {
     return createChild(this, 'span', spec, callback);
+  },
+  createSvg(this: HTMLElement, tag: string, spec?: ElementSpec, callback?: (el: SVGElement) => void) {
+    const el = (this.ownerDocument ?? document).createElementNS(SVG_NAMESPACE, tag) as SVGElement;
+    applyCommonOptions(el, typeof spec === 'string' ? { cls: spec } : spec ?? {});
+    this.appendChild(el);
+    callback?.(el);
+    return el;
   },
   empty(this: HTMLElement) {
     this.replaceChildren();

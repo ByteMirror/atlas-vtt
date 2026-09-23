@@ -103,11 +103,6 @@ describe('player initiative panel', () => {
     settings.setLocalPlayerViewSettings({ showTokenNameplates: true });
     expect(doc.body.textContent).toContain('Round 1');
     expect(doc.body.textContent).not.toContain('Round 9');
-    store.setState({ initiativeTrackerOpen: false });
-    expect(doc.querySelector('[aria-label="Initiative order"]')).toBeNull();
-    store.setState({ initiativeTrackerOpen: true });
-    expect(doc.body.textContent).toContain('Round 1');
-    expect(doc.body.textContent).not.toContain('Round 9');
     service.releaseHeldFrame(source);
     expect(doc.body.textContent).toContain('Round 9');
     const other = scene('Other hero');
@@ -120,6 +115,31 @@ describe('player initiative panel', () => {
     other.setState({ initiative: { ...other.getState().initiative, round: 4 } });
     settings.setLocalPlayerViewSettings({ showInitiative: false });
     expect(doc.body.textContent).toBe(before);
+  });
+
+  it('keeps the presented map\'s tracker visibility while the DM browses another map', () => {
+    const { service, store, doc, source } = setup(false);
+    const panel = (): Element | null => doc.querySelector('[aria-label="Initiative order"]');
+    service.holdCurrentFrame();
+    // Switching tabs loads the other map into the same view store.
+    store.setState({ initiativeTrackerOpen: true, initiative: { ...store.getState().initiative, round: 5 } });
+    expect(panel()).toBeNull();
+    store.setState({ initiativeTrackerOpen: false });
+    store.setState({ initiativeTrackerOpen: true });
+    expect(panel()).toBeNull();
+    // Returning to the presented map resumes following its live state.
+    store.setState({ initiativeTrackerOpen: false });
+    service.releaseHeldFrame(source);
+    expect(panel()).toBeNull();
+    store.setState({ initiativeTrackerOpen: true });
+    expect(panel()?.textContent).toContain('Round 5');
+  });
+
+  it('keeps a shown tracker while the DM browses a map with the tracker closed', () => {
+    const { service, store, doc } = setup();
+    service.holdCurrentFrame();
+    store.setState({ initiativeTrackerOpen: false, objects: { tokens: {} } });
+    expect(doc.querySelector('[aria-label="Initiative order"]')?.textContent).toContain('Round 1');
   });
 
   it('defaults on for old settings and persists the DM choice across reloads', async () => {

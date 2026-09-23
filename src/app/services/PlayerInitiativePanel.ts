@@ -11,7 +11,6 @@ type PlayerSettings = AtlasSettings['localPlayerView'];
 export class PlayerInitiativePanel {
   private readonly container: HTMLElement;
   private state: ViewAtlasState | undefined;
-  private isHeld = false;
   private unsubscribeStore: (() => void) | undefined;
   private readonly unsubscribeSettings: () => void;
 
@@ -23,28 +22,27 @@ export class PlayerInitiativePanel {
   /** Bind to the presented view, including when it belongs to a different Atlas leaf. */
   present(store: StoreApi<ViewAtlasState>): void {
     this.unsubscribeStore?.();
-    this.isHeld = false;
     this.state = store.getState();
     this.render();
     this.unsubscribeStore = store.subscribe((state, previous) => {
-      const visibilityChanged = state.initiativeTrackerOpen !== previous.initiativeTrackerOpen;
-      if (this.isHeld && this.state) {
-        if (visibilityChanged) {
-          this.state = { ...this.state, initiativeTrackerOpen: state.initiativeTrackerOpen };
-          this.render();
-        }
-        return;
-      }
       this.state = state;
-      if (visibilityChanged || state.initiative !== previous.initiative || state.objects?.tokens !== previous.objects?.tokens) {
+      if (
+        state.initiativeTrackerOpen !== previous.initiativeTrackerOpen ||
+        state.initiative !== previous.initiative ||
+        state.objects?.tokens !== previous.objects?.tokens
+      ) {
         this.render();
       }
     });
   }
 
-  /** Preserve this scene while browsing other tabs, but keep following DM visibility. */
+  /**
+   * Freeze the presented scene while the DM browses other scene tabs. The view store
+   * then holds another map, whose tracker visibility and combat must not reach players.
+   */
   hold(): void {
-    this.isHeld = true;
+    this.unsubscribeStore?.();
+    this.unsubscribeStore = undefined;
   }
 
   destroy(): void {

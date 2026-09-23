@@ -16,7 +16,7 @@ export interface TokenStatblockLink {
  * The statblock-derived fields of a token as stored in a map file. Linking
  * writes them onto the token whatever its `kind`, so all are optional here.
  */
-type StoredStatblockFields = Pick<BaseToken, 'imagePath' | 'showNameplate'>
+type StoredStatblockFields = Pick<BaseToken, 'imagePath'>
   & Partial<Pick<Character, 'name' | 'hp' | 'stress' | 'maxStress' | 'maxHpOverridden' | 'maxStressOverridden' | 'difficulty' | 'statblockPath' | 'statblockName'>>
   & {
     /** Written by older versions and never read; still stripped on unlink. */
@@ -354,7 +354,6 @@ export class TokenStatblockLinkService extends EventEmitter {
             delete token.maxHpOverridden;
             delete token.maxStressOverridden;
             delete token.difficulty;
-            delete token.showNameplate;
           }
           modified = true;
         }

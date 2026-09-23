@@ -14,11 +14,14 @@ export interface StatblockVitals {
   difficulty?: string;
 }
 
-/** Fields a token takes over when it is first linked to a statblock. */
+/**
+ * Fields a token takes over when it is first linked to a statblock. Display
+ * preferences such as `showNameplate` belong to the user and are not touched.
+ */
 export type StatblockLinkUpdates =
-  Partial<Pick<Character, 'name' | 'hp' | 'stress' | 'maxStress' | 'difficulty'>> & { showNameplate: true };
+  Partial<Pick<Character, 'name' | 'hp' | 'stress' | 'maxStress' | 'difficulty'>>;
 
-/** Clears every statblock-derived field when a token is unlinked. */
+/** Clears every statblock-derived field when a token is unlinked; user preferences stay. */
 export const STATBLOCK_UNLINK_UPDATES = {
   statblockPath: undefined,
   name: undefined,
@@ -29,7 +32,6 @@ export const STATBLOCK_UNLINK_UPDATES = {
   maxHpOverridden: undefined,
   maxStressOverridden: undefined,
   difficulty: undefined,
-  showNameplate: false,
 } as const;
 
 function finiteNumber(value: unknown): number | undefined {
@@ -77,7 +79,7 @@ export function buildStatblockLinkUpdates(
   currentName: string | undefined
 ): StatblockLinkUpdates {
   const vitals = readStatblockVitals(frontmatter);
-  const updates: StatblockLinkUpdates = { showNameplate: true };
+  const updates: StatblockLinkUpdates = {};
 
   if (vitals.hp) {
     updates.hp = {

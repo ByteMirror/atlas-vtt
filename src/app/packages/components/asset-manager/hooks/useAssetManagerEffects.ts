@@ -39,7 +39,7 @@ export function useAssetManagerEffects({
     crud.isCreateSceneModalOpen || crud.inputModalState.isOpen ||
     crud.isMoveModalOpen || crud.settingsModalCollectionId !== null ||
     tags.isTagManagerOpen || tags.isEditTagsModalOpen ||
-    statblock.linkingStatblockAsset !== null;
+    statblock.linkingStatblockAsset !== null || crud.transfer !== null;
 
   useEffect(() => {
     if (!isOpen) return;

@@ -3,18 +3,22 @@ import { decideImportOutcome } from '../../src/app/services/collectionBundle/col
 
 describe('decideImportOutcome', () => {
   it('creates when the vault has no copy', () => {
-    expect(decideImportOutcome(1, null)).toBe('created');
+    expect(decideImportOutcome(1_000, null)).toBe('created');
   });
 
-  it('updates when the bundle is newer', () => {
-    expect(decideImportOutcome(3, { version: 2 })).toBe('updated');
+  it('updates when the bundle is a later export', () => {
+    expect(decideImportOutcome(3_000, { exportedAt: 2_000 })).toBe('updated');
   });
 
-  it('reports already-current for the same version', () => {
-    expect(decideImportOutcome(2, { version: 2 })).toBe('already-current');
+  it('updates a copy from before exports were dated', () => {
+    expect(decideImportOutcome(1_000, {})).toBe('updated');
   });
 
-  it('reports newer-exists for an older bundle', () => {
-    expect(decideImportOutcome(1, { version: 2 })).toBe('newer-exists');
+  it('reports already-current for the same export', () => {
+    expect(decideImportOutcome(2_000, { exportedAt: 2_000 })).toBe('already-current');
+  });
+
+  it('reports newer-exists for an earlier export', () => {
+    expect(decideImportOutcome(1_000, { exportedAt: 2_000 })).toBe('newer-exists');
   });
 });

@@ -16,8 +16,8 @@ const STORED_EXTENSIONS = /\.(png|jpe?g|webp|gif|avif|mp3|ogg|wav|m4a|zip)$/i;
 /**
  * Packs a collection with every file it depends on into a zip. Files keep
  * their vault paths inside the archive; the manifest lists them with their
- * roles so the importer can place and rewrite them. Every export carries the
- * next collection version, so a vault holding an earlier export updates to it.
+ * roles so the importer can place and rewrite them. The export time dates
+ * the collection, so a vault holding an earlier export updates to this one.
  */
 export async function exportCollectionBundle(
   app: App,
@@ -34,11 +34,11 @@ export async function exportCollectionBundle(
 
   const { default: JSZip } = await import('jszip');
   const zip = new JSZip();
-  const version = collection.version + 1;
+  const exportedAt = Date.now();
   const manifest: CollectionBundleManifest = {
     format: BUNDLE_FORMAT,
-    exportedAt: Date.now(),
-    collection: { ...collection, version },
+    exportedAt,
+    collection: { ...collection, exportedAt },
     assets: collectionAssets,
     files,
   };
@@ -56,6 +56,6 @@ export async function exportCollectionBundle(
   const bundle = await zip.generateAsync({ type: 'blob', streamFiles: true }, ({ percent }) => {
     onProgress({ message: 'Compressing…', fraction: 0.6 + (percent / 100) * 0.4 });
   });
-  await assets.setCollectionVersion(collectionId, version);
+  await assets.recordCollectionExport(collectionId, exportedAt);
   return bundle;
 }

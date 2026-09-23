@@ -46,6 +46,7 @@ const isBundleFile = (value: unknown): value is BundleFile =>
 export function isCollectionBundleManifest(value: unknown): value is CollectionBundleManifest {
   return isRecord(value)
     && value.format === BUNDLE_FORMAT
+    && typeof value.exportedAt === 'number'
     && isRecord(value.collection)
     && typeof value.collection.uid === 'string'
     && typeof value.collection.name === 'string'

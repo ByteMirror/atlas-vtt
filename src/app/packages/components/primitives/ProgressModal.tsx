@@ -6,15 +6,16 @@ interface ProgressModalProps {
   message: string;
   /** 0..1 */
   fraction: number;
-  /** Set once the work has finished: the dialog then shows `message` as the result until it is closed. */
+  /** The work has finished: `message` is its result, shown until the dialog is closed. */
+  isDone?: boolean;
+  /** Closes a finished dialog. */
   onClose?: () => void;
 }
 
 /** Blocking progress dialog for long-running work that has no cancel path, such as packing or unpacking a collection. */
-export function ProgressModal({ title, message, fraction, onClose }: ProgressModalProps): React.JSX.Element {
+export function ProgressModal({ title, message, fraction, isDone = false, onClose }: ProgressModalProps): React.JSX.Element {
   const titleId = useId();
   const percent = Math.round(Math.min(1, Math.max(0, fraction)) * 100);
-  const isDone = onClose !== undefined;
   return (
     <div
       className="atlas-progress-modal-overlay"
@@ -22,7 +23,7 @@ export function ProgressModal({ title, message, fraction, onClose }: ProgressMod
       aria-modal="true"
       aria-labelledby={titleId}
       aria-busy={!isDone}
-      onKeyDown={(event) => { if (event.key === 'Escape') onClose?.(); }}
+      onKeyDown={(event): void => { if (isDone && event.key === 'Escape') onClose?.(); }}
     >
       <div className="atlas-progress-modal">
         {!isDone && <div className="atlas-progress-modal__spinner" aria-hidden="true" />}

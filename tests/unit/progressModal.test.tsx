@@ -11,9 +11,9 @@ it('shows progress while working and the result with a close button once done', 
   expect(screen.queryByRole('button')).toBeNull();
 
   const onClose = vi.fn();
-  rerender(<ProgressModal title="Importing collection" message={'"5e" is already up to date (v2).'} fraction={1} onClose={onClose} />);
+  rerender(<ProgressModal title="Importing collection" message="This vault already has this export of &quot;5e&quot;." fraction={1} isDone onClose={onClose} />);
   expect(screen.queryByRole('progressbar')).toBeNull();
-  expect(screen.getByRole('status').textContent).toBe('"5e" is already up to date (v2).');
+  expect(screen.getByRole('status').textContent).toBe('This vault already has this export of "5e".');
   fireEvent.click(screen.getByRole('button', { name: 'Close' }));
   fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
   expect(onClose).toHaveBeenCalledTimes(2);

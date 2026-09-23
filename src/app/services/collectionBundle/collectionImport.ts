@@ -6,24 +6,30 @@ import { BUNDLE_MANIFEST, isCollectionBundleManifest, zipPathFor, type BundleFil
 import type { BundleProgressListener } from './collectionExport';
 import { planImportPaths, remapPaths, type PathMap } from './pathRemap';
 
-/** `repaired`: the vault had this version, but files or assets of it were missing and have been restored. */
+/** `repaired`: the vault had this export, but files or assets of it were missing and have been put back. */
 export type ImportOutcome = 'created' | 'updated' | 'repaired' | 'already-current' | 'newer-exists';
 
 export interface CollectionImportResult {
   outcome: ImportOutcome;
   collectionName: string;
-  version: number;
-  /** Version of the collection already in this vault, when there is one. */
-  localVersion?: number;
+  /** When the imported bundle was exported. */
+  exportedAt: number;
+  /** When the export the vault's copy matches was made, if that copy is dated. */
+  localExportedAt?: number;
   assetCount: number;
   fileCount: number;
 }
 
-/** Same uid means the same collection; only a newer export changes what is already in the vault. */
-export function decideImportOutcome(importVersion: number, existing: Pick<CollectionMetadata, 'version'> | null): ImportOutcome {
+/**
+ * Same uid means the same collection, and the later export wins. Export times
+ * are comparable across vaults, unlike counters each vault would keep on its
+ * own. Copies from before exports were dated count as older than any export.
+ */
+export function decideImportOutcome(exportedAt: number, existing: Pick<CollectionMetadata, 'exportedAt'> | null): ImportOutcome {
   if (!existing) return 'created';
-  if (importVersion > existing.version) return 'updated';
-  if (importVersion === existing.version) return 'already-current';
+  const local = existing.exportedAt ?? Number.NEGATIVE_INFINITY;
+  if (exportedAt > local) return 'updated';
+  if (exportedAt === local) return 'already-current';
   return 'newer-exists';
 }
 
@@ -58,20 +64,6 @@ async function freshAssetIds(assets: AssetService, imported: readonly Asset[]): 
     }
   }
   return renames;
-}
-
-/** Whether every bundled file and asset of this version is still in the vault. */
-async function isCopyComplete(app: App, assets: AssetService, zip: JSZip, manifest: CollectionBundleManifest, plan: PathMap): Promise<boolean> {
-  for (const file of manifest.files) {
-    const target = plan.get(file.vaultPath);
-    // Files the source vault no longer had were never packed, so they cannot be missing here.
-    if (!target || !zip.file(zipPathFor(file.vaultPath))) continue;
-    if (!(app.vault.getAbstractFileByPath(target) instanceof TFile)) return false;
-  }
-  for (const asset of manifest.assets) {
-    if (!(await assets.getAssetById(asset.id))) return false;
-  }
-  return true;
 }
 
 /** An id that is free, or the one already used by this very collection. */
@@ -147,13 +139,65 @@ class BundleWriter {
   }
 }
 
+async function writeFiles(
+  writer: BundleWriter,
+  files: readonly BundleFile[],
+  result: CollectionImportResult,
+  onProgress: BundleProgressListener,
+): Promise<void> {
+  for (const [index, file] of files.entries()) {
+    onProgress({ message: `Writing ${index + 1} of ${files.length} files…`, fraction: (index / files.length) * 0.9 });
+    if (await writer.write(file)) result.fileCount += 1;
+  }
+  for (const file of files) {
+    if (file.role === 'statblock-note') await writer.relinkStatblockImage(file);
+  }
+}
+
+/**
+ * Puts back what the vault's copy of this very export has lost, and nothing
+ * else: files, assets and settings it still has keep their local edits.
+ * Assets whose id another collection now owns are left to that collection.
+ */
+async function restoreMissing(
+  app: App,
+  assets: AssetService,
+  zip: JSZip,
+  manifest: CollectionBundleManifest,
+  plan: PathMap,
+  collectionId: string,
+  result: CollectionImportResult,
+  onProgress: BundleProgressListener,
+): Promise<CollectionImportResult> {
+  const missingAssets: Asset[] = [];
+  const foreignMapFiles = new Set<string>();
+  for (const asset of manifest.assets) {
+    const local = await assets.getAssetById(asset.id);
+    if (!local) missingAssets.push(asset);
+    else if (local.collection !== collectionId) foreignMapFiles.add(`${COLLECTIONS_DIR}/${manifest.collection.id}/maps/${asset.id}.json`);
+  }
+  const missingFiles = manifest.files.filter((file) => {
+    const target = plan.get(file.vaultPath);
+    // Files the source vault no longer had were never packed, so there is nothing to put back.
+    return target !== undefined && !foreignMapFiles.has(file.vaultPath) && zip.file(zipPathFor(file.vaultPath)) !== null
+      && !(app.vault.getAbstractFileByPath(target) instanceof TFile);
+  });
+  if (missingAssets.length === 0 && missingFiles.length === 0) return result;
+
+  await writeFiles(new BundleWriter(app, zip, plan, plan, `${COLLECTIONS_DIR}/${collectionId}/`), missingFiles, result, onProgress);
+  onProgress({ message: 'Registering assets…', fraction: 0.95 });
+  const restored = missingAssets.map((asset): Asset => remapPaths(asset, plan));
+  await assets.restoreImportedAssets(restored, collectionId);
+  return { ...result, outcome: 'repaired', assetCount: restored.length };
+}
+
 /**
  * Restores a collection bundle into this vault: files land in the target
  * collection's folder (global Atlas assets keep their path), every stored
  * path is rewritten to follow them, and the collection record arrives with
  * its tags and settings. Existing statblock notes are reused rather than
- * duplicated. Nothing is written when the vault already has this version
- * complete; a copy of it that lost files or assets is restored.
+ * duplicated. A newer export replaces an older copy, the same export only
+ * puts back what the copy has lost, and an older export changes nothing.
  */
 export async function importCollectionBundle(
   app: App,
@@ -165,14 +209,15 @@ export async function importCollectionBundle(
   const { default: JSZip } = await import('jszip');
   const zip = await JSZip.loadAsync(await data.arrayBuffer());
   const manifest = await readManifest(zip);
-  const imported = manifest.collection;
+  // Older bundles only date the manifest; the copy keeps that date to compare later imports against.
+  const imported: CollectionMetadata = { ...manifest.collection, exportedAt: manifest.exportedAt };
 
   const existing = await assets.findCollectionByUid(imported.uid);
   const result: CollectionImportResult = {
-    outcome: decideImportOutcome(imported.version, existing),
+    outcome: decideImportOutcome(manifest.exportedAt, existing),
     collectionName: imported.name,
-    version: imported.version,
-    ...(existing && { localVersion: existing.version }),
+    exportedAt: manifest.exportedAt,
+    ...(existing?.exportedAt !== undefined && { localExportedAt: existing.exportedAt }),
     assetCount: 0,
     fileCount: 0,
   };
@@ -186,8 +231,7 @@ export async function importCollectionBundle(
     (path) => app.vault.getAbstractFileByPath(normalizePath(path)) instanceof TFile,
   ));
   if (result.outcome === 'already-current') {
-    if (await isCopyComplete(app, assets, zip, manifest, plan)) return result;
-    result.outcome = 'repaired';
+    return restoreMissing(app, assets, zip, manifest, plan, collectionId, result, onProgress);
   }
   const renames = existing ? new Map<string, string>() : await freshAssetIds(assets, manifest.assets);
   // A map asset's JSON record is found by id, so a renamed map takes its file along.
@@ -200,13 +244,7 @@ export async function importCollectionBundle(
   const rewrites = new Map([...plan, ...renames]);
   const writer = new BundleWriter(app, zip, plan, rewrites, `${COLLECTIONS_DIR}/${collectionId}/`);
 
-  for (const [index, file] of manifest.files.entries()) {
-    onProgress({ message: `Writing ${index + 1} of ${manifest.files.length} files…`, fraction: (index / manifest.files.length) * 0.9 });
-    if (await writer.write(file)) result.fileCount += 1;
-  }
-  for (const file of manifest.files) {
-    if (file.role === 'statblock-note') await writer.relinkStatblockImage(file);
-  }
+  await writeFiles(writer, manifest.files, result, onProgress);
 
   onProgress({ message: 'Registering assets…', fraction: 0.95 });
   const importedAssets = manifest.assets.map((asset): Asset => remapPaths(asset, rewrites));

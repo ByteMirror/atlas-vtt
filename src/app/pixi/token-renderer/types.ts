@@ -68,11 +68,10 @@ export interface ITokenSpriteFactory {
   updateTokenRotation(container: Container, rotation: number): void;
   
   /**
-   * Destroys a token sprite and cleans up resources
-   * @param tokenId The token identifier
+   * Destroys a token group with all of its children, including their geometry
    * @param container The token container to destroy
    */
-  destroyTokenSprite(tokenId: string, container: Container): void;
+  destroyTokenSprite(container: Container): void;
 }
 
 /**
@@ -117,6 +116,12 @@ export interface ITextureCache {
    * @param key The cache key to clear
    */
   clearTexture(key: string): void;
+
+  /**
+   * Evicts every token image that is not in `usedImagePaths`
+   * @param usedImagePaths Image paths of the tokens still on the map
+   */
+  releaseUnusedImages(usedImagePaths: Iterable<string>): void;
   
   /**
    * Destroys all cached textures and clears cache

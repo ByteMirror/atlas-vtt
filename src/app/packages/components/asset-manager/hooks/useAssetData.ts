@@ -4,7 +4,7 @@ import { TFolder, App as ObsidianApp } from 'obsidian';
 import type { AnyAsset, Folder, Tag, Tab } from '../types';
 import { ATLAS_VTT_DIR } from '../types';
 import { AssetService, CollectionMetadata } from '../../../../services/AssetService';
-import { TokenThumbnailService } from '../../../../services/TokenThumbnailService';
+import { AssetThumbnailService } from '../../../../services/AssetThumbnailService';
 import { formatServiceAsset, partitionByTab, tokenThumbnailPaths, type TabServiceAsset } from '../utils/assetFormatters';
 import { useAtlasUI } from '../../../../react/root/AtlasUIContext';
 import { useOptionalAtlasStore } from '../../../../react/ViewStoreContext';
@@ -62,7 +62,7 @@ export function useAssetData(
     tokens: 0,
   });
   const thumbnails = useMemo(
-    () => (assetService ? TokenThumbnailService.getInstance(app, assetService) : null),
+    () => (assetService ? AssetThumbnailService.getInstance(app, assetService) : null),
     [app, assetService],
   );
 
@@ -118,7 +118,7 @@ export function useAssetData(
         encounters: byTab.encounters.length,
         tokens: byTab.tokens.length,
       });
-      thumbnails?.ensureThumbnails(byTab.tokens);
+      thumbnails?.ensureThumbnails([...byTab.tokens, ...byTab.maps]);
     } catch (error) {
       console.error('[useAssetData] Error loading assets:', error);
     }

@@ -75,11 +75,22 @@ export class MapLoader {
   }
 }
 
+/**
+ * Transparent placeholders by grid size, shared by every map without a background.
+ * Nothing unloads a placeholder when the scene changes, so a new one per load leaked its canvas.
+ */
+const placeholderTextures = new Map<number, Texture>();
+
 /** Transparent 20x20-cell texture for maps without a background image. */
 function createPlaceholderTexture(mapData: MapFile): Texture {
   const gridSize = mapData.grid?.size || 70;
+  const cached = placeholderTextures.get(gridSize);
+  if (cached && !cached.destroyed) return cached;
   const canvas = createEl('canvas');
   canvas.width = gridSize * 20;
   canvas.height = gridSize * 20;
-  return canvas.getContext('2d') ? Texture.from(canvas) : Texture.EMPTY;
+  if (!canvas.getContext('2d')) return Texture.EMPTY;
+  const texture = Texture.from(canvas);
+  placeholderTextures.set(gridSize, texture);
+  return texture;
 }

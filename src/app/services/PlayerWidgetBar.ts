@@ -6,18 +6,20 @@ import { createSvgElement } from '../utils/svgElement';
 import { PlayerSceneOverlay } from './PlayerSceneOverlay';
 import type { SettingsService } from './SettingsService';
 
+type WidgetScene = Pick<ViewAtlasState, 'widgetSettings' | 'widgetValues'>;
+
 /** Read-only widget bar showing the presented scene's player-visible widgets. */
-export class PlayerWidgetBar extends PlayerSceneOverlay {
+export class PlayerWidgetBar extends PlayerSceneOverlay<WidgetScene> {
   constructor(parent: HTMLElement, settings: SettingsService) {
     super(parent.createDiv({ cls: 'atlas-vtt-plugin', attr: { id: 'atlas-player-widgets' } }), settings);
   }
 
-  protected hasChanged(state: ViewAtlasState, previous: ViewAtlasState): boolean {
-    return state.widgetSettings !== previous.widgetSettings || state.widgetValues !== previous.widgetValues;
+  protected select({ widgetSettings, widgetValues }: ViewAtlasState): WidgetScene {
+    return { widgetSettings, widgetValues };
   }
 
-  protected render(state: ViewAtlasState): void {
-    const { widgetSettings } = state;
+  protected render(scene: WidgetScene): void {
+    const { widgetSettings } = scene;
     if (!this.settings.getLocalPlayerViewSettings().showWidgets || !widgetSettings?.globalVisible) return;
 
     // Only counters are shown to players for now.
@@ -29,7 +31,7 @@ export class PlayerWidgetBar extends PlayerSceneOverlay {
     const widgetBar = this.container.createDiv({ cls: `atlas-widget-bar atlas-widget-bar-${widgetSettings.position}` });
     const widgetContainer = widgetBar.createDiv({ cls: 'atlas-widget-container' });
     widgetContainer.style.transform = `scale(${widgetSettings.scale || 1})`;
-    for (const counter of counters) this.renderCounter(widgetContainer, counter, readCounterValue(state, counter));
+    for (const counter of counters) this.renderCounter(widgetContainer, counter, readCounterValue(scene, counter));
   }
 
   /**

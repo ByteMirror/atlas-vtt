@@ -27,6 +27,8 @@ export interface PlayerFrameSource {
   getCamera?(): PlayerCameraState | undefined;
   /** Runs `capture` while `canvas` holds a frame that is safe to show players. */
   withPlayerSafeFrame(capture: () => void, settings: AtlasSettings['localPlayerView']): void;
+  /** Renders of `canvas` so far. When given, frames are only mirrored after the canvas changed. */
+  getRenderedFrames?(): number | undefined;
 }
 
 /**
@@ -49,8 +51,9 @@ export class PlayerWindowService {
   private isAutoFrozen: boolean = false;
   private frozenCanvas: HTMLCanvasElement | null = null;
   private static instance: PlayerWindowService | null = null;
+  private settingsUnsubscribe: (() => void) | null = null;
   /** Widget bar and initiative panel, drawn from the presented scene. */
-  private sceneOverlays: PlayerSceneOverlay[] = [];
+  private sceneOverlays: PlayerSceneOverlay<object>[] = [];
   private readonly boundHandleWindowResize = (): void => {
     this.handleWindowResize();
   };
@@ -58,6 +61,10 @@ export class PlayerWindowService {
     this.cleanup(false);
   };
   private isCleaningUp = false;
+  /** Set when the next live frame must be mirrored even if the DM canvas did not render. */
+  private isMirrorStale = true;
+  /** Identifies the running copy loop; a newer loop ends older ones. */
+  private mirrorLoopId = 0;
 
   constructor(app: App, store: StoreApi<ViewAtlasState>, settingsService: SettingsService) {
     this.app = app;
@@ -104,12 +111,24 @@ export class PlayerWindowService {
   }
 
   /**
+   * Keep players on the last frame and let go of the map view that owns `store`,
+   * which is closing. Presenting another scene resumes live mirroring.
+   */
+  public releaseSource(store: StoreApi<ViewAtlasState>): void {
+    if (!this.streamSource || this.streamSource.store !== store) return;
+    this.holdCurrentFrame();
+    const heldFrame = this.frozenCanvas ?? createEl('canvas');
+    this.streamSource = { canvas: heldFrame, withPlayerSafeFrame: (capture) => capture() };
+  }
+
+  /**
    * Resume live mirroring from `source` once the presented scene is rendered again.
    * Only a hold started by `holdCurrentFrame` is released; a manual freeze stays.
    */
   public releaseHeldFrame(source: PlayerFrameSource): void {
     if (!this.isWindowOpen()) return;
     this.streamSource = source;
+    this.isMirrorStale = true;
     this.presentScene();
     if (!this.isAutoFrozen) return;
     this.isAutoFrozen = false;
@@ -126,6 +145,7 @@ export class PlayerWindowService {
       return;
     }
     this.streamSource = source;
+    this.isMirrorStale = true;
     this.presentScene();
     this.isAutoFrozen = false;
     this.setCameraFrozen(false);
@@ -148,6 +168,7 @@ export class PlayerWindowService {
     this.playerView = view;
     this.playerWindow = view.contentEl.win;
     this.streamSource = source;
+    this.isMirrorStale = true;
     playerWindowStore.setState({ presentedTabId: tabId });
     this.setupPlayerWindow();
   }
@@ -155,6 +176,7 @@ export class PlayerWindowService {
   private setCameraFrozen(frozen: boolean): void {
     if (frozen === this.isCameraFrozen) return;
     this.isCameraFrozen = frozen;
+    this.isMirrorStale = true;
     if (frozen) {
       this.freezeCurrentFrame();
     } else {
@@ -250,6 +272,9 @@ export class PlayerWindowService {
         new PlayerInitiativePanel(content, this.app, this.settingsService),
       ];
       this.presentScene();
+      this.settingsUnsubscribe?.();
+      // Player view settings decide which layers players see
+      this.settingsUnsubscribe = this.settingsService.onChange(() => { this.isMirrorStale = true; });
 
       // Create freeze indicator
       const freezeIndicator = content.createDiv();
@@ -338,8 +363,12 @@ export class PlayerWindowService {
     this.playerWindow.document.body.classList.add(PLAYER_WINDOW_LIVE_CLASS);
 
     let lastDrawnSource: HTMLCanvasElement | null = null;
+    let lastRenderedFrames: number | undefined;
+    const loopId = ++this.mirrorLoopId;
+    this.isMirrorStale = true;
 
     const copyCanvas = (): void => {
+      if (loopId !== this.mirrorLoopId) return;
       if (!this.playerWindow || this.playerWindow.closed || !this.streamSource) {
         this.cleanup();
         return;
@@ -353,7 +382,14 @@ export class PlayerWindowService {
 
         // A frozen frame is static: draw it once, then idle until it changes.
         if (source === this.frozenCanvas && lastDrawnSource === source) return;
+        // A live frame only changes when the DM canvas rendered something new
+        const renderedFrames = frozen ? undefined : this.streamSource.getRenderedFrames?.();
+        const isUnchanged = !frozen && !this.isMirrorStale && lastDrawnSource === source
+          && renderedFrames !== undefined && renderedFrames === lastRenderedFrames;
+        if (isUnchanged) return;
         lastDrawnSource = source;
+        lastRenderedFrames = renderedFrames;
+        this.isMirrorStale = false;
 
         const sourceWidth = source.width;
         const sourceHeight = source.height;
@@ -394,12 +430,15 @@ export class PlayerWindowService {
     }
 
     this.isCleaningUp = true;
+    this.mirrorLoopId++;
 
     if (this.animationFrame) {
       this.playerWindow?.cancelAnimationFrame(this.animationFrame);
       this.animationFrame = null;
     }
 
+    this.settingsUnsubscribe?.();
+    this.settingsUnsubscribe = null;
     this.destroySceneOverlays();
 
     if (this.playerWindow) {

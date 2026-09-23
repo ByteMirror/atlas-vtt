@@ -6,6 +6,7 @@ import { toError } from '../utils/errors';
 import type { GridOptions } from '../grid/GridSystem';
 import { parseGridColor } from '../grid/gridContrastColor';
 import type { GridState } from '../services/MapPersistence';
+import { destroyTree } from '../pixi/utils/destroyTree';
 
 const FALLBACK_GRID_OPTIONS: GridOptions = {
   type: 'square',
@@ -199,10 +200,7 @@ export const BackgroundSprite: React.FC<BackgroundSpriteProps> = ({ imagePath })
       // Destroy after render cycle
       window.requestAnimationFrame(() => {
         if (oldSprite && !oldSprite.destroyed) {
-          oldSprite.destroy({ 
-            children: true,
-            texture: false
-          });
+          destroyTree(oldSprite);
         }
       });
       
@@ -267,10 +265,7 @@ export const BackgroundSprite: React.FC<BackgroundSpriteProps> = ({ imagePath })
         window.requestAnimationFrame(() => {
           if (spriteToClean && !spriteToClean.destroyed) {
             try {
-              spriteToClean.destroy({ 
-                children: true,
-                texture: false
-              });
+              destroyTree(spriteToClean);
             } catch {
               // Ignore destruction errors
             }

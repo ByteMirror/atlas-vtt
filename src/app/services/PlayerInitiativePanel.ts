@@ -7,23 +7,25 @@ import './player-initiative.scss';
 
 type PlayerSettings = AtlasSettings['localPlayerView'];
 
+interface InitiativeScene {
+  initiative: ViewAtlasState['initiative'];
+  initiativeTrackerOpen: boolean;
+  tokens: ViewAtlasState['objects']['tokens'] | undefined;
+}
+
 /** Read-only initiative projection; never mounts the DM tracker or its controls. */
-export class PlayerInitiativePanel extends PlayerSceneOverlay {
+export class PlayerInitiativePanel extends PlayerSceneOverlay<InitiativeScene> {
   constructor(parent: HTMLElement, private readonly app: App, settings: SettingsService) {
     super(parent.createDiv({ cls: 'atlas-player-initiative-container' }), settings);
   }
 
-  protected hasChanged(state: ViewAtlasState, previous: ViewAtlasState): boolean {
-    return state.initiativeTrackerOpen !== previous.initiativeTrackerOpen ||
-      state.initiative !== previous.initiative ||
-      state.objects?.tokens !== previous.objects?.tokens;
+  protected select(state: ViewAtlasState): InitiativeScene {
+    return { initiative: state.initiative, initiativeTrackerOpen: state.initiativeTrackerOpen, tokens: state.objects?.tokens };
   }
 
-  protected render(state: ViewAtlasState): void {
+  protected render({ initiative, initiativeTrackerOpen, tokens }: InitiativeScene): void {
     const settings = this.settings.getLocalPlayerViewSettings();
-    const { initiative } = state;
-    if (!settings.showInitiative || !state.initiativeTrackerOpen || !initiative) return;
-    const tokens = state.objects?.tokens;
+    if (!settings.showInitiative || !initiativeTrackerOpen || !initiative) return;
     const entries = initiative.entries
       .filter(entry => tokens?.[entry.tokenId] && !tokens[entry.tokenId]?.isHidden)
       .sort((a, b) => a.order - b.order);

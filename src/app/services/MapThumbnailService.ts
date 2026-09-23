@@ -1,6 +1,7 @@
 import { App, TFile } from 'obsidian';
 import { Application, Container, Rectangle, type Texture } from 'pixi.js';
 import { getDataFilePath } from '../utils/dataFileMigration';
+import { requestRender } from '../pixi/RenderScheduler';
 
 export class MapThumbnailService {
   private app: App;
@@ -43,6 +44,8 @@ export class MapThumbnailService {
         frame: contentBounds,
         resolution: renderResolution,
       });
+      // The off-screen render consumed pending stage updates; the canvas still needs them
+      requestRender(pixiApp);
       let dataUrl = '';
       try {
         const sourceCanvas = this.extractRenderCanvas(pixiApp, renderTexture);

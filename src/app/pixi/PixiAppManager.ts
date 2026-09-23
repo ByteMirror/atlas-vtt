@@ -1,10 +1,13 @@
 import { Application, Ticker } from "pixi.js";
 import { Viewport } from "pixi-viewport";
+import { RenderScheduler } from "./RenderScheduler";
+import { destroyTree } from "./utils/destroyTree";
 
 export class PixiAppManager {
   private _isDestroyed: boolean = false;
   public app: Application;
   public viewport: Viewport | null = null;
+  private renderScheduler: RenderScheduler | null = null;
   private width: number;
   private height: number;
   private canvasEl: HTMLCanvasElement;
@@ -39,8 +42,9 @@ export class PixiAppManager {
       this.app.stage.interactiveChildren = true;
       this.app.stage.hitArea = this.app.screen; // Ensure the stage hit area covers the screen
 
+      this.renderScheduler = new RenderScheduler(this.app);
       this.app.ticker.start();
-      // Add a ticker log and ensure stage is rendered each tick
+      // Rendering itself is driven by RenderScheduler; this only stops a destroyed app
       let errorCount = 0;
       const MAX_ERRORS = 5;
       
@@ -107,6 +111,8 @@ export class PixiAppManager {
       worldWidth: 10000,
       worldHeight: 10000,
       events: this.app.renderer.events,
+      // Share the app's loop instead of running a second one on Ticker.shared
+      ticker: this.app.ticker,
     });
 
     this.app.stage.addChild(this.viewport);
@@ -152,6 +158,8 @@ export class PixiAppManager {
 
     if (this.app.renderer) {
       this.app.renderer.resize(newWidth, newHeight);
+      // Resizing clears the drawing buffer
+      this.renderScheduler?.requestRender();
     }
 
     if (this.viewport) {
@@ -181,7 +189,7 @@ export class PixiAppManager {
         this.viewport.plugins.pause('pinch');
         this.viewport.plugins.pause('wheel');
         this.viewport.plugins.pause('decelerate');
-        this.viewport.destroy();
+        destroyTree(this.viewport);
       } catch (e: unknown) {
         if (e instanceof TypeError && e.message.includes('_cancelResize')) {
             console.warn('[PixiAppManager] Viewport destroy failed with _cancelResize (known issue, suppressed): ', e.message);
@@ -192,6 +200,9 @@ export class PixiAppManager {
       this.viewport = null;
     }
     
+    this.renderScheduler?.destroy();
+    this.renderScheduler = null;
+
     const ticker = this.app?.ticker as Ticker | null;
     if (ticker && ticker.started) {
       try {

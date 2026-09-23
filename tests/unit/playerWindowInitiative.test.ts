@@ -142,6 +142,17 @@ describe('player initiative panel', () => {
     expect(doc.querySelector('[aria-label="Initiative order"]')?.textContent).toContain('Round 1');
   });
 
+  it('keeps the initiative of a closed presented map without following its store', () => {
+    const { service, store, doc } = setup();
+    service.releaseSource(store);
+    store.setState({ initiativeTrackerOpen: false, initiative: { ...store.getState().initiative, round: 9 } });
+    expect(doc.body.textContent).toContain('Round 1');
+    const next = scene();
+    next.setState({ initiative: { ...next.getState().initiative, round: 4 } });
+    service.presentCanvas({ canvas: createEl('canvas'), withPlayerSafeFrame: vi.fn(), store: next }, 'scene-b');
+    expect(doc.body.textContent).toContain('Round 4');
+  });
+
   it('defaults on for old settings and persists the DM choice across reloads', async () => {
     const { app } = createInMemoryApp({ files: { 'atlas-vtt/settings.json': JSON.stringify({ localPlayerView: { showWidgets: false } }) } });
     const settings = new SettingsService(app);

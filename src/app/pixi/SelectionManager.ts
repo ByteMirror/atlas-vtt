@@ -113,6 +113,11 @@ export class SelectionManager {
       (tool: string) => {
         // Enable marquee selection for both 'move' and 'select' tools
         if (tool === 'select' || tool === 'move') {
+          // Switching between the two must not add the handlers a second time
+          this.viewport.off('pointerdown', this.marqueeDownHandler);
+          this.viewport.off('pointermove', this.marqueeMoveHandler);
+          this.viewport.off('pointerup', this.marqueeUpHandler);
+          this.viewport.off('pointerupoutside', this.marqueeUpHandler);
           this.viewport.on('pointerdown', this.marqueeDownHandler);
           this.viewport.on('pointermove', this.marqueeMoveHandler);
           this.viewport.on('pointerup', this.marqueeUpHandler);

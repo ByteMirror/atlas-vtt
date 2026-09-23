@@ -13,6 +13,8 @@ import { collectVisionSources } from '../../vision/visionSources';
 import { AssetService } from '../../services/AssetService';
 import { computeLightAnimation, clearAllLightAnimState } from './LightAnimation';
 import { runInBackground } from '../../utils/backgroundTask';
+import { destroyTree } from '../utils/destroyTree';
+import { requestRender } from '../RenderScheduler';
 
 /**
  * Orchestrates dynamic vision: checks dirty flag each frame,
@@ -171,6 +173,8 @@ export class VisionRenderer {
     ) {
       existing.source.update();
       existing.update();
+      // New pixels in an existing texture are invisible to the scene graph
+      requestRender(this.pixiApp);
       return existing;
     }
     if (existing && !existing.destroyed) existing.destroy(true);
@@ -467,12 +471,10 @@ export class VisionRenderer {
    * with the Lucide door icon inside in white.
    */
   private drawDoorIcons(state: ViewAtlasState): void {
-    // Remove old badges
     // Destroy old badges (not just remove — releases Graphics geometry + event listeners)
-    for (const child of this.doorIconContainer.children) {
-      child.destroy({ children: true });
+    for (const child of this.doorIconContainer.removeChildren()) {
+      destroyTree(child);
     }
-    this.doorIconContainer.removeChildren();
 
     if (!this.doorOpenTexture || !this.doorClosedTexture) return;
 
@@ -590,13 +592,13 @@ export class VisionRenderer {
     }
     this.compositor.destroy();
     this.lightIconGraphics.destroy();
-    this.doorIconContainer.destroy({ children: true });
+    destroyTree(this.doorIconContainer);
     if (this.doorOpenTexture) this.doorOpenTexture.destroy(true);
     if (this.doorClosedTexture) this.doorClosedTexture.destroy(true);
     if (this.colorTintTexture) this.colorTintTexture.destroy(true);
     // Release persistent canvas GPU backing stores
     this.colorTintCanvas.width = 0;
     this.colorTintCanvas.height = 0;
-    this.container.destroy({ children: true });
+    destroyTree(this.container);
   }
 }

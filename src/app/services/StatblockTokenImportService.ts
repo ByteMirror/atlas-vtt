@@ -1,7 +1,7 @@
 import { withStatblockImportLock } from './statblockImportLock';
 import { TFile, normalizePath, type App } from 'obsidian';
 import { AssetService, type TokenAsset } from './AssetService';
-import { TokenThumbnailService } from './TokenThumbnailService';
+import { AssetThumbnailService } from './AssetThumbnailService';
 import { AssetRegistrationUncertainError } from './assetRegistrationRecovery';
 import { requireResolvedBestiary, statblockImportCandidate, type StatblockImportCandidate } from './statblockImportCandidates';
 
@@ -88,7 +88,7 @@ export class StatblockTokenImportService {
       const safeName = name.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 80) || 'creature';
       const imagePath = `${dir}/${safeName}_${crypto.randomUUID()}.${image.extension}`;
       copied = await this.app.vault.createBinary(imagePath, await this.app.vault.readBinary(image));
-      thumbnailPath = await TokenThumbnailService.getInstance(this.app, this.assets).tryCreateForImage(imagePath);
+      thumbnailPath = await AssetThumbnailService.getInstance(this.app, this.assets).tryCreateForImage(imagePath);
       const asset = await this.assets.addTokenAsset({
         name, imagePath, statblockPath: path, showRing, tags: [], collection, ...(thumbnailPath && { thumbnailPath }),
       });

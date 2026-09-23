@@ -9,6 +9,7 @@ import type { TokenGestureEventDetail } from '../types/atlasWindowEvents';
 import type { TokenHandleContainer } from './token-renderer/types';
 import { findTokenGroup } from './token-renderer/findTokenGroup';
 import type { TokenResizeUI } from './TokenResizeUI';
+import { destroyTree } from './utils/destroyTree';
 
 export class TokenRotationUI {
   private viewport: Viewport;
@@ -186,7 +187,7 @@ export class TokenRotationUI {
       if (handle.parent) {
         handle.parent.removeChild(handle);
       }
-      handle.destroy({ children: true });
+      destroyTree(handle);
     }
     this.rotationHandles.clear();
   }

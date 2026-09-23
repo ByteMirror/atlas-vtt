@@ -1,5 +1,6 @@
 import { Container, Graphics, Text, TextStyle } from 'pixi.js';
 import type { ConditionDefinition } from '../../types/collectionSettingsTypes';
+import { destroyTree } from '../utils/destroyTree';
 
 /**
  * PIXI-based hover panel that appears to the right of a token,
@@ -99,7 +100,7 @@ export class ConditionHoverPanel {
   }
 
   private clearRows(): void {
-    for (const row of this.rows) row.destroy({ children: true });
+    for (const row of this.rows) destroyTree(row);
     this.rows = [];
     this.bg.clear();
   }

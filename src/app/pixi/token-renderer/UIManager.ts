@@ -17,6 +17,7 @@ import { TokenControlsUI } from '../TokenControlsUI';
 import { TokenRotationUI } from '../TokenRotationUI';
 import { TokenResizeUI } from '../TokenResizeUI';
 import type { ConditionDefinition } from '../../types/collectionSettingsTypes';
+import { destroyTree } from '../utils/destroyTree';
 
 export class UIManager implements ITokenUIManager {
   private viewport: Viewport;
@@ -312,8 +313,8 @@ export class UIManager implements ITokenUIManager {
     if (this.uiContainer.parent) {
       this.uiContainer.parent.removeChild(this.uiContainer);
     }
-    this.uiContainer.destroy({ children: true });
-    this.playerUIContainer?.destroy({ children: true });
+    destroyTree(this.uiContainer);
+    if (this.playerUIContainer) destroyTree(this.playerUIContainer);
     this.playerUIContainer = null;
   }
 

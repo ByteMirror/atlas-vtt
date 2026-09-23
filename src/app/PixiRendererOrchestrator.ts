@@ -39,6 +39,8 @@ import { AudioBufferCache } from './audio/AudioBufferCache';
 import { SpatialAudioEngine } from './audio/SpatialAudioEngine';
 import { AssetService } from './services/AssetService';
 import { findAtlasLeafByViewId } from './utils/atlasLeafLookup';
+import { destroyTree } from './pixi/utils/destroyTree';
+import { requestRender } from './pixi/RenderScheduler';
 
 export class PixiRendererOrchestrator { // Renamed class
   private _isDestroyed: boolean = false;
@@ -315,6 +317,7 @@ export class PixiRendererOrchestrator { // Renamed class
   private setupRenderersAndManagers(viewport: Viewport): void {
     // The map sprite draws the background; the canvas around it stays black
     this.pixiAppManager.app.renderer.background.color = 0x000000;
+    requestRender(this.pixiAppManager.app);
     
     // Initialize TokenRenderer first if GridSystem is ready
     // This also means tokenContainer will be added to viewport earlier
@@ -595,7 +598,7 @@ export class PixiRendererOrchestrator { // Renamed class
         currentViewport.removeChild(this.backgroundSprite);
       }
       // Destroy the old sprite; its texture is unloaded by whoever loaded it
-      this.backgroundSprite.destroy({ children: true, texture: false });
+      destroyTree(this.backgroundSprite);
     }
     this.backgroundSprite = sprite;
 
@@ -1367,7 +1370,7 @@ export class PixiRendererOrchestrator { // Renamed class
       }
       
       // Destroy the sprite
-      this.backgroundSprite.destroy({ children: true, texture: false });
+      destroyTree(this.backgroundSprite);
       this.backgroundSprite = null;
       this.eventBus.emit('background-sprite-updated', undefined);
     }

@@ -3,6 +3,7 @@ import type { Viewport } from 'pixi-viewport';
 import type { StoreApi } from 'zustand';
 import type { ViewAtlasState } from '../../storeFactory';
 import type { AudioSource } from '../../types/audioTypes';
+import { destroyTree } from '../utils/destroyTree';
 
 const ICON_RADIUS = 10;
 const HIT_TOLERANCE = 12;
@@ -173,6 +174,6 @@ export class AudioRenderer {
       unsub();
     }
     this.unsubscribers = [];
-    this.container.destroy({ children: true });
+    destroyTree(this.container);
   }
 }

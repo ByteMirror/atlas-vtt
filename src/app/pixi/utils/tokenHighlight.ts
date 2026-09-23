@@ -2,6 +2,7 @@ import { OutlineFilter } from 'pixi-filters';
 import type { Filter } from 'pixi.js';
 import { getObsidianAccentColor, cssColorToHexNumber } from './colorUtils';
 import type { AtlasView } from '../../atlas-view';
+import { requestRender } from '../RenderScheduler';
 
 /**
  * Configuration options for the zoom-to-token functionality
@@ -79,19 +80,23 @@ export function addTokenHighlight(
     tokenSprite.filters = [...toFilterArray(tokenSprite.filters), glowFilter];
 
     let time = 0;
+    const app = view?.renderer?.getAppInstance();
     const animateGlow = (): void => {
       time += 0.05;
       glowFilter.thickness = glowThickness + Math.sin(time) * 2;
       glowFilter.alpha = 0.8 + Math.sin(time) * 0.2;
+      // Filter properties are not tracked by the scene graph
+      if (app) requestRender(app);
     };
 
-    const ticker = view?.renderer?.getAppInstance().ticker;
+    const ticker = app?.ticker;
     if (ticker) {
       ticker.add(animateGlow);
 
       window.setTimeout(() => {
         ticker.remove(animateGlow);
         tokenSprite.filters = toFilterArray(tokenSprite.filters).filter((f) => f !== glowFilter);
+        glowFilter.destroy();
       }, highlightDuration);
     }
   } catch (e) {

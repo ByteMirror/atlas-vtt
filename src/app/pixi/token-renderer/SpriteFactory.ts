@@ -10,6 +10,7 @@ import type { ITokenSpriteFactory, TokenGroupContainer } from './types';
 import type { TokenEntity } from '../../types';
 import type { GridSystem } from '../../grid/GridSystem';
 import tokenRingImageUrl from '../../assets/token-ring.webp';
+import { destroyTree } from '../utils/destroyTree';
 import { getTokenRingOuterDiameter } from './tokenRingMetrics';
 import { computeTokenPixelSize, computeTokenStrokeWidth } from './tokenSizing';
 
@@ -404,25 +405,9 @@ export class SpriteFactory implements ITokenSpriteFactory {
     return glassOverlay;
   }
 
-  destroyTokenSprite(tokenId: string, container: Container): void {
-    // Clean up mask
-    const sprite = container.getChildByLabel('tokenSprite') as Sprite;
-    if (sprite?.mask) {
-      (sprite.mask as Graphics).destroy();
-      sprite.mask = null;
-    }
-
-    // Destroy all children
-    container.children.forEach(child => {
-      if (child instanceof Graphics) {
-        child.clear();
-      }
-      child.destroy();
-    });
-
-    // Clear container
-    container.removeChildren();
-    container.destroy();
+  destroyTokenSprite(container: Container): void {
+    // The art mask, ring and badges are all children of the group
+    destroyTree(container);
   }
 
   // Private helper methods

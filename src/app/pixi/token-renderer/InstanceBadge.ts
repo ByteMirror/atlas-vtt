@@ -1,6 +1,7 @@
 import { Container, Graphics, Text, TextStyle } from 'pixi.js';
 import { getTokenRingCenterRadius } from './tokenRingMetrics';
 import type { TokenGroupContainer } from './types';
+import { destroyTree } from '../utils/destroyTree';
 
 const BADGE_NAME = 'instanceBadge';
 const BG_NAME = 'badgeBg';
@@ -88,6 +89,6 @@ export function removeInstanceBadge(tokenGroup: Container): void {
   const badge = tokenGroup.getChildByLabel(BADGE_NAME);
   if (badge) {
     tokenGroup.removeChild(badge);
-    badge.destroy({ children: true });
+    destroyTree(badge);
   }
 }

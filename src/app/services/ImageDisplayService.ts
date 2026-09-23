@@ -72,6 +72,8 @@ export class ImageDisplayService {
     // This adds our item to Obsidian's native menu for rendered image embeds (![[image.png]])
     const editorMenuRef = this.app.workspace.on('editor-menu', (menu: Menu) => {
       const target = this.lastContextMenuTarget;
+      // Holding the element would keep its whole (possibly closed) view in memory
+      this.lastContextMenuTarget = null;
       if (!target) return;
 
       const result = this.resolveImageFromTarget(target);

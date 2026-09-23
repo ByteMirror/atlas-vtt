@@ -9,6 +9,7 @@ import { MAP_ICON_SVG, MAP_ICON_SIZE } from './mapIcons';
 import { createLucideIconTexture } from './utils/lucideIconTexture';
 import { splitStrokeByBrush } from './drawingEraseUtils';
 import { FogCursorPreview } from './fog/FogCursorPreview';
+import { destroyTree } from './utils/destroyTree';
 
 export interface DrawingSettings {
   color: string;
@@ -390,6 +391,6 @@ export class DrawingRenderer {
     this.rendered.clear();
     for (const texture of this.iconTextures.values()) texture.destroy(true);
     this.iconTextures.clear();
-    this.container.destroy({ children: true });
+    destroyTree(this.container);
   }
 }

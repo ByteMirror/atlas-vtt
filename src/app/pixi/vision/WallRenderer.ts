@@ -7,6 +7,7 @@ import type { ViewAtlasState } from '../../storeFactory';
 import type { WallSegment, LightSource } from '../../types/wallTypes';
 import { WALLS_AND_LIGHTING_ENABLED } from '../../featureFlags';
 import { cssColorToHexNumber } from '../utils/colorUtils';
+import { destroyTree } from '../utils/destroyTree';
 
 const VERTEX_HANDLE_RADIUS = 4;
 const LIGHT_ICON_RADIUS = 14;
@@ -509,6 +510,6 @@ export class WallRenderer {
     this.handleGraphics.destroy();
     this.lightGraphics.destroy();
     this.previewGraphics.destroy();
-    this.container.destroy({ children: true });
+    destroyTree(this.container);
   }
 }

@@ -28,7 +28,7 @@ function setup({ subModalOpen = false } = {}) {
       } as unknown as EffectDeps['sel'],
       crud: {
         isTokenCreatorOpen: false, isMapCreatorOpen: false, isCreateSceneModalOpen: false,
-        isMoveModalOpen: false, settingsModalCollectionId: null,
+        isMoveModalOpen: false, settingsModalCollectionId: null, transfer: null,
         inputModalState: { isOpen: subModalOpen }, setEditingToken: vi.fn(),
       } as unknown as EffectDeps['crud'],
       tags: { isTagManagerOpen: false, isEditTagsModalOpen: false } as EffectDeps['tags'],

@@ -1,4 +1,5 @@
 import { TFile, normalizePath, type App } from 'obsidian';
+import { AtlasView, ATLAS_VIEW_TYPE } from '../../atlas-view';
 import type JSZip from 'jszip';
 import { COLLECTIONS_DIR, type Asset, type AssetService, type CollectionMetadata } from '../AssetService';
 import { ensureFolder } from '../../plugin/vaultFolders';
@@ -6,24 +7,29 @@ import { BUNDLE_MANIFEST, isCollectionBundleManifest, zipPathFor, type BundleFil
 import type { BundleProgressListener } from './collectionExport';
 import { planImportPaths, remapPaths, type PathMap } from './pathRemap';
 
-export type ImportOutcome = 'created' | 'updated' | 'already-current' | 'newer-exists';
+/** `kept`: the vault already had the collection and the user chose not to update it. */
+export type ImportOutcome = 'created' | 'updated' | 'kept';
 
 export interface CollectionImportResult {
   outcome: ImportOutcome;
   collectionName: string;
-  version: number;
-  /** Version of the collection already in this vault, when there is one. */
-  localVersion?: number;
   assetCount: number;
   fileCount: number;
 }
 
-/** Same uid means the same collection; only a newer export changes what is already in the vault. */
-export function decideImportOutcome(importVersion: number, existing: Pick<CollectionMetadata, 'version'> | null): ImportOutcome {
-  if (!existing) return 'created';
-  if (importVersion > existing.version) return 'updated';
-  if (importVersion === existing.version) return 'already-current';
-  return 'newer-exists';
+/** What the user decides on before an export changes a collection the vault already has. */
+export interface UpdateRequest {
+  /** The vault's copy, which may have been renamed since it arrived. */
+  existing: CollectionMetadata;
+  imported: CollectionMetadata;
+  /** When the bundle was exported. */
+  exportedAt: number;
+}
+
+export interface ImportOptions {
+  onProgress?: BundleProgressListener;
+  /** Whether the export replaces the files and assets of the vault's copy. Without it, the copy is kept. */
+  confirmUpdate?: (request: UpdateRequest) => Promise<boolean>;
 }
 
 /** Text files carry vault paths that must follow the files they point at. */
@@ -37,10 +43,15 @@ async function readManifest(zip: JSZip): Promise<CollectionBundleManifest> {
   return parsed;
 }
 
-/** An open Atlas view would save its stale state over a map file the import replaces. */
-function closeMapViews(app: App, mapPath: string): void {
-  for (const leaf of app.workspace.getLeavesOfType('atlas-vtt')) {
-    if (leaf.view.getState().file === mapPath) leaf.detach();
+/**
+ * An open Atlas view would save its stale state over a map file the import
+ * replaces. Its pending saves are written first, so none lands after the import.
+ */
+async function closeMapViews(app: App, mapPath: string): Promise<void> {
+  for (const leaf of app.workspace.getLeavesOfType(ATLAS_VIEW_TYPE)) {
+    if (leaf.view.getState().file !== mapPath) continue;
+    if (leaf.view instanceof AtlasView) await leaf.view.saveMap();
+    leaf.detach();
   }
 }
 
@@ -95,7 +106,7 @@ class BundleWriter {
     if (REWRITTEN_ROLES.has(file.role)) content = this.rewrite(content);
 
     if (existing instanceof TFile) {
-      closeMapViews(this.app, target);
+      await closeMapViews(this.app, target);
       await this.app.vault.modifyBinary(existing, content);
     } else {
       await ensureFolder(this.app, target.slice(0, target.lastIndexOf('/')));
@@ -137,13 +148,14 @@ class BundleWriter {
  * collection's folder (global Atlas assets keep their path), every stored
  * path is rewritten to follow them, and the collection record arrives with
  * its tags and settings. Existing statblock notes are reused rather than
- * duplicated. Nothing is written when the vault already has this version.
+ * duplicated. A collection the vault already has (same uid) is only updated
+ * when `confirmUpdate` agrees.
  */
 export async function importCollectionBundle(
   app: App,
   assets: AssetService,
   data: Blob,
-  onProgress: BundleProgressListener = () => undefined,
+  { onProgress = () => undefined, confirmUpdate = () => Promise.resolve(false) }: ImportOptions = {},
 ): Promise<CollectionImportResult> {
   onProgress({ message: 'Reading bundle…', fraction: 0 });
   const { default: JSZip } = await import('jszip');
@@ -152,16 +164,16 @@ export async function importCollectionBundle(
   const imported = manifest.collection;
 
   const existing = await assets.findCollectionByUid(imported.uid);
-  const outcome = decideImportOutcome(imported.version, existing);
   const result: CollectionImportResult = {
-    outcome,
+    outcome: existing ? 'updated' : 'created',
     collectionName: imported.name,
-    version: imported.version,
-    ...(existing && { localVersion: existing.version }),
     assetCount: 0,
     fileCount: 0,
   };
-  if (outcome === 'already-current' || outcome === 'newer-exists') return result;
+  // Neither copy knows which one holds the work to keep, so the user decides.
+  if (existing && !(await confirmUpdate({ existing, imported, exportedAt: manifest.exportedAt }))) {
+    return { ...result, outcome: 'kept' };
+  }
 
   const collectionId = existing?.id ?? await resolveCollectionId(assets, imported);
   const plan = new Map(planImportPaths(

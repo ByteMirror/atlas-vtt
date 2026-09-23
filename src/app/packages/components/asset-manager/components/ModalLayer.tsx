@@ -56,11 +56,12 @@ export function ModalLayer({
 
   return (
     <>
-      {crud.transfer && (
+      {crud.transfer && !crud.transfer.isAwaitingConfirmation && (
         <ProgressModal
-          title={crud.transfer.kind === 'export' ? 'Exporting collection' : 'Importing collection'}
+          title={crud.transfer.title}
           message={crud.transfer.progress.message}
           fraction={crud.transfer.progress.fraction}
+          prompt={crud.transfer.prompt}
         />
       )}
 

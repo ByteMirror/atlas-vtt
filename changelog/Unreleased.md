@@ -10,6 +10,7 @@
 - The player view only copies a new frame when the map actually changed, instead of redrawing the map two extra times per frame.
 - Map cards in the asset manager show small thumbnails instead of decoding the full map image.
 - Delete and Backspace on a map now also remove selected texts and pins, the same objects Cut removes.
+- Collection imports and exports keep their dialog open with the result until you close it, instead of disappearing before you could read it.
 
 ## Fixed
 
@@ -20,3 +21,4 @@
 - The player view keeps the initiative tracker visibility of the map it shows. Opening another map where the tracker is open no longer reveals it to players.
 - Widgets in the player view always come from the map being shown. Opening another map no longer changes the counters players see, and presenting a new map now shows its widgets.
 - Pinned note previews are saved with their map. Switching to another scene and back, reopening the map or restarting Obsidian brings them back where you moved and resized them. Opening the asset manager only hides them for a moment, and only the close button closes them for good.
+- Importing a collection the vault already has no longer stops silently as already up to date. Atlas asks whether to update your copy from the export, and updating also puts back files and assets the copy has lost.

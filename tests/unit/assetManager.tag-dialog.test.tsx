@@ -8,7 +8,7 @@ import type { AnyAsset } from '../../src/app/packages/components/asset-manager/t
 
 type EffectDeps = Parameters<typeof useAssetManagerEffects>[0];
 
-function Harness({ onClose }: { onClose: () => void }): React.ReactElement {
+function Harness({ onClose, transfer = null }: { onClose: () => void; transfer?: EffectDeps['crud']['transfer'] }): React.ReactElement {
   const modalRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   useAssetManagerEffects({
@@ -23,7 +23,7 @@ function Harness({ onClose }: { onClose: () => void }): React.ReactElement {
     crud: {
       isTokenCreatorOpen: false, isMapCreatorOpen: false, isCreateSceneModalOpen: false,
       isMoveModalOpen: false, settingsModalCollectionId: null,
-      inputModalState: { isOpen: false }, setEditingToken: vi.fn(),
+      inputModalState: { isOpen: false }, setEditingToken: vi.fn(), transfer,
     } as EffectDeps['crud'],
     tags: { isTagManagerOpen: false, isEditTagsModalOpen: false } as EffectDeps['tags'],
     statblock: { linkingStatblockAsset: null } as EffectDeps['statblock'],
@@ -94,5 +94,12 @@ it('creates a tag without dismissing the asset manager', () => {
   clickWithMouseDown(screen.getByText('Create “Undead”'));
   expect(onCreateTag).toHaveBeenCalledExactlyOnceWith('Undead');
   expect(screen.queryByText('Manage Tags')).toBeNull();
+  expect(onClose).not.toHaveBeenCalled();
+});
+
+it('ignores its own Escape shortcut while a collection transfer dialog is open', () => {
+  const onClose = vi.fn();
+  render(<Harness onClose={onClose} transfer={{ title: 'Importing collection', progress: { message: 'Done', fraction: 1 }, prompt: { actions: [], onDismiss: vi.fn() } }} />);
+  fireEvent.keyDown(document, { key: 'Escape' });
   expect(onClose).not.toHaveBeenCalled();
 });

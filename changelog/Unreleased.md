@@ -17,3 +17,5 @@
 - Reloading Obsidian with the player view open no longer leaves the old player window running in the background. Each of those windows kept a full copy of the previous Obsidian session in memory.
 - Token artwork from scenes you left is released when another scene loads.
 - Closing the map shown in the player view no longer keeps that map in memory; players keep seeing the last frame.
+- The player view keeps the initiative tracker visibility of the map it shows. Opening another map where the tracker is open no longer reveals it to players.
+- Widgets in the player view always come from the map being shown. Opening another map no longer changes the counters players see, and presenting a new map now shows its widgets.

@@ -1,12 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createStore, type StoreApi } from 'zustand/vanilla';
-import type { LocalPlayerView } from '../../src/app/local-player-view';
 import type { ViewAtlasState } from '../../src/app/storeFactory';
 import type { TokenEntity } from '../../src/app/types';
 import { createDefaultInitiativeState, type InitiativeEntry } from '../../src/app/types/initiativeTypes';
 import { PlayerWindowService, type PlayerFrameSource } from '../../src/app/services/PlayerWindowService';
 import { SettingsService } from '../../src/app/services/SettingsService';
 import { createInMemoryApp } from '../mocks/inMemoryVault';
+import { attachFakePlayerWindow } from '../mocks/playerPopout';
 
 vi.mock('../../src/app/atlas-view', () => ({ AtlasView: class {}, ATLAS_VIEW_TYPE: 'atlas-vtt' }));
 afterEach(() => { PlayerWindowService.getInstance()?.destroy(); vi.useRealTimers(); vi.restoreAllMocks(); });
@@ -26,21 +26,13 @@ function scene(name = 'Hero', initiativeTrackerOpen = true): StoreApi<ViewAtlasS
 
 function setup(initiativeTrackerOpen = true): { service: PlayerWindowService; settings: SettingsService; store: StoreApi<ViewAtlasState>; doc: Document; source: PlayerFrameSource } {
   vi.useFakeTimers();
-  vi.spyOn(window, 'requestAnimationFrame').mockReturnValue(1);
-  vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => {});
   vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
   const { app } = createInMemoryApp();
   const settings = new SettingsService(app);
   const store = scene('Hero', initiativeTrackerOpen);
   const service = new PlayerWindowService(app, store, settings);
-  const doc = document.implementation.createHTMLDocument();
-  Object.defineProperty(doc, 'readyState', { value: 'complete' });
-  Object.defineProperty(doc.body, 'win', { value: {
-    document: doc, closed: false, addEventListener: vi.fn(), removeEventListener: vi.fn(), close: vi.fn(),
-    requestAnimationFrame: window.requestAnimationFrame, cancelAnimationFrame: window.cancelAnimationFrame,
-  } });
   const source = { canvas: createEl('canvas'), withPlayerSafeFrame: vi.fn(), store };
-  service.attachToView({ contentEl: doc.body, updateSession: vi.fn() } as LocalPlayerView, source, 'scene-a');
+  const doc = attachFakePlayerWindow(service, source);
   return { service, settings, store, doc, source };
 }
 
@@ -103,11 +95,6 @@ describe('player initiative panel', () => {
     settings.setLocalPlayerViewSettings({ showTokenNameplates: true });
     expect(doc.body.textContent).toContain('Round 1');
     expect(doc.body.textContent).not.toContain('Round 9');
-    store.setState({ initiativeTrackerOpen: false });
-    expect(doc.querySelector('[aria-label="Initiative order"]')).toBeNull();
-    store.setState({ initiativeTrackerOpen: true });
-    expect(doc.body.textContent).toContain('Round 1');
-    expect(doc.body.textContent).not.toContain('Round 9');
     service.releaseHeldFrame(source);
     expect(doc.body.textContent).toContain('Round 9');
     const other = scene('Other hero');
@@ -120,6 +107,42 @@ describe('player initiative panel', () => {
     other.setState({ initiative: { ...other.getState().initiative, round: 4 } });
     settings.setLocalPlayerViewSettings({ showInitiative: false });
     expect(doc.body.textContent).toBe(before);
+  });
+
+  it('keeps the presented map\'s tracker visibility while the DM browses another map', () => {
+    const { service, store, doc, source } = setup(false);
+    const panel = (): Element | null => doc.querySelector('[aria-label="Initiative order"]');
+    service.holdCurrentFrame();
+    // Switching tabs loads the other map into the same view store.
+    store.setState({ initiativeTrackerOpen: true, initiative: { ...store.getState().initiative, round: 5 } });
+    expect(panel()).toBeNull();
+    store.setState({ initiativeTrackerOpen: false });
+    store.setState({ initiativeTrackerOpen: true });
+    expect(panel()).toBeNull();
+    // Returning to the presented map resumes following its live state.
+    store.setState({ initiativeTrackerOpen: false });
+    service.releaseHeldFrame(source);
+    expect(panel()).toBeNull();
+    store.setState({ initiativeTrackerOpen: true });
+    expect(panel()?.textContent).toContain('Round 5');
+  });
+
+  it('keeps a shown tracker while the DM browses a map with the tracker closed', () => {
+    const { service, store, doc } = setup();
+    service.holdCurrentFrame();
+    store.setState({ initiativeTrackerOpen: false, objects: { tokens: {} } });
+    expect(doc.querySelector('[aria-label="Initiative order"]')?.textContent).toContain('Round 1');
+  });
+
+  it('keeps the initiative of a closed presented map without following its store', () => {
+    const { service, store, doc } = setup();
+    service.releaseSource(store);
+    store.setState({ initiativeTrackerOpen: false, initiative: { ...store.getState().initiative, round: 9 } });
+    expect(doc.body.textContent).toContain('Round 1');
+    const next = scene();
+    next.setState({ initiative: { ...next.getState().initiative, round: 4 } });
+    service.presentCanvas({ canvas: createEl('canvas'), withPlayerSafeFrame: vi.fn(), store: next }, 'scene-b');
+    expect(doc.body.textContent).toContain('Round 4');
   });
 
   it('defaults on for old settings and persists the DM choice across reloads', async () => {

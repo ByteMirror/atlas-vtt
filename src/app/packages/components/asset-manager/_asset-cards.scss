@@ -11,6 +11,12 @@
   z-index: $z-tooltip;
 }
 
+.atlas-asset-card-tooltip-hint {
+  display: block;
+  color: var(--text-muted);
+  font-size: $font-ui-smaller;
+}
+
 .atlas-asset-card {
   position: relative;
   display: flex;

@@ -15,6 +15,12 @@ export function useHotkeyLabels(): (id: MapHotkeyId) => string {
   const bindings = settings?.getHotkeys() ?? DEFAULT_MAP_HOTKEYS;
   return id => formatHotkey(bindings[id]);
 }
+/** Text selected on the page, e.g. in the dice log, which the browser's own copy should handle. */
+function hasTextSelection(event: KeyboardEvent): boolean {
+  const target = event.target instanceof Node ? event.target : null;
+  const selection = (target?.ownerDocument ?? document).getSelection();
+  return !!selection && !selection.isCollapsed && selection.toString().trim() !== '';
+}
 export function useMapHotkeys(handlers: Partial<Record<MapHotkeyId, (event: KeyboardEvent) => void>>, viewId?: string): void {
   const context = useContext(AtlasUIContext);
   const settings = SettingsService.forApp(context?.app);
@@ -26,7 +32,7 @@ export function useMapHotkeys(handlers: Partial<Record<MapHotkeyId, (event: Keyb
     const handle = (event: KeyboardEvent): void => {
       if (!canRunMapHotkeys(event, id)) return;
       const action = availableHotkeys().find(action => current.current[action.id] && matchesMapHotkey(event, action.id, settings));
-      if (!action) return;
+      if (!action || ('yieldsToTextSelection' in action && hasTextSelection(event))) return;
       event.preventDefault();
       current.current[action.id]?.(event);
     };

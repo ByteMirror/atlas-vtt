@@ -14,6 +14,7 @@ import { useAssetCardHandlers, type DraggedItems } from '../hooks/useAssetCardHa
 import type { AssetService } from '../../../../services/AssetService';
 import type { AtlasView } from '../../../../atlas-view';
 import type { ViewAtlasState } from '../../../../storeFactory';
+import { useSpawnCountTyping } from '../hooks/useSpawnCountTyping';
 
 export interface ContentProps {
   activeTab: Tab;
@@ -39,12 +40,12 @@ export interface ContentProps {
   setDropTarget: React.Dispatch<React.SetStateAction<string | null>>;
   onDrop: (targetFolderId: string | null) => void;
   view: AtlasView | null;
-  addToken: ViewAtlasState['addToken'];
+  addTokens: ViewAtlasState['addTokens'];
   setSelection: (ids: string[]) => void;
   app: App;
   assetService: AssetService | null;
   spawnCounts: Record<string, number>;
-  onSpawnCountChange: (assetId: string, delta: number) => void;
+  onSpawnCountChange: (assetId: string, count: number) => void;
 }
 
 interface SectionHeaderProps {
@@ -86,7 +87,7 @@ export function Content(props: ContentProps): React.JSX.Element {
   const filteredFolders = folders.filter((f) => f.type === activeTab && f.parentId === selectedFolderId);
 
   const openAsset = useOpenAsset({
-    app: props.app, view: props.view, addToken: props.addToken, setSelection: props.setSelection,
+    app: props.app, view: props.view, addTokens: props.addTokens, setSelection: props.setSelection,
     assetService: props.assetService, onClose: props.onClose,
   });
   const cardHandlers = useAssetCardHandlers({
@@ -94,6 +95,7 @@ export function Content(props: ContentProps): React.JSX.Element {
     onAssetSelect: props.onAssetSelect, onAssetContextMenu: props.onAssetContextMenu,
     onSpawnCountChange: props.onSpawnCountChange,
   });
+  useSpawnCountTyping(scrollElement, props.onSpawnCountChange);
 
   const selectedIds = useMemo(() => new Set(selectedAssetIds), [selectedAssetIds]);
   const draggingIds = useMemo(

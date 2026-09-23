@@ -3,6 +3,18 @@ import { Application, Container, Rectangle, type Texture } from 'pixi.js';
 import { getDataFilePath } from '../utils/dataFileMigration';
 import { requestRender } from '../pixi/RenderScheduler';
 
+/** The bytes of a base64 data URL, such as the JPEG `renderThumbnail` returns. */
+export function dataUrlToBytes(dataUrl: string): ArrayBuffer | null {
+  const base64Data = dataUrl.split(',')[1];
+  if (!base64Data) return null;
+  const binaryData = atob(base64Data);
+  const bytes = new Uint8Array(binaryData.length);
+  for (let i = 0; i < binaryData.length; i++) {
+    bytes[i] = binaryData.charCodeAt(i);
+  }
+  return bytes.buffer;
+}
+
 export class MapThumbnailService {
   private app: App;
   private thumbnailCache: Map<string, string> = new Map(); // Map path -> data URL
@@ -29,42 +41,46 @@ export class MapThumbnailService {
     background?: Container | null
   ): Promise<string | null> {
     try {
-      const contentBounds = this.calculateContentBounds(viewport, background);
-      if (!contentBounds) return null;
+      const dataUrl = this.renderThumbnail(pixiApp, viewport, background);
+      if (!dataUrl) return null;
 
-      // Keep render texture bounded so large scenes do not spike memory.
-      const renderResolution = Math.min(
-        1,
-        MapThumbnailService.THUMBNAIL_WIDTH / contentBounds.width,
-        MapThumbnailService.THUMBNAIL_HEIGHT / contentBounds.height
-      );
-
-      const renderTexture: Texture = pixiApp.renderer.generateTexture({
-        target: viewport,
-        frame: contentBounds,
-        resolution: renderResolution,
-      });
-      // The off-screen render consumed pending stage updates; the canvas still needs them
-      requestRender(pixiApp);
-      let dataUrl = '';
-      try {
-        const sourceCanvas = this.extractRenderCanvas(pixiApp, renderTexture);
-        const thumbnailCanvas = this.fitIntoThumbnailCanvas(sourceCanvas);
-        dataUrl = thumbnailCanvas.toDataURL('image/jpeg', 0.8); // JPEG for smaller size
-      } finally {
-        renderTexture.destroy(true);
-      }
-      
-      // Cache the thumbnail
       this.rememberThumbnail(mapPath, dataUrl);
-      
-      // Save thumbnail to vault
       await this.saveThumbnailToVault(mapPath, dataUrl);
-      
       return dataUrl;
     } catch (error) {
       console.error('[MapThumbnailService] Error generating thumbnail:', error);
       return null;
+    }
+  }
+
+  /**
+   * Renders the map as it looks now into a 400×300 JPEG data URL, framed on
+   * the map image. Returns null when there is nothing to frame.
+   */
+  renderThumbnail(pixiApp: Application, viewport: Container, background?: Container | null): string | null {
+    const contentBounds = this.calculateContentBounds(viewport, background);
+    if (!contentBounds) return null;
+
+    // Keep render texture bounded so large scenes do not spike memory.
+    const renderResolution = Math.min(
+      1,
+      MapThumbnailService.THUMBNAIL_WIDTH / contentBounds.width,
+      MapThumbnailService.THUMBNAIL_HEIGHT / contentBounds.height
+    );
+
+    const renderTexture: Texture = pixiApp.renderer.generateTexture({
+      target: viewport,
+      frame: contentBounds,
+      resolution: renderResolution,
+    });
+    // The off-screen render consumed pending stage updates; the canvas still needs them
+    requestRender(pixiApp);
+    try {
+      const sourceCanvas = this.extractRenderCanvas(pixiApp, renderTexture);
+      const thumbnailCanvas = this.fitIntoThumbnailCanvas(sourceCanvas);
+      return thumbnailCanvas.toDataURL('image/jpeg', 0.8); // JPEG for smaller size
+    } finally {
+      renderTexture.destroy(true);
     }
   }
 
@@ -147,15 +163,9 @@ export class MapThumbnailService {
    */
   private async saveThumbnailToVault(mapPath: string, dataUrl: string): Promise<void> {
     try {
-      // Convert data URL to binary
-      const base64Data = dataUrl.split(',')[1];
-      if (!base64Data) return;
-      const binaryData = atob(base64Data);
-      const bytes = new Uint8Array(binaryData.length);
-      for (let i = 0; i < binaryData.length; i++) {
-        bytes[i] = binaryData.charCodeAt(i);
-      }
-      
+      const bytes = dataUrlToBytes(dataUrl);
+      if (!bytes) return;
+
       // Create thumbnail path (same directory as map, with .thumb.jpg extension)
       const mapFile = this.app.vault.getAbstractFileByPath(mapPath);
       if (!mapFile || !(mapFile instanceof TFile)) return;
@@ -171,9 +181,9 @@ export class MapThumbnailService {
       // Save thumbnail file
       const existingThumb = this.app.vault.getAbstractFileByPath(thumbnailPath);
       if (existingThumb instanceof TFile) {
-        await this.app.vault.modifyBinary(existingThumb, bytes.buffer);
+        await this.app.vault.modifyBinary(existingThumb, bytes);
       } else {
-        await this.app.vault.createBinary(thumbnailPath, bytes.buffer);
+        await this.app.vault.createBinary(thumbnailPath, bytes);
       }
       
     } catch (error) {

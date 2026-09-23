@@ -499,6 +499,37 @@ export class AtlasView extends FileView {
   }
 
   /**
+   * Lets `rewrite` replace the active scene's file, then loads the scene again
+   * from it, keeping the camera where it is. Pending changes are saved first
+   * and nothing the store holds can be saved over the rewritten file. The
+   * reload clears the scene's undo history, like opening a map does.
+   */
+  public async reloadActiveScene(rewrite: (file: TFile) => Promise<void>): Promise<void> {
+    const file = this.file;
+    const tabId = this.tabMetaStore.getState().activeTabId;
+    if (!(file instanceof TFile) || this.isSwitching) return;
+
+    this.isSwitching = true;
+    try {
+      await this.flushPendingSaves();
+      if (tabId) this.saveViewportState(tabId);
+
+      this.store.getState().setPersistenceEnabled(false);
+      try {
+        await rewrite(file);
+      } catch (error) {
+        this.store.getState().setPersistenceEnabled(true);
+        throw error;
+      }
+
+      await this.performSceneLoad(file);
+      if (tabId) this.restoreViewportState(tabId);
+    } finally {
+      this.isSwitching = false;
+    }
+  }
+
+  /**
    * Open the scene browser via the plugin's global asset manager.
    */
   public openSceneBrowser(): void {

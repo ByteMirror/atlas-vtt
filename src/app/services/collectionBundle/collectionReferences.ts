@@ -1,6 +1,7 @@
 import { TFile, type App } from 'obsidian';
 import type { Asset, AssetService, GroupTokenRef } from '../AssetService';
-import { isPersistedMapEnvelope } from '../MapPersistence';
+import { isPersistedMapEnvelope, type PersistedMapEnvelope } from '../MapPersistence';
+import { SceneSnapshotService } from '../../snapshots/SceneSnapshotService';
 import { isRecord } from '../assetMetadataGuards';
 import { imageReference, localImage } from '../statblockImportCandidates';
 import type { BundleFile, BundleFileRole, StatblockImageKey } from './bundleFormat';
@@ -26,8 +27,8 @@ const OPTIONAL_ROLES = new Set<BundleFileRole>(['thumbnail', 'scene-thumbnail'])
 
 /**
  * Lists every vault file a collection depends on, so a bundle can carry the
- * whole collection: asset records and images, scene maps with their
- * backgrounds and the artwork of tokens placed on them, and the statblock
+ * whole collection: asset records and images, scene maps and their snapshots
+ * with the backgrounds and artwork of tokens placed on them, and the statblock
  * notes tokens link to together with their artwork. Every file lists the
  * assets that use it; the first role claimed for a path wins. Referenced
  * files that are gone are reported instead of packed.
@@ -103,11 +104,22 @@ export class CollectionReferenceCollector {
     try {
       envelope = JSON.parse(await this.app.vault.read(mapFile));
     } catch {
-      return;
+      envelope = null;
     }
-    if (!isPersistedMapEnvelope(envelope) || !envelope.state) return;
-    this.add(envelope.state.background ?? undefined, 'background');
-    for (const token of Object.values(envelope.state.objects?.tokens ?? {})) {
+    if (isPersistedMapEnvelope(envelope)) this.collectMapState(envelope);
+
+    for (const { snapshot, file, thumbnail } of await new SceneSnapshotService(this.app).list(mapPath)) {
+      this.add(file.path, 'scene-snapshot');
+      this.add(thumbnail?.path, 'scene-snapshot-thumbnail');
+      this.collectMapState(snapshot);
+    }
+  }
+
+  /** The background, token artwork and character statblocks a saved map state shows. */
+  private collectMapState({ state }: PersistedMapEnvelope): void {
+    if (!state) return;
+    this.add(state.background ?? undefined, 'background');
+    for (const token of Object.values(state.objects?.tokens ?? {})) {
       this.add(token.imagePath, 'token-image');
       if (token.kind === 'character') this.addStatblockNote(token.statblockPath);
     }

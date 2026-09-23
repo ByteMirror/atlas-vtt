@@ -2,7 +2,7 @@ import type { BundleFile, BundleFileRole } from './bundleFormat';
 import { remapPaths, type PathMap } from './pathRemap';
 
 /** JSON files carry vault paths and asset ids that must follow the files and records they point at. */
-const JSON_ROLES: ReadonlySet<BundleFileRole> = new Set<BundleFileRole>(['asset-file', 'scene-map']);
+const JSON_ROLES: ReadonlySet<BundleFileRole> = new Set<BundleFileRole>(['asset-file', 'scene-map', 'scene-snapshot']);
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();

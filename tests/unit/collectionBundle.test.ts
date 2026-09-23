@@ -8,6 +8,7 @@ import { exportCollectionBundle, prepareCollectionExport, type ExportChoice } fr
 import { openCollectionImport, type ImportDecision } from '../../src/app/services/collectionBundle/collectionImport';
 import type { ImportReview } from '../../src/app/services/collectionBundle/importReview';
 import { readInstallRecord } from '../../src/app/services/collectionBundle/installRecord';
+import { createSnapshot } from '../../src/app/snapshots/sceneSnapshotFormat';
 import { createInMemoryApp, parseFrontmatter, type InMemoryApp } from '../mocks/inMemoryVault';
 
 vi.mock('../../src/app/atlas-view', () => ({
@@ -155,6 +156,27 @@ describe('installing', () => {
     expect(JSON.parse(fan.vault.files.get(MAP_PATH)!).state.objects.tokens.t1.statblockPath).toBe(`${statblocks}/Goblin.md`);
     expect(parseFrontmatter(fan.vault.files.get(`${statblocks}/Goblin.md`)!)).toMatchObject({ image: `${statblocks}/goblin.png` });
     expect(await readInstallRecord(fan.vault.app, collection!.uid)).toMatchObject({ version: 1, collectionId: 'source' });
+  });
+
+  it('carries scene snapshots with their thumbnails and artwork into the installed collection', async () => {
+    const creator = await creatorVault();
+    const ogreImage = 'atlas-vtt/assets/ogre.webp';
+    const snapshotFolder = 'atlas-vtt/collections/source/scenes/Cave.snapshots';
+    const snapshot = createSnapshot({ version: 4, state: {
+      schema: 'atlas-vtt', version: 4, background: BACKGROUND, grid: null,
+      objects: { tokens: { o1: { id: 'o1', kind: 'character', x: 0, y: 0, imagePath: ogreImage, statblockPath: NOTE_PATH, name: 'Ogre', hp: 30 } } },
+    } }, 'snap1', 'Ogre ambush', 1000);
+    await creator.vault.app.vault.create(ogreImage, 'OGRE');
+    await creator.vault.app.vault.create(`${snapshotFolder}/snap1.json`, JSON.stringify(snapshot));
+    await creator.vault.app.vault.create(`${snapshotFolder}/snap1.jpg`, 'SNAPJPG');
+
+    const fan = await emptyVault();
+    await importInto(fan, await exportFrom(creator));
+    const restored = JSON.parse(fan.vault.files.get(`${snapshotFolder}/snap1.json`)!) as typeof snapshot;
+    expect(restored).toMatchObject({ id: 'snap1', name: 'Ogre ambush' });
+    expect(restored.state.objects?.tokens?.o1).toMatchObject({ imagePath: ogreImage, statblockPath: 'atlas-vtt/collections/source/statblocks/Goblin.md' });
+    expect(fan.vault.files.get(`${snapshotFolder}/snap1.jpg`)).toBe('SNAPJPG');
+    expect(fan.vault.files.get(ogreImage)).toBe('OGRE');
   });
 
   it('imports a different collection with a name the vault already uses under a name of the user\'s choice', async () => {
@@ -656,6 +678,21 @@ describe('third review findings', () => {
     await importInto(fan, await exportFrom(creator));
     expect(fan.vault.files.has('atlas-vtt/collections/source/scenes/Lair.thumb.jpg')).toBe(false);
     expect(fan.vault.files.get('atlas-vtt/collections/source/scenes/Lair-2.thumb.jpg')).toBe('THUMB');
+  });
+
+  it('keeps scene snapshots with their map when the map is placed under another name', async () => {
+    const { creator, fan } = await installed();
+    const lair = 'atlas-vtt/collections/source/scenes/Lair.atlasmap';
+    await fan.vault.app.vault.create(lair, 'MY LAIR');
+    await creator.vault.app.vault.create(lair, '{"creator":true}');
+    const snapshot = createSnapshot({ version: 4, state: { schema: 'atlas-vtt', version: 4, background: BACKGROUND, grid: null } }, 'snap1', 'Start', 1000);
+    await creator.vault.app.vault.create('atlas-vtt/collections/source/scenes/Lair.snapshots/snap1.json', JSON.stringify(snapshot));
+    await creator.vault.app.vault.create('atlas-vtt/collections/source/scenes/Lair.snapshots/snap1.jpg', 'SNAPJPG');
+    await creator.assets.addAsset({ type: 'scene', name: 'Lair', collection: 'source', tags: [], data: { mapPath: lair } });
+    await importInto(fan, await exportFrom(creator));
+    expect(fan.vault.files.has('atlas-vtt/collections/source/scenes/Lair.snapshots/snap1.json')).toBe(false);
+    expect(fan.vault.files.has('atlas-vtt/collections/source/scenes/Lair-2.snapshots/snap1.json')).toBe(true);
+    expect(fan.vault.files.get('atlas-vtt/collections/source/scenes/Lair-2.snapshots/snap1.jpg')).toBe('SNAPJPG');
   });
 });
 

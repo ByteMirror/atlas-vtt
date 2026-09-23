@@ -55,12 +55,30 @@ export function createInMemoryApp(seed: InMemoryVaultSeed = {}): InMemoryApp {
   };
 
   for (const path of files.keys()) addParentFolders(path);
-  const folderWithChildren = (path: string): TFolder => {
+  /** A folder handle whose `children` list what lies directly inside it, as Obsidian's does. */
+  const folderAt = (path: string): TFolder => {
     const folder = new TFolder(path);
-    folder.children = [...files.keys(), ...folders]
-      .filter((entry) => parentOf(entry) === path)
-      .map((entry) => (files.has(entry) ? new TFile(entry) : new TFolder(entry)));
+    const inside = (candidate: string): boolean => parentOf(candidate) === path;
+    folder.children = [
+      ...[...folders].filter(inside).map((child) => new TFolder(child)),
+      ...[...files.keys()].filter(inside).map((child) => new TFile(child)),
+    ];
     return folder;
+  };
+  /** Moves a file, or a folder with everything inside it. */
+  const move = (from: string, to: string): void => {
+    assertFree(to);
+    const moved = (path: string): string => to + path.slice(from.length);
+    const within = (path: string): boolean => path === from || path.startsWith(`${from}/`);
+    for (const path of [...files.keys()].filter(within)) {
+      writeFile(moved(path), files.get(path) ?? '');
+      files.delete(path);
+    }
+    for (const path of [...folders].filter(within)) {
+      folders.delete(path);
+      folders.add(moved(path));
+    }
+    addParentFolders(to);
   };
 
   const app = new App();
@@ -83,10 +101,12 @@ export function createInMemoryApp(seed: InMemoryVaultSeed = {}): InMemoryApp {
     getAbstractFileByPath: vi.fn((path: string): TAbstractFile | null => {
       if (isHiddenPath(path)) return null;
       if (files.has(path)) return new TFile(path);
-      if (folders.has(path)) return folderWithChildren(path);
+      if (folders.has(path)) return folderAt(path);
       return null;
     }),
-    getFolderByPath: vi.fn((path: string): TFolder | null => (folders.has(path) && !isHiddenPath(path) ? new TFolder(path) : null)),
+    getFileByPath: vi.fn((path: string): TFile | null => (files.has(path) && !isHiddenPath(path) ? new TFile(path) : null)),
+    getFolderByPath: vi.fn((path: string): TFolder | null => (folders.has(path) && !isHiddenPath(path) ? folderAt(path) : null)),
+    rename: vi.fn(async (file: TAbstractFile, newPath: string) => move(file.path, newPath)),
     createFolder: vi.fn(async (path: string) => {
       assertFree(path);
       folders.add(path);
@@ -118,8 +138,9 @@ export function createInMemoryApp(seed: InMemoryVaultSeed = {}): InMemoryApp {
       writeFile(newPath, content);
     }),
     trashFile: vi.fn(async (file: TAbstractFile) => {
-      files.delete(file.path);
-      folders.delete(file.path);
+      const within = (path: string): boolean => path === file.path || path.startsWith(`${file.path}/`);
+      for (const path of [...files.keys()].filter(within)) files.delete(path);
+      for (const path of [...folders].filter(within)) folders.delete(path);
     }),
     processFrontMatter: vi.fn(async (file: TFile, fn: (frontmatter: Record<string, unknown>) => void) => {
       const content = files.get(file.path) ?? '';

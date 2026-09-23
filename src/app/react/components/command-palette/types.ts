@@ -14,7 +14,9 @@ export interface CommandOption {
   submenu?: CommandOption[];
 }
 
+/** Pages the palette expands into in place of its command list. */
 export const SETTINGS_PANEL_IDS = [
+  'scene-snapshots',
   'grid-settings',
   'token-settings',
   'widget-settings',

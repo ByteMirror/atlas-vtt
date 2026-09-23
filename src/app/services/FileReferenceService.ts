@@ -2,11 +2,12 @@ import { App } from 'obsidian';
 import { AssetService, Asset } from './AssetService';
 import { isPersistedMapEnvelope } from './MapPersistence';
 import { normalizeImagePath } from '../utils/pathUtils';
+import { isSnapshotFilePath } from '../snapshots/snapshotPaths';
 
 /**
  * Propagates file path changes (renames/moves) across all storage layers:
  * - Asset metadata (assets-metadata.json)
- * - Map files (.atlasmap token instances)
+ * - Map files (.atlasmap token instances) and scene snapshots
  * - Statblock frontmatter (token-image field)
  * - Live UI via window event
  */
@@ -105,7 +106,8 @@ export class FileReferenceService {
     oldPath: string, newPath: string,
     normalizedOld: string, _normalizedNew: string,
   ): Promise<boolean> {
-    const mapFiles = this.app.vault.getFiles().filter(f => f.extension === 'atlasmap');
+    // Scene snapshots hold the same map state, so they follow renamed files too.
+    const mapFiles = this.app.vault.getFiles().filter(f => f.extension === 'atlasmap' || isSnapshotFilePath(f.path));
     let anyChanged = false;
 
     /** Returns the rewritten map JSON, or null when the map does not reference the old path. */

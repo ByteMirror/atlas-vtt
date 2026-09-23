@@ -11,7 +11,7 @@ export const BUNDLE_FILES_DIR = 'files';
 
 /** `asset-file` is the file that backs an asset record: token image, map JSON, scene, encounter or player JSON. */
 const BUNDLE_FILE_ROLES = [
-  'asset-file', 'thumbnail', 'scene-map', 'scene-thumbnail', 'background', 'token-image', 'statblock-note', 'statblock-image',
+  'asset-file', 'thumbnail', 'scene-map', 'scene-thumbnail', 'scene-snapshot', 'scene-snapshot-thumbnail', 'background', 'token-image', 'statblock-note', 'statblock-image',
 ] as const;
 export type BundleFileRole = typeof BUNDLE_FILE_ROLES[number];
 

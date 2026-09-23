@@ -4,6 +4,7 @@ const GLOBAL_ASSETS_PREFIX = `${GLOBAL_ASSETS_DIR}/`;
 import { REUSABLE_FILE_ROLES, type BundleFile } from './bundleFormat';
 import { sceneThumbnailPath } from './collectionReferences';
 import { baseName, parentPath } from '../../utils/pathUtils';
+import { snapshotFolderFor } from '../../snapshots/snapshotPaths';
 
 export type PathMap = ReadonlyMap<string, string>;
 
@@ -75,19 +76,29 @@ export function planImportPaths(files: readonly BundleFile[], rules: ImportPathR
     plan.set(file.vaultPath, target);
   };
 
-  // A scene's thumbnail is found next to its map, so it takes whatever name the map gets.
+  // A scene's thumbnail and snapshots are found next to its map, so they take whatever name the map gets.
   const mapPaths = new Set(files.filter((file) => file.role === 'scene-map').map((file) => file.vaultPath));
   const followsMap = (file: BundleFile): string | undefined => {
-    if (file.role !== 'scene-thumbnail') return undefined;
-    return [...mapPaths].find((map) => sceneThumbnailPath(map) === file.vaultPath);
+    switch (file.role) {
+      case 'scene-thumbnail':
+        return [...mapPaths].find((map) => sceneThumbnailPath(map) === file.vaultPath);
+      case 'scene-snapshot':
+      case 'scene-snapshot-thumbnail':
+        return [...mapPaths].find((map) => parentPath(file.vaultPath) === snapshotFolderFor(map));
+      default:
+        return undefined;
+    }
   };
+  const besideMap = (file: BundleFile, mapTarget: string): string => (file.role === 'scene-thumbnail'
+    ? sceneThumbnailPath(mapTarget)
+    : `${snapshotFolderFor(mapTarget)}/${baseName(file.vaultPath)}`);
 
   const unplaced: Array<{ file: BundleFile; folder: string }> = [];
-  const thumbnails: Array<{ file: BundleFile; map: string }> = [];
+  const besideMaps: Array<{ file: BundleFile; map: string }> = [];
   for (const file of files) {
     const path = file.vaultPath;
     const map = followsMap(file);
-    if (map) thumbnails.push({ file, map });
+    if (map) besideMaps.push({ file, map });
     else if (path.startsWith(sourcePrefix)) {
       const target = `${targetPrefix}${path.slice(sourcePrefix.length)}`;
       if (isUsersFile(target)) unplaced.push({ file, folder: parentPath(target) });
@@ -102,8 +113,8 @@ export function planImportPaths(files: readonly BundleFile[], rules: ImportPathR
     }
   }
   for (const { file, folder } of unplaced) place(file, freePathIn(folder, baseName(file.vaultPath), isTaken));
-  for (const { file, map } of thumbnails) {
-    const target = sceneThumbnailPath(plan.get(map)!);
+  for (const { file, map } of besideMaps) {
+    const target = besideMap(file, plan.get(map)!);
     place(file, isTaken(target) ? freePathIn(parentPath(target), baseName(target), isTaken) : target);
   }
   return plan;

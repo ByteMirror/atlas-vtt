@@ -37,9 +37,25 @@ interface IPreviewWindow {
 /** Preview windows cycle below this so they stay under the asset manager (50). */
 const MAX_PREVIEW_Z_INDEX = 45;
 
+/** Hover and pin events a map view's event bus sends to the preview manager. */
+interface PinHoverEvent {
+  pin: PreviewAnchor;
+  screenX: number;
+  screenY: number;
+  pixiEvent?: FederatedPointerEvent;
+  sourceLeaf?: WorkspaceLeaf | null;
+}
+
+/** Views whose activation keeps hover previews open. */
+const ATLAS_MAP_VIEW_TYPES = new Set(['atlas-vtt', 'atlas-vtt-player']);
+
+/**
+ * Owns every CMD/Ctrl+hover preview window. One instance lives for the whole
+ * plugin, so pinned previews survive scene tab switches and a closed map;
+ * each map view only connects its event bus while it is open.
+ */
 export class NotePreviewUIManager {
   private app: App;
-  private eventBus: EventEmitter;
   private activePreviews: Map<string, IPreviewWindow> = new Map();
   private isModifierKeyDown = false;
   private lastHoveredPinId: string | null = null;
@@ -57,43 +73,41 @@ export class NotePreviewUIManager {
   private activeLeafChangeRef: EventRef | null = null;
   private zIndexCounter = 5; // stay below asset manager (50) and Obsidian overlays (~1000)
 
-  constructor(app: App, eventBus: EventEmitter) {
+  constructor(app: App) {
     this.app = app;
-    this.eventBus = eventBus;
-    
+
     // Styles are loaded via styles/main.scss → note-preview-window.scss
     this.boundHideAllUnpinnedPreviewsOnBlur = () => this.hideAllUnpinnedPreviews();
     this.initializeGlobalListeners();
   }
 
-  private initializeGlobalListeners(): void {
-    this.eventBus.on('pin-hover-preview', (data: {
-      pin: PreviewAnchor;
-      screenX: number;
-      screenY: number;
-      pixiEvent?: FederatedPointerEvent;
-      sourceLeaf?: WorkspaceLeaf | null;
-    }) => {
+  /**
+   * Routes a map view's hover and pin events to this manager. The returned
+   * function disconnects the view and closes its unpinned previews; pinned
+   * previews stay open until the user closes them.
+   */
+  public connect(eventBus: EventEmitter): () => void {
+    const onHover = (data: PinHoverEvent): void => {
       // Always update last hovered ID for proper cleanup
       this.lastHoveredPinId = data.pin.id;
-      
+
       // Check the actual key state from the event if available, otherwise fall back to tracked state
       let modifierKeyDown = this.isModifierKeyDown;
       if (data.pixiEvent) {
         modifierKeyDown = data.pixiEvent.metaKey || data.pixiEvent.ctrlKey;
       }
-      
+
       // Hover events only fire when the hovered element changes, so remember
       // the hover: every later modifier press replays it.
       this.currentHover = { pin: data.pin, screenX: data.screenX, screenY: data.screenY, sourceLeaf: data.sourceLeaf ?? null };
       if (modifierKeyDown) {
         this.showPreviewFor(this.currentHover);
       }
-    });
+    };
 
-    this.eventBus.on('pin-hide-preview', (data: { pin: PreviewAnchor }) => {
+    const onHide = (data: { pin: PreviewAnchor }): void => {
       if (this.lastHoveredPinId === data.pin.id) {
-          this.lastHoveredPinId = null; // Clear last hovered if mouse moves off it
+        this.lastHoveredPinId = null; // Clear last hovered if mouse moves off it
       }
       if (this.currentHover?.pin.id === data.pin.id) {
         this.currentHover = null;
@@ -103,32 +117,49 @@ export class NotePreviewUIManager {
       if (!this.isModifierKeyDown) {
         this.hidePreview(data.pin.id, false); // false = don't force if pinned
       }
-    });
+    };
 
+    const onClose = (notePath: string): void => {
+      this.hidePreview(notePath, true); // true to force hide even if pinned
+    };
+
+    eventBus.on('pin-hover-preview', onHover);
+    eventBus.on('pin-hide-preview', onHide);
+    eventBus.on('close-active-preview', onClose);
+
+    return () => {
+      eventBus.off('pin-hover-preview', onHover);
+      eventBus.off('pin-hide-preview', onHide);
+      eventBus.off('close-active-preview', onClose);
+      this.currentHover = null;
+      this.lastHoveredPinId = null;
+      this.hideAllUnpinnedPreviews();
+      // The view may close while its asset manager has the previews suspended
+      this.resumePreviews();
+    };
+  }
+
+  private initializeGlobalListeners(): void {
     // Bind methods to preserve 'this' context
     this.boundHandleKeyDown = this.handleKeyDown.bind(this);
     this.boundHandleKeyUp = this.handleKeyUp.bind(this);
     this.boundHandleFocus = () => {
       this.isModifierKeyDown = false;
     };
-    
+
     document.addEventListener('keydown', this.boundHandleKeyDown);
     document.addEventListener('keyup', this.boundHandleKeyUp);
     window.addEventListener('blur', this.boundHideAllUnpinnedPreviewsOnBlur);
-    
+
     // Reset modifier key state when window gains focus to avoid stuck state
     window.addEventListener('focus', this.boundHandleFocus);
 
-    this.eventBus.on('close-active-preview', (notePath: string) => {
-      this.hidePreview(notePath, true); // true to force hide even if pinned
-    });
-
-    // Close all previews when the user navigates away from the atlas view
+    // Leaving the map closes hover previews; pinned ones float on over the workspace
     this.activeLeafChangeRef = this.app.workspace.on('active-leaf-change', (leaf: WorkspaceLeaf | null) => {
       if (!leaf) return;
       const viewType = leaf.view?.getViewType?.();
-      if (viewType !== 'atlas-vtt' && viewType !== 'atlas-vtt-player') {
-        this.hideAllPreviews();
+      if (!viewType || !ATLAS_MAP_VIEW_TYPES.has(viewType)) {
+        this.hideAllUnpinnedPreviews();
       }
     });
   }
@@ -315,26 +346,17 @@ export class NotePreviewUIManager {
   }
   
   /**
-   * Hide all preview windows (both pinned and unpinned)
-   * Used when asset manager opens
+   * Clears previews out of the way while the asset manager covers the map:
+   * hover previews close, pinned ones are only hidden until `resumePreviews`.
    */
-  public hideAllPreviews(): void {
-    this.activePreviews.forEach((preview) => {
-      preview.hide(true);
-    });
-    this.activePreviews.clear();
+  public suspendPreviews(): void {
+    this.hideAllUnpinnedPreviews();
+    this.activePreviews.forEach((preview) => preview.element?.hide());
   }
-  
-  /**
-   * Show all previously hidden preview windows
-   * Used when asset manager closes
-   */
-  public showAllPreviews(): void {
-    this.activePreviews.forEach((preview) => {
-      if (preview.element) {
-        preview.element.style.removeProperty('display');
-      }
-    });
+
+  /** Shows the pinned previews hidden by `suspendPreviews` again. */
+  public resumePreviews(): void {
+    this.activePreviews.forEach((preview) => preview.element?.show());
   }
 
   public destroy(): void {

@@ -123,7 +123,7 @@ describe('NotePreviewWindow markdown previews', () => {
     );
     expect(harness.setActiveLeaf).toHaveBeenLastCalledWith(harness.atlasLeaf, { focus: false });
     expect(renderSpy).not.toHaveBeenCalled();
-    expect(harness.atlasLeafRoot.contains(preview.element!)).toBe(true);
+    expect(harness.atlasLeafRoot.contains(preview.element!)).toBe(false);
   });
 
   it('falls back to rendering the markdown when the workspace cannot provide a leaf', async () => {
@@ -143,6 +143,6 @@ describe('NotePreviewWindow markdown previews', () => {
     );
     expect(harness.setActiveLeaf).toHaveBeenLastCalledWith(harness.atlasLeaf, { focus: false });
     expect(preview.element?.textContent).toContain('Preview body');
-    expect(harness.atlasLeafRoot.contains(preview.element!)).toBe(true);
+    expect(harness.atlasLeafRoot.contains(preview.element!)).toBe(false);
   });
 });

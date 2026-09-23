@@ -9,6 +9,7 @@ import { DashboardView, DASHBOARD_VIEW_TYPE } from './src/app/dashboard-view';
 import { initializeAtlasStorage } from './src/app/atlasStorageInit';
 import { GlobalAssetManagerService } from './src/app/services/GlobalAssetManagerService';
 import { ImageDisplayService } from './src/app/services/ImageDisplayService';
+import { NotePreviewUIManager } from './src/app/services/NotePreviewUIManager';
 import { PlayerWindowService } from './src/app/services/PlayerWindowService';
 import { SettingsService } from './src/app/services/SettingsService';
 import type { WidgetSyncService } from './src/app/services/WidgetSyncService';
@@ -35,6 +36,9 @@ export default class AtlasVTTPlugin extends Plugin {
   /** Created lazily by the first view's ServiceManager and shared by all views. */
   public widgetSyncService: WidgetSyncService | undefined;
 
+  /** Shared by every view's ServiceManager, so pinned note previews outlive a closed map. */
+  public notePreviewUIManager!: NotePreviewUIManager;
+
   /** Opened by each view for its scene browser. */
   public globalAssetManager!: GlobalAssetManagerService;
   private imageDisplayService!: ImageDisplayService;
@@ -46,6 +50,9 @@ export default class AtlasVTTPlugin extends Plugin {
     this.register(errorLog.attach());
     const issueReporter = new IssueReporter(this.app, this.manifest, errorLog);
     this.addCommand({ id: 'report-issue', name: 'Report an issue…', callback: () => issueReporter.open() });
+
+    // Before the views: a restored map connects to it as soon as it opens.
+    this.notePreviewUIManager = new NotePreviewUIManager(this.app);
 
     // Views first, so workspace restore can resolve persisted Atlas tabs
     // before the slower startup path finishes.
@@ -101,6 +108,7 @@ export default class AtlasVTTPlugin extends Plugin {
     this.imageDisplayService?.destroy();
     PlayerWindowService.getInstance()?.destroy(false);
     this.globalAssetManager?.close();
+    this.notePreviewUIManager?.destroy();
   }
 
   private registerAtlasViews(): void {

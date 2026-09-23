@@ -33,7 +33,6 @@ export class NotePreviewWindow {
   private usesPopover = false;
   private wrapperEl: HTMLDivElement | null = null;
   private preferredActiveLeaf: WorkspaceLeaf | null = null;
-  private mountRootEl: HTMLElement | null = null;
 
   // Resize properties
   private isResizing: boolean = false;
@@ -97,8 +96,7 @@ export class NotePreviewWindow {
 
   private render() {
     // Wrap in .atlas-vtt-plugin so SCSS scoped under that selector applies
-    this.mountRootEl = this.resolveMountRoot();
-    this.wrapperEl = this.mountRootEl.createDiv({ cls: 'atlas-vtt-plugin atlas-vtt-root' });
+    this.wrapperEl = this.resolveMountRoot().createDiv({ cls: 'atlas-vtt-plugin atlas-vtt-root' });
     this.element = this.wrapperEl.createDiv({ cls: 'atlas-note-preview-window' });
     this.element.setAttribute('tabindex', '-1'); // Make the main window programmatically focusable
 
@@ -185,14 +183,12 @@ export class NotePreviewWindow {
 
   }
 
+  /**
+   * Mounts on the body of the map's window rather than inside the map leaf, so a
+   * pinned preview keeps floating over the workspace when the map tab is hidden or closed.
+   */
   private resolveMountRoot(): HTMLElement {
-    const preferredLeafContainer = this.preferredActiveLeaf?.view?.containerEl;
-    const preferredLeafRoot =
-      preferredLeafContainer?.closest('.workspace-leaf') as HTMLElement | null ??
-      preferredLeafContainer ??
-      null;
-
-    return preferredLeafRoot ?? document.body;
+    return this.preferredActiveLeaf?.view?.containerEl.ownerDocument.body ?? activeDocument.body;
   }
 
   private createResizeHandles() {

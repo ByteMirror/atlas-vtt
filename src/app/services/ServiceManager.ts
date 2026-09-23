@@ -29,6 +29,9 @@ export class ServiceManager {
   private toolController: ToolController;
   private gridManager: GridManager | null = null;
   private notePreviewUIManager: NotePreviewUIManager;
+  /** Only a manager created here (no plugin) is destroyed with the view. */
+  private ownsNotePreviewUIManager: boolean;
+  private disconnectNotePreviews: () => void;
   private assetService: AssetService | null = null;
   private settingsService: SettingsService;
   private mapThumbnailService: MapThumbnailService;
@@ -63,7 +66,10 @@ export class ServiceManager {
 
     this.gridManager = new GridManager(this.eventBus);
 
-    this.notePreviewUIManager = new NotePreviewUIManager(app, this.eventBus);
+    // Share the plugin-wide preview manager so pinned previews outlive this view
+    this.ownsNotePreviewUIManager = !plugin?.notePreviewUIManager;
+    this.notePreviewUIManager = plugin?.notePreviewUIManager ?? new NotePreviewUIManager(app);
+    this.disconnectNotePreviews = this.notePreviewUIManager.connect(this.eventBus);
 
     this.assetService = AssetService.getInstance(app);
     this.mapThumbnailService = new MapThumbnailService(app);
@@ -281,7 +287,10 @@ export class ServiceManager {
     this.rendererService.destroy();
     this.layerGraph.destroy();
     this.uiOverlay.unmount();
-    this.notePreviewUIManager.destroy();
+    this.disconnectNotePreviews();
+    if (this.ownsNotePreviewUIManager) {
+      this.notePreviewUIManager.destroy();
+    }
 
     // Clean up thumbnail generation subscription
     this.clearThumbnailGenerationSubscriptions();

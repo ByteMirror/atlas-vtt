@@ -18,6 +18,7 @@ import type { AtlasPersistStorage } from './services/MapPersistence';
 import { normalizeImagePath } from './utils/pathUtils';
 import { createInitiativeActions } from './stores/initiativeSlice';
 import { createInitialUIState, createUIActions, type UISlice } from './stores/uiSlice';
+import { createPinnedNotePreviewActions, type PinnedNotePreviewSlice } from './stores/pinnedNotePreviewSlice';
 import { createHistoryOptions } from './stores/history';
 import type { DiceRollResult } from './tools/DiceTool';
 import { isAtlasToolAvailable } from './tools/toolAvailability';
@@ -251,6 +252,11 @@ export interface ViewAtlasState {
   addDiceLogEntry: (entry: DiceRollResult) => void;
   clearDiceLog: () => void;
 
+  // Pinned note preview windows (persisted per map)
+  pinnedNotePreviews: PinnedNotePreviewSlice['pinnedNotePreviews'];
+  savePinnedNotePreview: PinnedNotePreviewSlice['savePinnedNotePreview'];
+  removePinnedNotePreview: PinnedNotePreviewSlice['removePinnedNotePreview'];
+
   // --- Per-view UI visibility (from uiSlice.ts, NOT persisted) ---
   isGridSettingsOpen: UISlice['isGridSettingsOpen'];
   isDMDashboardOpen: UISlice['isDMDashboardOpen'];
@@ -300,7 +306,7 @@ const createDefaultWidgets = (): WidgetSettings => ({
 });
 
 // Initial state for each store instance
-const createInitialState = (): Pick<ViewAtlasState, 'schema' | 'version' | 'mapPath' | 'background' | 'grid' | 'objects' | 'camera' | 'persistenceEnabled' | 'widgetSettings' | 'widgetValues' | 'dmNotePath' | 'tokenSettings' | 'initiative' | 'diceLog'> => ({
+const createInitialState = (): Pick<ViewAtlasState, 'schema' | 'version' | 'mapPath' | 'background' | 'grid' | 'objects' | 'camera' | 'persistenceEnabled' | 'widgetSettings' | 'widgetValues' | 'dmNotePath' | 'tokenSettings' | 'initiative' | 'diceLog' | 'pinnedNotePreviews'> => ({
   schema: ATLAS_SCHEMA,
   version: ATLAS_VERSION,
   mapPath: null,
@@ -341,6 +347,7 @@ const createInitialState = (): Pick<ViewAtlasState, 'schema' | 'version' | 'mapP
   },
   initiative: createDefaultInitiativeState(),
   diceLog: [],
+  pinnedNotePreviews: {},
 });
 
 /**
@@ -1305,6 +1312,7 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
             // Maps without saved widgets must not inherit the previous map's
             draft.widgetSettings = createDefaultWidgets();
             draft.widgetValues = {};
+            draft.pinnedNotePreviews = {};
 
             // Note: We don't clear background here - it will be set by the new map
             // Note: We don't clear mapPath - it must be preserved for storage adapter
@@ -1445,6 +1453,10 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
             draft.diceLog = [];
           }),
 
+          // --- Pinned note previews (persisted per map) ---
+          pinnedNotePreviews: {},
+          ...createPinnedNotePreviewActions(set),
+
           // --- Per-view UI visibility (from uiSlice.ts) ---
           ...createInitialUIState(),
           ...createUIActions(set),
@@ -1484,6 +1496,7 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
               initiative: state.initiative, // Initiative tracker state
               initiativeTrackerOpen: state.initiativeTrackerOpen, // Initiative tracker open/closed state
               diceLog: state.diceLog, // Dice roll history (last 20 per map)
+              pinnedNotePreviews: state.pinnedNotePreviews, // Pinned note preview windows
             };
           },
           

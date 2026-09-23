@@ -1,7 +1,9 @@
 import { App, WorkspaceLeaf, TFile, ItemView, MarkdownRenderer, Component, setIcon } from 'obsidian';
 import { getActiveWorkspaceLeaf, suppressActiveLeaf } from '../utils/embeddedLeafFocus';
 import { runInBackground } from '../utils/backgroundTask';
-import type { NotePreviewUIManager, PreviewAnchor } from './NotePreviewUIManager';
+import type { NotePreviewUIManager, PreviewAnchorRef } from './NotePreviewUIManager';
+import type { PinnedNotePreview, PreviewWindowLayout } from '../stores/pinnedNotePreviewSlice';
+import { applyPreviewWindowLayout, readPreviewWindowLayout } from './previewWindowLayout';
 
 // Styles imported via styles/main.scss → note-preview-window.scss
 
@@ -20,7 +22,7 @@ export class NotePreviewWindow {
   private parentComponent: Component;
   private isPinned: boolean = false;
   private pinButton: HTMLButtonElement | null = null;
-  public originatingPin: PreviewAnchor | null = null;
+  public originatingPin: PreviewAnchorRef | null = null;
   private isDragging: boolean = false;
   private dragStartX: number = 0;
   private dragStartY: number = 0;
@@ -48,10 +50,12 @@ export class NotePreviewWindow {
   constructor(
     app: App,
     notePath: string,
-    originatingPin: PreviewAnchor,
+    originatingPin: PreviewAnchorRef,
     manager: NotePreviewUIManager,
     initialPos?: { x: number, y: number },
     preferredActiveLeaf?: WorkspaceLeaf | null,
+    /** Reopens a preview pinned earlier, where it was left. */
+    pinnedLayout?: PreviewWindowLayout,
   ) {
     this.app = app;
     this.originalNotePath = notePath; // Store the original path
@@ -80,7 +84,11 @@ export class NotePreviewWindow {
     }
     
     this.render();
-    if (this.element && initialPos) {
+    if (this.element && pinnedLayout) {
+      applyPreviewWindowLayout(this.element, pinnedLayout);
+      this.isPinned = true;
+      this.updatePinButtonState();
+    } else if (this.element && initialPos) {
       this.setPosition(initialPos.x, initialPos.y);
     }
     
@@ -122,7 +130,7 @@ export class NotePreviewWindow {
     const closeBtn = controlsDiv.createEl('button', { cls: 'atlas-note-preview-close-btn' });
     setIcon(closeBtn, 'x');
     closeBtn.title = 'Close window';
-    closeBtn.onclick = () => this._forceHide();
+    closeBtn.onclick = () => this.close();
 
     // Content area for the leaf
     const contentArea = this.element.createDiv({ cls: 'atlas-note-preview-content' });
@@ -134,8 +142,7 @@ export class NotePreviewWindow {
         
         // Auto-pin when clicking into the content area (but not on buttons)
         if (!this.isPinned && !target.closest('button')) {
-            this.isPinned = true;
-            this.updatePinButtonState();
+            this.setPinned(true);
         }
         
         if (this.element) {
@@ -171,8 +178,7 @@ export class NotePreviewWindow {
             const isModifierHeld = e.metaKey || e.ctrlKey || e.altKey;
             
             if (isTypingKey && !isModifierHeld) {
-                this.isPinned = true;
-                this.updatePinButtonState();
+                this.setPinned(true);
             }
         }
     };
@@ -539,6 +545,7 @@ export class NotePreviewWindow {
     this.element?.classList.remove('is-dragging');
     document.removeEventListener('mousemove', this.onDragMove);
     document.removeEventListener('mouseup', this.onDragEnd);
+    if (this.isPinned) this.manager.handlePreviewLayoutChanged(this);
   }
 
   // Placeholder for resize methods
@@ -634,11 +641,27 @@ export class NotePreviewWindow {
 
     document.removeEventListener('mousemove', this.onResizeMove);
     document.removeEventListener('mouseup', this.onResizeEnd);
+    if (this.isPinned) this.manager.handlePreviewLayoutChanged(this);
   }
 
   private togglePin() {
-    this.isPinned = !this.isPinned;
+    this.setPinned(!this.isPinned);
+  }
+
+  private setPinned(pinned: boolean): void {
+    this.isPinned = pinned;
     this.updatePinButtonState();
+    this.manager.handlePreviewLayoutChanged(this);
+  }
+
+  /** What the map saves for this preview, or null while it is not pinned. */
+  public toPinnedNotePreview(): PinnedNotePreview | null {
+    if (!this.isPinned || !this.element || !this.originatingPin) return null;
+    return {
+      anchorId: this.originatingPin.id,
+      notePath: this.originalNotePath,
+      ...readPreviewWindowLayout(this.element),
+    };
   }
   
   private updatePinButtonState() {
@@ -671,6 +694,12 @@ export class NotePreviewWindow {
   }
   hide(force?: boolean): void {
     if (!force && this.isPinned) return;
+    this._forceHide();
+  }
+
+  /** Closed by the user: unlike `hide`, the map forgets the preview too. */
+  private close(): void {
+    if (this.element) this.manager.handlePreviewDismissed(this);
     this._forceHide();
   }
   private _forceHide() {
@@ -757,7 +786,7 @@ export class NotePreviewWindow {
         });
         this.app.workspace.setActiveLeaf(newLeaf, { focus: true });
       }
-      this._forceHide();
+      this.close();
     } else {
       // Open the file normally
       const leaf = this.app.workspace.getLeaf(false);
@@ -769,7 +798,7 @@ export class NotePreviewWindow {
         // Use openLinkText which handles headers properly
         runInBackground(this.app.workspace.openLinkText(this.originalNotePath, '', false), `Opening ${this.originalNotePath}`, 'Could not open the note');
       }
-      this._forceHide(); // Close the preview after opening the file
+      this.close(); // Close the preview after opening the file
     }
   }
   

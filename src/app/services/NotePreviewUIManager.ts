@@ -8,6 +8,9 @@ import { StatblockPreviewWindow } from './StatblockPreviewWindow';
 import { findCreatureForNotePath } from './FantasyStatblocksService';
 import { MapLinkPreview } from './MapLinkPreview';
 import { runInBackground } from '../utils/backgroundTask';
+import { findAtlasLeafByViewId } from '../utils/atlasLeafLookup';
+import { readPinnedNotePreviews } from '../stores/pinnedNotePreviewSlice';
+import type { ViewAtlasStore } from '../storeFactory';
 
 /**
  * A hovered token presented to the preview system like a pin on its linked
@@ -24,11 +27,14 @@ export interface TokenPreviewAnchor extends TokenVitals {
 /** What a hover preview is anchored to: a map pin or a token. */
 export type PreviewAnchor = NotePin | TokenPreviewAnchor;
 
+/** The part of an anchor a preview window keeps; all a reopened pinned preview has. */
+export type PreviewAnchorRef = Pick<PreviewAnchor, 'id' | 'notePath'>;
+
 // Common interface for preview windows
 interface IPreviewWindow {
   notePath: string;
   element: HTMLElement | null;
-  originatingPin?: PreviewAnchor | null;
+  originatingPin?: PreviewAnchorRef | null;
   setPosition(x: number, y: number): void;
   getIsPinned(): boolean;
   hide(force?: boolean): void;
@@ -37,9 +43,17 @@ interface IPreviewWindow {
 /** Preview windows cycle below this so they stay under the asset manager (50). */
 const MAX_PREVIEW_Z_INDEX = 45;
 
+/**
+ * Owns a map view's CMD/Ctrl+hover preview windows. Pinned note previews are
+ * saved with the map and reopen, where they were left, whenever it loads.
+ */
 export class NotePreviewUIManager {
   private app: App;
   private eventBus: EventEmitter;
+  private store: ViewAtlasStore;
+  private viewId: string;
+  /** Set while the asset manager covers the map and the previews are hidden. */
+  private suspended = false;
   private activePreviews: Map<string, IPreviewWindow> = new Map();
   private isModifierKeyDown = false;
   private lastHoveredPinId: string | null = null;
@@ -57,10 +71,12 @@ export class NotePreviewUIManager {
   private activeLeafChangeRef: EventRef | null = null;
   private zIndexCounter = 5; // stay below asset manager (50) and Obsidian overlays (~1000)
 
-  constructor(app: App, eventBus: EventEmitter) {
+  constructor(app: App, eventBus: EventEmitter, store: ViewAtlasStore, viewId: string) {
     this.app = app;
     this.eventBus = eventBus;
-    
+    this.store = store;
+    this.viewId = viewId;
+
     // Styles are loaded via styles/main.scss → note-preview-window.scss
     this.boundHideAllUnpinnedPreviewsOnBlur = () => this.hideAllUnpinnedPreviews();
     this.initializeGlobalListeners();
@@ -119,18 +135,65 @@ export class NotePreviewUIManager {
     // Reset modifier key state when window gains focus to avoid stuck state
     window.addEventListener('focus', this.boundHandleFocus);
 
+    // The pin's note opens in the workspace, which replaces its preview
     this.eventBus.on('close-active-preview', (notePath: string) => {
-      this.hidePreview(notePath, true); // true to force hide even if pinned
+      const preview = this.findPreview(notePath);
+      if (preview?.originatingPin) this.store.getState().removePinnedNotePreview(preview.originatingPin.id);
+      preview?.hide(true);
     });
 
-    // Close all previews when the user navigates away from the atlas view
+    this.eventBus.on('map-loaded', () => this.restorePinnedPreviews());
+
+    // Leaving the map closes hover previews; pinned ones live in the map's leaf and hide with it
     this.activeLeafChangeRef = this.app.workspace.on('active-leaf-change', (leaf: WorkspaceLeaf | null) => {
       if (!leaf) return;
       const viewType = leaf.view?.getViewType?.();
       if (viewType !== 'atlas-vtt' && viewType !== 'atlas-vtt-player') {
-        this.hideAllPreviews();
+        this.hideAllUnpinnedPreviews();
       }
     });
+  }
+
+  /**
+   * Replaces the previous map's previews with the ones pinned on the map that
+   * just loaded, at the position and size they were saved with.
+   */
+  private restorePinnedPreviews(): void {
+    this.closeAllPreviews();
+    const state = this.store.getState();
+    if (state.isPlayerView) return;
+
+    const sourceLeaf = findAtlasLeafByViewId(this.app.workspace, this.viewId);
+    for (const saved of readPinnedNotePreviews(state.pinnedNotePreviews)) {
+      const preview = new NotePreviewWindow(
+        this.app,
+        saved.notePath,
+        { id: saved.anchorId, notePath: saved.notePath },
+        this,
+        undefined,
+        sourceLeaf,
+        saved,
+      );
+      this.trackNotePreview(preview);
+      if (this.suspended) preview.element?.hide();
+    }
+  }
+
+  /** Saves a pinned preview's position and size with the map, or forgets it once unpinned. */
+  public handlePreviewLayoutChanged(preview: NotePreviewWindow): void {
+    const state = this.store.getState();
+    if (state.isPlayerView || !preview.originatingPin) return;
+    const pinned = preview.toPinnedNotePreview();
+    if (pinned) {
+      state.savePinnedNotePreview(pinned);
+    } else {
+      state.removePinnedNotePreview(preview.originatingPin.id);
+    }
+  }
+
+  /** The user closed the preview, so it must not reopen with the map. */
+  public handlePreviewDismissed(preview: NotePreviewWindow): void {
+    if (preview.originatingPin) this.store.getState().removePinnedNotePreview(preview.originatingPin.id);
   }
 
   private showPreviewFor(hover: NonNullable<typeof this.currentHover>): void {
@@ -160,7 +223,7 @@ export class NotePreviewUIManager {
     }
   }
   
-  public handlePreviewClosed(notePath: string, originatingPin?: PreviewAnchor): void {
+  public handlePreviewClosed(notePath: string, originatingPin?: PreviewAnchorRef): void {
     // Find and remove the specific preview instance
     if (originatingPin) {
       // We need to use the original pin.notePath (with header) for the key
@@ -255,23 +318,23 @@ export class NotePreviewUIManager {
     }
     
     // Create a normal note preview window
-    const newPreview = new NotePreviewWindow(
+    this.trackNotePreview(new NotePreviewWindow(
       this.app,
       pin.notePath,
       pin,
       this,
       { x: screenX, y: screenY },
       sourceLeaf ?? null,
-    );
-    
-    // Check if the preview was actually created
-    if (newPreview.element) {
-      // Use a unique key that includes both the note path and pin ID to allow multiple previews
-      const previewKey = `${pin.notePath}::${pin.id}`;
-      this.activePreviews.set(previewKey, newPreview);
-      this.raiseZIndex(newPreview);
-      newPreview.element.addEventListener('mousedown', () => this.raiseZIndex(newPreview));
-    }
+    ));
+  }
+
+  private trackNotePreview(preview: NotePreviewWindow): void {
+    const anchor = preview.originatingPin;
+    if (!preview.element || !anchor) return;
+    // Keyed by note path and pin ID so several pins of one note can each have a preview
+    this.activePreviews.set(`${anchor.notePath}::${anchor.id}`, preview);
+    this.raiseZIndex(preview);
+    preview.element.addEventListener('mousedown', () => this.raiseZIndex(preview));
   }
 
   /**
@@ -286,17 +349,17 @@ export class NotePreviewUIManager {
     }
   }
 
-  public hidePreview(notePathOrPinId: string, force: boolean = false): void {
-    // Try to find the preview by pin ID or note path
-    let preview: IPreviewWindow | undefined;
-    
+  private findPreview(notePathOrPinId: string): IPreviewWindow | undefined {
     for (const [key, p] of this.activePreviews.entries()) {
       if (p.originatingPin?.id === notePathOrPinId || p.notePath === notePathOrPinId || key === notePathOrPinId) {
-        preview = p;
-        break;
+        return p;
       }
     }
-    
+    return undefined;
+  }
+
+  public hidePreview(notePathOrPinId: string, force: boolean = false): void {
+    const preview = this.findPreview(notePathOrPinId);
     if (preview) {
       if (!preview.getIsPinned() || force) {
         preview.hide();
@@ -314,27 +377,26 @@ export class NotePreviewUIManager {
     });
   }
   
-  /**
-   * Hide all preview windows (both pinned and unpinned)
-   * Used when asset manager opens
-   */
-  public hideAllPreviews(): void {
-    this.activePreviews.forEach((preview) => {
-      preview.hide(true);
-    });
+  /** Closes every window, pinned ones included, without forgetting what the map saved. */
+  private closeAllPreviews(): void {
+    this.activePreviews.forEach((preview) => preview.hide(true));
     this.activePreviews.clear();
   }
-  
+
   /**
-   * Show all previously hidden preview windows
-   * Used when asset manager closes
+   * Clears previews out of the way while the asset manager covers the map:
+   * hover previews close, pinned ones are only hidden until `resumePreviews`.
    */
-  public showAllPreviews(): void {
-    this.activePreviews.forEach((preview) => {
-      if (preview.element) {
-        preview.element.style.removeProperty('display');
-      }
-    });
+  public suspendPreviews(): void {
+    this.suspended = true;
+    this.hideAllUnpinnedPreviews();
+    this.activePreviews.forEach((preview) => preview.element?.hide());
+  }
+
+  /** Shows the pinned previews hidden by `suspendPreviews` again. */
+  public resumePreviews(): void {
+    this.suspended = false;
+    this.activePreviews.forEach((preview) => preview.element?.show());
   }
 
   public destroy(): void {
@@ -346,7 +408,6 @@ export class NotePreviewUIManager {
       this.app.workspace.offref(this.activeLeafChangeRef);
       this.activeLeafChangeRef = null;
     }
-    this.activePreviews.forEach(preview => preview.hide(true));
-    this.activePreviews.clear();
+    this.closeAllPreviews();
   }
-} 
+}

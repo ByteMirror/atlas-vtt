@@ -217,7 +217,7 @@ export async function spawnTokenAsset(
 
   // The statblock is read once; every copy shares that data at its own position.
   const template = await buildTokenData(ctx.app, center, source);
-  const tokens = Array.from({ length: count }, (_, i) => ({
+  const tokens = Array.from({ length: count }, (_, i): TokenInput => ({
     ...structuredClone(template),
     ...gridPosition(i, count, center.x, center.y, pitch, gridSystem),
   }));

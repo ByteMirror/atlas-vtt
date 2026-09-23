@@ -891,14 +891,20 @@ export class TokenRenderer {
             return;
           }
 
+          // Syncs skip tokens whose sprite is still loading, so check what happened meanwhile.
+          const latest = this.store.getState().objects.tokens[token.id];
+          if (!latest) {
+            // Removed while loading, e.g. a paste undone straight away: never show it.
+            this.spriteFactory.destroyTokenSprite(tokenGroup);
+            delete this.tokenSprites[token.id];
+            this.tokensLoading.delete(token.id);
+            this.checkAllTokensLoaded();
+            return;
+          }
+
           // Set up interaction handlers
           this.interactionController.attachInteractionHandlers(token.id, tokenGroup, token);
           
-          // The token can move while its sprite loads (an Alt-drag copy, a paste moved right away),
-          // and position updates skip loading sprites, so place it where the store has it now.
-          const latest = this.store.getState().objects.tokens[token.id];
-          if (latest) tokenGroup.position.set(latest.x, latest.y);
-
           // Add to container
           container.addChild(tokenGroup);
           
@@ -913,7 +919,6 @@ export class TokenRenderer {
           
           // Create UI elements
           this.uiManager.createTokenUI(token.id, tokenGroup, character);
-          if (latest) this.uiManager.syncUIPosition(token.id, latest.x, latest.y);
           
           this.applyTokenVisibilityPolicy(character, tokenGroup);
           
@@ -922,6 +927,13 @@ export class TokenRenderer {
           
           // Also ensure viewport sorts its children to maintain UI above tokens
           this.viewport.sortChildren();
+
+          // Changes made while loading (an Alt-drag copy moving, a pasted token rotated) go
+          // through the regular update path, diffed against the state the sprite was built from.
+          if (latest !== token) {
+            const current = this.store.getState().objects.tokens;
+            runInBackground(this.syncTokens(current, { ...current, [token.id]: token }), 'Token sync after sprite load');
+          }
         } catch (error) {
           console.error(`[TokenRenderer] Failed to create sprite for token ${token.id}:`, error);
           // Clean up on error

@@ -14,7 +14,7 @@ export interface MapObjectsSlice {
   insertMapObjects: (content: MapObjectContent) => string[];
   /** Copies the objects one grid cell down and to the right, selects the copies and returns their ids. */
   duplicateMapObjects: (ids: string[]) => string[];
-  /** Removes tokens, drawings, texts and pins with the given ids. */
+  /** Removes tokens, drawings, texts and pins with the given ids; other ids stay selected. */
   removeMapObjects: (ids: string[]) => void;
 }
 
@@ -83,11 +83,10 @@ export function createMapObjectsActions(set: ImmerSet, get: () => MapObjectsStor
     },
 
     removeMapObjects: (ids) => set((draft) => {
-      const removed = new Set(ids);
       const { tokens, drawings, texts, pins } = draft.objects;
-      let removedToken = false;
-      for (const id of ids) {
-        removedToken ||= id in tokens;
+      const removed = new Set(ids.filter((id) => tokens[id] || drawings[id] || texts[id] || pins[id]));
+      const removedToken = [...removed].some((id) => tokens[id]);
+      for (const id of removed) {
         delete tokens[id];
         delete drawings[id];
         delete texts[id];

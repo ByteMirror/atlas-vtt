@@ -3,6 +3,9 @@ import { cleanup, fireEvent, render } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { AtlasUIContext } from '../../src/app/react/root/AtlasUIContext';
 import { useMapHotkeys } from '../../src/app/keyboard/useMapHotkeys';
+import { useMapClipboardHotkeys } from '../../src/app/clipboard/useMapClipboardHotkeys';
+import { createViewAtlasStore } from '../../src/app/storeFactory';
+import { createInMemoryApp } from '../mocks/inMemoryVault';
 
 afterEach(() => { cleanup(); document.getSelection()?.removeAllRanges(); document.body.innerHTML = ''; });
 
@@ -29,4 +32,20 @@ it('leaves Cmd/Ctrl+C to the browser while page text is selected', () => {
   expect(copy).toHaveBeenCalledTimes(1);
   fireEvent.keyDown(window, { key: 'v', ctrlKey: true });
   expect(paste).toHaveBeenCalledTimes(1);
+});
+
+it('registers no clipboard shortcuts in the player view', () => {
+  const app = { vault: { adapter: { exists: async () => true, write: async () => {} } } } as never;
+  const { app: vaultApp } = createInMemoryApp();
+  const player = createViewAtlasStore(vaultApp, 'clipboard-hotkeys-player', undefined, true);
+  function PlayerView(): React.JSX.Element {
+    useMapClipboardHotkeys(player, null, 'player');
+    return <div data-view-id="player" />;
+  }
+  render(<AtlasUIContext.Provider value={{ app } as never}>
+    <div className="workspace-leaf mod-active"><PlayerView /></div>
+  </AtlasUIContext.Provider>);
+
+  expect(fireEvent.keyDown(window, { key: 'v', metaKey: true })).toBe(true);
+  expect(fireEvent.keyDown(window, { key: 'd', metaKey: true })).toBe(true);
 });

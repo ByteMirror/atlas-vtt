@@ -1,8 +1,9 @@
 import type { GridState } from '../services/MapPersistence';
 import { cellToWorld, formationGridFromOptions, worldToCell, type FormationGrid } from '../encounters/encounterFormation';
 import {
+  anchorKey,
   contentCenter,
-  occupiedPositions,
+  objectAnchors,
   translateMapObjects,
   type CopyableCollections,
   type MapObjectContent,
@@ -47,17 +48,11 @@ export function pasteOffset(content: MapObjectContent, target: Point, grid: Grid
   return { x: snapped.x - anchor.x, y: snapped.y - anchor.y };
 }
 
-function overlapsExisting(content: MapObjectContent, occupied: Set<string>): boolean {
-  for (const key of occupiedPositions(content)) {
-    if (occupied.has(key)) return true;
-  }
-  return false;
-}
-
 /**
  * Moves the content by `offset` and snaps tokens the way a drag does. While a copy would sit exactly
  * on top of an identical existing object, the copies move one more cell, so repeated pastes and
- * duplicates fan out instead of hiding under each other.
+ * duplicates fan out instead of hiding under each other. The cascade only compares anchors; the
+ * content is copied once, at the final offset.
  */
 export function placeMapObjects(
   content: MapObjectContent,
@@ -67,11 +62,16 @@ export function placeMapObjects(
 ): MapObjectContent {
   const geometry = tokenSnapGrid(grid);
   const placeToken = geometry ? (point: Point): Point => snapToCellCenter(geometry, point) : undefined;
-  const occupied = occupiedPositions(existing);
+  const occupied = new Set(objectAnchors(existing).map(({ kind, point }) => anchorKey(kind, point)));
+  const anchors = objectAnchors(content);
   const step = duplicateStep(grid);
-  let placed = translateMapObjects(content, offset, placeToken);
-  for (let i = 1; i <= MAX_CASCADE_STEPS && overlapsExisting(placed, occupied); i++) {
-    placed = translateMapObjects(content, { x: offset.x + step.x * i, y: offset.y + step.y * i }, placeToken);
-  }
-  return placed;
+  const offsetAt = (steps: number): Point => ({ x: offset.x + step.x * steps, y: offset.y + step.y * steps });
+  const overlapsAt = (shift: Point): boolean => anchors.some(({ kind, point, isToken }) => {
+    const moved = { x: point.x + shift.x, y: point.y + shift.y };
+    return occupied.has(anchorKey(kind, isToken && placeToken ? placeToken(moved) : moved));
+  });
+
+  let steps = 0;
+  while (steps < MAX_CASCADE_STEPS && overlapsAt(offsetAt(steps))) steps++;
+  return translateMapObjects(content, offsetAt(steps), placeToken);
 }

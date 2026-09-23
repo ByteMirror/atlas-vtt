@@ -34,13 +34,16 @@ export function useMapClipboardHotkeys(store: ViewAtlasStore, view: AtlasView | 
     return () => window.removeEventListener('pointermove', track);
   }, []);
 
-  useMapHotkeys({
-    copy: () => runInBackground(copySelection(store), 'Copying map objects', 'Could not copy the selection'),
-    cut: () => runInBackground(cutSelection(store), 'Cutting map objects', 'Could not cut the selection'),
-    paste: () => {
+  // The player view registers nothing, so its keys keep their native behaviour.
+  useMapHotkeys(store.getState().isPlayerView ? {} : {
+    copy: (): void => runInBackground(copySelection(store), 'Copying map objects', 'Could not copy the selection'),
+    cut: (): void => runInBackground(cutSelection(store), 'Cutting map objects', 'Could not cut the selection'),
+    paste: (): void => {
       const target = pasteTarget(view, pointer.current);
       if (target) runInBackground(pasteClipboard(store, target), 'Pasting map objects', 'Could not paste');
     },
-    duplicate: () => duplicateSelection(store),
+    duplicate: (): void => {
+      duplicateSelection(store);
+    },
   }, viewId);
 }

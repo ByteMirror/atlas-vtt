@@ -87,16 +87,28 @@ export function translateMapObjects(
   };
 }
 
-/** Position keys of every object, used to tell whether a copy would sit exactly on top of an existing object. */
-export function occupiedPositions(objects: CopyableCollections | MapObjectContent): Set<string> {
+/** Where an object sits, qualified by what it is; two identical objects with the same anchor stack exactly. */
+export interface ObjectAnchor {
+  kind: string;
+  point: Point;
+  /** Tokens snap to the grid when placed; other objects keep their exact offset. */
+  isToken: boolean;
+}
+
+export function anchorKey(kind: string, point: Point): string {
+  return `${kind}:${Math.round(point.x)},${Math.round(point.y)}`;
+}
+
+/** The anchor of every object: tokens by image, texts and pins by position, drawings by their first point. */
+export function objectAnchors(objects: CopyableCollections | MapObjectContent): ObjectAnchor[] {
   const values = <T>(collection: Record<string, T> | T[]): T[] => (Array.isArray(collection) ? collection : Object.values(collection));
-  const keys = new Set<string>();
-  const add = (kind: string, point: Point | undefined): void => {
-    if (point) keys.add(`${kind}:${Math.round(point.x)},${Math.round(point.y)}`);
+  const anchors: ObjectAnchor[] = [];
+  const add = (kind: string, point: Point | undefined, isToken = false): void => {
+    if (point) anchors.push({ kind, point: { x: point.x, y: point.y }, isToken });
   };
-  values(objects.tokens).forEach((token) => add(`token:${token.imagePath}`, token));
+  values(objects.tokens).forEach((token) => add(`token:${token.imagePath}`, token, true));
   values(objects.texts).forEach((text) => add('text', text));
   values(objects.pins).forEach((pin) => add('pin', pin));
   values(objects.drawings).forEach((drawing) => add('drawing', drawing.points[0]));
-  return keys;
+  return anchors;
 }

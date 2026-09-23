@@ -27,7 +27,7 @@ import type { ConditionDefinition } from '../../types/collectionSettingsTypes';
 import { WALLS_AND_LIGHTING_ENABLED } from '../../featureFlags';
 import { saveMapTokensAsEncounter } from '../../encounters/saveMapTokensAsEncounter';
 import { copyMapObjects } from '../../clipboard/mapClipboardActions';
-import { copyTokensForDrag } from './dragCopy';
+import { copyDragSelection } from './dragCopy';
 import { runInBackground } from '../../utils/backgroundTask';
 import { tokenSizeSubmenu } from '../../react/components/context-menu/tokenSizeMenu';
 
@@ -329,7 +329,7 @@ export class InteractionController implements ITokenInteractionController {
 
   /** Swaps the drag over to fresh copies of the dragged tokens, which then become the selection. */
   private dragCopiesInstead(): void {
-    const copies = copyTokensForDrag(this.store, this.dragState.dragIds, this.dragState.initialPositions);
+    const copies = copyDragSelection(this.store, this.dragState.dragIds, this.dragState.initialPositions);
     if (!copies) return;
     this.dragState.dragIds = copies.ids;
     this.dragState.initialPositions = copies.initialPositions;

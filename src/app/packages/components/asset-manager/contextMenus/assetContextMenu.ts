@@ -99,7 +99,7 @@ export function buildAssetContextMenuEntries(
         children: SPAWN_MULTIPLE_COUNTS.map((count) => ({
           type: 'item' as const,
           label: `${count} tokens`,
-          onClick: async () => {
+          onClick: async (): Promise<void> => {
             const ids = await spawnTokenAsset(spawnCtx, asset, count);
             if (ids.length > 0) deps.onClose();
           },

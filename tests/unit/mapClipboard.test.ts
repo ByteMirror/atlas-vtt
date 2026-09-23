@@ -160,6 +160,24 @@ describe('map copy, paste and duplicate', () => {
     expect(await pasteClipboard(player, { x: 0, y: 0 })).toEqual([]);
   });
 
+  it('leaves the wall tool alone and deletes selected texts and pins like cut does', async () => {
+    const { store } = createStore();
+    const token = addGoblin(store, 25, 25);
+    const text = store.getState().addText({ x: 0, y: 0, text: 'Gate', fontSize: 16, fontFamily: 'serif', color: '#fff' });
+    const pin = store.getState().addNotePin(10, 10, 'Notes/Room.md');
+    const fog = store.getState().addFogOperation({ type: 'rect', points: [], isErasing: false } as never);
+    store.getState().setSelection([token, text, pin, fog]);
+    await copySelection(store);
+
+    store.setState({ activeTool: 'wall' }); // the tool is behind a feature flag
+    expect(await pasteClipboard(store, { x: 300, y: 300 })).toEqual([]);
+
+    store.getState().deleteSelected();
+    const { objects, selectedIds } = store.getState();
+    expect([objects.tokens[token], objects.texts[text], objects.pins[pin]]).toEqual([undefined, undefined, undefined]);
+    expect(selectedIds).toEqual([fog]);
+  });
+
   it('saves pasted tokens to the map file', async () => {
     const { store, files } = createStore();
     const path = 'maps/clipboard.atlasmap';

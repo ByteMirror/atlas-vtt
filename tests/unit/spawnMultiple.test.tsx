@@ -9,7 +9,7 @@ import { useSpawnCountTyping } from '../../src/app/packages/components/asset-man
 import { MAX_SPAWN_COUNT, typeSpawnCountDigit } from '../../src/app/packages/components/asset-manager/utils/spawnCount';
 import { createViewAtlasStore } from '../../src/app/storeFactory';
 import { beginHistoryTransaction, endHistoryTransaction, getHistoryStore } from '../../src/app/stores/history';
-import { copyTokensForDrag } from '../../src/app/pixi/token-renderer/dragCopy';
+import { copyDragSelection } from '../../src/app/pixi/token-renderer/dragCopy';
 import { createInMemoryApp } from '../mocks/inMemoryVault';
 
 afterEach(() => { cleanup(); vi.useRealTimers(); });
@@ -100,7 +100,7 @@ describe('spawning and dragging out copies', () => {
     const start = { [a!]: { x: 25, y: 25 }, [b!]: { x: 75, y: 25 } };
 
     beginHistoryTransaction(store);
-    const copies = copyTokensForDrag(store, [a!, b!, 'drawing_1'], start)!;
+    const copies = copyDragSelection(store, [a!, b!, 'drawing_1'], start)!;
     store.getState().setTokenPositions(copies.ids.map((id) => ({ id, x: copies.initialPositions[id]!.x + 100, y: 25 })));
     endHistoryTransaction(store);
 
@@ -109,5 +109,18 @@ describe('spawning and dragging out copies', () => {
     expect([tokens[a!]!.x, tokens[b!]!.x]).toEqual([25, 75]);
     expect(store.getState().selectedIds).toEqual(copies.ids);
     expect(getHistoryStore(store)!.getState().pastStates.length).toBe(steps + 1);
+  });
+
+  it('Alt-drag copies selected drawings too and keeps the moving group selected', () => {
+    const store = createStore();
+    const [token] = store.getState().addTokens([{ x: 25, y: 25, imagePath: 'tokens/goblin.png' }]);
+    const drawing = store.getState().addDrawing({ type: 'line', points: [{ x: 0, y: 0 }, { x: 50, y: 0 }], color: '#fff', width: 2, opacity: 1 });
+    store.getState().setSelection([token!, drawing]);
+
+    const copies = copyDragSelection(store, [token!, drawing], { [token!]: { x: 25, y: 25 } })!;
+
+    const drawings = Object.keys(store.getState().objects.drawings);
+    expect(drawings).toHaveLength(2);
+    expect(store.getState().selectedIds).toEqual([...copies.ids, drawing]);
   });
 });

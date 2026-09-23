@@ -6,9 +6,14 @@ import { pasteOffset, placeMapObjects } from './mapObjectPlacement';
 
 type ClipboardStore = Pick<StoreApi<ViewAtlasState>, 'getState'>;
 
-/** Ids that copy, cut and duplicate act on. Walls keep their own selection, so the wall tool opts out. */
+/** Players never edit the map, and walls keep their own selection, so the wall tool opts out too. */
+function canEditMapObjects(state: ViewAtlasState): boolean {
+  return !state.isPlayerView && state.activeTool !== 'wall';
+}
+
+/** Ids that copy, cut and duplicate act on. */
 function editableSelection(state: ViewAtlasState): string[] {
-  return state.isPlayerView || state.activeTool === 'wall' ? [] : state.selectedIds;
+  return canEditMapObjects(state) ? state.selectedIds : [];
 }
 
 function copyableContent(state: ViewAtlasState, ids: readonly string[]): MapObjectContent | null {
@@ -43,7 +48,7 @@ export async function cutSelection(store: ClipboardStore): Promise<boolean> {
 export async function pasteClipboard(store: ClipboardStore, target: Point): Promise<string[]> {
   const content = await readMapClipboard();
   const state = store.getState();
-  if (!content || state.isPlayerView) return [];
+  if (!content || !canEditMapObjects(state)) return [];
   const placed = placeMapObjects(content, pasteOffset(content, target, state.grid), state.grid, state.objects);
   return state.insertMapObjects(placed);
 }

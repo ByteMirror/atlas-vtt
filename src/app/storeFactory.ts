@@ -177,7 +177,7 @@ export interface ViewAtlasState {
   moveTokensBulk: (ids: string[], dx: number, dy: number) => void;
   setTokenPositions: (positions: Array<{id: string, x: number, y: number}>) => void;
   deleteTokens: (ids: string[]) => void;
-  /** Deletes every selected token and drawing in one undo step. */
+  /** Deletes every selected token, drawing, text and pin in one undo step. */
   deleteSelected: () => void;
   
   // Drag state
@@ -784,15 +784,7 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
             draft.selectedIds = draft.selectedIds.filter(selectedId => !ids.includes(selectedId));
           }),
 
-          deleteSelected: () => set((draft) => {
-            const { tokens, drawings } = draft.objects;
-            draft.selectedIds = draft.selectedIds.filter((id) => {
-              if (!tokens[id] && !drawings[id]) return true;
-              delete tokens[id];
-              delete drawings[id];
-              return false;
-            });
-          }),
+          deleteSelected: () => get().removeMapObjects(get().selectedIds),
 
           // --- Copy, paste and duplicate (from mapObjectsSlice.ts) ---
           ...createMapObjectsActions(set, get),

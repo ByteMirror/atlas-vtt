@@ -9,6 +9,7 @@
 - An idle map no longer redraws on every display frame. Atlas now only draws when something on the map changes, so an open map costs almost no CPU or GPU while you are not interacting with it.
 - The player view only copies a new frame when the map actually changed, instead of redrawing the map two extra times per frame.
 - Map cards in the asset manager show small thumbnails instead of decoding the full map image.
+- Delete and Backspace on a map now also remove selected texts and pins, the same objects Cut removes.
 
 ## Fixed
 

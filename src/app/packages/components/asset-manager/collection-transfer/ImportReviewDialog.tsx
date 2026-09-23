@@ -70,6 +70,13 @@ export function ImportReviewDialog({ review, onConfirm, onCancel }: ImportReview
           {review.kind === 'share' && (
             <div className="atlas-transfer-callout" role="note">This is a copy someone shared, not a release by the author. It may contain their own changes.</div>
           )}
+          {review.publisherWarning && (
+            <div className="atlas-transfer-callout atlas-transfer-callout--warning" role="note">
+              {review.publisherWarning === 'own-collection'
+                ? 'You published this collection, but this file claims to be a release of it by someone else. Only continue if you trust where it came from.'
+                : 'This file was released by a different publisher than the version you have. Only continue if you trust where it came from.'}
+            </div>
+          )}
           {review.relation === 'older' && (
             <div className="atlas-transfer-callout atlas-transfer-callout--warning" role="note">
               You have v{review.installedVersion}. This file holds the older v{review.version}; installing it brings back its content wherever you did not change anything.
@@ -111,7 +118,11 @@ export function ImportReviewDialog({ review, onConfirm, onCancel }: ImportReview
         </div>
         <div className="atlas-modal-footer">
           <Button variant="outline" size="sm" onClick={onCancel}>{canConfirm ? 'Cancel' : 'Close'}</Button>
-          {canConfirm && <Button variant={review.relation === 'older' || restore ? 'destructive' : 'default'} size="sm" onClick={confirm}>{confirmLabel}</Button>}
+          {canConfirm && (
+            <Button variant={review.relation === 'older' || restore || review.publisherWarning ? 'destructive' : 'default'} size="sm" onClick={confirm}>
+              {confirmLabel}
+            </Button>
+          )}
         </div>
       </div>
     </div>

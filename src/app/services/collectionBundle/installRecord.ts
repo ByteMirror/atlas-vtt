@@ -40,6 +40,8 @@ export interface InstallRecord {
   collectionId: string;
   /** The collection's id in the bundles it came from; bundle paths live under that folder. */
   sourceCollectionId: string;
+  /** The collection's name in the bundles it came from, which shares keep unless the user renamed it. */
+  sourceName: string;
   version: number;
   releasedAt: number;
   installedAt: number;

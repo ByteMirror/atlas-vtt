@@ -19,8 +19,12 @@ export interface ExportPreview {
   files: BundleFile[];
   missing: MissingReference[];
   totalBytes: number;
-  /** This vault publishes the collection, so its exports are releases. */
-  isPublisher: boolean;
+  /**
+   * `self`: this vault publishes the collection, so its exports are releases.
+   * `other`: it was installed from someone else's release.
+   * `unknown`: it predates publishing and was never installed from a bundle, so the user says which it is.
+   */
+  publisher: 'self' | 'other' | 'unknown';
   /** Lowest version a release may carry. */
   minimumVersion: number;
   suggestedVersion: number;
@@ -38,6 +42,8 @@ export type ExportChoice =
 
 export interface ExportedBundle {
   blob: Blob;
+  /** Records a release or fork in this vault; call once the file has been handed to the user. */
+  commit(): Promise<void>;
   fileName: string;
   collectionName: string;
   version: number;
@@ -45,10 +51,9 @@ export interface ExportedBundle {
   fileCount: number;
 }
 
-/** Collections from before publishing existed belong to this vault unless they were installed from a bundle. */
-async function isPublisherOf(app: App, assets: AssetService, collection: CollectionMetadata): Promise<boolean> {
-  if (collection.publisherId !== undefined) return collection.publisherId === await assets.getVaultId();
-  return (await readInstallRecord(app, collection.uid)) === null;
+async function publisherOf(app: App, assets: AssetService, collection: CollectionMetadata): Promise<ExportPreview['publisher']> {
+  if (collection.publisherId !== undefined) return collection.publisherId === await assets.getVaultId() ? 'self' : 'other';
+  return (await readInstallRecord(app, collection.uid)) === null ? 'unknown' : 'other';
 }
 
 export async function prepareCollectionExport(app: App, assets: AssetService, collectionId: string): Promise<ExportPreview> {
@@ -60,7 +65,7 @@ export async function prepareCollectionExport(app: App, assets: AssetService, co
     const vaultFile = app.vault.getAbstractFileByPath(file.vaultPath);
     return sum + (vaultFile instanceof TFile ? vaultFile.stat.size : 0);
   }, 0);
-  const isPublisher = await isPublisherOf(app, assets, collection);
+  const publisher = await publisherOf(app, assets, collection);
   // A collection that was never released starts at its own version; later releases count up.
   const neverReleased = collection.publisherId !== undefined && collection.releasedAt === undefined;
   return {
@@ -69,7 +74,7 @@ export async function prepareCollectionExport(app: App, assets: AssetService, co
     files,
     missing,
     totalBytes,
-    isPublisher,
+    publisher,
     minimumVersion: collection.version,
     suggestedVersion: neverReleased ? collection.version : collection.version + 1,
   };
@@ -107,7 +112,7 @@ export async function exportCollectionBundle(
   choice: ExportChoice,
   onProgress: BundleProgressListener = () => undefined,
 ): Promise<ExportedBundle> {
-  if (choice.kind === 'release' && !preview.isPublisher) {
+  if (choice.kind === 'release' && preview.publisher === 'other') {
     throw new Error('Only the collection\'s publisher can release new versions.');
   }
   if (choice.kind === 'release' && (!Number.isInteger(choice.version) || choice.version < preview.minimumVersion)) {
@@ -118,8 +123,11 @@ export async function exportCollectionBundle(
   }
 
   const exportedAt = Date.now();
-  const origin = choice.kind === 'share' ? await originNames(app, preview) : { collectionId: preview.collection.id, names: new Map<string, string>() };
-  const collection = { ...await exportedCollection(assets, preview, choice, exportedAt), id: origin.collectionId };
+  const origin = choice.kind === 'share'
+    ? await originNames(app, preview)
+    : { collectionId: preview.collection.id, name: preview.collection.name, names: new Map<string, string>() };
+  const exported = await exportedCollection(assets, preview, choice, exportedAt);
+  const collection = { ...exported, id: origin.collectionId, name: choice.kind === 'share' ? origin.name : exported.name };
   const named = (value: string): string => origin.names.get(value) ?? value;
   const { default: JSZip } = await import('jszip');
   const zip = new JSZip();
@@ -153,9 +161,9 @@ export async function exportCollectionBundle(
   const blob = await zip.generateAsync({ type: 'blob', streamFiles: true }, ({ percent }) => {
     onProgress({ message: 'Compressing…', fraction: 0.6 + (percent / 100) * 0.4 });
   });
-  if (choice.kind !== 'share') await recordRelease(app, assets, preview, manifest);
   return {
     blob,
+    commit: () => (choice.kind === 'share' ? Promise.resolve() : recordRelease(app, assets, preview, manifest)),
     fileName: bundleFileName(collection.name, collection.version),
     collectionName: collection.name,
     version: collection.version,
@@ -169,9 +177,12 @@ export async function exportCollectionBundle(
  * from did, so every vault that has the collection compares the same items.
  * Files the sharer added move from their collection folder to the original's.
  */
-async function originNames(app: App, { collection, files }: ExportPreview): Promise<{ collectionId: string; names: Map<string, string> }> {
+async function originNames(app: App, { collection, files }: ExportPreview): Promise<{ collectionId: string; name: string; names: Map<string, string> }> {
   const record = await readInstallRecord(app, collection.uid);
   const collectionId = record?.sourceCollectionId ?? collection.id;
+  // A name the vault had to give the copy (because another collection used the original) is not a rename by the user.
+  const keptOwnName = record?.sourceName !== undefined && record.fields.name?.installed === await fieldFingerprint(collection, 'name');
+  const name = keptOwnName ? record.sourceName : collection.name;
   const names = new Map<string, string>();
   for (const [bundlePath, file] of Object.entries(record?.files ?? {})) {
     if (file.target !== bundlePath) names.set(file.target, bundlePath);
@@ -187,7 +198,7 @@ async function originNames(app: App, { collection, files }: ExportPreview): Prom
       }
     }
   }
-  return { collectionId, names };
+  return { collectionId, name, names };
 }
 
 /**
@@ -208,6 +219,7 @@ async function recordRelease(app: App, assets: AssetService, preview: ExportPrev
     uid: collection.uid,
     collectionId,
     sourceCollectionId: collectionId,
+    sourceName: collection.name,
     version: collection.version,
     releasedAt: manifest.exportedAt,
     installedAt: manifest.exportedAt,

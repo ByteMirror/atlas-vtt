@@ -24,6 +24,8 @@ function timestamp(date: Date): string {
 export class ImportJournal {
   private readonly entries: JournalEntry[] = [];
   private readonly backupFolders = new Set<string>();
+  /** The first backup of each path; a path touched twice keeps its original content. */
+  private readonly backups = new Map<string, string | null>();
   readonly backupFolder: string;
 
   constructor(private readonly app: App, collectionId: string) {
@@ -32,7 +34,7 @@ export class ImportJournal {
 
   /** How many files were backed up. */
   get backupCount(): number {
-    return this.entries.filter((entry) => entry.backup !== null).length;
+    return [...this.backups.values()].filter((backup) => backup !== null).length;
   }
 
   async write(path: string, content: ArrayBuffer): Promise<void> {
@@ -42,6 +44,7 @@ export class ImportJournal {
       return;
     }
     await ensureFolder(this.app, parentPath(path));
+    this.backups.set(path, null);
     this.entries.push({ path, backup: null });
     await this.app.vault.createBinary(path, content);
   }
@@ -76,17 +79,24 @@ export class ImportJournal {
     return failed;
   }
 
-  /** Backs up the file at `path`, closes map views of it and journals the change; returns the file, or null when there is none. */
+  /**
+   * Saves and closes map views of `path`, backs the file up the first time the
+   * import touches it and journals the change; returns the file, or null when there is none.
+   */
   private async prepare(path: string): Promise<TFile | null> {
-    const existing = this.app.vault.getAbstractFileByPath(path);
-    if (!(existing instanceof TFile)) return null;
-    const backup = `${this.backupFolder}/${path}`;
-    await ensureAdapterFolder(this.app, parentPath(backup), this.backupFolders);
-    await this.app.vault.adapter.writeBinary(backup, await this.app.vault.readBinary(existing));
     await forOpenMaps(this.app, (file) => file === path, async (view, detach) => {
       await view.saveMap();
       detach();
     });
+    const existing = this.app.vault.getAbstractFileByPath(path);
+    if (!(existing instanceof TFile)) return null;
+    let backup = this.backups.get(path);
+    if (backup === undefined) {
+      backup = `${this.backupFolder}/${path}`;
+      await ensureAdapterFolder(this.app, parentPath(backup), this.backupFolders);
+      await this.app.vault.adapter.writeBinary(backup, await this.app.vault.readBinary(existing));
+      this.backups.set(path, backup);
+    }
     this.entries.push({ path, backup });
     return existing;
   }

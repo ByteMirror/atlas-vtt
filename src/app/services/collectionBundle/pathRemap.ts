@@ -1,6 +1,6 @@
 import { COLLECTIONS_DIR, ATLAS_VTT_DIR } from '../AssetService';
-import type { BundleFile } from './bundleFormat';
-import { baseName } from '../../utils/pathUtils';
+import { REUSABLE_FILE_ROLES, type BundleFile } from './bundleFormat';
+import { baseName, parentPath } from '../../utils/pathUtils';
 
 export type PathMap = ReadonlyMap<string, string>;
 
@@ -22,50 +22,62 @@ export function remapPaths<T>(value: T, map: PathMap): T {
 
 /** Where a file from outside `atlas-vtt/` is copied to, by what it is. */
 function foreignFileFolder(file: BundleFile, collectionId: string): string {
-  const folder = file.role === 'statblock-note' || file.role === 'statblock-image' ? 'statblocks' : 'notes';
+  const folder = REUSABLE_FILE_ROLES.has(file.role) ? 'statblocks' : 'notes';
   return `${COLLECTIONS_DIR}/${collectionId}/${folder}`;
 }
 
-/** The file's own name in `folder`, or `goblin-2.png`, `goblin-3.png`, … when that name is taken. */
-function freePathIn(folder: string, name: string, claimed: ReadonlySet<string>): string {
+/** The file's own name in `folder`, or `goblin-2.png`, `goblin-3.png`, … while that name is taken. */
+function freePathIn(folder: string, name: string, isTaken: (path: string) => boolean): string {
   const dot = name.lastIndexOf('.');
   const stem = dot > 0 ? name.slice(0, dot) : name;
   const extension = dot > 0 ? name.slice(dot) : '';
   let path = `${folder}/${name}`;
-  for (let n = 2; claimed.has(path); n++) path = `${folder}/${stem}-${n}${extension}`;
+  for (let n = 2; isTaken(path); n++) path = `${folder}/${stem}-${n}${extension}`;
   return path;
 }
 
-/**
- * Decides the vault path every bundled file gets in the importing vault:
- * files of the source collection move to the target collection's folder,
- * global Atlas assets keep their path, and files from elsewhere in the source
- * vault (statblock notes and artwork) are kept where they are when the
- * importing vault already has them, otherwise copied into the collection.
- */
-export function planImportPaths(
-  files: readonly BundleFile[],
-  sourceCollectionId: string,
-  targetCollectionId: string,
-  existsInVault: (path: string) => boolean,
+export interface ImportPathRules {
+  sourceCollectionId: string;
+  targetCollectionId: string;
+  existsInVault(path: string): boolean;
+  /** Whether the vault's file at the bundle file's own path has the same content, so it can be shared. */
+  hasSameContent(file: BundleFile): boolean;
   /** Vault paths already given to other files, e.g. by an earlier import of the collection. */
-  alreadyClaimed: Iterable<string>,
-): PathMap {
-  const plan = new Map<string, string>();
-  const claimed = new Set<string>(alreadyClaimed);
-  const sourcePrefix = `${COLLECTIONS_DIR}/${sourceCollectionId}/`;
+  claimed: Iterable<string>;
+}
 
-  for (const file of files) {
-    let target: string;
-    if (file.vaultPath.startsWith(sourcePrefix)) {
-      target = `${COLLECTIONS_DIR}/${targetCollectionId}/${file.vaultPath.slice(sourcePrefix.length)}`;
-    } else if (file.vaultPath.startsWith(`${ATLAS_VTT_DIR}/`) || existsInVault(file.vaultPath)) {
-      target = file.vaultPath;
-    } else {
-      target = freePathIn(foreignFileFolder(file, targetCollectionId), baseName(file.vaultPath), claimed);
-    }
+/**
+ * Decides the vault path every bundled file gets in the importing vault. Files
+ * with a fixed place come first: the source collection's files move to the
+ * target collection's folder, other Atlas files keep their path when it is
+ * free or holds the same content, and statblock notes and artwork the vault
+ * already has are reused where they are. Every other file is copied to a free
+ * path that no other file and nothing in the vault uses, so no two files ever
+ * share a target and no existing file is taken over.
+ */
+export function planImportPaths(files: readonly BundleFile[], rules: ImportPathRules): PathMap {
+  const plan = new Map<string, string>();
+  const claimed = new Set<string>(rules.claimed);
+  const sourcePrefix = `${COLLECTIONS_DIR}/${rules.sourceCollectionId}/`;
+  const targetPrefix = `${COLLECTIONS_DIR}/${rules.targetCollectionId}/`;
+  // The collection's own folder holds its earlier installs; everywhere else an existing file belongs to someone else.
+  const isTaken = (path: string): boolean => claimed.has(path) || (!path.startsWith(targetPrefix) && rules.existsInVault(path));
+  const place = (file: BundleFile, target: string): void => {
     claimed.add(target);
     plan.set(file.vaultPath, target);
+  };
+
+  const unplaced: BundleFile[] = [];
+  for (const file of files) {
+    const path = file.vaultPath;
+    if (path.startsWith(sourcePrefix)) place(file, `${targetPrefix}${path.slice(sourcePrefix.length)}`);
+    else if (path.startsWith(`${ATLAS_VTT_DIR}/`) && (!rules.existsInVault(path) || rules.hasSameContent(file))) place(file, path);
+    else if (REUSABLE_FILE_ROLES.has(file.role) && rules.existsInVault(path)) place(file, path);
+    else unplaced.push(file);
+  }
+  for (const file of unplaced) {
+    const folder = file.vaultPath.startsWith(`${ATLAS_VTT_DIR}/`) ? parentPath(file.vaultPath) : foreignFileFolder(file, rules.targetCollectionId);
+    place(file, freePathIn(folder, baseName(file.vaultPath), isTaken));
   }
   return plan;
 }

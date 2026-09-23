@@ -1,6 +1,6 @@
 import { TFile, normalizePath, type App } from 'obsidian';
-import { AssetService, COLLECTIONS_DIR, type Asset, type CollectionMetadata } from '../AssetService';
-import { zipPathFor, type BundleFile } from './bundleFormat';
+import { AssetService, ATLAS_VTT_DIR, COLLECTIONS_DIR, type Asset, type CollectionMetadata } from '../AssetService';
+import { isSafeBundlePath, zipPathFor, type BundleFile } from './bundleFormat';
 import type { OpenedBundle } from './bundleReader';
 import { mayRewrite, rewriteContent } from './bundleContent';
 import { assetFingerprint, fieldFingerprint } from './fingerprints';
@@ -38,10 +38,34 @@ export function installedAsset(asset: Asset, targets: ImportTargets): Asset {
   return { ...remapPaths(asset, targets.rewrites), id: targets.assetIds.get(asset.id) ?? asset.id, collection: targets.collectionId };
 }
 
+/** Asset fields naming files that deleting the asset trashes; an import must never point them outside Atlas's folder. */
+const DELETABLE_PATH_FIELDS = ['imagePath', 'notePath', 'filePath', 'thumbnailPath', 'mapFilePath'] as const;
+
+function deletablePaths(asset: Asset): string[] {
+  const record: Record<string, unknown> = { ...asset };
+  const data = record.data;
+  const paths = DELETABLE_PATH_FIELDS.map((field) => record[field]);
+  if (data && typeof data === 'object' && 'mapPath' in data) paths.push(data.mapPath);
+  return paths.filter((path): path is string => typeof path === 'string' && path !== '');
+}
+
+/** Refuses bundles whose assets, once imported, would name files outside Atlas's folder that deleting them would trash. */
+function assertAssetPathsInsideAtlas(assets: readonly Asset[]): void {
+  for (const asset of assets) {
+    const outside = deletablePaths(asset).find((path) => !path.startsWith(`${ATLAS_VTT_DIR}/`) || !isSafeBundlePath(path));
+    if (outside) throw new Error(`This collection export is not safe to import: "${asset.name}" refers to ${outside}, outside Atlas's folder.`);
+  }
+}
+
+async function vaultFileHash(app: App, path: string): Promise<string | null> {
+  const file = app.vault.getAbstractFileByPath(path);
+  return file instanceof TFile ? sha256(await app.vault.readBinary(file)) : null;
+}
+
 export async function planTargets(
   app: App,
   assets: AssetService,
-  { manifest }: OpenedBundle,
+  { manifest, sourceHashes }: OpenedBundle,
   collectionId: string,
   record: InstallRecord | null,
 ): Promise<ImportTargets> {
@@ -52,16 +76,27 @@ export async function planTargets(
     if (target) paths.set(file.vaultPath, target);
   }
   const unplaced = manifest.files.filter((file) => !paths.has(file.vaultPath));
-  for (const [source, target] of planImportPaths(unplaced, manifest.collection.id, collectionId, exists, paths.values())) {
-    paths.set(source, target);
+  // Shared Atlas artwork is only reused when it is the same file; otherwise the bundle's copy gets its own path.
+  const sameContent = new Set<string>();
+  for (const file of unplaced) {
+    const hash = sourceHashes.get(file.vaultPath);
+    if (hash && file.vaultPath.startsWith(`${ATLAS_VTT_DIR}/`) && await vaultFileHash(app, file.vaultPath) === hash) sameContent.add(file.vaultPath);
   }
+  const planned = planImportPaths(unplaced, {
+    sourceCollectionId: manifest.collection.id,
+    targetCollectionId: collectionId,
+    existsInVault: exists,
+    hasSameContent: (file) => sameContent.has(file.vaultPath),
+    claimed: Object.values(record?.files ?? {}).map((file) => file.target),
+  });
+  for (const [source, target] of planned) paths.set(source, target);
 
   // Ids are unique only within the vault that made them: one another collection uses gets a new id here.
   const assetIds = new Map<string, string>();
   for (const asset of manifest.assets) {
-    const recorded = record?.assets[asset.id]?.localId;
-    const local = recorded ? null : await assets.getAssetById(asset.id);
-    const localId = recorded ?? (local && local.collection !== collectionId ? AssetService.newAssetId(asset.type) : asset.id);
+    const candidate = record?.assets[asset.id]?.localId ?? asset.id;
+    const local = await assets.getAssetById(candidate);
+    const localId = local && local.collection !== collectionId ? AssetService.newAssetId(asset.type) : candidate;
     assetIds.set(asset.id, localId);
     // A map record is found by id, so a renamed map takes its file along.
     const mapFile = `${COLLECTIONS_DIR}/${manifest.collection.id}/maps/${asset.id}.json`;
@@ -79,16 +114,13 @@ export async function planTargets(
   for (const [source, target] of [...paths, ...assetIds]) {
     if (source !== target) rewrites.set(source, target);
   }
-  return {
+  const targets: ImportTargets = {
     collectionId, paths, assetIds, rewrites, shared,
     targetOf: (bundlePath) => paths.get(bundlePath) ?? record?.files[bundlePath]?.target,
     localIdOf: (bundleId) => assetIds.get(bundleId) ?? record?.assets[bundleId]?.localId ?? bundleId,
   };
-}
-
-async function vaultFileHash(app: App, path: string): Promise<string | null> {
-  const file = app.vault.getAbstractFileByPath(path);
-  return file instanceof TFile ? sha256(await app.vault.readBinary(file)) : null;
+  assertAssetPathsInsideAtlas(manifest.assets.map((asset) => installedAsset(asset, targets)));
+  return targets;
 }
 
 const fileUnit = (file: BundleFile): string => (file.owners?.length === 1 ? `asset:${file.owners[0]}` : `file:${file.vaultPath}`);

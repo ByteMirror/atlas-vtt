@@ -15,11 +15,18 @@ function toBuffer(text: string): ArrayBuffer {
   return buffer;
 }
 
+/** The indentation `text` was written with, so a rewrite keeps the file's layout and a round trip its exact bytes. */
+function indentationOf(text: string): string | undefined {
+  return /^[[{]\r?\n([ \t]+)\S/.exec(text)?.[1];
+}
+
 function rewriteJson(raw: ArrayBuffer, rewrites: PathMap): ArrayBuffer {
   try {
-    const parsed: unknown = JSON.parse(decoder.decode(raw));
-    const remapped = JSON.stringify(remapPaths(parsed, rewrites));
-    return remapped === JSON.stringify(parsed) ? raw : toBuffer(remapped);
+    const text = decoder.decode(raw);
+    const parsed: unknown = JSON.parse(text);
+    const remapped = remapPaths(parsed, rewrites);
+    if (JSON.stringify(remapped) === JSON.stringify(parsed)) return raw;
+    return toBuffer(JSON.stringify(remapped, null, indentationOf(text)) + (text.endsWith('\n') ? '\n' : ''));
   } catch {
     return raw;
   }
@@ -34,10 +41,13 @@ function relinkStatblockNote(file: BundleFile, raw: ArrayBuffer, rewrites: PathM
   if (!image || !target) return raw;
   const text = decoder.decode(raw);
   const frontmatter = FRONTMATTER.exec(text);
-  const line = frontmatter && new RegExp(`^${image.key}:[ \\t]*\\S[^\\n]*$`, 'm').exec(frontmatter[2]!);
-  if (!frontmatter || !line) return raw;
-  const block = frontmatter[2]!.replace(line[0], `${image.key}: ${JSON.stringify(target)}`);
-  return toBuffer(`${frontmatter[1]}${block}${text.slice(frontmatter[1]!.length + frontmatter[2]!.length)}`);
+  if (!frontmatter) return raw;
+  // The manifest check limits the key to `image` or `token-image`, so it is safe inside the pattern.
+  const line = new RegExp(`^${image.key}:[ \\t]*\\S[^\\n]*$`, 'm').exec(frontmatter[2]!);
+  if (!line) return raw;
+  // Splice at the matched line: a plain replace would hit the first equal text and expand `$` patterns in the path.
+  const start = frontmatter.index + frontmatter[1]!.length + line.index;
+  return toBuffer(`${text.slice(0, start)}${image.key}: ${JSON.stringify(target)}${text.slice(start + line[0].length)}`);
 }
 
 /**

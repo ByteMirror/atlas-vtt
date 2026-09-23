@@ -95,7 +95,7 @@ describe('export options', () => {
   function preview(overrides: Partial<ExportPreview> = {}): ExportPreview {
     return {
       collection: { id: 'dragons', uid: 'uid-1', name: 'Dragon Pack', version: 2, releasedAt: 1, author: 'Dungeon Tube', tags: {}, settings: { conditions: [] }, createdAt: 0, modifiedAt: 0 },
-      assets: [], files: [], missing: [], totalBytes: 2048, isPublisher: true, minimumVersion: 2, suggestedVersion: 3, ...overrides,
+      assets: [], files: [], missing: [], totalBytes: 2048, publisher: 'self', minimumVersion: 2, suggestedVersion: 3, ...overrides,
     };
   }
 
@@ -117,7 +117,7 @@ describe('export options', () => {
 
   it('lets someone who installed the collection share their copy or publish it as their own', async () => {
     const onExport = vi.fn(async () => null);
-    render(<ExportCollectionDialog preview={preview({ isPublisher: false })} onExport={onExport} onCancel={vi.fn()} />);
+    render(<ExportCollectionDialog preview={preview({ publisher: 'other' })} onExport={onExport} onCancel={vi.fn()} />);
     expect(screen.queryByDisplayValue('3')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Share copy' }));
     await vi.waitFor(() => expect(onExport).toHaveBeenCalledWith({ kind: 'share' }));

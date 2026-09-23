@@ -993,10 +993,10 @@ export class AssetService {
     return Object.values(this.metadata!.collections);
   }
 
-  /** Finds a collection by its display name or id; the UI lists names, metadata is keyed by id. */
+  /** Finds a collection by its display name or id; the UI lists names, metadata is keyed by id, and a name wins over another collection's id. */
   async resolveCollectionId(nameOrId: string): Promise<string | null> {
     const collections = await this.getCollections();
-    return collections.find((collection) => collection.name === nameOrId || collection.id === nameOrId)?.id ?? null;
+    return (collections.find((collection) => collection.name === nameOrId) ?? collections.find((collection) => collection.id === nameOrId))?.id ?? null;
   }
 
   async renameCollection(collectionId: string, name: string): Promise<void> {
@@ -1420,13 +1420,23 @@ export class AssetService {
   async commitCollectionImport({ collectionId, collection, upsert, remove }: CollectionImportCommit): Promise<void> {
     await this.ensureLoaded();
     this.assertCollectionNameFree(collection.name, collectionId);
-    this.metadata!.collections[collectionId] = { ...collection, id: collectionId };
     await this.ensureCollectionStructure(collectionId);
-    for (const id of remove) delete this.metadata!.assets[id];
-    for (const asset of upsert) {
-      this.metadata!.assets[asset.id] = { ...asset, collection: collectionId };
+    // Changes go to a copy that replaces the index only once it is saved, so a failed save leaves nothing half-applied.
+    const current = this.metadata!;
+    const next: AssetMetadata = {
+      ...current,
+      collections: { ...current.collections, [collectionId]: { ...collection, id: collectionId } },
+      assets: { ...current.assets },
+    };
+    for (const id of remove) delete next.assets[id];
+    for (const asset of upsert) next.assets[asset.id] = { ...asset, collection: collectionId };
+    this.metadata = next;
+    try {
+      await this.saveMetadata();
+    } catch (error) {
+      this.metadata = current;
+      throw error;
     }
-    await this.saveMetadata();
     if (upsert.some((asset) => asset.type === 'token')) SettingsService.forApp(this.app)?.markTokenImported();
   }
 

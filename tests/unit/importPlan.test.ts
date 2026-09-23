@@ -69,14 +69,15 @@ describe('units', () => {
     expect(planHasChanges(planImport([item({ mine: 'mine' })]))).toBe(false);
   });
 
-  it('keeps every item of a conflicting unit with the user unless they take the update', () => {
+  it('keeps only the conflicting items when the user keeps theirs, and writes what differs when they take the update', () => {
     const plan = planImport([
       item({ key: 'asset:cave', kind: 'asset', unit: 'asset:cave', theirs: 'v2', theirsInstalled: 'i2' }),
       item({ key: 'file:cave.atlasmap', unit: 'asset:cave', theirs: 'v2', theirsInstalled: 'i2', mine: 'played on' }),
       item({ key: 'file:cave.thumb.jpg', unit: 'asset:cave', theirs: 'v2', theirsInstalled: 'i2', mine: 'i2' }),
     ]);
     expect(plan.units[0]).toMatchObject({ status: 'conflict', conflict: 'both-changed' });
-    expect(resolvePlan(plan, new Map([['asset:cave', 'mine']]))).toEqual(new Map());
+    // The record changed only upstream, so it is updated either way; the played-on map stays the user's.
+    expect(resolvePlan(plan, new Map([['asset:cave', 'mine']]))).toEqual(new Map([['asset:cave', 'write']]));
     // The thumbnail already matches the update, so taking it writes only what differs.
     expect(resolvePlan(plan, new Map([['asset:cave', 'theirs']]))).toEqual(new Map([
       ['asset:cave', 'write'], ['file:cave.atlasmap', 'write'],

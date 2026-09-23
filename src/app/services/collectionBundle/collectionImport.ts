@@ -4,6 +4,7 @@ import { zipPathFor } from './bundleFormat';
 import { rewriteContent } from './bundleContent';
 import { reportFileStep, type BundleProgressListener } from './bundleProgress';
 import { openBundle, type OpenedBundle } from './bundleReader';
+import { fieldFingerprint } from './fingerprints';
 import { gatherImportInputs, installedAsset, planTargets, type ImportTargets } from './importInputs';
 import { ImportJournal, saveOpenMaps } from './importJournal';
 import { planImport, resolvePlan, type ImportAction, type ImportPlan, type Resolution } from './importPlan';
@@ -74,7 +75,7 @@ export async function openCollectionImport(
   onProgress({ message: 'Ready', fraction: 1 });
 
   return {
-    review: buildReview(manifest, existing, record, plan, restorePlan, unitAssets, suggestedName),
+    review: buildReview(manifest, await assets.getVaultId(), existing, record, plan, restorePlan, unitAssets, suggestedName),
     apply: (decision, progress = () => undefined) =>
       applyImport(app, assets, { bundle, existing, record, targets, plan: decision.restore ? restorePlan : plan }, decision, progress),
   };
@@ -103,12 +104,15 @@ async function applyImport(
   let collection: CollectionMetadata;
   try {
     const fileItems = items.filter((item) => item.kind === 'file' && actions.has(item.key));
+    // A path the update writes is never also removed, e.g. when a file moved onto an old file's path.
+    const writtenTargets = new Set(fileItems.filter((item) => actions.get(item.key) === 'write').map((item) => targets.targetOf(idOf(item.key))));
     for (const [index, item] of fileItems.entries()) {
       reportFileStep(onProgress, 'Writing', index, fileItems.length, 0, 0.9);
       const bundlePath = idOf(item.key);
       const target = targets.targetOf(bundlePath);
       if (!target) continue;
       if (actions.get(item.key) === 'remove') {
+        if (writtenTargets.has(target)) continue;
         await journal.remove(target);
         removed += 1;
         continue;
@@ -136,7 +140,7 @@ async function applyImport(
   }
 
   try {
-    await writeInstallRecord(app, nextInstallRecord(context, actions, collection));
+    await writeInstallRecord(app, await nextInstallRecord(context, actions, collection));
   } catch (error) {
     console.error('[collectionImport] Could not record the install:', error);
   }
@@ -147,7 +151,7 @@ async function applyImport(
     created: !existing,
     written,
     removed,
-    keptLocal: plan.units.filter((unit) => (unit.status === 'kept' || unit.status === 'conflict') && !unit.items.some((item) => actions.has(item.key))).length,
+    keptLocal: plan.units.filter((unit) => unit.status === 'kept' || (unit.status === 'conflict' && decision.resolutions?.get(unit.key) !== 'theirs')).length,
     backupCount: journal.backupCount,
     backupFolder: journal.backupFolder,
   };
@@ -166,10 +170,12 @@ async function mergedCollection(assets: AssetService, { bundle, existing, target
     createdAt: existing?.createdAt ?? now,
     modifiedAt: now,
   };
-  for (const key of ['publisherId', 'author'] as const) {
-    if (theirs[key] === undefined) delete merged[key];
-    else merged[key] = theirs[key];
-  }
+  // A collection keeps its publisher: a bundle cannot hand someone else's collection over to another publisher.
+  const publisherId = existing?.publisherId ?? theirs.publisherId;
+  if (publisherId === undefined) delete merged.publisherId;
+  else merged.publisherId = publisherId;
+  if (theirs.author === undefined) delete merged.author;
+  else merged.author = theirs.author;
   if (!existing) return { ...merged, name };
   for (const field of COLLECTION_FIELDS) {
     if (actions.get(`field:${field}`) !== 'write') continue;
@@ -186,12 +192,14 @@ async function mergedCollection(assets: AssetService, { bundle, existing, target
  * recorded as the bundle's version installed. An item the user kept in their
  * own version therefore still differs from `installed`, so a later update never
  * overwrites it silently, and re-importing this bundle does not ask again.
- * Unchanged items keep their earlier record, including its exact bytes.
+ * Unchanged items keep their earlier record, including its exact bytes, and
+ * collection fields record the value actually applied (a name the user chose
+ * because the bundle's was taken counts as theirs).
  */
-function nextInstallRecord({ bundle: { manifest }, targets, plan }: ImportContext, actions: ReadonlyMap<string, ImportAction>, collection: CollectionMetadata): InstallRecord {
+async function nextInstallRecord({ bundle: { manifest }, targets, plan }: ImportContext, actions: ReadonlyMap<string, ImportAction>, collection: CollectionMetadata): Promise<InstallRecord> {
   const next: InstallRecord = {
-    uid: collection.uid, collectionId: targets.collectionId, sourceCollectionId: manifest.collection.id, version: manifest.collection.version,
-    releasedAt: manifest.exportedAt, installedAt: Date.now(), files: {}, assets: {}, fields: {},
+    uid: collection.uid, collectionId: targets.collectionId, sourceCollectionId: manifest.collection.id, sourceName: manifest.collection.name,
+    version: manifest.collection.version, releasedAt: manifest.exportedAt, installedAt: Date.now(), files: {}, assets: {}, fields: {},
   };
   for (const unit of plan.units) {
     for (const item of unit.items) {
@@ -201,6 +209,7 @@ function nextInstallRecord({ bundle: { manifest }, targets, plan }: ImportContex
       const id = idOf(item.key);
       if (item.kind === 'file') next.files[id] = { ...entry, target: targets.targetOf(id)!, unit: unit.key };
       else if (item.kind === 'asset') next.assets[id] = { ...entry, localId: targets.localIdOf(id) };
+      else if (actions.get(item.key) === 'write') next.fields[id as CollectionField] = { source: item.theirs, installed: await fieldFingerprint(collection, id as CollectionField) };
       else next.fields[id as CollectionField] = entry;
     }
   }

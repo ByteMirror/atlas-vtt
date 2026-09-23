@@ -105,6 +105,7 @@ export function useCollectionTransfer({ app, assetService, selectedCollection, o
     try {
       const bundle = await exportCollectionBundle(app, assetService, preview, choice, working(EXPORTING));
       downloadBlob(bundle.blob, bundle.fileName);
+      await bundle.commit();
       finish('Collection exported', `Packed “${bundle.collectionName}” v${bundle.version} (${plural(bundle.assetCount, 'asset')}, ${plural(bundle.fileCount, 'file')}) into ${bundle.fileName}.`);
       if (choice.kind === 'fork') await onImported();
     } catch (error) {

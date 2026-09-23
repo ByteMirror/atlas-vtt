@@ -94,7 +94,8 @@ it('shows export options, keeps them open for a name that is taken, and exports 
   const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
   const preview = { collection: { id: 'source', name: 'Source' } } as ExportPreview;
   vi.mocked(prepareCollectionExport).mockResolvedValue(preview);
-  vi.mocked(exportCollectionBundle).mockResolvedValue({ blob: new Blob(['zip']), fileName: 'Source v2.atlas-collection.zip', collectionName: 'Source', version: 2, assetCount: 3, fileCount: 9 });
+  const commit = vi.fn(async (): Promise<void> => undefined);
+  vi.mocked(exportCollectionBundle).mockResolvedValue({ blob: new Blob(['zip']), commit, fileName: 'Source v2.atlas-collection.zip', collectionName: 'Source', version: 2, assetCount: 3, fileCount: 9 });
   const { hook } = setup();
 
   await act(async () => hook.result.current.handleExportCollection());
@@ -110,6 +111,7 @@ it('shows export options, keeps them open for a name that is taken, and exports 
     step: 'done', title: 'Collection exported', message: 'Packed “Source” v2 (3 assets, 9 files) into Source v2.atlas-collection.zip.',
   });
   expect(click).toHaveBeenCalledOnce();
+  expect(commit).toHaveBeenCalledOnce();
   click.mockRestore();
   vi.unstubAllGlobals();
 });

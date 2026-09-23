@@ -114,24 +114,33 @@ export function planHasChanges(plan: ImportPlan): boolean {
   return plan.units.some((unit) => unit.status !== 'unchanged' && unit.status !== 'kept');
 }
 
+/** The action the item's own status calls for. */
+function itemAction(item: PlannedItem): ImportAction | undefined {
+  if (item.status === 'removed') return 'remove';
+  return item.status === 'added' || item.status === 'updated' || item.status === 'restored' ? 'write' : undefined;
+}
+
+/** The action that makes the item match the bundle, if it does not already. */
+function updateAction(item: PlannedItem): ImportAction | undefined {
+  if (item.mine === (item.theirs === null ? null : item.theirsInstalled)) return undefined;
+  return item.theirs === null ? 'remove' : 'write';
+}
+
 /**
- * What to do with each item once the user resolved the conflicts. A conflicting
- * unit keeps the user's version unless resolved as `theirs`; then every item
- * that differs from the bundle is written or removed.
+ * What to do with each item once the user resolved the conflicts. Taking the
+ * update writes or removes every item of the unit that differs from the bundle.
+ * Keeping the user's version keeps the conflicting items only; the update's
+ * other changes to the unit still apply, unless the update removes the whole
+ * asset, which then stays as it is.
  */
 export function resolvePlan(plan: ImportPlan, resolutions: ReadonlyMap<string, Resolution>): Map<string, ImportAction> {
   const actions = new Map<string, ImportAction>();
   for (const unit of plan.units) {
-    if (unit.status === 'conflict') {
-      if (resolutions.get(unit.key) !== 'theirs') continue;
-      for (const item of unit.items) {
-        if (item.mine !== (item.theirs === null ? null : item.theirsInstalled)) actions.set(item.key, item.theirs === null ? 'remove' : 'write');
-      }
-      continue;
-    }
+    const takeTheirs = unit.status === 'conflict' && resolutions.get(unit.key) === 'theirs';
+    if (unit.status === 'conflict' && !takeTheirs && unit.conflict === 'removed-by-update') continue;
     for (const item of unit.items) {
-      if (item.status === 'removed') actions.set(item.key, 'remove');
-      else if (item.status === 'added' || item.status === 'updated' || item.status === 'restored') actions.set(item.key, 'write');
+      const action = takeTheirs ? updateAction(item) : itemAction(item);
+      if (action) actions.set(item.key, action);
     }
   }
   return actions;

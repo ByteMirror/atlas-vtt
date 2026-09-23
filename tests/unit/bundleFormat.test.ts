@@ -5,8 +5,8 @@ function manifest(overrides: Record<string, unknown> = {}): Record<string, unkno
   return {
     format: BUNDLE_FORMAT,
     exportedAt: 1,
-    collection: { id: 'source', uid: '726e53fb-59c3-49d4-9019-947bb901c037', name: 'Source', version: 2 },
-    assets: [{ id: 'token-1', type: 'token' }],
+    collection: { id: 'source', uid: '726e53fb-59c3-49d4-9019-947bb901c037', name: 'Source', version: 2, tags: {}, settings: { conditions: [] } },
+    assets: [{ id: 'token-1', type: 'token', name: 'Goblin', tags: [] }],
     files: [{ vaultPath: 'atlas-vtt/assets/goblin.webp', role: 'token-image', sha256: 'a'.repeat(64), owners: ['token-1'] }],
     ...overrides,
   };
@@ -14,19 +14,18 @@ function manifest(overrides: Record<string, unknown> = {}): Record<string, unkno
 
 describe('bundle paths', () => {
   it.each([
-    ['atlas-vtt/assets/goblin.webp', 'token-image', true],
-    ['Bestiary/Goblin.md', 'statblock-note', true],
-    ['Bestiary/Goblin.md', 'token-image', false],
-    ['atlas-vtt/../.obsidian/plugins/x/main.js', 'asset-file', false],
-    ['atlas-vtt/./assets/goblin.webp', 'asset-file', false],
-    ['.obsidian/plugins/x/main.js', 'statblock-note', false],
-    ['atlas-vtt/.atlas-data/installs/x.json', 'asset-file', false],
-    ['/etc/passwd', 'statblock-note', false],
-    ['atlas-vtt\\assets\\goblin.webp', 'token-image', false],
-    ['atlas-vtt//assets/goblin.webp', 'token-image', false],
-    ['atlas-vtt/assets/go\nblin.webp', 'token-image', false],
-  ] as const)('%s as %s is safe: %s', (path, role, safe) => {
-    expect(isSafeBundlePath(path, role)).toBe(safe);
+    ['atlas-vtt/assets/goblin.webp', true],
+    ['Bestiary/Goblin.md', true],
+    ['atlas-vtt/../.obsidian/plugins/x/main.js', false],
+    ['atlas-vtt/./assets/goblin.webp', false],
+    ['.obsidian/plugins/x/main.js', false],
+    ['atlas-vtt/.atlas-data/installs/x.json', false],
+    ['/etc/passwd', false],
+    ['atlas-vtt\\assets\\goblin.webp', false],
+    ['atlas-vtt//assets/goblin.webp', false],
+    ['atlas-vtt/assets/go\nblin.webp', false],
+  ] as const)('%s is safe: %s', (path, safe) => {
+    expect(isSafeBundlePath(path)).toBe(safe);
   });
 });
 
@@ -45,9 +44,12 @@ describe('manifest checks', () => {
   it.each([
     ['a missing export date', { exportedAt: undefined }],
     ['a uid that could name another file', { collection: { id: 'source', uid: '../../x', name: 'Source', version: 1 } }],
-    ['a fractional version', { collection: { id: 'source', uid: '726e53fb-59c3-49d4-9019-947bb901c037', name: 'Source', version: 1.5 } }],
-    ['an empty name', { collection: { id: 'source', uid: '726e53fb-59c3-49d4-9019-947bb901c037', name: ' ', version: 1 } }],
-    ['an asset id with a folder', { assets: [{ id: '../evil', type: 'map' }] }],
+    ['a fractional version', { collection: { id: 'source', uid: '726e53fb-59c3-49d4-9019-947bb901c037', name: 'Source', version: 1.5, tags: {}, settings: {} } }],
+    ['an empty name', { collection: { id: 'source', uid: '726e53fb-59c3-49d4-9019-947bb901c037', name: ' ', version: 1, tags: {}, settings: {} } }],
+    ['collection tags that are not a record', { collection: { id: 'source', uid: '726e53fb-59c3-49d4-9019-947bb901c037', name: 'Source', version: 1, tags: 'x', settings: {} } }],
+    ['an asset id with a folder', { assets: [{ id: '../evil', type: 'map', name: 'Evil', tags: [] }] }],
+    ['an asset id that is a prototype key', { assets: [{ id: '__proto__', type: 'map', name: 'Evil', tags: [] }] }],
+    ['a statblock artwork key other than image fields', { files: [{ vaultPath: 'Bestiary/G.md', role: 'statblock-note', statblockImage: { key: 'x|y', path: 'a.png' } }] }],
     ['an unknown file role', { files: [{ vaultPath: 'atlas-vtt/a', role: 'script' }] }],
     ['a malformed checksum', { files: [{ vaultPath: 'atlas-vtt/a', role: 'asset-file', sha256: 'abc' }] }],
     ['an unknown release kind', { release: { kind: 'patch' } }],

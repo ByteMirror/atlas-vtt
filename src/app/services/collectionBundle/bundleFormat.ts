@@ -15,8 +15,8 @@ const BUNDLE_FILE_ROLES = [
 ] as const;
 export type BundleFileRole = typeof BUNDLE_FILE_ROLES[number];
 
-/** Roles of files that live outside `atlas-vtt/` in the exporting vault. */
-const FOREIGN_FILE_ROLES: ReadonlySet<BundleFileRole> = new Set<BundleFileRole>(['statblock-note', 'statblock-image']);
+/** Statblock notes and their artwork: files an importing vault may already have, and then reuses in place. */
+export const REUSABLE_FILE_ROLES: ReadonlySet<BundleFileRole> = new Set<BundleFileRole>(['statblock-note', 'statblock-image']);
 
 /** The frontmatter field of a statblock note that points at its artwork. */
 export type StatblockImageKey = 'image' | 'token-image';
@@ -58,21 +58,23 @@ export const zipPathFor = (vaultPath: string): string => `${BUNDLE_FILES_DIR}/${
 /** The uid names the collection's install record file. */
 const SAFE_UID = /^[A-Za-z0-9-]{8,64}$/;
 
-/** Asset ids end up in file names (`maps/<id>.json`), so they must not name another folder. */
+/** Asset ids end up in file names (`maps/<id>.json`) and index records, so they must not name another folder or a prototype key. */
 const SAFE_ID = /^[^/\\.][^/\\]{0,127}$/;
+const RESERVED_IDS: ReadonlySet<string> = new Set(['__proto__', 'constructor', 'prototype']);
+const isSafeId = (id: unknown): boolean => typeof id === 'string' && SAFE_ID.test(id) && !RESERVED_IDS.has(id);
 
 /**
- * Whether a bundled vault path is safe to plan an import for: relative, without
- * `.`/`..` segments or hidden folders, and inside `atlas-vtt/` unless it is a
- * statblock note or artwork (which the importer copies into the collection).
+ * Whether a bundled vault path is safe to plan an import for: relative, and
+ * without `.`/`..` segments or hidden folders such as `.obsidian`.
  */
-export function isSafeBundlePath(path: string, role: BundleFileRole): boolean {
+export function isSafeBundlePath(path: string): boolean {
   if (!path || path.length > 1024 || path.startsWith('/') || path.includes('\\')) return false;
   if ([...path].some((character) => character.charCodeAt(0) < 0x20)) return false;
-  const segments = path.split('/');
-  if (segments.some((segment) => segment === '' || segment.startsWith('.'))) return false;
-  return segments[0] === 'atlas-vtt' || FOREIGN_FILE_ROLES.has(role);
+  return path.split('/').every((segment) => segment !== '' && !segment.startsWith('.'));
 }
+
+const isStatblockImage = (value: unknown): boolean =>
+  isRecord(value) && (value.key === 'image' || value.key === 'token-image') && typeof value.path === 'string';
 
 const isBundleFile = (value: unknown): value is BundleFile =>
   isRecord(value)
@@ -80,7 +82,8 @@ const isBundleFile = (value: unknown): value is BundleFile =>
   && typeof value.role === 'string'
   && (BUNDLE_FILE_ROLES as readonly string[]).includes(value.role)
   && (value.sha256 === undefined || (typeof value.sha256 === 'string' && /^[0-9a-f]{64}$/.test(value.sha256)))
-  && (value.owners === undefined || (Array.isArray(value.owners) && value.owners.every((owner) => typeof owner === 'string')));
+  && (value.owners === undefined || (Array.isArray(value.owners) && value.owners.every((owner) => typeof owner === 'string')))
+  && (value.statblockImage === undefined || isStatblockImage(value.statblockImage));
 
 const isBundleRelease = (value: unknown): value is BundleRelease =>
   isRecord(value)
@@ -99,13 +102,15 @@ export function manifestProblem(value: unknown): string | null {
     && typeof collection.name === 'string' && collection.name.trim() !== ''
     && typeof collection.id === 'string'
     && typeof collection.version === 'number' && Number.isInteger(collection.version) && collection.version >= 1
+    && isRecord(collection.tags) && isRecord(collection.settings)
     && (release === undefined || isBundleRelease(release))
     && Array.isArray(assets)
-    && assets.every((asset) => isRecord(asset) && typeof asset.id === 'string' && SAFE_ID.test(asset.id) && typeof asset.type === 'string')
+    && assets.every((asset) => isRecord(asset) && isSafeId(asset.id) && typeof asset.type === 'string' && typeof asset.name === 'string'
+      && (asset.tags === undefined || (Array.isArray(asset.tags) && asset.tags.every((tag) => typeof tag === 'string'))))
     && Array.isArray(files)
     && files.every(isBundleFile);
   if (!isSound) return 'This collection export is damaged.';
-  const unsafe = files.find((file) => !isSafeBundlePath(file.vaultPath, file.role));
+  const unsafe = files.find((file) => !isSafeBundlePath(file.vaultPath) || (file.statblockImage && !isSafeBundlePath(file.statblockImage.path)));
   if (unsafe) return `This collection export contains a file Atlas will not write: ${unsafe.vaultPath}`;
   return null;
 }

@@ -29,6 +29,11 @@ export interface ImportReview {
   exportedAt: number;
   /** False for copies imported before Atlas recorded installs: every difference is then a conflict. */
   hasInstallRecord: boolean;
+  /**
+   * The bundle claims to be a release of this collection by another publisher:
+   * `own-collection` when this vault published it, `other-publisher` otherwise.
+   */
+  publisherWarning?: 'own-collection' | 'other-publisher' | undefined;
   /** A new collection whose name another collection already uses. */
   suggestedName?: string | undefined;
   counts: Record<ChangeStatus, number>;
@@ -63,8 +68,15 @@ function relationOf(version: number, installedVersion: number | undefined): Impo
   return version === installedVersion ? 'same' : 'older';
 }
 
+function publisherWarning(manifest: CollectionBundleManifest, existing: CollectionMetadata | null, vaultId: string): ImportReview['publisherWarning'] {
+  const claimed = manifest.collection.publisherId;
+  if (!existing?.publisherId || !claimed || claimed === existing.publisherId || manifest.release?.kind === 'share') return undefined;
+  return existing.publisherId === vaultId ? 'own-collection' : 'other-publisher';
+}
+
 export function buildReview(
   manifest: CollectionBundleManifest,
+  vaultId: string,
   existing: CollectionMetadata | null,
   record: InstallRecord | null,
   plan: ImportPlan,
@@ -88,6 +100,7 @@ export function buildReview(
     releaseNotes: manifest.release?.notes,
     exportedAt: manifest.exportedAt,
     hasInstallRecord: record !== null,
+    publisherWarning: publisherWarning(manifest, existing, vaultId),
     suggestedName,
     counts: plan.counts,
     conflicts,

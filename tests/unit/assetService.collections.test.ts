@@ -57,3 +57,13 @@ it('gives the vault an identity and makes it the publisher of the collections it
   expect(vaultId).toMatch(/^[0-9a-f-]{36}$/);
   expect(await service.createCollection('Monsters')).toMatchObject({ publisherId: vaultId, version: 1 });
 });
+
+it('leaves the index untouched when saving an import fails', async () => {
+  const { app } = createInMemoryApp();
+  const service = AssetService.getInstance(app);
+  await service.initialize();
+  const collection = { id: 'pack', uid: crypto.randomUUID(), version: 1, name: 'Pack', tags: {}, settings: { conditions: [] }, createdAt: 0, modifiedAt: 0 };
+  app.vault.adapter.write = async (): Promise<void> => { throw new Error('Disk full'); };
+  await expect(service.commitCollectionImport({ collectionId: 'pack', collection, upsert: [], remove: [] })).rejects.toThrow('Disk full');
+  expect(await service.getCollection('pack')).toBeNull();
+});

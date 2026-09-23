@@ -1,7 +1,7 @@
 import { EventEmitter } from 'events';
 import { waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { WorkspaceLeaf } from 'obsidian';
+import { MarkdownView, WorkspaceLeaf, type OpenViewState } from 'obsidian';
 import { createInMemoryApp } from '../mocks/inMemoryVault';
 import { createViewAtlasStore, type ViewAtlasStore } from '../../src/app/storeFactory';
 import { NotePreviewUIManager } from '../../src/app/services/NotePreviewUIManager';
@@ -17,32 +17,55 @@ interface Harness {
   eventBus: EventEmitter;
   manager: NotePreviewUIManager;
   atlasLeafRoot: HTMLElement;
+  /** Note views opened by previews, oldest first. */
+  noteViews: MarkdownView[];
 }
 
-function createHarness(): Harness {
+/** A detached leaf that opens the note in a markdown view, the way Obsidian's does. */
+function createNoteLeaf(noteViews: MarkdownView[]): WorkspaceLeaf {
+  const leaf = new WorkspaceLeaf();
+  const view = new MarkdownView(leaf);
+  leaf.view = view;
+  noteViews.push(view);
+  Object.assign(leaf, {
+    detach: vi.fn(),
+    openFile: vi.fn(async (_file: unknown, options: OpenViewState) => {
+      view.containerEl.setText('Tavern notes');
+      view.contentEl.setText('Tavern notes');
+      const mode = options.state?.mode;
+      if (mode === 'source' || mode === 'preview') view.setMode(mode);
+      if (options.eState) view.setEphemeralState(options.eState);
+    }),
+  });
+  return leaf;
+}
+
+/** Without `noteLeaves` the workspace has no leaf to spare and previews render plain markdown. */
+function createHarness({ noteLeaves = false } = {}): Harness {
   const { app } = createInMemoryApp({ files: { 'notes/tavern.md': 'Tavern notes' } });
   app.vault.getFileByPath = app.vault.getAbstractFileByPath;
 
   const atlasLeafRoot = document.body.createDiv({ cls: 'workspace-leaf mod-active' });
   const atlasLeaf = new WorkspaceLeaf();
   atlasLeaf.view = { viewId: VIEW_ID, containerEl: atlasLeafRoot.createDiv(), getViewType: () => 'atlas-vtt' };
-  // No preview leaf: the window renders the note as markdown
+  const noteViews: MarkdownView[] = [];
   Object.assign(app.workspace, {
     getLeavesOfType: vi.fn((type: string) => (type === 'atlas-vtt' ? [atlasLeaf] : [])),
     getActiveViewOfType: vi.fn(() => null),
-    getLeaf: vi.fn(() => null),
+    getLeaf: vi.fn(() => (noteLeaves ? createNoteLeaf(noteViews) : null)),
     setActiveLeaf: vi.fn(),
   });
 
   const store = createViewAtlasStore(app, VIEW_ID);
   const eventBus = new EventEmitter();
   const manager = new NotePreviewUIManager(app, eventBus, store, VIEW_ID);
-  return { store, eventBus, manager, atlasLeafRoot };
+  return { store, eventBus, manager, atlasLeafRoot, noteViews };
 }
 
 /** The store side of `MapService.loadMap`: save the old map, rehydrate the new one, announce it. */
 async function loadMap({ store, eventBus }: Harness, path: string): Promise<void> {
   const state = store.getState();
+  if (state.mapPath) eventBus.emit('map-unloading');
   state.setPersistenceEnabled(false);
   await store.flushStorage();
   state.setMapPath(path);
@@ -132,5 +155,52 @@ describe('NotePreviewUIManager pinned previews', () => {
 
     click(previewEl, 'pin');
     expect(harness.store.getState().pinnedNotePreviews).toEqual({});
+  });
+});
+
+describe('NotePreviewUIManager pinned note state', () => {
+  const cursor = { from: { line: 120, ch: 4 }, to: { line: 120, ch: 9 } };
+  let harness: Harness;
+
+  beforeEach(async () => {
+    harness = createHarness({ noteLeaves: true });
+    await loadMap(harness, TAVERN);
+  });
+
+  afterEach(() => {
+    harness.manager.destroy();
+    document.body.empty();
+  });
+
+  async function openPinnedNote(): Promise<{ previewEl: HTMLElement; view: MarkdownView }> {
+    const previewEl = await openPreview(harness);
+    click(previewEl, 'pin');
+    return { previewEl, view: harness.noteViews.at(-1)! };
+  }
+
+  it('reopens a pinned note in the mode, at the scroll and cursor it was left at', async () => {
+    const { view } = await openPinnedNote();
+    view.setMode('preview');
+    view.setEphemeralState({ cursor });
+    view.currentMode.applyScroll(42.5);
+
+    await loadMap(harness, CELLAR);
+    await loadMap(harness, TAVERN);
+
+    await waitFor(() => expect(harness.noteViews).toHaveLength(2));
+    const reopened = harness.noteViews[1]!;
+    await waitFor(() => expect(reopened.currentMode.getScroll()).toBe(42.5));
+    expect(reopened.getEphemeralState()).toEqual({ cursor });
+    expect(reopened.getMode()).toBe('preview');
+  });
+
+  it('saves the scroll with the map once scrolling pauses', async () => {
+    const { previewEl, view } = await openPinnedNote();
+    view.currentMode.applyScroll(17);
+    previewEl.querySelector('.atlas-note-preview-content')!.dispatchEvent(new Event('scroll'));
+
+    await waitFor(() => {
+      expect(harness.store.getState().pinnedNotePreviews['pin-1']?.view?.eState.scroll).toBe(17);
+    });
   });
 });

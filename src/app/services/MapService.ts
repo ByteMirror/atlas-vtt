@@ -41,6 +41,9 @@ export class MapService {
     try {
       // Check if this is a map switch (not initial load)
       const isMapSwitch = this.currentMapFilePath !== null && this.currentMapFilePath !== filePath;
+
+      // Services save what belongs to the map being left while its state is still loaded
+      if (this.currentMapFilePath !== null) this.eventBus.emit('map-unloading');
       
       // Show loading overlay FIRST before any state changes
       this.store.getState().setMapLoading(true, 0, 'Loading map...');

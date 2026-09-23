@@ -300,6 +300,9 @@ export class AtlasView extends FileView {
       this.pendingViewportRestoreRaf = null;
     }
 
+    // Pinned note previews keep their scroll and cursor with the map
+    this._serviceManager.getNotePreviewUIManager().savePinnedPreviewStates();
+
     // Flush all pending saves before destroying
     await this.flushPendingSaves();
 

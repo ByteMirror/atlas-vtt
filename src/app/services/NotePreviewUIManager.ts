@@ -54,6 +54,11 @@ export class NotePreviewUIManager {
   private viewId: string;
   /** Set while the asset manager covers the map and the previews are hidden. */
   private suspended = false;
+  /**
+   * Set from the moment another map starts loading until it has loaded. The
+   * store then no longer holds the previews' map, so nothing may be saved into it.
+   */
+  private mapUnloading = false;
   private activePreviews: Map<string, IPreviewWindow> = new Map();
   private isModifierKeyDown = false;
   private lastHoveredPinId: string | null = null;
@@ -142,7 +147,16 @@ export class NotePreviewUIManager {
       preview?.hide(true);
     });
 
-    this.eventBus.on('map-loaded', () => this.restorePinnedPreviews());
+    // The map's state is about to be saved and replaced: record how each pinned note was left first
+    this.eventBus.on('map-unloading', () => {
+      this.savePinnedPreviewStates();
+      this.mapUnloading = true;
+    });
+
+    this.eventBus.on('map-loaded', () => {
+      this.mapUnloading = false;
+      this.restorePinnedPreviews();
+    });
 
     // Leaving the map closes hover previews; pinned ones live in the map's leaf and hide with it
     this.activeLeafChangeRef = this.app.workspace.on('active-leaf-change', (leaf: WorkspaceLeaf | null) => {
@@ -179,16 +193,28 @@ export class NotePreviewUIManager {
     }
   }
 
-  /** Saves a pinned preview's position and size with the map, or forgets it once unpinned. */
-  public handlePreviewLayoutChanged(preview: NotePreviewWindow): void {
+  /**
+   * Saves a pinned preview's position, size, scroll and cursor with the map,
+   * or forgets it once unpinned.
+   */
+  public handlePreviewStateChanged(preview: NotePreviewWindow): void {
     const state = this.store.getState();
-    if (state.isPlayerView || !preview.originatingPin) return;
+    if (this.mapUnloading || state.isPlayerView || !preview.originatingPin) return;
     const pinned = preview.toPinnedNotePreview();
-    if (pinned) {
-      state.savePinnedNotePreview(pinned);
-    } else {
+    if (!pinned) {
       state.removePinnedNotePreview(preview.originatingPin.id);
+      return;
     }
+    // Scrolling reports often; only real changes reach the store and the map file
+    const saved = state.pinnedNotePreviews[pinned.anchorId];
+    if (JSON.stringify(saved) !== JSON.stringify(pinned)) state.savePinnedNotePreview(pinned);
+  }
+
+  /** Records how every pinned note is left, before the map's state is saved. */
+  public savePinnedPreviewStates(): void {
+    this.activePreviews.forEach((preview) => {
+      if (preview instanceof NotePreviewWindow) preview.saveStateNow();
+    });
   }
 
   /** The user closed the preview, so it must not reopen with the map. */

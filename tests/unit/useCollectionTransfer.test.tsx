@@ -115,3 +115,22 @@ it('shows export options, keeps them open for a name that is taken, and exports 
   click.mockRestore();
   vi.unstubAllGlobals();
 });
+
+it('reports an export whose file went out but whose release could not be recorded', async () => {
+  vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: vi.fn(() => 'blob:x'), revokeObjectURL: vi.fn() }));
+  const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+  vi.mocked(prepareCollectionExport).mockResolvedValue({ collection: { id: 'source', name: 'Source' } } as ExportPreview);
+  vi.mocked(exportCollectionBundle).mockResolvedValue({
+    blob: new Blob(['zip']), commit: vi.fn(async () => { throw new Error('Disk full'); }),
+    fileName: 'Source v2.atlas-collection.zip', collectionName: 'Source', version: 2, assetCount: 3, fileCount: 9,
+  });
+  const { hook } = setup();
+  await act(async () => hook.result.current.handleExportCollection());
+  await act(async () => { await hook.result.current.confirmExport({ kind: 'release', version: 2 }); });
+  expect(hook.result.current.transfer).toMatchObject({
+    step: 'done', title: 'Collection exported',
+    message: expect.stringContaining('could not record the release (Disk full)'),
+  });
+  click.mockRestore();
+  vi.unstubAllGlobals();
+});

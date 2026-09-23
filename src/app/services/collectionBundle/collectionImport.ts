@@ -5,7 +5,7 @@ import { rewriteContent } from './bundleContent';
 import { reportFileStep, type BundleProgressListener } from './bundleProgress';
 import { openBundle, type OpenedBundle } from './bundleReader';
 import { fieldFingerprint } from './fingerprints';
-import { gatherImportInputs, installedAsset, planTargets, type ImportTargets } from './importInputs';
+import { gatherImportInputs, installedAsset, planTargets, referencedStrings, type ImportTargets } from './importInputs';
 import { ImportJournal, saveOpenMaps } from './importJournal';
 import { planImport, resolvePlan, type ImportAction, type ImportPlan, type Resolution } from './importPlan';
 import { buildReview, type ImportReview } from './importReview';
@@ -83,12 +83,25 @@ export async function openCollectionImport(
 
 const idOf = (key: string): string => key.slice(key.indexOf(':') + 1);
 
-/** Every string anywhere in `value`: the paths an asset record can refer to, among other text. */
-function collectStrings(value: unknown, into: Set<string>): Set<string> {
-  if (typeof value === 'string') into.add(value);
-  else if (Array.isArray(value)) value.forEach((item) => collectStrings(item, into));
-  else if (value && typeof value === 'object') Object.values(value).forEach((item) => collectStrings(item, into));
-  return into;
+/**
+ * Everything that may still name a file after the import: the paths the bundle
+ * places, every asset in the vault as it will be, and the maps that stay (tokens
+ * placed on the user's own maps name their artwork). A file any of them names is
+ * never removed.
+ */
+async function pathsInUse(app: App, assets: AssetService, targets: ImportTargets, upsert: readonly Asset[], remove: readonly string[], removals: ReadonlySet<string>): Promise<Set<string>> {
+  const replaced = new Set([...remove, ...upsert.map((asset) => asset.id)]);
+  const staying = (await assets.getAssets()).filter((asset) => !replaced.has(asset.id));
+  const inUse = referencedStrings([...staying, ...upsert], new Set(targets.paths.values()));
+  for (const file of app.vault.getFiles()) {
+    if (file.extension !== 'atlasmap' || removals.has(file.path)) continue;
+    try {
+      referencedStrings([JSON.parse(await app.vault.read(file))], inUse);
+    } catch {
+      // An unreadable map names nothing we could protect.
+    }
+  }
+  return inUse;
 }
 
 async function applyImport(
@@ -118,25 +131,27 @@ async function applyImport(
       if (actions.get(item.key) === 'remove') remove.push(targets.localIdOf(bundleId));
       else upsert.push(installedAsset(assetsById.get(bundleId)!, targets));
     }
-    // A file is never removed while a path the bundle places there or an asset left in the collection still names it.
-    const replaced = new Set([...remove, ...upsert.map((asset) => asset.id)]);
-    const staying = (await assets.getAssets(targets.collectionId)).filter((asset) => !replaced.has(asset.id));
-    const inUse = collectStrings([...staying, ...upsert], new Set(targets.paths.values()));
     const fileItems = items.filter((item) => item.kind === 'file' && actions.has(item.key));
-    for (const [index, item] of fileItems.entries()) {
+    const writes = fileItems.filter((item) => actions.get(item.key) === 'write');
+    const removals = fileItems.filter((item) => actions.get(item.key) === 'remove');
+    for (const [index, item] of writes.entries()) {
       reportFileStep(onProgress, 'Writing', index, fileItems.length, 0, 0.9);
       const bundlePath = idOf(item.key);
       const target = targets.targetOf(bundlePath);
       if (!target) continue;
-      if (actions.get(item.key) === 'remove') {
-        if (inUse.has(target)) continue;
-        await journal.remove(target);
-        removed += 1;
-        continue;
-      }
       const file = filesByPath.get(bundlePath)!;
       await journal.write(target, rewriteContent(file, await zip.file(zipPathFor(bundlePath))!.async('arraybuffer'), targets.rewrites));
       written += 1;
+    }
+    // Removals come last, checked against the vault as the writes left it.
+    const removalTargets = new Set(removals.map((item) => targets.targetOf(idOf(item.key))!));
+    const inUse = removalTargets.size > 0 ? await pathsInUse(app, assets, targets, upsert, remove, removalTargets) : new Set<string>();
+    for (const [index, item] of removals.entries()) {
+      reportFileStep(onProgress, 'Cleaning up', writes.length + index, fileItems.length, 0, 0.9);
+      const target = targets.targetOf(idOf(item.key));
+      if (!target || inUse.has(target)) continue;
+      await journal.remove(target);
+      removed += 1;
     }
 
     onProgress({ message: 'Registering assets…', fraction: 0.95 });
@@ -222,6 +237,8 @@ async function nextInstallRecord({ bundle: { manifest }, record, targets, plan }
   for (const unit of plan.units) {
     for (const item of unit.items) {
       if (item.theirs === null || actions.get(item.key) === 'remove') continue;
+      // Never installed and not in the vault: recording it would make a later update say the user deleted it.
+      if (!actions.has(item.key) && !item.base && item.mine === null) continue;
       const keepsRecord = !actions.has(item.key) && item.base?.source === item.theirs;
       const entry = keepsRecord && item.base ? item.base : { source: item.theirs, installed: item.theirsInstalled ?? item.theirs };
       const id = idOf(item.key);

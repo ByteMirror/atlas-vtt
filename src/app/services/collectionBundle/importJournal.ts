@@ -1,4 +1,4 @@
-import { TFile, type App } from 'obsidian';
+import { TFile, TFolder, type App } from 'obsidian';
 import { AtlasView, ATLAS_VIEW_TYPE } from '../../atlas-view';
 import { ensureAdapterFolder, ensureFolder } from '../../plugin/vaultFolders';
 import { parentPath } from '../../utils/pathUtils';
@@ -26,6 +26,8 @@ export class ImportJournal {
   private readonly backupFolders = new Set<string>();
   /** The first backup of each path; a path touched twice keeps its original content. */
   private readonly backups = new Map<string, string | null>();
+  /** Folders the import created, outermost first, so a rollback can remove them again. */
+  private readonly createdFolders: string[] = [];
   readonly backupFolder: string;
 
   constructor(private readonly app: App, collectionId: string) {
@@ -43,7 +45,7 @@ export class ImportJournal {
       await this.app.vault.modifyBinary(existing, content);
       return;
     }
-    await ensureFolder(this.app, parentPath(path));
+    await this.ensureFolderRecorded(parentPath(path));
     this.backups.set(path, null);
     this.entries.push({ path, backup: null });
     await this.app.vault.createBinary(path, content);
@@ -76,7 +78,19 @@ export class ImportJournal {
       }
     }
     this.entries.length = 0;
+    // Folders the import created and left empty go too, so a retry lands exactly where this attempt would have.
+    for (const path of [...this.createdFolders].reverse()) {
+      const folder = this.app.vault.getAbstractFileByPath(path);
+      if (folder instanceof TFolder && folder.children.length === 0) await this.app.fileManager.trashFile(folder);
+    }
     return failed;
+  }
+
+  private async ensureFolderRecorded(path: string): Promise<void> {
+    const missing: string[] = [];
+    for (let folder = path; folder && !this.app.vault.getAbstractFileByPath(folder); folder = parentPath(folder)) missing.unshift(folder);
+    await ensureFolder(this.app, path);
+    this.createdFolders.push(...missing);
   }
 
   /**

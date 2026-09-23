@@ -597,6 +597,7 @@ describe('third review findings', () => {
     await creator.assets.updateAsset(token!.id, { statblockPath: to });
     const [encounter] = await creator.assets.getAssets('source', 'encounter');
     await creator.assets.updateAsset(encounter!.id, { tokens: [{ id: 'g', name: 'Goblin', imagePath: TOKEN_IMAGE, statblockPath: to }] } as never);
+    creator.vault.files.set(MAP_PATH, creator.vault.files.get(MAP_PATH)!.replace(NOTE_PATH, to));
   }
 
   it('matches a shared copy\'s notes every time the publisher imports one', async () => {
@@ -611,6 +612,17 @@ describe('third review findings', () => {
     const again = await reviewImport(creator, shared);
     expect(again.review).toMatchObject({ upToDate: true, counts: { added: 0 } });
     expect(creator.vault.files.has('atlas-vtt/collections/source/notes/Castle.md')).toBe(false);
+  });
+
+  it('keeps a moved note while a token placed on a map still names it', async () => {
+    const { creator, fan } = await installed();
+    creator.vault.files.set('Monsters/Goblin.md', creator.vault.files.get(NOTE_PATH)!);
+    creator.vault.files.delete(NOTE_PATH);
+    const [token] = await creator.assets.getAssets('source', 'token');
+    await creator.assets.updateAsset(token!.id, { statblockPath: 'Monsters/Goblin.md' });
+    const result = await (await reviewImport(fan, await exportFrom(creator))).apply();
+    expect(result.removed).toBe(0);
+    expect(fan.vault.files.has('atlas-vtt/collections/source/statblocks/Goblin.md')).toBe(true);
   });
 
   it('cleans up a statblock note the creator moved elsewhere', async () => {
@@ -643,6 +655,87 @@ describe('third review findings', () => {
     await importInto(fan, await exportFrom(creator));
     expect(fan.vault.files.has('atlas-vtt/collections/source/scenes/Lair.thumb.jpg')).toBe(false);
     expect(fan.vault.files.get('atlas-vtt/collections/source/scenes/Lair-2.thumb.jpg')).toBe('THUMB');
+  });
+});
+
+describe('remaining findings', () => {
+  it('moves an id-named asset file along when the asset gets a new id', async () => {
+    const creator = await creatorVault();
+    const fan = await emptyVault();
+    const v1 = await exportFrom(creator);
+    await importInto(fan, v1);
+    await fan.assets.createCollection('Mine');
+    const [encounter] = await fan.assets.getAssets('source', 'encounter');
+    await fan.assets.updateAsset(encounter!.id, { collection: 'mine' });
+
+    await (await reviewImport(fan, v1)).apply({ restore: true });
+    const [restored] = await fan.assets.getAssets('source', 'encounter');
+    expect(restored?.id).not.toBe(encounter!.id);
+    expect(fan.vault.files.has(fan.assets.getAssetFilePath(restored!))).toBe(true);
+  });
+
+  it('does not pile up copies of artwork for a copy from before install records', async () => {
+    const creator = await creatorVault();
+    const fan = await emptyVault();
+    await importInto(fan, await exportFrom(creator));
+    const collection = await fan.assets.getCollection('source');
+    await fan.vault.app.vault.adapter.remove(`atlas-vtt/.atlas-data/installs/${collection!.uid}.json`);
+    creator.vault.files.set(TOKEN_IMAGE, 'NEW IMG');
+    await (await reviewImport(fan, await exportFrom(creator))).apply({ restore: true });
+    expect([...fan.vault.files.keys()].filter((path) => path.includes('goblin_1-2'))).toEqual([]);
+    expect(fan.vault.files.get(TOKEN_IMAGE)).toBe('NEW IMG');
+  });
+
+  it('keeps a file the update removes while one of the user\'s own maps still names it', async () => {
+    const creator = await creatorVault();
+    const fan = await emptyVault();
+    await importInto(fan, await exportFrom(creator));
+    const oldNote = 'atlas-vtt/collections/source/statblocks/Goblin.md';
+    await fan.vault.app.vault.create('Adventures/My.atlasmap', JSON.stringify({ state: { objects: { tokens: { a: { statblockPath: oldNote } } } } }));
+    creator.vault.files.set('Monsters/Goblin.md', creator.vault.files.get(NOTE_PATH)!);
+    creator.vault.files.delete(NOTE_PATH);
+    for (const asset of await creator.assets.getAssets('source')) {
+      if (asset.type === 'token') await creator.assets.updateAsset(asset.id, { statblockPath: 'Monsters/Goblin.md' });
+      if (asset.type === 'encounter') await creator.assets.updateAsset(asset.id, { tokens: [{ id: 'g', name: 'Goblin', imagePath: TOKEN_IMAGE, statblockPath: 'Monsters/Goblin.md' }] } as never);
+    }
+    creator.vault.files.set(MAP_PATH, creator.vault.files.get(MAP_PATH)!.replace(NOTE_PATH, 'Monsters/Goblin.md'));
+
+    const result = await (await reviewImport(fan, await exportFrom(creator))).apply();
+    expect(result.removed).toBe(0);
+    expect(fan.vault.files.has(oldNote)).toBe(true);
+  });
+
+  it('does not later claim the user deleted a file the import never wrote', async () => {
+    const creator = await creatorVault();
+    const fan = await emptyVault();
+    await importInto(fan, await exportFrom(creator));
+    const [fanToken] = await fan.assets.getAssets('source', 'token');
+    await fan.assets.updateAsset(fanToken!.id, { name: 'My goblin' });
+    const [token] = await creator.assets.getAssets('source', 'token');
+    await creator.vault.app.vault.create('atlas-vtt/assets/thumbnails/goblin_2.webp', 'THUMB 2');
+    await creator.assets.updateAsset(token!.id, { name: 'Goblin boss', thumbnailPath: 'atlas-vtt/assets/thumbnails/goblin_2.webp' });
+    const v2 = await exportFrom(creator);
+    await importInto(fan, v2);
+
+    creator.vault.files.set('atlas-vtt/assets/thumbnails/goblin_2.webp', 'THUMB 3');
+    const { review } = await reviewImport(fan, await exportFrom(creator));
+    expect(review.conflicts.map((conflict) => conflict.reason)).not.toContain('deleted-by-you');
+  });
+
+  it('removes the folders a failed import created, so a retry uses the same place', async () => {
+    const fan = await emptyVault();
+    let writes = 0;
+    const createBinary = fan.vault.app.vault.createBinary.bind(fan.vault.app.vault);
+    fan.vault.app.vault.createBinary = vi.fn(async (path: string, data: ArrayBuffer) => {
+      if (++writes === 4) throw new Error('Disk full');
+      return createBinary(path, data);
+    });
+    const bundle = await exportFrom(await creatorVault());
+    await expect((await reviewImport(fan, bundle)).apply()).rejects.toThrow(/Disk full/);
+    expect(fan.vault.app.vault.getAbstractFileByPath('atlas-vtt/collections/source')).toBeNull();
+    fan.vault.app.vault.createBinary = createBinary;
+    await importInto(fan, bundle);
+    expect(await fan.assets.getCollection('source')).not.toBeNull();
   });
 });
 

@@ -105,8 +105,16 @@ export function useCollectionTransfer({ app, assetService, selectedCollection, o
     try {
       const bundle = await exportCollectionBundle(app, assetService, preview, choice, working(EXPORTING));
       downloadBlob(bundle.blob, bundle.fileName);
-      await bundle.commit();
-      finish('Collection exported', `Packed “${bundle.collectionName}” v${bundle.version} (${plural(bundle.assetCount, 'asset')}, ${plural(bundle.fileCount, 'file')}) into ${bundle.fileName}.`);
+      const packed = `Packed “${bundle.collectionName}” v${bundle.version} (${plural(bundle.assetCount, 'asset')}, ${plural(bundle.fileCount, 'file')}) into ${bundle.fileName}.`;
+      try {
+        await bundle.commit();
+      } catch (error) {
+        // The file is out already; only recording the release here failed.
+        console.error('[useCollectionTransfer] Recording the release failed:', error);
+        finish('Collection exported', `${packed} This vault could not record the release (${describeError(error)}), so export it again before sharing another version.`);
+        return null;
+      }
+      finish('Collection exported', packed);
       if (choice.kind === 'fork') await onImported();
     } catch (error) {
       console.error('[useCollectionTransfer] Export failed:', error);

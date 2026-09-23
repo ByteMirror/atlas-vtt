@@ -70,6 +70,17 @@ function unsafeAssets(assets: readonly Asset[], targets: ImportTargets, ownedPat
   });
 }
 
+/** Every string anywhere in `values`: the paths records and maps refer to, among other text. */
+export function referencedStrings(values: readonly unknown[], into: Set<string> = new Set()): Set<string> {
+  const visit = (value: unknown): void => {
+    if (typeof value === 'string') into.add(value);
+    else if (Array.isArray(value)) value.forEach(visit);
+    else if (value && typeof value === 'object') Object.values(value).forEach(visit);
+  };
+  values.forEach(visit);
+  return into;
+}
+
 async function vaultFileHash(app: App, path: string): Promise<string | null> {
   const file = app.vault.getAbstractFileByPath(path);
   return file instanceof TFile ? sha256(await app.vault.readBinary(file)) : null;
@@ -95,12 +106,17 @@ export async function planTargets(
     const hash = sourceHashes.get(file.vaultPath);
     if (hash && file.vaultPath.startsWith(`${GLOBAL_ASSETS_DIR}/`) && await vaultFileHash(app, file.vaultPath) === hash) sameContent.add(file.vaultPath);
   }
+  // Artwork only this collection's assets use is its own earlier install, even when the vault has no record of it.
+  const everyAsset = await assets.getAssets();
+  const usedHere = referencedStrings(everyAsset.filter((asset) => asset.collection === collectionId));
+  const usedElsewhere = referencedStrings(everyAsset.filter((asset) => asset.collection !== collectionId));
   const recordTargets = record ? new Set(Object.values(record.files).map((file) => file.target)) : null;
+  const isOwnArtwork = (path: string): boolean => usedHere.has(path) && !usedElsewhere.has(path);
   const planned = planImportPaths(unplaced, {
     sourceCollectionId: manifest.collection.id,
     targetCollectionId: collectionId,
     existsInVault: exists,
-    hasSameContent: (file) => sameContent.has(file.vaultPath),
+    hasSameContent: (file) => sameContent.has(file.vaultPath) || isOwnArtwork(file.vaultPath),
     recordTargets,
   });
   for (const [source, target] of planned) paths.set(source, target);
@@ -112,10 +128,11 @@ export async function planTargets(
     const local = await assets.getAssetById(candidate);
     const localId = local && local.collection !== collectionId ? AssetService.newAssetId(asset.type) : candidate;
     assetIds.set(asset.id, localId);
-    // A map record is found by id, so a renamed map takes its file along.
-    const mapFile = `${COLLECTIONS_DIR}/${manifest.collection.id}/maps/${asset.id}.json`;
-    if (asset.type === 'map' && localId !== asset.id && !record?.files[mapFile]) {
-      paths.set(mapFile, `${COLLECTIONS_DIR}/${collectionId}/maps/${localId}.json`);
+    // Records without an explicit file path find their file by id, so a renamed record takes its file along.
+    const derivesFile = asset.type === 'map' || (asset.type !== 'token' && asset.type !== 'note' && !asset.filePath);
+    const bundleFile = assets.getAssetFilePath({ ...asset, collection: manifest.collection.id });
+    if (derivesFile && localId !== asset.id && !record?.files[bundleFile]) {
+      paths.set(bundleFile, assets.getAssetFilePath({ ...asset, id: localId, collection: collectionId }));
     }
   }
 
@@ -124,7 +141,8 @@ export async function planTargets(
   for (const [source, target] of paths) {
     // An import writes only inside Atlas's folder: the user's own notes elsewhere are read, never replaced.
     const isOutsideAtlas = !target.startsWith(`${ATLAS_VTT_DIR}/`);
-    if (isOutsideAtlas || (!record?.files[source] && !target.startsWith(collectionPrefix) && exists(target))) shared.add(source);
+    const isSharedArtwork = !record?.files[source] && !target.startsWith(collectionPrefix) && exists(target) && !isOwnArtwork(target);
+    if (isOutsideAtlas || isSharedArtwork) shared.add(source);
   }
   const rewrites = new Map<string, string>();
   for (const [source, target] of [...paths, ...assetIds]) {

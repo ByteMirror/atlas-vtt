@@ -1,4 +1,5 @@
 import { TFile, normalizePath, type App } from 'obsidian';
+import { AtlasView, ATLAS_VIEW_TYPE } from '../../atlas-view';
 import type JSZip from 'jszip';
 import { COLLECTIONS_DIR, type Asset, type AssetService, type CollectionMetadata } from '../AssetService';
 import { ensureFolder } from '../../plugin/vaultFolders';
@@ -42,10 +43,15 @@ async function readManifest(zip: JSZip): Promise<CollectionBundleManifest> {
   return parsed;
 }
 
-/** An open Atlas view would save its stale state over a map file the import replaces. */
-function closeMapViews(app: App, mapPath: string): void {
-  for (const leaf of app.workspace.getLeavesOfType('atlas-vtt')) {
-    if (leaf.view.getState().file === mapPath) leaf.detach();
+/**
+ * An open Atlas view would save its stale state over a map file the import
+ * replaces. Its pending saves are written first, so none lands after the import.
+ */
+async function closeMapViews(app: App, mapPath: string): Promise<void> {
+  for (const leaf of app.workspace.getLeavesOfType(ATLAS_VIEW_TYPE)) {
+    if (leaf.view.getState().file !== mapPath) continue;
+    if (leaf.view instanceof AtlasView) await leaf.view.saveMap();
+    leaf.detach();
   }
 }
 
@@ -100,7 +106,7 @@ class BundleWriter {
     if (REWRITTEN_ROLES.has(file.role)) content = this.rewrite(content);
 
     if (existing instanceof TFile) {
-      closeMapViews(this.app, target);
+      await closeMapViews(this.app, target);
       await this.app.vault.modifyBinary(existing, content);
     } else {
       await ensureFolder(this.app, target.slice(0, target.lastIndexOf('/')));

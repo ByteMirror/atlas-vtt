@@ -161,7 +161,7 @@ export interface CollectionMetadata {
   id: string;
   /** Globally unique identifier — survives export/import */
   uid: string;
-  /** Integer version, bumped before re-export */
+  /** Always 1; kept in records and bundles for compatibility. Imports ask the user instead of comparing it. */
   version: number;
   name: string;
   description?: string;

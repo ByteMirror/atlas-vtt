@@ -2,10 +2,16 @@
 // JSZip needs Node's ArrayBuffer realm; jsdom's differs and its Blob support is absent.
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { TFile } from 'obsidian';
+import { AtlasView } from '../../src/app/atlas-view';
 import { AssetService } from '../../src/app/services/AssetService';
 import { exportCollectionBundle } from '../../src/app/services/collectionBundle/collectionExport';
 import { importCollectionBundle } from '../../src/app/services/collectionBundle/collectionImport';
 import { createInMemoryApp, parseFrontmatter, type InMemoryApp } from '../mocks/inMemoryVault';
+
+vi.mock('../../src/app/atlas-view', () => ({
+  ATLAS_VIEW_TYPE: 'atlas-vtt',
+  AtlasView: class { async saveMap(): Promise<void> {} },
+}));
 
 const MAP_PATH = 'atlas-vtt/collections/source/scenes/Cave.atlasmap';
 const NOTE_PATH = 'Bestiary/Goblin.md';
@@ -180,7 +186,7 @@ describe('collection bundle', () => {
     expect(target.files.get('atlas-vtt/collections/source/statblocks/goblin.png')).toBe('PNG');
   });
 
-  it('closes Atlas views of a map it replaces so they cannot save stale state over it', async () => {
+  it('saves and closes Atlas views of a map it replaces so they cannot save stale state over it', async () => {
     const { blob, source, sourceVault } = await exportSource();
     const target = createInMemoryApp();
     stubFileReads(target);
@@ -189,13 +195,23 @@ describe('collection bundle', () => {
     await importCollectionBundle(target.app, assets, blob);
 
     const mapPath = 'atlas-vtt/collections/source/scenes/Cave.atlasmap';
-    const leaf = { view: { getState: () => ({ file: mapPath }) }, detach: vi.fn() };
+    const steps: string[] = [];
+    const view = Object.assign(Object.create(AtlasView.prototype) as AtlasView, {
+      getState: () => ({ file: mapPath }),
+      saveMap: vi.fn(async () => { steps.push('save'); }),
+    });
+    const leaf = { view, detach: vi.fn(() => { steps.push('detach'); }) };
     const other = { view: { getState: () => ({ file: 'elsewhere.atlasmap' }) }, detach: vi.fn() };
     target.app.workspace.getLeavesOfType = vi.fn(() => [leaf, other]);
+    const modifyBinary = target.app.vault.modifyBinary.bind(target.app.vault);
+    target.app.vault.modifyBinary = vi.fn(async (file: TFile, data: ArrayBuffer) => {
+      if (file.path === mapPath) steps.push('write');
+      return modifyBinary(file, data);
+    });
 
     const again = await exportCollectionBundle(sourceVault.app, source, 'source');
     await importCollectionBundle(target.app, assets, again, { confirmUpdate: async () => true });
-    expect(leaf.detach).toHaveBeenCalledTimes(1);
+    expect(steps).toEqual(['save', 'detach', 'write']);
     expect(other.detach).not.toHaveBeenCalled();
   });
 
@@ -223,7 +239,7 @@ describe('collection bundle', () => {
 
     confirmUpdate.mockResolvedValue(true);
     expect(await importCollectionBundle(target.app, assets, changed, { confirmUpdate })).toMatchObject({ outcome: 'updated', assetCount: 3 });
-    expect((await assets.getCollection('source'))?.settings.conditions).toEqual([]);
+    expect(await assets.getCollection('source')).toMatchObject({ name: 'Source', settings: { conditions: [] } });
   });
 
   it('restores what a copy lost when the user updates it from an export', async () => {

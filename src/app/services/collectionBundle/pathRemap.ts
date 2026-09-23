@@ -2,6 +2,7 @@ import { COLLECTIONS_DIR, ATLAS_VTT_DIR, GLOBAL_ASSETS_DIR } from '../AssetServi
 
 const GLOBAL_ASSETS_PREFIX = `${GLOBAL_ASSETS_DIR}/`;
 import { REUSABLE_FILE_ROLES, type BundleFile } from './bundleFormat';
+import { sceneThumbnailPath } from './collectionReferences';
 import { baseName, parentPath } from '../../utils/pathUtils';
 
 export type PathMap = ReadonlyMap<string, string>;
@@ -74,10 +75,20 @@ export function planImportPaths(files: readonly BundleFile[], rules: ImportPathR
     plan.set(file.vaultPath, target);
   };
 
+  // A scene's thumbnail is found next to its map, so it takes whatever name the map gets.
+  const mapPaths = new Set(files.filter((file) => file.role === 'scene-map').map((file) => file.vaultPath));
+  const followsMap = (file: BundleFile): string | undefined => {
+    if (file.role !== 'scene-thumbnail') return undefined;
+    return [...mapPaths].find((map) => sceneThumbnailPath(map) === file.vaultPath);
+  };
+
   const unplaced: Array<{ file: BundleFile; folder: string }> = [];
+  const thumbnails: Array<{ file: BundleFile; map: string }> = [];
   for (const file of files) {
     const path = file.vaultPath;
-    if (path.startsWith(sourcePrefix)) {
+    const map = followsMap(file);
+    if (map) thumbnails.push({ file, map });
+    else if (path.startsWith(sourcePrefix)) {
       const target = `${targetPrefix}${path.slice(sourcePrefix.length)}`;
       if (isUsersFile(target)) unplaced.push({ file, folder: parentPath(target) });
       else place(file, target);
@@ -91,5 +102,9 @@ export function planImportPaths(files: readonly BundleFile[], rules: ImportPathR
     }
   }
   for (const { file, folder } of unplaced) place(file, freePathIn(folder, baseName(file.vaultPath), isTaken));
+  for (const { file, map } of thumbnails) {
+    const target = sceneThumbnailPath(plan.get(map)!);
+    place(file, isTaken(target) ? freePathIn(parentPath(target), baseName(target), isTaken) : target);
+  }
   return plan;
 }

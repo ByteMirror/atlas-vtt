@@ -582,6 +582,70 @@ describe('second review findings', () => {
   });
 });
 
+describe('third review findings', () => {
+  async function installed(): Promise<{ creator: Vault; fan: Vault }> {
+    const creator = await creatorVault();
+    const fan = await emptyVault();
+    await importInto(fan, await exportFrom(creator));
+    return { creator, fan };
+  }
+
+  async function moveCreatorNote(creator: Vault, to: string, content?: string): Promise<void> {
+    creator.vault.files.set(to, content ?? creator.vault.files.get(NOTE_PATH)!);
+    creator.vault.files.delete(NOTE_PATH);
+    const [token] = await creator.assets.getAssets('source', 'token');
+    await creator.assets.updateAsset(token!.id, { statblockPath: to });
+    const [encounter] = await creator.assets.getAssets('source', 'encounter');
+    await creator.assets.updateAsset(encounter!.id, { tokens: [{ id: 'g', name: 'Goblin', imagePath: TOKEN_IMAGE, statblockPath: to }] } as never);
+  }
+
+  it('matches a shared copy\'s notes every time the publisher imports one', async () => {
+    const creator = await creatorVault();
+    await creator.vault.app.vault.create('Lore/Castle.md', '# Castle');
+    await creator.assets.addAsset({ type: 'note', name: 'Castle', collection: 'source', tags: [], notePath: 'Lore/Castle.md' } as never);
+    const fan = await emptyVault();
+    await importInto(fan, await exportFrom(creator));
+    const shared = await exportFrom(fan, { kind: 'share' });
+    AssetService.resetInstance();
+    await importInto(creator, shared);
+    const again = await reviewImport(creator, shared);
+    expect(again.review).toMatchObject({ upToDate: true, counts: { added: 0 } });
+    expect(creator.vault.files.has('atlas-vtt/collections/source/notes/Castle.md')).toBe(false);
+  });
+
+  it('cleans up a statblock note the creator moved elsewhere', async () => {
+    const { creator, fan } = await installed();
+    await moveCreatorNote(creator, 'Monsters/Goblin.md');
+    const result = await (await reviewImport(fan, await exportFrom(creator))).apply();
+    const statblocks = [...fan.vault.files.keys()].filter((path) => path.startsWith('atlas-vtt/collections/source/statblocks/') && path.endsWith('.md'));
+    expect(statblocks).toHaveLength(1);
+    expect(result.removed).toBe(1);
+    const [token] = await fan.assets.getAssets('source', 'token');
+    expect(token?.statblockPath).toBe(statblocks[0]);
+  });
+
+  it('applies the creator\'s edit to a note moved into the collection folder', async () => {
+    const { creator, fan } = await installed();
+    await moveCreatorNote(creator, 'atlas-vtt/collections/source/statblocks/Goblin.md', '---\nstatblock: true\nimage: "[[goblin.png]]"\n---\nAn angry goblin.');
+    const { review, apply } = await reviewImport(fan, await exportFrom(creator));
+    expect(review.conflicts).toEqual([]);
+    await apply();
+    expect(fan.vault.files.get('atlas-vtt/collections/source/statblocks/Goblin.md')).toContain('An angry goblin.');
+  });
+
+  it('keeps a scene thumbnail with its map when the map is placed under another name', async () => {
+    const { creator, fan } = await installed();
+    const lair = 'atlas-vtt/collections/source/scenes/Lair.atlasmap';
+    await fan.vault.app.vault.create(lair, 'MY LAIR');
+    await creator.vault.app.vault.create(lair, '{"creator":true}');
+    await creator.vault.app.vault.create('atlas-vtt/collections/source/scenes/Lair.thumb.jpg', 'THUMB');
+    await creator.assets.addAsset({ type: 'scene', name: 'Lair', collection: 'source', tags: [], data: { mapPath: lair } });
+    await importInto(fan, await exportFrom(creator));
+    expect(fan.vault.files.has('atlas-vtt/collections/source/scenes/Lair.thumb.jpg')).toBe(false);
+    expect(fan.vault.files.get('atlas-vtt/collections/source/scenes/Lair-2.thumb.jpg')).toBe('THUMB');
+  });
+});
+
 describe('sharing and forking', () => {
   it('shares a fan\'s copy as the same version, which the creator sees as a changed copy', async () => {
     const creator = await creatorVault();

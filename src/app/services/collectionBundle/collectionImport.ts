@@ -119,7 +119,8 @@ async function applyImport(
       else upsert.push(installedAsset(assetsById.get(bundleId)!, targets));
     }
     // A file is never removed while a path the bundle places there or an asset left in the collection still names it.
-    const staying = (await assets.getAssets(targets.collectionId)).filter((asset) => !remove.includes(asset.id));
+    const replaced = new Set([...remove, ...upsert.map((asset) => asset.id)]);
+    const staying = (await assets.getAssets(targets.collectionId)).filter((asset) => !replaced.has(asset.id));
     const inUse = collectStrings([...staying, ...upsert], new Set(targets.paths.values()));
     const fileItems = items.filter((item) => item.kind === 'file' && actions.has(item.key));
     for (const [index, item] of fileItems.entries()) {
@@ -208,11 +209,16 @@ async function mergedCollection(assets: AssetService, { bundle, existing, target
  * collection fields record the value actually applied (a name the user chose
  * because the bundle's was taken counts as theirs).
  */
-async function nextInstallRecord({ bundle: { manifest }, targets, plan }: ImportContext, actions: ReadonlyMap<string, ImportAction>, collection: CollectionMetadata): Promise<InstallRecord> {
+async function nextInstallRecord({ bundle: { manifest }, record, targets, plan }: ImportContext, actions: ReadonlyMap<string, ImportAction>, collection: CollectionMetadata): Promise<InstallRecord> {
   const next: InstallRecord = {
     uid: collection.uid, collectionId: targets.collectionId, sourceCollectionId: manifest.collection.id, sourceName: manifest.collection.name,
     version: manifest.collection.version, releasedAt: manifest.exportedAt, installedAt: Date.now(), files: {}, assets: {}, fields: {},
   };
+  // Files the import only reads (the user's own notes) keep their record, so a later import still recognises them.
+  for (const path of targets.shared) {
+    const installed = record?.files[path];
+    if (installed) next.files[path] = installed;
+  }
   for (const unit of plan.units) {
     for (const item of unit.items) {
       if (item.theirs === null || actions.get(item.key) === 'remove') continue;

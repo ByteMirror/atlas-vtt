@@ -156,9 +156,19 @@ export async function gatherImportInputs(
   const skipped = new Set(targets.skipped.map((asset) => asset.bundleId));
   const onlyUsedBySkipped = (file: BundleFile): boolean => file.owners !== undefined && file.owners.length > 0 && file.owners.every((owner) => skipped.has(owner));
 
+  const bundledPaths = new Set(manifest.files.map((file) => file.vaultPath));
+  // A file the bundle now keeps under another name, on a path the record already knows, is that same file moved.
+  const movedFrom = new Map<string, string>();
+  for (const [path, installed] of Object.entries(record?.files ?? {})) {
+    if (!bundledPaths.has(path)) movedFrom.set(installed.target, path);
+  }
+  const moved = new Set<string>();
+
   for (const file of manifest.files) {
     if (targets.shared.has(file.vaultPath) || onlyUsedBySkipped(file)) continue;
     const target = targets.paths.get(file.vaultPath)!;
+    const previousPath = record?.files[file.vaultPath] ? undefined : movedFrom.get(target);
+    if (previousPath) moved.add(previousPath);
     const theirs = sourceHashes.get(file.vaultPath) ?? null;
     let theirsInstalled = theirs ?? undefined;
     const entry = zip.file(zipPathFor(file.vaultPath));
@@ -167,11 +177,12 @@ export async function gatherImportInputs(
     }
     items.push({
       key: `file:${file.vaultPath}`, kind: 'file', unit: fileUnit(file),
-      theirs, base: record?.files[file.vaultPath] ?? null, mine: await vaultFileHash(app, target), theirsInstalled,
+      theirs, base: record?.files[file.vaultPath] ?? (previousPath ? record?.files[previousPath] : undefined) ?? null,
+      mine: await vaultFileHash(app, target), theirsInstalled,
     });
   }
-  const bundledPaths = new Set(manifest.files.map((file) => file.vaultPath));
   for (const [path, installed] of Object.entries(record?.files ?? {})) {
+    if (moved.has(path)) continue;
     // Only the collection's own folder is the import's to clean up: shared artwork and the user's notes stay.
     if (bundledPaths.has(path) || !installed.target.startsWith(`${COLLECTIONS_DIR}/${targets.collectionId}/`)) continue;
     items.push({ key: `file:${path}`, kind: 'file', unit: installed.unit ?? `file:${path}`, theirs: null, base: installed, mine: await vaultFileHash(app, installed.target) });

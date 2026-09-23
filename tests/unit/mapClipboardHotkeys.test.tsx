@@ -49,3 +49,29 @@ it('registers no clipboard shortcuts in the player view', () => {
   expect(fireEvent.keyDown(window, { key: 'v', metaKey: true })).toBe(true);
   expect(fireEvent.keyDown(window, { key: 'd', metaKey: true })).toBe(true);
 });
+
+it('clicking the map ends a text selection, so copy then acts on the map', () => {
+  const app = { vault: { adapter: { exists: async () => true, write: async () => {} } } } as never;
+  const { app: vaultApp } = createInMemoryApp();
+  const store = createViewAtlasStore(vaultApp, 'clipboard-hotkeys-canvas');
+  const canvas = document.createElement('canvas');
+  const view = { serviceManager: { getRendererService: () => ({ getApp: () => ({ canvas }), getViewport: () => null }) } } as never;
+  function MapView(): React.JSX.Element {
+    useMapClipboardHotkeys(store, view, 'map');
+    return <div data-view-id="map"><p id="log">Rolled 17</p></div>;
+  }
+  render(<AtlasUIContext.Provider value={{ app } as never}>
+    <div className="workspace-leaf mod-active"><MapView /></div>
+  </AtlasUIContext.Provider>);
+  document.body.appendChild(canvas);
+
+  const range = document.createRange();
+  range.selectNodeContents(document.getElementById('log')!);
+  document.getSelection()!.addRange(range);
+  fireEvent.pointerDown(document.getElementById('log')!);
+  expect(document.getSelection()!.isCollapsed).toBe(false);
+
+  fireEvent.pointerDown(canvas);
+  expect(document.getSelection()!.rangeCount).toBe(0);
+  expect(fireEvent.keyDown(window, { key: 'c', metaKey: true })).toBe(false);
+});

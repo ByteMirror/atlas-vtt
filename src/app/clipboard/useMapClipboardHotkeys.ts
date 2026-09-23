@@ -6,6 +6,10 @@ import { runInBackground } from '../utils/backgroundTask';
 import { copySelection, cutSelection, duplicateSelection, pasteClipboard } from './mapClipboardActions';
 import type { Point } from './mapObjectContent';
 
+function mapCanvas(view: AtlasView | null): HTMLCanvasElement | null {
+  return view?.serviceManager?.getRendererService()?.getApp()?.canvas ?? null;
+}
+
 /**
  * World position to paste at: the cursor while it is over this map's canvas,
  * otherwise the centre of the visible map.
@@ -14,7 +18,7 @@ function pasteTarget(view: AtlasView | null, pointer: Point | null): Point | nul
   const rendererService = view?.serviceManager?.getRendererService();
   const viewport = rendererService?.getViewport();
   if (!viewport) return null;
-  const canvas = rendererService?.getApp()?.canvas;
+  const canvas = mapCanvas(view);
   if (pointer && canvas && canvas.ownerDocument.elementFromPoint(pointer.x, pointer.y) === canvas) {
     const rect = canvas.getBoundingClientRect();
     return viewport.toWorld(pointer.x - rect.left, pointer.y - rect.top);
@@ -30,9 +34,19 @@ export function useMapClipboardHotkeys(store: ViewAtlasStore, view: AtlasView | 
     const track = (event: PointerEvent): void => {
       pointer.current = { x: event.clientX, y: event.clientY };
     };
+    // Copy and cut defer to selected page text. Clicking the map ends any text selection, as a
+    // click elsewhere on the page would, even when the canvas' pointer handling keeps it alive.
+    const clearTextSelection = (event: PointerEvent): void => {
+      const canvas = mapCanvas(view);
+      if (canvas && event.target === canvas) canvas.ownerDocument.getSelection()?.removeAllRanges();
+    };
     window.addEventListener('pointermove', track, { passive: true });
-    return () => window.removeEventListener('pointermove', track);
-  }, []);
+    window.addEventListener('pointerdown', clearTextSelection, true);
+    return () => {
+      window.removeEventListener('pointermove', track);
+      window.removeEventListener('pointerdown', clearTextSelection, true);
+    };
+  }, [view]);
 
   // The player view registers nothing, so its keys keep their native behaviour.
   useMapHotkeys(store.getState().isPlayerView ? {} : {

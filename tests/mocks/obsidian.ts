@@ -96,6 +96,7 @@ export class TAbstractFile {
 export class TFile extends TAbstractFile {
   extension: string;
   basename: string;
+  stat = { ctime: 0, mtime: 0, size: 0 };
 
   constructor(path = '') {
     super(path);

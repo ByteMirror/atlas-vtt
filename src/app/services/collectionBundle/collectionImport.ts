@@ -1,210 +1,249 @@
-import { TFile, normalizePath, type App } from 'obsidian';
-import { AtlasView, ATLAS_VIEW_TYPE } from '../../atlas-view';
-import type JSZip from 'jszip';
+import { TFile, type App } from 'obsidian';
 import { COLLECTIONS_DIR, type Asset, type AssetService, type CollectionMetadata } from '../AssetService';
-import { ensureFolder } from '../../plugin/vaultFolders';
-import { BUNDLE_MANIFEST, isCollectionBundleManifest, zipPathFor, type BundleFile, type CollectionBundleManifest } from './bundleFormat';
+import { zipPathFor, type BundleFile } from './bundleFormat';
+import { rewriteContent } from './bundleContent';
+import { openBundle, type OpenedBundle } from './bundleReader';
 import type { BundleProgressListener } from './collectionExport';
-import { planImportPaths, remapPaths, type PathMap } from './pathRemap';
+import { assetFingerprint, fieldFingerprint } from './fingerprints';
+import { sha256 } from './hashing';
+import { gatherImportInputs, installedAsset, planTargets, type ImportTargets } from './importInputs';
+import { ImportJournal, saveOpenMaps } from './importJournal';
+import { planImport, resolvePlan, type ImportAction, type ImportPlan, type PlannedItem, type Resolution } from './importPlan';
+import { buildReview, type ImportReview } from './importReview';
+import { COLLECTION_FIELDS, readInstallRecord, writeInstallRecord, type InstallRecord, type InstalledItem } from './installRecord';
 
-/** `kept`: the vault already had the collection and the user chose not to update it. */
-export type ImportOutcome = 'created' | 'updated' | 'kept';
+export interface ImportDecision {
+  /** Name for a new collection; defaults to the bundle's, or the suggested free name when that is taken. */
+  name?: string | undefined;
+  /** Conflict unit → choice; unresolved conflicts keep the user's version. */
+  resolutions?: ReadonlyMap<string, Resolution> | undefined;
+  /** Re-applies the bundle over the user's changes too. */
+  restore?: boolean | undefined;
+}
 
 export interface CollectionImportResult {
-  outcome: ImportOutcome;
   collectionName: string;
-  assetCount: number;
-  fileCount: number;
+  version: number;
+  created: boolean;
+  written: number;
+  removed: number;
+  /** Units where the user's version was kept. */
+  keptLocal: number;
+  backupCount: number;
+  backupFolder: string;
 }
 
-/** What the user decides on before an export changes a collection the vault already has. */
-export interface UpdateRequest {
-  /** The vault's copy, which may have been renamed since it arrived. */
-  existing: CollectionMetadata;
-  imported: CollectionMetadata;
-  /** When the bundle was exported. */
-  exportedAt: number;
+/** A read and checked bundle, planned against the vault, waiting for the user's decision. */
+export interface ImportSession {
+  review: ImportReview;
+  apply(decision: ImportDecision, onProgress?: BundleProgressListener): Promise<CollectionImportResult>;
 }
 
-export interface ImportOptions {
-  onProgress?: BundleProgressListener;
-  /** Whether the export replaces the files and assets of the vault's copy. Without it, the copy is kept. */
-  confirmUpdate?: (request: UpdateRequest) => Promise<boolean>;
-}
-
-/** Text files carry vault paths that must follow the files they point at. */
-const REWRITTEN_ROLES = new Set<BundleFile['role']>(['asset-file', 'scene-map']);
-
-async function readManifest(zip: JSZip): Promise<CollectionBundleManifest> {
-  const entry = zip.file(BUNDLE_MANIFEST);
-  if (!entry) throw new Error('This file is not an Atlas collection export.');
-  const parsed: unknown = JSON.parse(await entry.async('string'));
-  if (!isCollectionBundleManifest(parsed)) throw new Error('This collection export is damaged or from an incompatible version.');
-  return parsed;
-}
+/** Marks items the vault kept in its own version, so a later update never mistakes them for untouched. */
+const KEPT_LOCAL: InstalledItem = { source: 'kept-local', installed: 'kept-local' };
 
 /**
- * An open Atlas view would save its stale state over a map file the import
- * replaces. Its pending saves are written first, so none lands after the import.
+ * Reads a collection bundle, verifies it and compares it with the vault: a new
+ * collection, or the three-way difference between the installed release, the
+ * vault's copy and the bundle. Nothing is written until `apply`.
  */
-async function closeMapViews(app: App, mapPath: string): Promise<void> {
-  for (const leaf of app.workspace.getLeavesOfType(ATLAS_VIEW_TYPE)) {
-    if (leaf.view.getState().file !== mapPath) continue;
-    if (leaf.view instanceof AtlasView) await leaf.view.saveMap();
-    leaf.detach();
-  }
-}
-
-/**
- * Asset ids are only unique within the vault that created them. A bundle
- * imported next to its own source (a copy under a new uid) would otherwise
- * overwrite the source's records, so colliding ids are replaced.
- */
-async function freshAssetIds(assets: AssetService, imported: readonly Asset[]): Promise<PathMap> {
-  const renames = new Map<string, string>();
-  for (const asset of imported) {
-    if (await assets.getAssetById(asset.id)) {
-      renames.set(asset.id, `${asset.type}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
-    }
-  }
-  return renames;
-}
-
-/** An id that is free, or the one already used by this very collection. */
-async function resolveCollectionId(assets: AssetService, imported: CollectionMetadata): Promise<string> {
-  const base = imported.name.toLowerCase().replace(/\s+/g, '-') || 'collection';
-  for (let n = 1; ; n++) {
-    const id = n === 1 ? base : `${base}-${n}`;
-    const existing = await assets.getCollection(id);
-    if (!existing || existing.uid === imported.uid) return id;
-  }
-}
-
-class BundleWriter {
-  private readonly encoder = new TextEncoder();
-  private readonly decoder = new TextDecoder();
-
-  constructor(
-    private readonly app: App,
-    private readonly zip: JSZip,
-    /** Where each bundled file goes. */
-    private readonly plan: PathMap,
-    /** Every string to replace inside JSON files: the path plan plus renamed asset ids. */
-    private readonly rewrites: PathMap,
-    private readonly collectionPrefix: string,
-  ) {}
-
-  /** Returns whether the file was written. Files already in the vault are only replaced inside the collection folder. */
-  async write(file: BundleFile): Promise<boolean> {
-    const entry = this.zip.file(zipPathFor(file.vaultPath));
-    const target = this.plan.get(file.vaultPath);
-    if (!entry || !target) return false;
-    const existing = this.app.vault.getAbstractFileByPath(target);
-    if (existing && !(existing instanceof TFile && target.startsWith(this.collectionPrefix))) return false;
-
-    let content = await entry.async('arraybuffer');
-    if (REWRITTEN_ROLES.has(file.role)) content = this.rewrite(content);
-
-    if (existing instanceof TFile) {
-      await closeMapViews(this.app, target);
-      await this.app.vault.modifyBinary(existing, content);
-    } else {
-      await ensureFolder(this.app, target.slice(0, target.lastIndexOf('/')));
-      await this.app.vault.createBinary(target, content);
-    }
-    return true;
-  }
-
-  /** Statblock notes name their artwork in frontmatter; point copies the import made at where the artwork now lives. Notes the vault already had are left alone. */
-  async relinkStatblockImage(file: BundleFile): Promise<void> {
-    const target = this.plan.get(file.vaultPath);
-    const imagePath = file.statblockImage && this.plan.get(file.statblockImage.path);
-    if (!file.statblockImage || !target || !target.startsWith(this.collectionPrefix) || !imagePath || imagePath === file.statblockImage.path) return;
-    const note = this.app.vault.getAbstractFileByPath(target);
-    if (!(note instanceof TFile)) return;
-    const { key } = file.statblockImage;
-    await this.app.fileManager.processFrontMatter(note, (frontmatter: Record<string, unknown>) => {
-      frontmatter[key] = imagePath;
-    });
-  }
-
-  private rewrite(content: ArrayBuffer): ArrayBuffer {
-    const text = this.decoder.decode(content);
-    try {
-      const remapped: unknown = remapPaths(JSON.parse(text), this.rewrites);
-      const bytes = this.encoder.encode(JSON.stringify(remapped));
-      // Copy into a fresh ArrayBuffer: TextEncoder's view may sit on a shared or offset buffer.
-      const buffer = new ArrayBuffer(bytes.byteLength);
-      new Uint8Array(buffer).set(bytes);
-      return buffer;
-    } catch {
-      return content;
-    }
-  }
-}
-
-/**
- * Restores a collection bundle into this vault: files land in the target
- * collection's folder (global Atlas assets keep their path), every stored
- * path is rewritten to follow them, and the collection record arrives with
- * its tags and settings. Existing statblock notes are reused rather than
- * duplicated. A collection the vault already has (same uid) is only updated
- * when `confirmUpdate` agrees.
- */
-export async function importCollectionBundle(
+export async function openCollectionImport(
   app: App,
   assets: AssetService,
   data: Blob,
-  { onProgress = () => undefined, confirmUpdate = () => Promise.resolve(false) }: ImportOptions = {},
-): Promise<CollectionImportResult> {
-  onProgress({ message: 'Reading bundle…', fraction: 0 });
-  const { default: JSZip } = await import('jszip');
-  const zip = await JSZip.loadAsync(await data.arrayBuffer());
-  const manifest = await readManifest(zip);
-  const imported = manifest.collection;
+  onProgress: BundleProgressListener = () => undefined,
+): Promise<ImportSession> {
+  const bundle = await openBundle(data, onProgress);
+  const { manifest } = bundle;
+  const existing = await assets.findCollectionByUid(manifest.collection.uid);
+  const record = existing ? await readInstallRecord(app, existing.uid) : null;
+  const nameTaken = await assets.isCollectionNameTaken(manifest.collection.name, existing?.id);
+  const suggestedName = !existing && nameTaken ? await assets.freeCollectionName(manifest.collection.name) : undefined;
+  const collectionId = existing?.id ?? await assets.freeCollectionIdFor(manifest.collection.name);
 
-  const existing = await assets.findCollectionByUid(imported.uid);
-  const result: CollectionImportResult = {
-    outcome: existing ? 'updated' : 'created',
-    collectionName: imported.name,
-    assetCount: 0,
-    fileCount: 0,
+  onProgress({ message: 'Comparing with your vault…', fraction: 0.6 });
+  const targets = await planTargets(app, assets, bundle, collectionId, record);
+  await saveOpenMaps(app, new Set([...targets.paths.values(), ...Object.values(record?.files ?? {}).map((file) => file.target)]));
+  const { items, unitAssets } = await gatherImportInputs(app, assets, bundle, targets, existing, record);
+  const plan = planImport(items);
+  const restorePlan = planImport(items, { restore: true });
+  onProgress({ message: 'Ready', fraction: 1 });
+
+  return {
+    review: buildReview(manifest, existing, record, plan, restorePlan, unitAssets, suggestedName),
+    apply: (decision, progress = () => undefined) =>
+      applyImport(app, assets, { bundle, existing, record, targets, plan: decision.restore ? restorePlan : plan }, decision, progress),
   };
-  // Neither copy knows which one holds the work to keep, so the user decides.
-  if (existing && !(await confirmUpdate({ existing, imported, exportedAt: manifest.exportedAt }))) {
-    return { ...result, outcome: 'kept' };
+}
+
+interface ImportContext {
+  bundle: OpenedBundle;
+  existing: CollectionMetadata | null;
+  record: InstallRecord | null;
+  targets: ImportTargets;
+  plan: ImportPlan;
+}
+
+const keyOf = (key: string): string => key.slice(key.indexOf(':') + 1);
+
+async function applyImport(
+  app: App,
+  assets: AssetService,
+  context: ImportContext,
+  decision: ImportDecision,
+  onProgress: BundleProgressListener,
+): Promise<CollectionImportResult> {
+  const { bundle, existing, record, targets, plan } = context;
+  const { manifest, zip } = bundle;
+  const actions = resolvePlan(plan, decision.resolutions ?? new Map());
+  const items = plan.units.flatMap((unit) => unit.items);
+  const name = (existing ? null : decision.name?.trim()) || manifest.collection.name;
+  if (!existing && await assets.isCollectionNameTaken(name)) throw new Error(`A collection named "${name}" already exists. Choose another name.`);
+
+  const journal = new ImportJournal(app, targets.collectionId);
+  const filesByPath = new Map(manifest.files.map((file) => [file.vaultPath, file]));
+  const written: BundleFile[] = [];
+  let removed = 0;
+  let collection: CollectionMetadata;
+  const upsert: Asset[] = [];
+  try {
+    const fileItems = items.filter((item) => item.kind === 'file' && actions.has(item.key));
+    for (const [index, item] of fileItems.entries()) {
+      onProgress({ message: `Writing ${index + 1} of ${fileItems.length} files…`, fraction: (index / fileItems.length) * 0.9 });
+      const bundlePath = keyOf(item.key);
+      const target = targets.paths.get(bundlePath) ?? record?.files[bundlePath]?.target;
+      if (!target) continue;
+      if (actions.get(item.key) === 'remove') {
+        await journal.remove(target);
+        removed += 1;
+        continue;
+      }
+      const file = filesByPath.get(bundlePath)!;
+      await journal.write(target, rewriteContent(file, await zip.file(zipPathFor(bundlePath))!.async('arraybuffer'), targets.rewrites));
+      written.push(file);
+    }
+    for (const file of written) await relinkStatblockImage(app, file, targets);
+
+    onProgress({ message: 'Registering assets…', fraction: 0.95 });
+    collection = await mergedCollection(assets, context, actions, name);
+    const remove: string[] = [];
+    for (const item of items.filter((entry) => entry.kind === 'asset')) {
+      const action = actions.get(item.key);
+      const bundleId = keyOf(item.key);
+      if (action === 'remove') remove.push(record?.assets[bundleId]?.localId ?? bundleId);
+      if (action === 'write') upsert.push(installedAsset(manifest.assets.find((asset) => asset.id === bundleId)!, targets));
+    }
+    await assets.commitCollectionImport({ collectionId: targets.collectionId, collection, upsert, remove });
+  } catch (error) {
+    const unrestored = await journal.rollback();
+    const reason = error instanceof Error ? error.message : String(error);
+    const note = unrestored.length > 0 ? ` ${unrestored.length} files could not be restored; their previous versions are in ${journal.backupFolder}.` : ' Nothing was changed.';
+    throw new Error(`The import failed: ${reason}.${note}`);
   }
 
-  const collectionId = existing?.id ?? await resolveCollectionId(assets, imported);
-  const plan = new Map(planImportPaths(
-    manifest.files,
-    imported.id,
-    collectionId,
-    (path) => app.vault.getAbstractFileByPath(normalizePath(path)) instanceof TFile,
-  ));
-  const renames = existing ? new Map<string, string>() : await freshAssetIds(assets, manifest.assets);
-  // A map asset's JSON record is found by id, so a renamed map takes its file along.
-  for (const asset of manifest.assets) {
-    const renamed = renames.get(asset.id);
-    if (asset.type === 'map' && renamed) {
-      plan.set(`${COLLECTIONS_DIR}/${imported.id}/maps/${asset.id}.json`, `${COLLECTIONS_DIR}/${collectionId}/maps/${renamed}.json`);
+  try {
+    await writeInstallRecord(app, await nextInstallRecord(app, context, actions, collection, upsert));
+  } catch (error) {
+    console.error('[collectionImport] Could not record the install:', error);
+  }
+  onProgress({ message: 'Done', fraction: 1 });
+  return {
+    collectionName: collection.name,
+    version: manifest.collection.version,
+    created: !existing,
+    written: written.length,
+    removed,
+    keptLocal: plan.units.filter((unit) => unit.status === 'kept' || (unit.status === 'conflict' && decision.resolutions?.get(unit.key) !== 'theirs')).length,
+    backupCount: journal.backupCount,
+    backupFolder: journal.backupFolder,
+  };
+}
+
+/** The collection record after the import: release identity from the bundle, each field from whichever side won. */
+async function mergedCollection(assets: AssetService, { bundle, existing, targets }: ImportContext, actions: ReadonlyMap<string, ImportAction>, name: string): Promise<CollectionMetadata> {
+  const theirs = bundle.manifest.collection;
+  const now = Date.now();
+  const merged: CollectionMetadata = {
+    ...(existing ?? theirs),
+    id: targets.collectionId,
+    uid: theirs.uid,
+    version: theirs.version,
+    releasedAt: bundle.manifest.exportedAt,
+    createdAt: existing?.createdAt ?? now,
+    modifiedAt: now,
+  };
+  for (const key of ['publisherId', 'author'] as const) {
+    if (theirs[key] === undefined) delete merged[key];
+    else merged[key] = theirs[key];
+  }
+  if (!existing) return { ...merged, name };
+  for (const field of COLLECTION_FIELDS) {
+    if (actions.get(`field:${field}`) !== 'write') continue;
+    if (theirs[field] === undefined) delete merged[field];
+    else Object.assign(merged, { [field]: theirs[field] });
+  }
+  // The update's name may belong to another collection here; the copy then keeps its own.
+  if (await assets.isCollectionNameTaken(merged.name, targets.collectionId)) merged.name = existing.name;
+  return merged;
+}
+
+/** Statblock notes name their artwork in frontmatter; point copies the import made at where the artwork now lives. */
+async function relinkStatblockImage(app: App, file: BundleFile, targets: ImportTargets): Promise<void> {
+  const target = targets.paths.get(file.vaultPath);
+  const imagePath = file.statblockImage && targets.paths.get(file.statblockImage.path);
+  if (!file.statblockImage || !target?.startsWith(`${COLLECTIONS_DIR}/${targets.collectionId}/`) || !imagePath || imagePath === file.statblockImage.path) return;
+  const note = app.vault.getAbstractFileByPath(target);
+  if (!(note instanceof TFile)) return;
+  const { key } = file.statblockImage;
+  await app.fileManager.processFrontMatter(note, (frontmatter: Record<string, unknown>) => {
+    frontmatter[key] = imagePath;
+  });
+}
+
+/**
+ * What the vault now holds from the bundle. Written items take the bundle's
+ * fingerprint and the vault's result; items that kept the user's version keep
+ * their previous baseline, so the next update still sees them as changed.
+ */
+async function nextInstallRecord(
+  app: App,
+  { bundle, record, targets, plan }: ImportContext,
+  actions: ReadonlyMap<string, ImportAction>,
+  collection: CollectionMetadata,
+  upsert: readonly Asset[],
+): Promise<InstallRecord> {
+  const { manifest } = bundle;
+  const next: InstallRecord = {
+    uid: collection.uid, collectionId: targets.collectionId, sourceCollectionId: manifest.collection.id, version: manifest.collection.version,
+    releasedAt: manifest.exportedAt, installedAt: Date.now(), files: {}, assets: {}, fields: {},
+  };
+  const carried = (item: PlannedItem): InstalledItem | null => {
+    if (actions.get(item.key) === 'remove') return null;
+    if (item.theirs !== null && item.theirsInstalled !== undefined && item.mine === item.theirsInstalled) return { source: item.theirs, installed: item.mine };
+    if (item.base) return item.base;
+    return item.theirs === null ? null : KEPT_LOCAL;
+  };
+  const upserted = new Map(upsert.map((asset) => [asset.id, asset]));
+  for (const unit of plan.units) {
+    for (const item of unit.items) {
+      const id = keyOf(item.key);
+      const isWritten = actions.get(item.key) === 'write' && item.theirs !== null;
+      if (item.kind === 'file') {
+        const target = targets.paths.get(id) ?? record?.files[id]?.target;
+        const file = app.vault.getAbstractFileByPath(target ?? '');
+        const entry = isWritten && file instanceof TFile ? { source: item.theirs!, installed: await sha256(await app.vault.readBinary(file)) } : carried(item);
+        if (entry && target) next.files[id] = { source: entry.source, installed: entry.installed, target, unit: unit.key };
+      } else if (item.kind === 'asset') {
+        const localId = targets.assetIds.get(id) ?? record?.assets[id]?.localId ?? id;
+        const asset = upserted.get(localId);
+        const entry = isWritten && asset ? { source: item.theirs!, installed: await assetFingerprint(asset) } : carried(item);
+        if (entry) next.assets[id] = { ...entry, localId };
+      } else {
+        const field = id as typeof COLLECTION_FIELDS[number];
+        const entry = isWritten ? { source: item.theirs!, installed: await fieldFingerprint(collection, field) } : carried(item);
+        if (entry) next.fields[field] = entry;
+      }
     }
   }
-  const rewrites = new Map([...plan, ...renames]);
-  const writer = new BundleWriter(app, zip, plan, rewrites, `${COLLECTIONS_DIR}/${collectionId}/`);
-
-  for (const [index, file] of manifest.files.entries()) {
-    onProgress({ message: `Writing ${index + 1} of ${manifest.files.length} files…`, fraction: (index / manifest.files.length) * 0.9 });
-    if (await writer.write(file)) result.fileCount += 1;
-  }
-  for (const file of manifest.files) {
-    if (file.role === 'statblock-note') await writer.relinkStatblockImage(file);
-  }
-
-  onProgress({ message: 'Registering assets…', fraction: 0.95 });
-  const importedAssets = manifest.assets.map((asset): Asset => remapPaths(asset, rewrites));
-  await assets.adoptImportedCollection(imported, importedAssets, collectionId);
-  result.assetCount = importedAssets.length;
-  onProgress({ message: 'Done', fraction: 1 });
-  return result;
+  return next;
 }

@@ -6,13 +6,20 @@
 import React from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { Button } from '../../../packages/components/primitives/button';
+import { SegmentedControl, type SegmentedOption } from '../../../packages/components/primitives/SegmentedControl';
 import { LabelTooltip } from '../../../packages/components/primitives/tooltip';
 import { ObsidianMenuDropdown } from '../ObsidianMenuDropdown';
 import type {
   CollectionGridDefaults,
   GridUnitType,
+  MeasurementMode,
   RangeBand,
 } from '../../../types/collectionSettingsTypes';
+
+const MEASUREMENT_MODES: readonly SegmentedOption<MeasurementMode>[] = [
+  { value: 'metric', label: 'Metric' },
+  { value: 'abstract', label: 'Abstract' },
+];
 
 interface GridMeasurementTabProps {
   gridDefaults: CollectionGridDefaults;
@@ -86,22 +93,12 @@ export function GridMeasurementTab({
       {/* Measurement mode */}
       <div className="atlas-csm-field">
         <label className="atlas-csm-label">Measurement Mode</label>
-        <div className="atlas-csm-segmented">
-          <Button
-            variant="ghost"
-            className={`atlas-csm-segment ${gridDefaults.measurementMode === 'metric' ? 'atlas-active' : ''}`}
-            onClick={() => updateField('measurementMode', 'metric')}
-          >
-            Metric
-          </Button>
-          <Button
-            variant="ghost"
-            className={`atlas-csm-segment ${gridDefaults.measurementMode === 'abstract' ? 'atlas-active' : ''}`}
-            onClick={() => updateField('measurementMode', 'abstract')}
-          >
-            Abstract
-          </Button>
-        </div>
+        <SegmentedControl
+          ariaLabel="Measurement mode"
+          value={gridDefaults.measurementMode}
+          options={MEASUREMENT_MODES}
+          onChange={(mode) => updateField('measurementMode', mode)}
+        />
       </div>
 
       {/* Range Bands — only visible in abstract mode */}

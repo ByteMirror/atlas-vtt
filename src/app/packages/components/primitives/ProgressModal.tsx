@@ -1,5 +1,6 @@
-import React, { useEffect, useId, useRef } from 'react';
+import React, { useId, useRef } from 'react';
 import { Button } from './button';
+import { useDialogEscape } from './useDialogEscape';
 
 export interface ProgressModalAction {
   label: string;
@@ -28,19 +29,7 @@ export function ProgressModal({ title, message, fraction, prompt }: ProgressModa
   const overlayRef = useRef<HTMLDivElement>(null);
   const percent = Math.round(Math.min(1, Math.max(0, fraction)) * 100);
 
-  useEffect(() => {
-    const doc = overlayRef.current?.ownerDocument;
-    if (!prompt || !doc) return undefined;
-    // Captured on the document so Escape works wherever focus is and never reaches the dialogs underneath.
-    const handleKeyDown = (event: KeyboardEvent): void => {
-      if (event.key !== 'Escape') return;
-      event.preventDefault();
-      event.stopPropagation();
-      prompt.onDismiss();
-    };
-    doc.addEventListener('keydown', handleKeyDown, true);
-    return (): void => doc.removeEventListener('keydown', handleKeyDown, true);
-  }, [prompt]);
+  useDialogEscape(overlayRef, prompt?.onDismiss);
 
   return (
     <div ref={overlayRef} className="atlas-progress-modal-overlay" role="dialog" aria-modal="true" aria-labelledby={titleId} aria-busy={!prompt}>

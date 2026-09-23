@@ -49,9 +49,11 @@ export function planImportPaths(
   sourceCollectionId: string,
   targetCollectionId: string,
   existsInVault: (path: string) => boolean,
+  /** Vault paths already given to other files, e.g. by an earlier import of the collection. */
+  alreadyClaimed: Iterable<string> = [],
 ): PathMap {
   const plan = new Map<string, string>();
-  const claimed = new Set<string>();
+  const claimed = new Set<string>(alreadyClaimed);
   const sourcePrefix = `${COLLECTIONS_DIR}/${sourceCollectionId}/`;
 
   for (const file of files) {

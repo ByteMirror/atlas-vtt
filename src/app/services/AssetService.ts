@@ -161,8 +161,14 @@ export interface CollectionMetadata {
   id: string;
   /** Globally unique identifier — survives export/import */
   uid: string;
-  /** Always 1; kept in records and bundles for compatibility. Imports ask the user instead of comparing it. */
+  /** Release number. Only the publisher raises it, when exporting a release. */
   version: number;
+  /** Vault that created the collection and publishes its releases; missing on collections from before publishing existed. */
+  publisherId?: string;
+  /** Author shown to people who install the collection. */
+  author?: string;
+  /** When the installed or last exported release was made. */
+  releasedAt?: number;
   name: string;
   description?: string;
   tags: Record<string, TagMetadata>; // Collection-specific tags
@@ -176,6 +182,18 @@ export interface AssetMetadata {
   collections: Record<string, CollectionMetadata>;
   assets: Record<string, Asset>;
   version: number;
+  /** Identifies this vault as the publisher of the collections it creates. */
+  vaultId?: string;
+}
+
+/** What an import writes into the asset index, in one save. */
+export interface CollectionImportCommit {
+  collectionId: string;
+  collection: CollectionMetadata;
+  /** Asset records to add or replace, already pointing at their files in this vault. */
+  upsert: readonly Asset[];
+  /** Ids of asset records to drop; their files are handled by the import. */
+  remove: readonly string[];
 }
 
 export const ATLAS_VTT_DIR = 'atlas-vtt';
@@ -777,6 +795,10 @@ export class AssetService {
     if (!this.metadata) return;
 
     let needsSave = false;
+    if (!this.metadata.vaultId) {
+      this.metadata.vaultId = crypto.randomUUID();
+      needsSave = true;
+    }
     for (const collection of Object.values(this.metadata.collections)) {
       if (!collection.uid) {
         collection.uid = crypto.randomUUID();
@@ -952,14 +974,16 @@ export class AssetService {
   // Collection management
   async createCollection(name: string, description?: string): Promise<CollectionMetadata> {
     await this.ensureLoaded();
+    this.assertCollectionNameFree(name);
 
-    const id = name.toLowerCase().replace(/\s+/g, '-');
+    const id = this.freeCollectionId(name);
     const now = Date.now();
     
     const collection: CollectionMetadata = {
       id,
       uid: crypto.randomUUID(),
       version: 1,
+      publisherId: this.metadata!.vaultId!,
       name,
       ...(description !== undefined && { description }),
       tags: {}, // Initialize empty tags
@@ -993,6 +1017,7 @@ export class AssetService {
     await this.ensureLoaded();
     const collection = this.metadata!.collections[collectionId];
     if (!collection) throw new Error(`Collection ${collectionId} not found`);
+    this.assertCollectionNameFree(name, collectionId);
     collection.name = name;
     collection.modifiedAt = Date.now();
     await this.saveMetadata();
@@ -1319,34 +1344,99 @@ export class AssetService {
     return Object.values(this.metadata!.collections).find((collection) => collection.uid === uid) ?? null;
   }
 
+  /** This vault's identity as a publisher of collections. */
+  async getVaultId(): Promise<string> {
+    await this.ensureLoaded();
+    return this.metadata!.vaultId!;
+  }
+
+  /** Whether another collection than `exceptId` already uses `name`; names are compared without case. */
+  async isCollectionNameTaken(name: string, exceptId?: string): Promise<boolean> {
+    await this.ensureLoaded();
+    return this.findCollectionByName(name, exceptId) !== undefined;
+  }
+
+  /** `name`, or `name (2)`, `name (3)`, … when another collection already uses it. */
+  async freeCollectionName(name: string, exceptId?: string): Promise<string> {
+    await this.ensureLoaded();
+    let candidate = name;
+    for (let n = 2; this.findCollectionByName(candidate, exceptId); n++) candidate = `${name} (${n})`;
+    return candidate;
+  }
+
+  /** A new id derived from `name` that no collection uses yet. */
+  async freeCollectionIdFor(name: string): Promise<string> {
+    await this.ensureLoaded();
+    return this.freeCollectionId(name);
+  }
+
+  private freeCollectionId(name: string): string {
+    const base = name.trim().toLowerCase().replace(/[\s/\\]+/g, '-').replace(/^\.+/, '') || 'collection';
+    // A leftover folder of a deleted collection must not leak its files into the new one.
+    const isTaken = (id: string): boolean => Boolean(this.metadata!.collections[id] || this.app.vault.getAbstractFileByPath(`${COLLECTIONS_DIR}/${id}`));
+    let id = base;
+    for (let n = 2; isTaken(id); n++) id = `${base}-${n}`;
+    return id;
+  }
+
+  private findCollectionByName(name: string, exceptId?: string): CollectionMetadata | undefined {
+    const wanted = name.trim().toLocaleLowerCase();
+    return Object.values(this.metadata!.collections)
+      .find((collection) => collection.id !== exceptId && collection.name.trim().toLocaleLowerCase() === wanted);
+  }
+
+  private assertCollectionNameFree(name: string, exceptId?: string): void {
+    if (this.findCollectionByName(name, exceptId)) throw new Error(`A collection named "${name.trim()}" already exists`);
+  }
+
+  /** Stores the release a publisher just exported, once the export has been written. */
+  async recordCollectionRelease(collectionId: string, release: { version: number; releasedAt: number; author?: string | undefined }): Promise<void> {
+    await this.ensureLoaded();
+    const collection = this.metadata!.collections[collectionId];
+    if (!collection) throw new Error(`Collection ${collectionId} not found`);
+    collection.version = release.version;
+    collection.releasedAt = release.releasedAt;
+    if (release.author === undefined) delete collection.author;
+    else collection.author = release.author;
+    collection.publisherId = this.metadata!.vaultId!;
+    await this.saveMetadata();
+  }
+
+  /**
+   * Turns a copy of someone else's collection into this vault's own collection:
+   * it gets a new identity and name, so it no longer receives the original's
+   * updates and its exports are this vault's releases.
+   */
+  async forkCollection(collectionId: string, name: string, uid: string): Promise<CollectionMetadata> {
+    await this.ensureLoaded();
+    const collection = this.metadata!.collections[collectionId];
+    if (!collection) throw new Error(`Collection ${collectionId} not found`);
+    this.assertCollectionNameFree(name, collectionId);
+    collection.uid = uid;
+    collection.name = name;
+    collection.version = 1;
+    collection.publisherId = this.metadata!.vaultId!;
+    delete collection.releasedAt;
+    collection.modifiedAt = Date.now();
+    await this.saveMetadata();
+    return collection;
+  }
+
   /**
    * Records an imported collection and its assets in one metadata save. The
-   * files must already be in the vault at the paths the assets reference. An
-   * existing record with `collectionId` keeps its creation date and tags, and
-   * the imported assets replace those with the same id.
+   * files must already be in the vault at the paths the assets reference.
    */
-  async adoptImportedCollection(imported: CollectionMetadata, assets: readonly Asset[], collectionId: string): Promise<CollectionMetadata> {
+  async commitCollectionImport({ collectionId, collection, upsert, remove }: CollectionImportCommit): Promise<void> {
     await this.ensureLoaded();
-    const now = Date.now();
-    const existing = this.metadata!.collections[collectionId];
-    const description = imported.description ?? existing?.description;
-    const collection: CollectionMetadata = {
-      ...imported,
-      id: collectionId,
-      ...(description !== undefined && { description }),
-      tags: { ...existing?.tags, ...imported.tags },
-      createdAt: existing?.createdAt ?? now,
-      modifiedAt: now,
-    };
-    this.metadata!.collections[collectionId] = collection;
+    this.assertCollectionNameFree(collection.name, collectionId);
+    this.metadata!.collections[collectionId] = { ...collection, id: collectionId };
     await this.ensureCollectionStructure(collectionId);
-
-    for (const asset of assets) {
+    for (const id of remove) delete this.metadata!.assets[id];
+    for (const asset of upsert) {
       this.metadata!.assets[asset.id] = { ...asset, collection: collectionId };
     }
     await this.saveMetadata();
-    if (assets.some((asset) => asset.type === 'token')) SettingsService.forApp(this.app)?.markTokenImported();
-    return collection;
+    if (upsert.some((asset) => asset.type === 'token')) SettingsService.forApp(this.app)?.markTokenImported();
   }
 
   // Backward compatibility methods

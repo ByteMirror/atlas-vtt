@@ -68,6 +68,9 @@ export function createInMemoryApp(seed: InMemoryVaultSeed = {}): InMemoryApp {
       }),
       write: vi.fn(async (path: string, content: string) => writeFile(path, content)),
       read: vi.fn(async (path: string) => files.get(path) ?? ''),
+      writeBinary: vi.fn(async (path: string, content: ArrayBuffer) => writeFile(path, new TextDecoder().decode(content))),
+      readBinary: vi.fn(async (path: string) => new TextEncoder().encode(files.get(path) ?? '').buffer),
+      remove: vi.fn(async (path: string) => { files.delete(path); }),
     },
     getFiles: vi.fn(() => Array.from(files.keys(), (path) => new TFile(path))),
     getAbstractFileByPath: vi.fn((path: string): TAbstractFile | null => {

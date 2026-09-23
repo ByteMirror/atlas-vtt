@@ -1,12 +1,13 @@
-import { WIDGET_ICON_PATHS, resolveWidgetIcon } from '../types/widgetIcons';
 import { App, Notice } from 'obsidian';
 import type { ViewAtlasState } from '../storeFactory';
-import type { AnyWidget } from '../types/widgetTypes';
 import type { StoreApi } from 'zustand';
 import type { AtlasSettings, SettingsService } from './SettingsService';
 import { playerWindowStore, resetPlayerWindowStore } from '../stores/playerWindowStore';
 import './player-window.scss';
 import { PlayerInitiativePanel } from './PlayerInitiativePanel';
+import type { PlayerSceneOverlay } from './PlayerSceneOverlay';
+import { PlayerWidgetBar } from './PlayerWidgetBar';
+import { createSvgElement } from '../utils/svgElement';
 import { LocalPlayerView, LOCAL_PLAYER_VIEW_TYPE, type PlayerCameraState } from '../local-player-view';
 
 /** Scopes the rules in `player-window.scss` to the popout document. */
@@ -17,14 +18,6 @@ const PLAYER_WINDOW_LIVE_CLASS = 'atlas-player-window--live';
 /** Identifies a stylesheet node so the same sheet is not added to the popout twice. */
 function getStyleNodeKey(node: Element): string {
   return node.instanceOf(HTMLLinkElement) ? `link:${node.href}` : `style:${node.textContent ?? ''}`;
-}
-
-const SVG_NAMESPACE = 'http://www.w3.org/2000/svg';
-
-function createSvgElement(doc: Document, tag: string, attributes: Record<string, string>): SVGElement {
-  const element = doc.createElementNS(SVG_NAMESPACE, tag);
-  Object.entries(attributes).forEach(([name, value]) => element.setAttribute(name, value));
-  return element;
 }
 
 /** A DM map canvas that can briefly render itself without DM-only layers. */
@@ -56,9 +49,8 @@ export class PlayerWindowService {
   private isAutoFrozen: boolean = false;
   private frozenCanvas: HTMLCanvasElement | null = null;
   private static instance: PlayerWindowService | null = null;
-  private settingsUnsubscribe: (() => void) | null = null;
-  private initiativePanel: PlayerInitiativePanel | null = null;
-  private widgetUnsubscribe: (() => void) | null = null;
+  /** Widget bar and initiative panel, drawn from the presented scene. */
+  private sceneOverlays: PlayerSceneOverlay[] = [];
   private readonly boundHandleWindowResize = (): void => {
     this.handleWindowResize();
   };
@@ -105,7 +97,7 @@ export class PlayerWindowService {
    */
   public holdCurrentFrame(): void {
     if (!this.isWindowOpen()) return;
-    this.initiativePanel?.hold();
+    this.sceneOverlays.forEach((overlay) => overlay.hold());
     if (this.isCameraFrozen) return;
     this.isAutoFrozen = true;
     this.setCameraFrozen(true);
@@ -118,7 +110,7 @@ export class PlayerWindowService {
   public releaseHeldFrame(source: PlayerFrameSource): void {
     if (!this.isWindowOpen()) return;
     this.streamSource = source;
-    this.initiativePanel?.present(source.store ?? this.store);
+    this.presentScene();
     if (!this.isAutoFrozen) return;
     this.isAutoFrozen = false;
     this.setCameraFrozen(false);
@@ -134,7 +126,7 @@ export class PlayerWindowService {
       return;
     }
     this.streamSource = source;
-    this.initiativePanel?.present(source.store ?? this.store);
+    this.presentScene();
     this.isAutoFrozen = false;
     this.setCameraFrozen(false);
     playerWindowStore.setState({ presentedTabId: tabId });
@@ -252,26 +244,12 @@ export class PlayerWindowService {
       const canvas = content.createEl('canvas');
       canvas.id = 'atlas-player-canvas';
 
-      // Create widget container
-      const widgetContainer = content.createDiv();
-      widgetContainer.id = 'atlas-player-widgets';
-      widgetContainer.className = 'atlas-vtt-plugin';
-      
-      const updateWidgets = (): void => {
-        this.widgetUnsubscribe?.();
-        this.widgetUnsubscribe = null;
-        widgetContainer.replaceChildren();
-        if (this.settingsService.getLocalPlayerViewSettings().showWidgets) {
-          this.renderWidgets(widgetContainer);
-        }
-      };
-      updateWidgets();
-      this.settingsUnsubscribe?.();
-      this.settingsUnsubscribe = this.settingsService.onChange(updateWidgets);
-
-      this.initiativePanel?.destroy();
-      this.initiativePanel = new PlayerInitiativePanel(content, this.app, this.settingsService);
-      this.initiativePanel.present(this.streamSource?.store ?? this.store);
+      this.destroySceneOverlays();
+      this.sceneOverlays = [
+        new PlayerWidgetBar(content, this.settingsService),
+        new PlayerInitiativePanel(content, this.app, this.settingsService),
+      ];
+      this.presentScene();
 
       // Create freeze indicator
       const freezeIndicator = content.createDiv();
@@ -326,80 +304,15 @@ export class PlayerWindowService {
     }
   }
 
-
-  /**
-   * Renders widgets in the player window
-   */
-  private renderWidgets(container: HTMLElement): void {
-    this.widgetUnsubscribe?.();
-    this.widgetUnsubscribe = null;
-
-    const state = this.store.getState();
-    const widgetSettings = state.widgetSettings;
-    
-    if (!widgetSettings || !widgetSettings.globalVisible) return;
-    
-    // Filter widgets visible to players
-    const visibleWidgets = Object.values(widgetSettings.widgets)
-      .filter(w => w.visible && w.visibleToPlayers)
-      .sort((a, b) => a.order - b.order);
-      
-    if (visibleWidgets.length === 0) return;
-    
-    // Create widget bar
-    const widgetBar = container.createDiv();
-    widgetBar.className = `atlas-widget-bar atlas-widget-bar-${widgetSettings.position}`;
-    
-    const widgetContainer = widgetBar.createDiv({ cls: 'atlas-widget-container' });
-    widgetContainer.style.transform = `scale(${widgetSettings.scale || 1})`;
-    
-    // Render each widget
-    visibleWidgets.forEach(widget => this.createWidgetElement(widgetContainer, widget));
-
-    // Subscribe to store changes to update widgets
-    this.widgetUnsubscribe = this.store.subscribe((state: ViewAtlasState) => {
-      const widgetSettings = state.widgetSettings;
-      if (widgetSettings && widgetSettings.widgets) {
-        Object.values(widgetSettings.widgets).forEach((widget) => {
-          const valueEl = container.ownerDocument.getElementById(`atlas-widget-value-${widget.id}`);
-          if (valueEl) {
-            valueEl.textContent = String(state.widgetValues?.[widget.id] ?? widget.value);
-          }
-        });
-      }
-    });
+  /** Bind the overlays to the view store that now holds the presented scene. */
+  private presentScene(): void {
+    const store = this.streamSource?.store ?? this.store;
+    this.sceneOverlays.forEach((overlay) => overlay.present(store));
   }
-  
-  /**
-   * Appends a widget element to `parent`. Building it through the parent keeps it
-   * in the popout's document, where Obsidian installs the same DOM helpers.
-   */
-  private createWidgetElement(parent: HTMLElement, widget: AnyWidget): void {
-    if (widget.type !== 'counter') return; // For now, only support counter widgets
 
-    const doc = parent.ownerDocument;
-    const widgetEl = parent.createDiv({ cls: 'atlas-widget atlas-widget-counter' });
-
-    widgetEl.style.setProperty('--widget-color', widget.color || '#ffc107');
-    const iconWrapper = widgetEl.createDiv({ cls: 'atlas-widget-icon-wrapper' });
-    const icon = createSvgElement(doc, 'svg', { viewBox: '0 0 512 512', fill: 'currentColor' });
-    icon.appendChild(createSvgElement(doc, 'path', { d: WIDGET_ICON_PATHS[resolveWidgetIcon(widget.icon)] }));
-    iconWrapper.appendChild(icon);
-    
-    // Content wrapper
-    const content = widgetEl.createDiv({ cls: 'atlas-widget-content' });
-    
-    // Value row
-    const valueRow = content.createDiv({ cls: 'atlas-widget-value-row' });
-    
-    const value = valueRow.createSpan();
-    value.id = `atlas-widget-value-${widget.id}`;
-    value.className = 'atlas-widget-value';
-    value.textContent = String(this.store.getState().widgetValues?.[widget.id] ?? widget.value);
-    
-    // Label
-    const label = content.createDiv({ cls: 'atlas-widget-label' });
-    label.textContent = widget.label;
+  private destroySceneOverlays(): void {
+    this.sceneOverlays.forEach((overlay) => overlay.destroy());
+    this.sceneOverlays = [];
   }
 
   /**
@@ -487,12 +400,7 @@ export class PlayerWindowService {
       this.animationFrame = null;
     }
 
-    this.widgetUnsubscribe?.();
-    this.widgetUnsubscribe = null;
-    this.settingsUnsubscribe?.();
-    this.settingsUnsubscribe = null;
-    this.initiativePanel?.destroy();
-    this.initiativePanel = null;
+    this.destroySceneOverlays();
 
     if (this.playerWindow) {
       this.playerWindow.removeEventListener('resize', this.boundHandleWindowResize);

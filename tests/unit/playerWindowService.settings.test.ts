@@ -35,6 +35,36 @@ describe('live player settings', () => {
     expect(widgets.textContent).toContain('Counter');
   });
 
+  it('keeps the presented map\'s widgets while the DM browses another map and follows a newly presented one', () => {
+    vi.useFakeTimers();
+    const settings = new SettingsService(app);
+    const counter = (label: string, value: number) => ({ widgetValues: {}, widgetSettings: { globalVisible: true, position: 'top', widgets: {
+      counter: { id: 'counter', type: 'counter', icon: 'shield', label, value, visible: true, visibleToPlayers: true, order: 0 },
+    } } });
+    const store = createStore(() => counter('Presented', 3));
+    const service = new PlayerWindowService(app, store as any, settings);
+    const doc = document.implementation.createHTMLDocument();
+    Object.defineProperty(doc, 'readyState', { value: 'complete' });
+    (service as any).playerWindow = { document: doc, closed: false, addEventListener: vi.fn(), removeEventListener: vi.fn(), close: vi.fn() };
+    (service as any).setupPlayerWindow();
+    const widgets = doc.getElementById('atlas-player-widgets')!;
+    store.setState({ widgetValues: { counter: 4 } });
+    expect(widgets.textContent).toBe('4Presented');
+    service.holdCurrentFrame();
+    // Switching tabs loads the other map, with the same default widget ids, into the same store.
+    store.setState({ ...counter('Browsed', 9), widgetValues: { counter: 9 } });
+    expect(widgets.textContent).toBe('4Presented');
+    store.setState({ widgetSettings: { ...store.getState().widgetSettings, globalVisible: false } });
+    expect(widgets.textContent).toBe('4Presented');
+    const otherView = createStore(() => counter('Other view', 7));
+    service.presentCanvas({ canvas: document.createElement('canvas'), store: otherView as any, withPlayerSafeFrame: vi.fn() }, 'scene-b');
+    expect(widgets.textContent).toBe('7Other view');
+    otherView.setState({ widgetValues: { counter: 8 } });
+    expect(widgets.textContent).toBe('8Other view');
+    store.setState({ widgetValues: { counter: 1 } });
+    expect(widgets.textContent).toBe('8Other view');
+  });
+
   it('passes the latest settings to every live frame capture', () => {
     vi.useFakeTimers();
     vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1));

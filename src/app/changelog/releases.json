@@ -4,7 +4,7 @@
     {
       "version": "0.3.0-beta.0",
       "title": "Coming in 0.3.0",
-      "markdown": "## Improved\n\n- Relative dates in the linked-note picker follow the app language and no longer depend on the moment library.\n\n## Fixed\n\n- The player view keeps the initiative tracker visibility of the map it shows. Opening another map where the tracker is open no longer reveals it to players."
+      "markdown": "## Improved\n\n- Relative dates in the linked-note picker follow the app language and no longer depend on the moment library.\n\n## Fixed\n\n- The player view keeps the initiative tracker visibility of the map it shows. Opening another map where the tracker is open no longer reveals it to players.\n- Widgets in the player view always come from the map being shown. Opening another map no longer changes the counters players see, and presenting a new map now shows its widgets."
     },
     {
       "version": "0.2.3",

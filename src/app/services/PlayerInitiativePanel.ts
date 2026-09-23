@@ -1,63 +1,29 @@
 import type { App } from 'obsidian';
-import type { StoreApi } from 'zustand';
 import type { ViewAtlasState } from '../storeFactory';
 import type { InitiativeEntry } from '../types/initiativeTypes';
+import { PlayerSceneOverlay } from './PlayerSceneOverlay';
 import type { AtlasSettings, SettingsService } from './SettingsService';
 import './player-initiative.scss';
 
 type PlayerSettings = AtlasSettings['localPlayerView'];
 
 /** Read-only initiative projection; never mounts the DM tracker or its controls. */
-export class PlayerInitiativePanel {
-  private readonly container: HTMLElement;
-  private state: ViewAtlasState | undefined;
-  private unsubscribeStore: (() => void) | undefined;
-  private readonly unsubscribeSettings: () => void;
-
-  constructor(parent: HTMLElement, private app: App, private settings: SettingsService) {
-    this.container = parent.createDiv({ cls: 'atlas-player-initiative-container' });
-    this.unsubscribeSettings = settings.onChange(() => this.render());
+export class PlayerInitiativePanel extends PlayerSceneOverlay {
+  constructor(parent: HTMLElement, private readonly app: App, settings: SettingsService) {
+    super(parent.createDiv({ cls: 'atlas-player-initiative-container' }), settings);
   }
 
-  /** Bind to the presented view, including when it belongs to a different Atlas leaf. */
-  present(store: StoreApi<ViewAtlasState>): void {
-    this.unsubscribeStore?.();
-    this.state = store.getState();
-    this.render();
-    this.unsubscribeStore = store.subscribe((state, previous) => {
-      this.state = state;
-      if (
-        state.initiativeTrackerOpen !== previous.initiativeTrackerOpen ||
-        state.initiative !== previous.initiative ||
-        state.objects?.tokens !== previous.objects?.tokens
-      ) {
-        this.render();
-      }
-    });
+  protected hasChanged(state: ViewAtlasState, previous: ViewAtlasState): boolean {
+    return state.initiativeTrackerOpen !== previous.initiativeTrackerOpen ||
+      state.initiative !== previous.initiative ||
+      state.objects?.tokens !== previous.objects?.tokens;
   }
 
-  /**
-   * Freeze the presented scene while the DM browses other scene tabs. The view store
-   * then holds another map, whose tracker visibility and combat must not reach players.
-   */
-  hold(): void {
-    this.unsubscribeStore?.();
-    this.unsubscribeStore = undefined;
-  }
-
-  destroy(): void {
-    this.unsubscribeStore?.();
-    this.unsubscribeStore = undefined;
-    this.unsubscribeSettings();
-    this.state = undefined;
-  }
-
-  private render(): void {
-    this.container.empty();
+  protected render(state: ViewAtlasState): void {
     const settings = this.settings.getLocalPlayerViewSettings();
-    const initiative = this.state?.initiative;
-    if (!settings.showInitiative || !this.state?.initiativeTrackerOpen || !initiative) return;
-    const tokens = this.state?.objects?.tokens;
+    const { initiative } = state;
+    if (!settings.showInitiative || !state.initiativeTrackerOpen || !initiative) return;
+    const tokens = state.objects?.tokens;
     const entries = initiative.entries
       .filter(entry => tokens?.[entry.tokenId] && !tokens[entry.tokenId]?.isHidden)
       .sort((a, b) => a.order - b.order);

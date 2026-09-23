@@ -19,3 +19,4 @@
 - Closing the map shown in the player view no longer keeps that map in memory; players keep seeing the last frame.
 - The player view keeps the initiative tracker visibility of the map it shows. Opening another map where the tracker is open no longer reveals it to players.
 - Widgets in the player view always come from the map being shown. Opening another map no longer changes the counters players see, and presenting a new map now shows its widgets.
+- Pinned note previews are saved with their map. Switching to another scene and back, reopening the map or restarting Obsidian brings them back where you moved and resized them. Opening the asset manager only hides them for a moment, and only the close button closes them for good.

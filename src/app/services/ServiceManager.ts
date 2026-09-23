@@ -63,7 +63,7 @@ export class ServiceManager {
 
     this.gridManager = new GridManager(this.eventBus);
 
-    this.notePreviewUIManager = new NotePreviewUIManager(app, this.eventBus);
+    this.notePreviewUIManager = new NotePreviewUIManager(app, this.eventBus, store, this.viewId);
 
     this.assetService = AssetService.getInstance(app);
     this.mapThumbnailService = new MapThumbnailService(app);

@@ -12,6 +12,11 @@ export interface CollectionTransfer {
   progress: BundleProgress;
   /** Set once the transfer has finished: `progress.message` is its result, shown until closed. */
   prompt?: ProgressModalPrompt;
+  /**
+   * A confirmation dialog is open. It stacks below the progress dialog, which
+   * therefore hides, while the asset manager still treats a dialog as open.
+   */
+  isAwaitingConfirmation?: boolean;
 }
 
 export interface CollectionTransferActions {
@@ -109,10 +114,9 @@ export function useCollectionTransfer({ app, assetService, selectedCollection, o
       result = await importCollectionBundle(app, assetService, file, {
         onProgress: (progress) => setTransfer({ title: IMPORTING, progress }),
         confirmUpdate: async (request) => {
-          // The question dialog stacks below the progress dialog, so that one steps aside meanwhile.
-          setTransfer(null);
+          setTransfer({ title: IMPORTING, progress: { message: 'Waiting for confirmation…', fraction: 0 }, isAwaitingConfirmation: true });
           const update = await confirmUpdate(request);
-          if (update) setTransfer({ title: IMPORTING, progress: { message: 'Updating…', fraction: 0 } });
+          setTransfer(update ? { title: IMPORTING, progress: { message: 'Updating…', fraction: 0 } } : null);
           return update;
         },
       });

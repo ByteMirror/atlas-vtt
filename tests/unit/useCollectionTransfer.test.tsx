@@ -36,14 +36,15 @@ function pickFile(hook: RenderHookResult<CollectionTransferActions, unknown>): v
 beforeEach(() => { vi.clearAllMocks(); });
 afterEach(cleanup);
 
-it('asks with a warning before updating, and changes nothing when declined', async () => {
+it('asks with a warning before updating, keeping the asset manager blocked, and changes nothing when declined', async () => {
   importsExistingCollection();
-  vi.mocked(confirmAction).mockResolvedValue(false);
+  let answer: (update: boolean) => void = () => undefined;
+  vi.mocked(confirmAction).mockImplementation(() => new Promise((resolve) => { answer = resolve; }));
   const { hook, onImported } = setup();
   pickFile(hook);
-  await vi.waitFor(() => expect(importCollectionBundle).toHaveBeenCalled());
-  await act(async () => undefined);
-  expect(confirmAction).toHaveBeenCalledWith(expect.objectContaining({ title: 'Update collection', confirmLabel: 'Update', destructive: true }));
+  await vi.waitFor(() => expect(confirmAction).toHaveBeenCalledWith(expect.objectContaining({ title: 'Update collection', confirmLabel: 'Update', destructive: true })));
+  expect(hook.result.current.transfer).toMatchObject({ isAwaitingConfirmation: true });
+  await act(async () => answer(false));
   expect(hook.result.current.transfer).toBeNull();
   expect(onImported).not.toHaveBeenCalled();
 });

@@ -56,7 +56,7 @@ export function ModalLayer({
 
   return (
     <>
-      {crud.transfer && (
+      {crud.transfer && !crud.transfer.isAwaitingConfirmation && (
         <ProgressModal
           title={crud.transfer.title}
           message={crud.transfer.progress.message}

@@ -11,6 +11,7 @@ import type { ConditionDefinition } from '../types/collectionSettingsTypes';
 import type { TokenGestureEventDetail } from '../types/atlasWindowEvents';
 import { resourceBarFill } from './resourceBarFill';
 import { ResourceBarLabel } from './ResourceBarLabel';
+import { destroyTree } from './utils/destroyTree';
 
 /**
  * Text is drawn at scale 0.333 and the viewport zooms to at most 5x, so a
@@ -777,7 +778,7 @@ export class TokenUIRenderer {
     this.barTextureCache.clear();
 
     // Destroy container and children
-    this.container.destroy({ children: true });
+    destroyTree(this.container);
   }
   
   /**

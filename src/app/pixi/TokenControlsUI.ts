@@ -8,6 +8,7 @@ import { toError } from '../utils/errors';
 import type { TokenGestureEventDetail } from '../types/atlasWindowEvents';
 import { openResourceEditor, type BarAnchor, type ResourceEditor, type ResourceValue } from './tokenValueEditor';
 import { ResourceBarHitArea } from './ResourceBarHitArea';
+import { destroyTree } from './utils/destroyTree';
 
 type ControlIconType = 'plus' | 'minus';
 
@@ -552,6 +553,6 @@ export class TokenControlsUI {
     this.iconTextureCache.clear();
     
     // Destroy graphics
-    this.container.destroy({ children: true });
+    destroyTree(this.container);
   }
 }

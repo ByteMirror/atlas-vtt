@@ -7,6 +7,7 @@ import { computeTokenPixelSize, computeTokenStrokeWidth } from './token-renderer
 import { toError } from '../utils/errors';
 import type { TokenHandleContainer } from './token-renderer/types';
 import { findTokenGroup } from './token-renderer/findTokenGroup';
+import { destroyTree } from './utils/destroyTree';
 
 export class TokenResizeUI {
   private viewport: Viewport;
@@ -194,8 +195,8 @@ export class TokenResizeUI {
       if (handles.right.parent) {
         handles.right.parent.removeChild(handles.right);
       }
-      handles.left.destroy({ children: true });
-      handles.right.destroy({ children: true });
+      destroyTree(handles.left);
+      destroyTree(handles.right);
     }
     this.resizeHandles.clear();
   }

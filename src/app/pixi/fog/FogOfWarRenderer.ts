@@ -21,6 +21,8 @@ import { hitTestFogOp, findConnectedFogOps } from './fogHitTest';
 import { extractConnectedComponentRects } from './fogComponentDelete';
 import { canInteractWithFog, resolveFogPreviewAlpha } from './fogVisibilityPolicy';
 import type { LayerVisibility } from '../playerSafeFrame';
+import { destroyTree } from '../utils/destroyTree';
+import { requestRender } from '../RenderScheduler';
 
 const DEFAULT_BOUNDS: FogBounds = { x: -2000, y: -2000, width: 4000, height: 4000 };
 const BOUNDS_PADDING = 200;
@@ -333,7 +335,7 @@ export class FogOfWarRenderer {
       this.previewTexture.destroy(true);
     }
     if (this.container && !this.container.destroyed) {
-      this.container.destroy({ children: true });
+      destroyTree(this.container);
     }
   }
 
@@ -910,6 +912,8 @@ export class FogOfWarRenderer {
   private updatePreviewTexture(): void {
     if (this.previewTexture && !this.previewTexture.destroyed) {
       this.previewTexture.source.update();
+      // New pixels in an existing texture are invisible to the scene graph
+      requestRender(this._pixiApp);
     }
   }
 

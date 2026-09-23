@@ -16,6 +16,7 @@ import type { StoreApi } from 'zustand';
 import { TextRotationUI } from './TextRotationUI';
 import { TextResizeUI } from './TextResizeUI';
 import { promptForText } from '../ui/textInputDialog';
+import { destroyTree } from './utils/destroyTree';
 
 export class TextRenderer {
   private viewport: Viewport;
@@ -237,7 +238,7 @@ export class TextRenderer {
   private removeText(id: string): void {
     const container = this.textElements[id];
     if (container) {
-      container.parent?.removeChild(container);
+      destroyTree(container);
       delete this.textElements[id];
     }
   }
@@ -535,11 +536,6 @@ export class TextRenderer {
     // Remove all text elements
     Object.keys(this.textElements).forEach(id => this.removeText(id));
 
-    // Remove container
-    if (this.textContainer.parent) {
-      this.textContainer.parent.removeChild(this.textContainer);
-    }
-
-    // Remove event listeners
+    destroyTree(this.textContainer);
   }
 }

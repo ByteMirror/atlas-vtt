@@ -21,6 +21,7 @@ const serviceMock = vi.hoisted(() => ({
   attachToView: vi.fn(),
   toggleCameraFreeze: vi.fn(),
   getWindow: vi.fn(() => null),
+  releaseSource: vi.fn(),
 }));
 
 vi.mock('../../src/app/services/PlayerWindowService', async () => {
@@ -36,6 +37,7 @@ vi.mock('../../src/app/services/PlayerWindowService', async () => {
     ownsView = () => false;
     holdCurrentFrame = serviceMock.holdCurrentFrame;
     releaseHeldFrame = serviceMock.releaseHeldFrame;
+    releaseSource = serviceMock.releaseSource;
     openPlayerWindow(source: PlayerFrameSource, tabId: string, filePath: string): void {
       serviceMock.openPlayerWindow(source, tabId, filePath);
       store.setState({ presentedTabId: tabId, isOpen: true });
@@ -72,6 +74,7 @@ function createFakeView(): FakeView {
     switchToTab: vi.fn(async (tabId: string) => {
       tabMetaStore.getState().setActiveTab(tabId);
     }),
+    register: vi.fn(),
   };
   Object.setPrototypeOf(view, AtlasView.prototype);
   return { view, canvas, withPlayerSafeFrame, atlasStore };
@@ -181,5 +184,24 @@ describe('PlayerWindowPresenter', () => {
     expect(serviceMock.openPlayerWindow).not.toHaveBeenCalled();
     expect(serviceMock.presentCanvas).toHaveBeenLastCalledWith(frameSourceFor(canvas), dungeon);
     expect(playerWindowStore.getState().presentedTabId).toBe(dungeon);
+  });
+
+  test('lets the player window release the presented view when it closes', async () => {
+    const { view, atlasStore } = createFakeView();
+    const tavern = view.tabMetaStore.getState().addTab('maps/tavern.md', 'Tavern');
+    const dungeon = view.tabMetaStore.getState().addTab('maps/dungeon.md', 'Dungeon');
+
+    await presentTabInPlayerWindow({} as any, view, tavern);
+    await presentTabInPlayerWindow({} as any, view, dungeon);
+    expect(view.register).toHaveBeenCalledTimes(1);
+
+    const onClose = view.register.mock.calls[0][0] as () => void;
+    onClose();
+
+    expect(serviceMock.releaseSource).toHaveBeenCalledWith(atlasStore);
+    // The closed view's tab watcher is gone: its tab changes no longer reach the window
+    serviceMock.holdCurrentFrame.mockClear();
+    view.tabMetaStore.getState().setActiveTab(tavern);
+    expect(serviceMock.holdCurrentFrame).not.toHaveBeenCalled();
   });
 });

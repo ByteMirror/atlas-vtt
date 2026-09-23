@@ -61,6 +61,7 @@ export function ModalLayer({
           title={crud.transfer.kind === 'export' ? 'Exporting collection' : 'Importing collection'}
           message={crud.transfer.progress.message}
           fraction={crud.transfer.progress.fraction}
+          {...(crud.transfer.isDone && { onClose: crud.dismissTransfer })}
         />
       )}
 

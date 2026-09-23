@@ -8,6 +8,8 @@ import { showAtlasToast } from '../../../../react/components/AtlasToast';
 export interface CollectionTransfer {
   kind: 'export' | 'import';
   progress: BundleProgress;
+  /** The import finished; `progress.message` holds its result until the dialog is closed. */
+  isDone?: boolean;
 }
 
 export interface CollectionTransferActions {
@@ -15,6 +17,8 @@ export interface CollectionTransferActions {
   transfer: CollectionTransfer | null;
   handleExportCollection: () => Promise<void>;
   handleImportCollection: () => void;
+  /** Closes the dialog of a finished import. */
+  dismissTransfer: () => void;
 }
 
 interface Deps {
@@ -28,6 +32,7 @@ function describeImportResult(result: CollectionImportResult): string {
   switch (result.outcome) {
     case 'created': return `Imported "${result.collectionName}" with ${result.assetCount} assets.`;
     case 'updated': return `Updated "${result.collectionName}" to v${result.version}.`;
+    case 'repaired': return `Restored the missing files of "${result.collectionName}" (v${result.version}).`;
     case 'already-current': return `"${result.collectionName}" is already up to date (v${result.version}).`;
     case 'newer-exists': return `A newer version of "${result.collectionName}" is already in this vault (v${result.localVersion ?? '?'}).`;
   }
@@ -65,19 +70,19 @@ export function useCollectionTransfer({ app, assetService, selectedCollection, o
 
   const importFile = async (file: File): Promise<void> => {
     if (!assetService) return;
+    // The dialog stays open with the result: a fast import would otherwise only flash.
+    const finish = (message: string): void => setTransfer({ kind: 'import', progress: { message, fraction: 1 }, isDone: true });
     setTransfer({ kind: 'import', progress: { message: 'Reading bundle…', fraction: 0 } });
     try {
       const result = await importCollectionBundle(app, assetService, file, (progress) => setTransfer({ kind: 'import', progress }));
-      showAtlasToast(describeImportResult(result), 5000);
-      if (result.outcome === 'created' || result.outcome === 'updated') {
+      if (result.outcome === 'created' || result.outcome === 'updated' || result.outcome === 'repaired') {
         await onImported();
         app.workspace.trigger('atlas-vtt:refresh-assets');
       }
+      finish(describeImportResult(result));
     } catch (error) {
       console.error('[useCollectionTransfer] Import failed:', error);
-      showAtlasToast(error instanceof Error ? error.message : 'Import failed', 5000);
-    } finally {
-      setTransfer(null);
+      finish(error instanceof Error ? error.message : 'Import failed');
     }
   };
 
@@ -97,5 +102,7 @@ export function useCollectionTransfer({ app, assetService, selectedCollection, o
     input.click();
   };
 
-  return { transfer, handleExportCollection, handleImportCollection };
+  const dismissTransfer = (): void => setTransfer(null);
+
+  return { transfer, handleExportCollection, handleImportCollection, dismissTransfer };
 }

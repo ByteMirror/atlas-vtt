@@ -1319,6 +1319,15 @@ export class AssetService {
     return Object.values(this.metadata!.collections).find((collection) => collection.uid === uid) ?? null;
   }
 
+  /** Records the version the latest export of a collection carries, so the next export counts up from it. */
+  async setCollectionVersion(collectionId: string, version: number): Promise<void> {
+    await this.ensureLoaded();
+    const collection = this.metadata!.collections[collectionId];
+    if (!collection) throw new Error(`Collection ${collectionId} not found`);
+    collection.version = version;
+    await this.saveMetadata();
+  }
+
   /**
    * Records an imported collection and its assets in one metadata save. The
    * files must already be in the vault at the paths the assets reference. An

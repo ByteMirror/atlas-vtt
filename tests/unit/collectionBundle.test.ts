@@ -97,7 +97,7 @@ describe('collection bundle', () => {
     expect(result).toMatchObject({ outcome: 'created', collectionName: 'Source', assetCount: 3 });
 
     const collection = (await assets.getCollections()).find((c) => c.id === 'source-2');
-    expect(collection).toMatchObject({ name: 'Source', version: 1, tags: { dragon: { id: 'dragon', name: 'Dragon' } } });
+    expect(collection).toMatchObject({ name: 'Source', version: 2, tags: { dragon: { id: 'dragon', name: 'Dragon' } } });
     expect(collection?.settings.conditions).toEqual([{ id: 'c1', name: 'Poisoned', color: '#0f0' }]);
 
     const statblocks = 'atlas-vtt/collections/source-2/statblocks';
@@ -193,8 +193,6 @@ describe('collection bundle', () => {
     const other = { view: { getState: () => ({ file: 'elsewhere.atlasmap' }) }, detach: vi.fn() };
     target.app.workspace.getLeavesOfType = vi.fn(() => [leaf, other]);
 
-    (await source.getCollection('source'))!.version = 2;
-    await source.updateCollectionSettings('source', {});
     await importCollectionBundle(target.app, assets, await exportCollectionBundle(sourceVault.app, source, 'source'));
     expect(leaf.detach).toHaveBeenCalledTimes(1);
     expect(other.detach).not.toHaveBeenCalled();
@@ -211,15 +209,48 @@ describe('collection bundle', () => {
     const again = await importCollectionBundle(target.app, assets, blob);
     expect(again).toMatchObject({ outcome: 'already-current', fileCount: 0 });
 
-    (await source.getCollection('source'))!.version = 2;
     await source.updateCollectionSettings('source', { conditions: [] });
     const newer = await exportCollectionBundle(sourceVault.app, source, 'source');
 
     const updated = await importCollectionBundle(target.app, assets, newer);
-    expect(updated).toMatchObject({ outcome: 'updated', version: 2, localVersion: 1 });
+    expect(updated).toMatchObject({ outcome: 'updated', version: 3, localVersion: 2 });
     expect((await assets.getCollection('source'))?.settings.conditions).toEqual([]);
 
     const stale = await importCollectionBundle(target.app, assets, blob);
-    expect(stale).toMatchObject({ outcome: 'newer-exists', localVersion: 2 });
+    expect(stale).toMatchObject({ outcome: 'newer-exists', localVersion: 3 });
+  });
+
+  it('gives every export the next collection version and remembers it', async () => {
+    const { vault, assets } = await seedSourceVault();
+    const { default: JSZip } = await import('jszip');
+    const exportedVersion = async (): Promise<number> => {
+      const zip = await JSZip.loadAsync(await (await exportCollectionBundle(vault.app, assets, 'source')).arrayBuffer());
+      return (JSON.parse(await zip.file('manifest.json')!.async('string')) as { collection: { version: number } }).collection.version;
+    };
+    expect(await exportedVersion()).toBe(2);
+    expect(await exportedVersion()).toBe(3);
+    expect((await assets.getCollection('source'))?.version).toBe(3);
+  });
+
+  it('restores a copy of the same version that lost files or assets', async () => {
+    const { blob } = await exportSource();
+    const target = createInMemoryApp();
+    stubFileReads(target);
+    const assets = service(target);
+    await assets.initialize();
+    await importCollectionBundle(target.app, assets, blob);
+
+    const mapPath = 'atlas-vtt/collections/source/scenes/Cave.atlasmap';
+    const [token] = await assets.getAssets('source', 'token');
+    target.files.delete(mapPath);
+    await assets.deleteAsset(token!.id);
+
+    const repaired = await importCollectionBundle(target.app, assets, blob);
+    expect(repaired).toMatchObject({ outcome: 'repaired', assetCount: 3 });
+    expect(target.files.has(mapPath)).toBe(true);
+    expect(await assets.getAssets('source', 'token')).toHaveLength(1);
+
+    const again = await importCollectionBundle(target.app, assets, blob);
+    expect(again).toMatchObject({ outcome: 'already-current', fileCount: 0 });
   });
 });

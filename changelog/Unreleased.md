@@ -10,6 +10,7 @@
 - The player view only copies a new frame when the map actually changed, instead of redrawing the map two extra times per frame.
 - Map cards in the asset manager show small thumbnails instead of decoding the full map image.
 - Delete and Backspace on a map now also remove selected texts and pins, the same objects Cut removes.
+- The collection import dialog stays open with its result until you close it, instead of disappearing before you could read it.
 
 ## Fixed
 
@@ -19,3 +20,4 @@
 - Closing the map shown in the player view no longer keeps that map in memory; players keep seeing the last frame.
 - The player view keeps the initiative tracker visibility of the map it shows. Opening another map where the tracker is open no longer reveals it to players.
 - Widgets in the player view always come from the map being shown. Opening another map no longer changes the counters players see, and presenting a new map now shows its widgets.
+- Importing a collection you imported before works again. Every export now carries a new collection version, so the vault takes it as an update instead of reporting it as already up to date, and an import of the same version restores files or assets the vault's copy has lost.

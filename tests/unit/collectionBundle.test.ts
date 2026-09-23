@@ -1,6 +1,6 @@
 // @vitest-environment node
 // JSZip needs Node's ArrayBuffer realm; jsdom's differs and its Blob support is absent.
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { TFile } from 'obsidian';
 import { AssetService } from '../../src/app/services/AssetService';
 import { exportCollectionBundle } from '../../src/app/services/collectionBundle/collectionExport';
@@ -67,19 +67,7 @@ async function exportSource(): Promise<{ blob: Blob; source: AssetService; sourc
   return { blob: await exportCollectionBundle(vault.app, assets, 'source'), source: assets, sourceVault: vault };
 }
 
-beforeEach(() => {
-  AssetService.resetInstance();
-  // Exports are dated; a fake clock gives each export in a test its own time.
-  vi.useFakeTimers({ toFake: ['Date'] });
-  vi.setSystemTime(1_000);
-});
-afterEach(() => { vi.useRealTimers(); });
-
-async function manifestOf(bundle: Blob): Promise<{ exportedAt: number; collection: { exportedAt?: number } }> {
-  const { default: JSZip } = await import('jszip');
-  const zip = await JSZip.loadAsync(await bundle.arrayBuffer());
-  return JSON.parse(await zip.file('manifest.json')!.async('string')) as { exportedAt: number; collection: { exportedAt?: number } };
-}
+beforeEach(() => { AssetService.resetInstance(); });
 
 describe('collection bundle', () => {
   it('packs every file the collection depends on', async () => {
@@ -109,7 +97,7 @@ describe('collection bundle', () => {
     expect(result).toMatchObject({ outcome: 'created', collectionName: 'Source', assetCount: 3 });
 
     const collection = (await assets.getCollections()).find((c) => c.id === 'source-2');
-    expect(collection).toMatchObject({ name: 'Source', exportedAt: 1_000, tags: { dragon: { id: 'dragon', name: 'Dragon' } } });
+    expect(collection).toMatchObject({ name: 'Source', version: 1, tags: { dragon: { id: 'dragon', name: 'Dragon' } } });
     expect(collection?.settings.conditions).toEqual([{ id: 'c1', name: 'Poisoned', color: '#0f0' }]);
 
     const statblocks = 'atlas-vtt/collections/source-2/statblocks';
@@ -205,74 +193,40 @@ describe('collection bundle', () => {
     const other = { view: { getState: () => ({ file: 'elsewhere.atlasmap' }) }, detach: vi.fn() };
     target.app.workspace.getLeavesOfType = vi.fn(() => [leaf, other]);
 
-    vi.setSystemTime(2_000);
-    await importCollectionBundle(target.app, assets, await exportCollectionBundle(sourceVault.app, source, 'source'));
+    const again = await exportCollectionBundle(sourceVault.app, source, 'source');
+    await importCollectionBundle(target.app, assets, again, { confirmUpdate: async () => true });
     expect(leaf.detach).toHaveBeenCalledTimes(1);
     expect(other.detach).not.toHaveBeenCalled();
   });
 
-  it('only updates an existing copy when the bundle is a later export', async () => {
+  it('asks before an export changes a collection the vault already has', async () => {
     const { blob, source, sourceVault } = await exportSource();
     const target = createInMemoryApp();
     stubFileReads(target);
     const assets = service(target);
     await assets.initialize();
     await importCollectionBundle(target.app, assets, blob);
+    await assets.renameCollection('source', 'My copy');
 
-    const again = await importCollectionBundle(target.app, assets, blob);
-    expect(again).toMatchObject({ outcome: 'already-current', fileCount: 0 });
+    expect(await importCollectionBundle(target.app, assets, blob)).toMatchObject({ outcome: 'kept', fileCount: 0 });
 
-    vi.setSystemTime(2_000);
     await source.updateCollectionSettings('source', { conditions: [] });
-    const newer = await exportCollectionBundle(sourceVault.app, source, 'source');
+    const changed = await exportCollectionBundle(sourceVault.app, source, 'source');
+    const confirmUpdate = vi.fn(async () => false);
+    expect(await importCollectionBundle(target.app, assets, changed, { confirmUpdate })).toMatchObject({ outcome: 'kept' });
+    expect(confirmUpdate).toHaveBeenCalledWith({
+      existing: expect.objectContaining({ id: 'source', name: 'My copy' }),
+      imported: expect.objectContaining({ name: 'Source' }),
+      exportedAt: expect.any(Number),
+    });
+    expect((await assets.getCollection('source'))?.settings.conditions).toHaveLength(1);
 
-    const updated = await importCollectionBundle(target.app, assets, newer);
-    expect(updated).toMatchObject({ outcome: 'updated', exportedAt: 2_000, localExportedAt: 1_000 });
+    confirmUpdate.mockResolvedValue(true);
+    expect(await importCollectionBundle(target.app, assets, changed, { confirmUpdate })).toMatchObject({ outcome: 'updated', assetCount: 3 });
     expect((await assets.getCollection('source'))?.settings.conditions).toEqual([]);
-
-    const stale = await importCollectionBundle(target.app, assets, blob);
-    expect(stale).toMatchObject({ outcome: 'newer-exists', localExportedAt: 2_000 });
   });
 
-  it('dates every export and the collection it was made from', async () => {
-    const { vault, assets } = await seedSourceVault();
-    expect(await manifestOf(await exportCollectionBundle(vault.app, assets, 'source'))).toMatchObject({ exportedAt: 1_000, collection: { exportedAt: 1_000 } });
-    vi.setSystemTime(2_000);
-    await exportCollectionBundle(vault.app, assets, 'source');
-    expect((await assets.getCollection('source'))?.exportedAt).toBe(2_000);
-  });
-
-  it('lets a vault that re-shares an imported collection send its changes back', async () => {
-    const { blob, sourceVault } = await exportSource();
-    const target = createInMemoryApp();
-    stubFileReads(target);
-    const assets = service(target);
-    await assets.initialize();
-    await importCollectionBundle(target.app, assets, blob);
-
-    vi.setSystemTime(2_000);
-    await assets.updateCollectionSettings('source', { conditions: [] });
-    const reshared = await exportCollectionBundle(target.app, assets, 'source');
-    AssetService.resetInstance();
-    const original = AssetService.getInstance(sourceVault.app);
-    expect(await importCollectionBundle(sourceVault.app, original, reshared)).toMatchObject({ outcome: 'updated' });
-    expect((await original.getCollection('source'))?.settings.conditions).toEqual([]);
-  });
-
-  it('updates a copy imported before exports were dated', async () => {
-    const { blob } = await exportSource();
-    const target = createInMemoryApp();
-    stubFileReads(target);
-    const assets = service(target);
-    await assets.initialize();
-    await importCollectionBundle(target.app, assets, blob);
-    delete (await assets.getCollection('source'))!.exportedAt;
-
-    expect(await importCollectionBundle(target.app, assets, blob)).toMatchObject({ outcome: 'updated' });
-    expect((await assets.getCollection('source'))?.exportedAt).toBe(1_000);
-  });
-
-  it('puts back what a copy of the same export lost and keeps its local edits', async () => {
+  it('restores what a copy lost when the user updates it from an export', async () => {
     const { blob } = await exportSource();
     const target = createInMemoryApp();
     stubFileReads(target);
@@ -281,21 +235,12 @@ describe('collection bundle', () => {
     await importCollectionBundle(target.app, assets, blob);
 
     const mapPath = 'atlas-vtt/collections/source/scenes/Cave.atlasmap';
-    const thumbPath = 'atlas-vtt/collections/source/scenes/Cave.thumb.jpg';
     const [token] = await assets.getAssets('source', 'token');
     target.files.delete(mapPath);
     await assets.deleteAsset(token!.id);
-    target.files.set(thumbPath, 'LOCAL JPG');
-    await assets.updateCollectionSettings('source', { conditions: [] });
-    await assets.renameCollection('source', 'Local name');
 
-    const repaired = await importCollectionBundle(target.app, assets, blob);
-    expect(repaired).toMatchObject({ outcome: 'repaired', assetCount: 1 });
+    expect(await importCollectionBundle(target.app, assets, blob, { confirmUpdate: async () => true })).toMatchObject({ outcome: 'updated' });
     expect(target.files.has(mapPath)).toBe(true);
     expect(await assets.getAssets('source', 'token')).toHaveLength(1);
-    expect(target.files.get(thumbPath)).toBe('LOCAL JPG');
-    expect(await assets.getCollection('source')).toMatchObject({ name: 'Local name', settings: { conditions: [] } });
-
-    expect(await importCollectionBundle(target.app, assets, blob)).toMatchObject({ outcome: 'already-current', fileCount: 0 });
   });
 });

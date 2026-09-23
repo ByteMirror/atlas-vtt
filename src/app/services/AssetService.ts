@@ -161,13 +161,8 @@ export interface CollectionMetadata {
   id: string;
   /** Globally unique identifier — survives export/import */
   uid: string;
-  /** Legacy counter from before exports were dated; imports compare `exportedAt` instead. */
+  /** Integer version, bumped before re-export */
   version: number;
-  /**
-   * When the export this copy matches was made: set when this vault exports the
-   * collection, and taken over by vaults that import that export.
-   */
-  exportedAt?: number;
   name: string;
   description?: string;
   tags: Record<string, TagMetadata>; // Collection-specific tags
@@ -1324,15 +1319,6 @@ export class AssetService {
     return Object.values(this.metadata!.collections).find((collection) => collection.uid === uid) ?? null;
   }
 
-  /** Dates the collection with its latest export, so importing an older export of it changes nothing. */
-  async recordCollectionExport(collectionId: string, exportedAt: number): Promise<void> {
-    await this.ensureLoaded();
-    const collection = this.metadata!.collections[collectionId];
-    if (!collection) throw new Error(`Collection ${collectionId} not found`);
-    collection.exportedAt = exportedAt;
-    await this.saveMetadata();
-  }
-
   /**
    * Records an imported collection and its assets in one metadata save. The
    * files must already be in the vault at the paths the assets reference. An
@@ -1353,22 +1339,14 @@ export class AssetService {
       modifiedAt: now,
     };
     this.metadata!.collections[collectionId] = collection;
-    await this.restoreImportedAssets(assets, collectionId);
-    return collection;
-  }
-
-  /**
-   * Registers imported assets in an existing collection without touching its
-   * record. The files must already be in the vault at the paths the assets reference.
-   */
-  async restoreImportedAssets(assets: readonly Asset[], collectionId: string): Promise<void> {
-    await this.ensureLoaded();
     await this.ensureCollectionStructure(collectionId);
+
     for (const asset of assets) {
       this.metadata!.assets[asset.id] = { ...asset, collection: collectionId };
     }
     await this.saveMetadata();
     if (assets.some((asset) => asset.type === 'token')) SettingsService.forApp(this.app)?.markTokenImported();
+    return collection;
   }
 
   // Backward compatibility methods

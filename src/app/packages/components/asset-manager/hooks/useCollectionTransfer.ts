@@ -2,14 +2,15 @@ import { useState } from 'react';
 import type { App as ObsidianApp } from 'obsidian';
 import type { AssetService } from '../../../../services/AssetService';
 import { exportCollectionBundle, type BundleProgress } from '../../../../services/collectionBundle/collectionExport';
-import { importCollectionBundle, type CollectionImportResult } from '../../../../services/collectionBundle/collectionImport';
+import { importCollectionBundle, type CollectionImportResult, type UpdateRequest } from '../../../../services/collectionBundle/collectionImport';
+import type { ProgressModalPrompt } from '../../primitives/ProgressModal';
 import { formatRelativeTime } from '../../../../utils/relativeTime';
 
 export interface CollectionTransfer {
   kind: 'export' | 'import';
   progress: BundleProgress;
-  /** The transfer finished; `progress.message` holds its result until the dialog is closed. */
-  isDone?: boolean;
+  /** Set while the transfer waits for the user or once it has finished; `progress.message` says what about. */
+  prompt?: ProgressModalPrompt;
 }
 
 export interface CollectionTransferActions {
@@ -17,8 +18,6 @@ export interface CollectionTransferActions {
   transfer: CollectionTransfer | null;
   handleExportCollection: () => Promise<void>;
   handleImportCollection: () => void;
-  /** Closes the dialog of a finished transfer. */
-  dismissTransfer: () => void;
 }
 
 interface Deps {
@@ -30,16 +29,15 @@ interface Deps {
 
 function describeImportResult(result: CollectionImportResult): string {
   const name = `"${result.collectionName}"`;
-  switch (result.outcome) {
-    case 'created': return `Imported ${name} with ${result.assetCount} assets.`;
-    case 'updated': return `Updated ${name} to its export from ${formatRelativeTime(result.exportedAt)}.`;
-    case 'repaired': return `Restored ${result.fileCount} missing files and ${result.assetCount} missing assets of ${name}.`;
-    case 'already-current': return `This vault already has this export of ${name}.`;
-    case 'newer-exists': {
-      const localDate = result.localExportedAt === undefined ? '' : ` (from ${formatRelativeTime(result.localExportedAt)})`;
-      return `This vault already has a newer export of ${name}${localDate}.`;
-    }
-  }
+  return result.outcome === 'created'
+    ? `Imported ${name} with ${result.assetCount} assets.`
+    : `Updated ${name} with ${result.assetCount} assets from the export.`;
+}
+
+function describeUpdateRequest({ existing, imported, exportedAt }: UpdateRequest): string {
+  const copy = existing.name === imported.name ? `"${existing.name}"` : `"${imported.name}" as "${existing.name}"`;
+  return `This vault already has ${copy}. Update it from this export, made ${formatRelativeTime(exportedAt)}? `
+    + 'Its files and assets replace the ones in this vault.';
 }
 
 function downloadBlob(blob: Blob, fileName: string): void {
@@ -54,10 +52,31 @@ function downloadBlob(blob: Blob, fileName: string): void {
 export function useCollectionTransfer({ app, assetService, selectedCollection, onImported }: Deps): CollectionTransferActions {
   const [transfer, setTransfer] = useState<CollectionTransfer | null>(null);
 
+  const close = (): void => setTransfer(null);
+
   // The dialog stays open with the result: a fast transfer would otherwise only flash.
   const finish = (kind: CollectionTransfer['kind'], message: string): void => {
-    setTransfer({ kind, progress: { message, fraction: 1 }, isDone: true });
+    setTransfer({
+      kind,
+      progress: { message, fraction: 1 },
+      prompt: { actions: [{ label: 'Close', onSelect: close, isPrimary: true }], onDismiss: close },
+    });
   };
+
+  const confirmUpdate = (request: UpdateRequest): Promise<boolean> => new Promise((resolve) => {
+    const answer = (update: boolean) => (): void => {
+      setTransfer(update ? { kind: 'import', progress: { message: 'Updating…', fraction: 0 } } : null);
+      resolve(update);
+    };
+    setTransfer({
+      kind: 'import',
+      progress: { message: describeUpdateRequest(request), fraction: 0 },
+      prompt: {
+        actions: [{ label: 'Cancel', onSelect: answer(false) }, { label: 'Update', onSelect: answer(true), isPrimary: true }],
+        onDismiss: answer(false),
+      },
+    });
+  });
 
   const handleExportCollection = async (): Promise<void> => {
     if (!assetService || !selectedCollection || transfer) return;
@@ -81,22 +100,24 @@ export function useCollectionTransfer({ app, assetService, selectedCollection, o
     setTransfer({ kind: 'import', progress: { message: 'Reading bundle…', fraction: 0 } });
     let result: CollectionImportResult;
     try {
-      result = await importCollectionBundle(app, assetService, file, (progress) => setTransfer({ kind: 'import', progress }));
+      result = await importCollectionBundle(app, assetService, file, {
+        onProgress: (progress) => setTransfer({ kind: 'import', progress }),
+        confirmUpdate,
+      });
     } catch (error) {
       console.error('[useCollectionTransfer] Import failed:', error);
       finish('import', error instanceof Error ? error.message : 'Import failed.');
       return;
     }
+    if (result.outcome === 'kept') return;
     finish('import', describeImportResult(result));
-    if (result.outcome === 'created' || result.outcome === 'updated' || result.outcome === 'repaired') {
-      // The import is complete; a failed refresh must not report it as failed.
-      try {
-        await onImported();
-      } catch (error) {
-        console.error('[useCollectionTransfer] Refreshing after import failed:', error);
-      }
-      app.workspace.trigger('atlas-vtt:refresh-assets');
+    // The import is complete; a failed refresh must not report it as failed.
+    try {
+      await onImported();
+    } catch (error) {
+      console.error('[useCollectionTransfer] Refreshing after import failed:', error);
     }
+    app.workspace.trigger('atlas-vtt:refresh-assets');
   };
 
   const handleImportCollection = (): void => {
@@ -115,7 +136,5 @@ export function useCollectionTransfer({ app, assetService, selectedCollection, o
     input.click();
   };
 
-  const dismissTransfer = (): void => setTransfer(null);
-
-  return { transfer, handleExportCollection, handleImportCollection, dismissTransfer };
+  return { transfer, handleExportCollection, handleImportCollection };
 }

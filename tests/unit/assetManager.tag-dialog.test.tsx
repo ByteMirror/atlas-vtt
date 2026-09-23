@@ -97,9 +97,9 @@ it('creates a tag without dismissing the asset manager', () => {
   expect(onClose).not.toHaveBeenCalled();
 });
 
-it('keeps the asset manager open when Escape closes a finished collection transfer dialog', () => {
+it('ignores its own Escape shortcut while a collection transfer dialog is open', () => {
   const onClose = vi.fn();
-  render(<Harness onClose={onClose} transfer={{ kind: 'import', progress: { message: 'Done', fraction: 1 }, isDone: true }} />);
+  render(<Harness onClose={onClose} transfer={{ kind: 'import', progress: { message: 'Done', fraction: 1 }, prompt: { actions: [], onDismiss: vi.fn() } }} />);
   fireEvent.keyDown(document, { key: 'Escape' });
   expect(onClose).not.toHaveBeenCalled();
 });

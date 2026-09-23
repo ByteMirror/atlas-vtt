@@ -20,4 +20,4 @@
 - Closing the map shown in the player view no longer keeps that map in memory; players keep seeing the last frame.
 - The player view keeps the initiative tracker visibility of the map it shows. Opening another map where the tracker is open no longer reveals it to players.
 - Widgets in the player view always come from the map being shown. Opening another map no longer changes the counters players see, and presenting a new map now shows its widgets.
-- Importing a collection you imported before works again. Exports are now dated, so a later export updates the vault's copy instead of being reported as already up to date, including exports a player sends back. Importing the same export again puts back files and assets the copy has lost, without undoing your changes to it.
+- Importing a collection the vault already has no longer stops silently as already up to date. Atlas asks whether to update your copy from the export, and updating also puts back files and assets the copy has lost.

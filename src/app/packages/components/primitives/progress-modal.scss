@@ -34,6 +34,11 @@
     font-variant-numeric: tabular-nums;
   }
 
+  &__actions {
+    @include atlas-flex-row($gap: $spacing-s);
+    justify-content: center;
+  }
+
   &__bar {
     width: 100%;
     height: 6px;

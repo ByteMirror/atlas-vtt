@@ -6,31 +6,29 @@ import { BUNDLE_MANIFEST, isCollectionBundleManifest, zipPathFor, type BundleFil
 import type { BundleProgressListener } from './collectionExport';
 import { planImportPaths, remapPaths, type PathMap } from './pathRemap';
 
-/** `repaired`: the vault had this export, but files or assets of it were missing and have been put back. */
-export type ImportOutcome = 'created' | 'updated' | 'repaired' | 'already-current' | 'newer-exists';
+/** `kept`: the vault already had the collection and the user chose not to update it. */
+export type ImportOutcome = 'created' | 'updated' | 'kept';
 
 export interface CollectionImportResult {
   outcome: ImportOutcome;
   collectionName: string;
-  /** When the imported bundle was exported. */
-  exportedAt: number;
-  /** When the export the vault's copy matches was made, if that copy is dated. */
-  localExportedAt?: number;
   assetCount: number;
   fileCount: number;
 }
 
-/**
- * Same uid means the same collection, and the later export wins. Export times
- * are comparable across vaults, unlike counters each vault would keep on its
- * own. Copies from before exports were dated count as older than any export.
- */
-export function decideImportOutcome(exportedAt: number, existing: Pick<CollectionMetadata, 'exportedAt'> | null): ImportOutcome {
-  if (!existing) return 'created';
-  const local = existing.exportedAt ?? Number.NEGATIVE_INFINITY;
-  if (exportedAt > local) return 'updated';
-  if (exportedAt === local) return 'already-current';
-  return 'newer-exists';
+/** What the user decides on before an export changes a collection the vault already has. */
+export interface UpdateRequest {
+  /** The vault's copy, which may have been renamed since it arrived. */
+  existing: CollectionMetadata;
+  imported: CollectionMetadata;
+  /** When the bundle was exported. */
+  exportedAt: number;
+}
+
+export interface ImportOptions {
+  onProgress?: BundleProgressListener;
+  /** Whether the export replaces the files and assets of the vault's copy. Without it, the copy is kept. */
+  confirmUpdate?: (request: UpdateRequest) => Promise<boolean>;
 }
 
 /** Text files carry vault paths that must follow the files they point at. */
@@ -139,89 +137,37 @@ class BundleWriter {
   }
 }
 
-async function writeFiles(
-  writer: BundleWriter,
-  files: readonly BundleFile[],
-  result: CollectionImportResult,
-  onProgress: BundleProgressListener,
-): Promise<void> {
-  for (const [index, file] of files.entries()) {
-    onProgress({ message: `Writing ${index + 1} of ${files.length} files…`, fraction: (index / files.length) * 0.9 });
-    if (await writer.write(file)) result.fileCount += 1;
-  }
-  for (const file of files) {
-    if (file.role === 'statblock-note') await writer.relinkStatblockImage(file);
-  }
-}
-
-/**
- * Puts back what the vault's copy of this very export has lost, and nothing
- * else: files, assets and settings it still has keep their local edits.
- * Assets whose id another collection now owns are left to that collection.
- */
-async function restoreMissing(
-  app: App,
-  assets: AssetService,
-  zip: JSZip,
-  manifest: CollectionBundleManifest,
-  plan: PathMap,
-  collectionId: string,
-  result: CollectionImportResult,
-  onProgress: BundleProgressListener,
-): Promise<CollectionImportResult> {
-  const missingAssets: Asset[] = [];
-  const foreignMapFiles = new Set<string>();
-  for (const asset of manifest.assets) {
-    const local = await assets.getAssetById(asset.id);
-    if (!local) missingAssets.push(asset);
-    else if (local.collection !== collectionId) foreignMapFiles.add(`${COLLECTIONS_DIR}/${manifest.collection.id}/maps/${asset.id}.json`);
-  }
-  const missingFiles = manifest.files.filter((file) => {
-    const target = plan.get(file.vaultPath);
-    // Files the source vault no longer had were never packed, so there is nothing to put back.
-    return target !== undefined && !foreignMapFiles.has(file.vaultPath) && zip.file(zipPathFor(file.vaultPath)) !== null
-      && !(app.vault.getAbstractFileByPath(target) instanceof TFile);
-  });
-  if (missingAssets.length === 0 && missingFiles.length === 0) return result;
-
-  await writeFiles(new BundleWriter(app, zip, plan, plan, `${COLLECTIONS_DIR}/${collectionId}/`), missingFiles, result, onProgress);
-  onProgress({ message: 'Registering assets…', fraction: 0.95 });
-  const restored = missingAssets.map((asset): Asset => remapPaths(asset, plan));
-  await assets.restoreImportedAssets(restored, collectionId);
-  return { ...result, outcome: 'repaired', assetCount: restored.length };
-}
-
 /**
  * Restores a collection bundle into this vault: files land in the target
  * collection's folder (global Atlas assets keep their path), every stored
  * path is rewritten to follow them, and the collection record arrives with
  * its tags and settings. Existing statblock notes are reused rather than
- * duplicated. A newer export replaces an older copy, the same export only
- * puts back what the copy has lost, and an older export changes nothing.
+ * duplicated. A collection the vault already has (same uid) is only updated
+ * when `confirmUpdate` agrees.
  */
 export async function importCollectionBundle(
   app: App,
   assets: AssetService,
   data: Blob,
-  onProgress: BundleProgressListener = () => undefined,
+  { onProgress = () => undefined, confirmUpdate = () => Promise.resolve(false) }: ImportOptions = {},
 ): Promise<CollectionImportResult> {
   onProgress({ message: 'Reading bundle…', fraction: 0 });
   const { default: JSZip } = await import('jszip');
   const zip = await JSZip.loadAsync(await data.arrayBuffer());
   const manifest = await readManifest(zip);
-  // Older bundles only date the manifest; the copy keeps that date to compare later imports against.
-  const imported: CollectionMetadata = { ...manifest.collection, exportedAt: manifest.exportedAt };
+  const imported = manifest.collection;
 
   const existing = await assets.findCollectionByUid(imported.uid);
   const result: CollectionImportResult = {
-    outcome: decideImportOutcome(manifest.exportedAt, existing),
+    outcome: existing ? 'updated' : 'created',
     collectionName: imported.name,
-    exportedAt: manifest.exportedAt,
-    ...(existing?.exportedAt !== undefined && { localExportedAt: existing.exportedAt }),
     assetCount: 0,
     fileCount: 0,
   };
-  if (result.outcome === 'newer-exists') return result;
+  // Neither copy knows which one holds the work to keep, so the user decides.
+  if (existing && !(await confirmUpdate({ existing, imported, exportedAt: manifest.exportedAt }))) {
+    return { ...result, outcome: 'kept' };
+  }
 
   const collectionId = existing?.id ?? await resolveCollectionId(assets, imported);
   const plan = new Map(planImportPaths(
@@ -230,9 +176,6 @@ export async function importCollectionBundle(
     collectionId,
     (path) => app.vault.getAbstractFileByPath(normalizePath(path)) instanceof TFile,
   ));
-  if (result.outcome === 'already-current') {
-    return restoreMissing(app, assets, zip, manifest, plan, collectionId, result, onProgress);
-  }
   const renames = existing ? new Map<string, string>() : await freshAssetIds(assets, manifest.assets);
   // A map asset's JSON record is found by id, so a renamed map takes its file along.
   for (const asset of manifest.assets) {
@@ -244,7 +187,13 @@ export async function importCollectionBundle(
   const rewrites = new Map([...plan, ...renames]);
   const writer = new BundleWriter(app, zip, plan, rewrites, `${COLLECTIONS_DIR}/${collectionId}/`);
 
-  await writeFiles(writer, manifest.files, result, onProgress);
+  for (const [index, file] of manifest.files.entries()) {
+    onProgress({ message: `Writing ${index + 1} of ${manifest.files.length} files…`, fraction: (index / manifest.files.length) * 0.9 });
+    if (await writer.write(file)) result.fileCount += 1;
+  }
+  for (const file of manifest.files) {
+    if (file.role === 'statblock-note') await writer.relinkStatblockImage(file);
+  }
 
   onProgress({ message: 'Registering assets…', fraction: 0.95 });
   const importedAssets = manifest.assets.map((asset): Asset => remapPaths(asset, rewrites));

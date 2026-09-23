@@ -34,6 +34,8 @@ export interface ImportReview {
    * `own-collection` when this vault published it, `other-publisher` otherwise.
    */
   publisherWarning?: 'own-collection' | 'other-publisher' | undefined;
+  /** Assets left out because they refer to files outside Atlas's folder. */
+  skippedAssets: Array<{ name: string; path: string }>;
   /** A new collection whose name another collection already uses. */
   suggestedName?: string | undefined;
   counts: Record<ChangeStatus, number>;
@@ -68,10 +70,18 @@ function relationOf(version: number, installedVersion: number | undefined): Impo
   return version === installedVersion ? 'same' : 'older';
 }
 
+/**
+ * Flags bundles that cannot come from the publisher of the vault's copy. Only
+ * this vault releases its own collections, so anything newer than its last
+ * release is foreign whatever the bundle claims. Other collections are flagged
+ * when a release names a different publisher. Without signatures this guards
+ * against mix-ups, not against deliberate forgery.
+ */
 function publisherWarning(manifest: CollectionBundleManifest, existing: CollectionMetadata | null, vaultId: string): ImportReview['publisherWarning'] {
+  if (!existing?.publisherId) return undefined;
+  if (existing.publisherId === vaultId) return manifest.collection.version > existing.version ? 'own-collection' : undefined;
   const claimed = manifest.collection.publisherId;
-  if (!existing?.publisherId || !claimed || claimed === existing.publisherId || manifest.release?.kind === 'share') return undefined;
-  return existing.publisherId === vaultId ? 'own-collection' : 'other-publisher';
+  return manifest.release?.kind !== 'share' && claimed && claimed !== existing.publisherId ? 'other-publisher' : undefined;
 }
 
 export function buildReview(
@@ -83,6 +93,7 @@ export function buildReview(
   restorePlan: ImportPlan,
   unitAssets: ReadonlyMap<string, Asset>,
   suggestedName: string | undefined,
+  skipped: ReadonlyArray<{ name: string; path: string }>,
 ): ImportReview {
   const { collection } = manifest;
   const installedVersion = existing ? record?.version ?? existing.version : undefined;
@@ -101,6 +112,7 @@ export function buildReview(
     exportedAt: manifest.exportedAt,
     hasInstallRecord: record !== null,
     publisherWarning: publisherWarning(manifest, existing, vaultId),
+    skippedAssets: skipped.map(({ name, path }) => ({ name, path })),
     suggestedName,
     counts: plan.counts,
     conflicts,

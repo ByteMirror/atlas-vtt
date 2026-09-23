@@ -75,13 +75,21 @@ export async function openCollectionImport(
   onProgress({ message: 'Ready', fraction: 1 });
 
   return {
-    review: buildReview(manifest, await assets.getVaultId(), existing, record, plan, restorePlan, unitAssets, suggestedName),
+    review: buildReview(manifest, await assets.getVaultId(), existing, record, plan, restorePlan, unitAssets, suggestedName, targets.skipped),
     apply: (decision, progress = () => undefined) =>
       applyImport(app, assets, { bundle, existing, record, targets, plan: decision.restore ? restorePlan : plan }, decision, progress),
   };
 }
 
 const idOf = (key: string): string => key.slice(key.indexOf(':') + 1);
+
+/** Every string anywhere in `value`: the paths an asset record can refer to, among other text. */
+function collectStrings(value: unknown, into: Set<string>): Set<string> {
+  if (typeof value === 'string') into.add(value);
+  else if (Array.isArray(value)) value.forEach((item) => collectStrings(item, into));
+  else if (value && typeof value === 'object') Object.values(value).forEach((item) => collectStrings(item, into));
+  return into;
+}
 
 async function applyImport(
   app: App,
@@ -103,16 +111,24 @@ async function applyImport(
   let removed = 0;
   let collection: CollectionMetadata;
   try {
+    const upsert: Asset[] = [];
+    const remove: string[] = [];
+    for (const item of items.filter((entry) => entry.kind === 'asset' && actions.has(entry.key))) {
+      const bundleId = idOf(item.key);
+      if (actions.get(item.key) === 'remove') remove.push(targets.localIdOf(bundleId));
+      else upsert.push(installedAsset(assetsById.get(bundleId)!, targets));
+    }
+    // A file is never removed while a path the bundle places there or an asset left in the collection still names it.
+    const staying = (await assets.getAssets(targets.collectionId)).filter((asset) => !remove.includes(asset.id));
+    const inUse = collectStrings([...staying, ...upsert], new Set(targets.paths.values()));
     const fileItems = items.filter((item) => item.kind === 'file' && actions.has(item.key));
-    // A path the update writes is never also removed, e.g. when a file moved onto an old file's path.
-    const writtenTargets = new Set(fileItems.filter((item) => actions.get(item.key) === 'write').map((item) => targets.targetOf(idOf(item.key))));
     for (const [index, item] of fileItems.entries()) {
       reportFileStep(onProgress, 'Writing', index, fileItems.length, 0, 0.9);
       const bundlePath = idOf(item.key);
       const target = targets.targetOf(bundlePath);
       if (!target) continue;
       if (actions.get(item.key) === 'remove') {
-        if (writtenTargets.has(target)) continue;
+        if (inUse.has(target)) continue;
         await journal.remove(target);
         removed += 1;
         continue;
@@ -124,13 +140,6 @@ async function applyImport(
 
     onProgress({ message: 'Registering assets…', fraction: 0.95 });
     collection = await mergedCollection(assets, context, actions, name);
-    const upsert: Asset[] = [];
-    const remove: string[] = [];
-    for (const item of items.filter((entry) => entry.kind === 'asset' && actions.has(entry.key))) {
-      const bundleId = idOf(item.key);
-      if (actions.get(item.key) === 'remove') remove.push(targets.localIdOf(bundleId));
-      else upsert.push(installedAsset(assetsById.get(bundleId)!, targets));
-    }
     await assets.commitCollectionImport({ collectionId: targets.collectionId, collection, upsert, remove });
   } catch (error) {
     const unrestored = await journal.rollback();
@@ -174,8 +183,11 @@ async function mergedCollection(assets: AssetService, { bundle, existing, target
   const publisherId = existing?.publisherId ?? theirs.publisherId;
   if (publisherId === undefined) delete merged.publisherId;
   else merged.publisherId = publisherId;
-  if (theirs.author === undefined) delete merged.author;
-  else merged.author = theirs.author;
+  // Only a release speaks for the author; a shared copy keeps what the vault had.
+  if (bundle.manifest.release?.kind !== 'share') {
+    if (theirs.author === undefined) delete merged.author;
+    else merged.author = theirs.author;
+  }
   if (!existing) return { ...merged, name };
   for (const field of COLLECTION_FIELDS) {
     if (actions.get(`field:${field}`) !== 'write') continue;

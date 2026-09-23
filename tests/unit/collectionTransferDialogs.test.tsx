@@ -13,7 +13,7 @@ const counts = { added: 0, updated: 0, removed: 0, kept: 0, restored: 0, conflic
 function review(overrides: Partial<ImportReview> = {}): ImportReview {
   return {
     collectionName: 'Dragon Pack', localName: 'Dragon Pack', author: 'Dungeon Tube', version: 3, installedVersion: 2,
-    relation: 'newer', kind: 'release', exportedAt: Date.now(), hasInstallRecord: true,
+    relation: 'newer', kind: 'release', exportedAt: Date.now(), hasInstallRecord: true, skippedAssets: [],
     counts: { ...counts, added: 2, updated: 1, kept: 1 }, conflicts: [], upToDate: false, canRestore: false,
     assetCount: 12, fileCount: 30, ...overrides,
   };

@@ -1,5 +1,5 @@
 import { TFile, type App } from 'obsidian';
-import { ATLAS_VTT_DIR, COLLECTIONS_DIR, type Asset, type AssetService, type CollectionMetadata } from '../AssetService';
+import { COLLECTIONS_DIR, type Asset, type AssetService, type CollectionMetadata } from '../AssetService';
 import { BUNDLE_FORMAT, BUNDLE_MANIFEST, zipPathFor, type BundleFile, type CollectionBundleManifest } from './bundleFormat';
 import { rewriteContent } from './bundleContent';
 import { reportFileStep, type BundleProgressListener } from './bundleProgress';
@@ -203,8 +203,9 @@ async function originNames(app: App, { collection, files }: ExportPreview): Prom
 
 /**
  * The publisher's vault holds exactly what it exported, so every fingerprint is
- * both source and installed state. Files outside Atlas's folder are the
- * publisher's own notes and never become part of the record.
+ * both source and installed state. Files outside Atlas's folder are recorded
+ * too, so a shared copy coming back is matched to them instead of copied; an
+ * import only ever removes files inside the collection's own folder.
  */
 async function recordRelease(app: App, assets: AssetService, preview: ExportPreview, manifest: CollectionBundleManifest): Promise<void> {
   const { collection } = manifest;
@@ -228,9 +229,7 @@ async function recordRelease(app: App, assets: AssetService, preview: ExportPrev
     fields: {},
   };
   for (const file of manifest.files) {
-    if (file.sha256 && file.vaultPath.startsWith(`${ATLAS_VTT_DIR}/`)) {
-      record.files[file.vaultPath] = { target: file.vaultPath, source: file.sha256, installed: file.sha256 };
-    }
+    if (file.sha256) record.files[file.vaultPath] = { target: file.vaultPath, source: file.sha256, installed: file.sha256 };
   }
   for (const asset of manifest.assets) {
     const fingerprint = await assetFingerprint(asset);

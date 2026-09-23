@@ -127,19 +127,32 @@ function updateAction(item: PlannedItem): ImportAction | undefined {
 }
 
 /**
+ * What a unit whose conflicts the user resolved as their own still takes from
+ * the update. When the asset record itself follows the update (or has none),
+ * every non-conflicting item does. When the user keeps their record, it may
+ * still name the old files, so nothing is added or removed and only files it
+ * already has are updated; an asset the user deleted gets nothing back.
+ */
+function keptUnitAction(unit: PlannedUnit, item: PlannedItem): ImportAction | undefined {
+  if (item.status === 'conflict' || unit.conflict === 'removed-by-update') return undefined;
+  const record = unit.items.find((entry) => entry.kind === 'asset');
+  const recordFollows = !record || record.status === 'updated' || record.status === 'unchanged' || record.status === 'kept';
+  if (recordFollows) return itemAction(item);
+  return record.mine !== null && item.status === 'updated' ? 'write' : undefined;
+}
+
+/**
  * What to do with each item once the user resolved the conflicts. Taking the
- * update writes or removes every item of the unit that differs from the bundle.
- * Keeping the user's version keeps the conflicting items only; the update's
- * other changes to the unit still apply, unless the update removes the whole
- * asset, which then stays as it is.
+ * update writes or removes every item of the unit that differs from the bundle;
+ * keeping the user's version keeps the conflicting items (see `keptUnitAction`).
  */
 export function resolvePlan(plan: ImportPlan, resolutions: ReadonlyMap<string, Resolution>): Map<string, ImportAction> {
   const actions = new Map<string, ImportAction>();
   for (const unit of plan.units) {
-    const takeTheirs = unit.status === 'conflict' && resolutions.get(unit.key) === 'theirs';
-    if (unit.status === 'conflict' && !takeTheirs && unit.conflict === 'removed-by-update') continue;
+    const isConflict = unit.status === 'conflict';
+    const takeTheirs = isConflict && resolutions.get(unit.key) === 'theirs';
     for (const item of unit.items) {
-      const action = takeTheirs ? updateAction(item) : itemAction(item);
+      const action = takeTheirs ? updateAction(item) : isConflict ? keptUnitAction(unit, item) : itemAction(item);
       if (action) actions.set(item.key, action);
     }
   }

@@ -409,15 +409,19 @@ describe('review findings', () => {
     expect(edited).toContain('My notes.');
   });
 
-  it('refuses a bundle whose assets would name files outside Atlas\'s folder', async () => {
+  it('leaves out assets that would name files outside Atlas\'s folder, and imports the rest', async () => {
     const { default: JSZip } = await import('jszip');
     const zip = await JSZip.loadAsync(await (await exportFrom(await creatorVault())).arrayBuffer());
     const manifest = JSON.parse(await zip.file('manifest.json')!.async('string')) as { assets: Array<Record<string, unknown>> };
     manifest.assets = manifest.assets.map((asset) => (asset.type === 'token' ? { ...asset, imagePath: 'Journal/Diary.md' } : asset));
     zip.file('manifest.json', JSON.stringify(manifest));
     const fan = await emptyVault({ 'Journal/Diary.md': 'Dear diary' });
-    await expect(openCollectionImport(fan.vault.app, fan.assets, new Blob([await zip.generateAsync({ type: 'arraybuffer' })])))
-      .rejects.toThrow(/not safe to import: "Goblin" refers to Journal\/Diary\.md/);
+    const { review, apply } = await reviewImport(fan, new Blob([await zip.generateAsync({ type: 'arraybuffer' })]));
+    expect(review.skippedAssets).toEqual([{ name: 'Goblin', path: 'Journal/Diary.md' }]);
+    await apply();
+    expect(await fan.assets.getAssets('source', 'token')).toHaveLength(0);
+    expect(await fan.assets.getAssets('source')).toHaveLength(2);
+    expect(fan.vault.files.get('Journal/Diary.md')).toBe('Dear diary');
   });
 
   it('never takes back an asset the user moved to another collection', async () => {
@@ -489,6 +493,92 @@ describe('review findings', () => {
     expect(review).toMatchObject({ upToDate: true, counts: { updated: 0 } });
     await apply();
     expect((await creator.assets.getCollection('source'))?.name).toBe('Source');
+  });
+});
+
+describe('second review findings', () => {
+  it('keeps a kept token\'s statblock note when the update moves it', async () => {
+    const { creator, fan } = await (async () => {
+      const c = await creatorVault();
+      const f = await emptyVault();
+      await importInto(f, await exportFrom(c));
+      return { creator: c, fan: f };
+    })();
+    const [fanToken] = await fan.assets.getAssets('source', 'token');
+    await fan.assets.updateAsset(fanToken!.id, { name: 'My goblin' });
+    creator.vault.files.set('Monsters/Goblin.md', creator.vault.files.get(NOTE_PATH)!);
+    creator.vault.files.delete(NOTE_PATH);
+    const [token] = await creator.assets.getAssets('source', 'token');
+    await creator.assets.updateAsset(token!.id, { statblockPath: 'Monsters/Goblin.md' });
+
+    const { review, apply } = await reviewImport(fan, await exportFrom(creator));
+    expect(review.conflicts).toEqual([expect.objectContaining({ kind: 'Token', reason: 'both-changed' })]);
+    await apply();
+    const [kept] = await fan.assets.getAssets('source', 'token');
+    expect(kept?.name).toBe('My goblin');
+    expect(fan.vault.files.has(kept!.statblockPath!)).toBe(true);
+  });
+
+  it('keeps a note the creator moves into the collection folder', async () => {
+    const creator = await creatorVault();
+    const fan = await emptyVault();
+    await importInto(fan, await exportFrom(creator));
+    const inFolder = 'atlas-vtt/collections/source/statblocks/Goblin.md';
+    creator.vault.files.set(inFolder, creator.vault.files.get(NOTE_PATH)!);
+    creator.vault.files.delete(NOTE_PATH);
+    const [token] = await creator.assets.getAssets('source', 'token');
+    await creator.assets.updateAsset(token!.id, { statblockPath: inFolder });
+
+    const result = await (await reviewImport(fan, await exportFrom(creator))).apply();
+    expect(result.removed).toBe(0);
+    const [fanToken] = await fan.assets.getAssets('source', 'token');
+    expect(fanToken?.statblockPath).toBe(inFolder);
+    expect(fan.vault.files.has(inFolder)).toBe(true);
+  });
+
+  it('never links a new creator asset to a file the user made in the collection folder', async () => {
+    const creator = await creatorVault();
+    const fan = await emptyVault();
+    await importInto(fan, await exportFrom(creator));
+    const lair = 'atlas-vtt/collections/source/scenes/Lair.atlasmap';
+    await fan.vault.app.vault.create(lair, 'MY LAIR');
+    await creator.vault.app.vault.create(lair, '{"creator":true}');
+    await creator.assets.addAsset({ type: 'scene', name: 'Lair', collection: 'source', tags: [], data: { mapPath: lair } });
+
+    await importInto(fan, await exportFrom(creator));
+    expect(fan.vault.files.get(lair)).toBe('MY LAIR');
+    const scene = (await fan.assets.getAssets('source', 'scene')).find((asset) => asset.name === 'Lair');
+    expect(scene?.data?.mapPath).toBe('atlas-vtt/collections/source/scenes/Lair-2.atlasmap');
+    expect(fan.vault.files.get(scene!.data!.mapPath)).toBe('{"creator":true}');
+  });
+
+  it('copies note assets into the collection, and matches them when a share comes back', async () => {
+    const creator = await creatorVault();
+    await creator.vault.app.vault.create('Lore/Castle.md', '# Castle');
+    await creator.assets.addAsset({ type: 'note', name: 'Castle', collection: 'source', tags: [], notePath: 'Lore/Castle.md' } as never);
+    const fan = await emptyVault();
+    await importInto(fan, await exportFrom(creator));
+    const note = (await fan.assets.getAssets('source')).find((asset) => asset.name === 'Castle') as { notePath?: string } | undefined;
+    expect(note?.notePath).toBe('atlas-vtt/collections/source/notes/Castle.md');
+
+    const shared = await exportFrom(fan, { kind: 'share' });
+    AssetService.resetInstance();
+    const { review } = await reviewImport(creator, shared);
+    expect(review).toMatchObject({ upToDate: true, counts: { added: 0 } });
+  });
+
+  it('warns the publisher about any newer bundle of their own collection, even one labelled a share', async () => {
+    const creator = await creatorVault();
+    const { default: JSZip } = await import('jszip');
+    const zip = await JSZip.loadAsync(await (await exportFrom(creator)).arrayBuffer());
+    const manifest = JSON.parse(await zip.file('manifest.json')!.async('string')) as { collection: Record<string, unknown>; release: unknown };
+    manifest.collection = { ...manifest.collection, version: 5, author: 'Impostor' };
+    manifest.release = { kind: 'share' };
+    zip.file('manifest.json', JSON.stringify(manifest));
+    const { review, apply } = await reviewImport(creator, new Blob([await zip.generateAsync({ type: 'arraybuffer' })]));
+    expect(review.publisherWarning).toBe('own-collection');
+    await apply();
+    expect((await creator.assets.getCollection('source'))?.author).toBeUndefined();
   });
 });
 

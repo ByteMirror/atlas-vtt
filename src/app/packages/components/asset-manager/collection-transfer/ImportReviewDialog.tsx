@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react';
 import type { ImportDecision } from '../../../../services/collectionBundle/collectionImport';
 import type { ChangeStatus, Resolution } from '../../../../services/collectionBundle/importPlan';
 import type { ImportReview } from '../../../../services/collectionBundle/importReview';
+import { plural } from '../../../../utils/plural';
 import { formatRelativeTime } from '../../../../utils/relativeTime';
 import { Button } from '../../primitives/button';
 import { CloseButton } from '../../primitives/CloseButton';
@@ -75,6 +76,15 @@ export function ImportReviewDialog({ review, onConfirm, onCancel }: ImportReview
               {review.publisherWarning === 'own-collection'
                 ? 'You published this collection, but this file claims to be a release of it by someone else. Only continue if you trust where it came from.'
                 : 'This file was released by a different publisher than the version you have. Only continue if you trust where it came from.'}
+            </div>
+          )}
+          {review.skippedAssets.length > 0 && (
+            <div className="atlas-transfer-callout atlas-transfer-callout--warning" role="note">
+              <strong>{plural(review.skippedAssets.length, 'asset')} will be left out because {review.skippedAssets.length === 1 ? 'it refers' : 'they refer'} to files outside Atlas&rsquo;s folder:</strong>
+              <ul>
+                {review.skippedAssets.slice(0, 5).map((asset) => <li key={`${asset.name}:${asset.path}`}>{asset.name} ({asset.path})</li>)}
+                {review.skippedAssets.length > 5 && <li>and {review.skippedAssets.length - 5} more</li>}
+              </ul>
             </div>
           )}
           {review.relation === 'older' && (

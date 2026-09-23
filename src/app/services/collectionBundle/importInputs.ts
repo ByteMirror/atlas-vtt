@@ -1,5 +1,5 @@
 import { TFile, normalizePath, type App } from 'obsidian';
-import { AssetService, ATLAS_VTT_DIR, COLLECTIONS_DIR, type Asset, type CollectionMetadata } from '../AssetService';
+import { AssetService, ATLAS_VTT_DIR, COLLECTIONS_DIR, GLOBAL_ASSETS_DIR, type Asset, type CollectionMetadata } from '../AssetService';
 import { isSafeBundlePath, zipPathFor, type BundleFile } from './bundleFormat';
 import type { OpenedBundle } from './bundleReader';
 import { mayRewrite, rewriteContent } from './bundleContent';
@@ -24,6 +24,14 @@ export interface ImportTargets {
   rewrites: Map<string, string>;
   /** Bundle paths of files the vault already has but the collection does not own; never written or removed. */
   shared: Set<string>;
+  /** Assets left out because deleting them would trash a file outside Atlas's folder the collection does not own. */
+  skipped: SkippedAsset[];
+}
+
+export interface SkippedAsset {
+  bundleId: string;
+  name: string;
+  path: string;
 }
 
 /** What the planner compares, plus how to name each unit for the user. */
@@ -49,12 +57,17 @@ function deletablePaths(asset: Asset): string[] {
   return paths.filter((path): path is string => typeof path === 'string' && path !== '');
 }
 
-/** Refuses bundles whose assets, once imported, would name files outside Atlas's folder that deleting them would trash. */
-function assertAssetPathsInsideAtlas(assets: readonly Asset[]): void {
-  for (const asset of assets) {
-    const outside = deletablePaths(asset).find((path) => !path.startsWith(`${ATLAS_VTT_DIR}/`) || !isSafeBundlePath(path));
-    if (outside) throw new Error(`This collection export is not safe to import: "${asset.name}" refers to ${outside}, outside Atlas's folder.`);
-  }
+/**
+ * Assets that, once imported, would name a file deleting them trashes outside
+ * Atlas's folder and outside what this vault already had in the collection:
+ * a crafted bundle, or a note that was missing when the bundle was made.
+ */
+function unsafeAssets(assets: readonly Asset[], targets: ImportTargets, ownedPaths: ReadonlySet<string>): SkippedAsset[] {
+  return assets.flatMap((asset): SkippedAsset[] => {
+    const outside = deletablePaths(installedAsset(asset, targets))
+      .find((path) => !ownedPaths.has(path) && (!path.startsWith(`${ATLAS_VTT_DIR}/`) || !isSafeBundlePath(path)));
+    return outside ? [{ bundleId: asset.id, name: asset.name, path: outside }] : [];
+  });
 }
 
 async function vaultFileHash(app: App, path: string): Promise<string | null> {
@@ -80,14 +93,15 @@ export async function planTargets(
   const sameContent = new Set<string>();
   for (const file of unplaced) {
     const hash = sourceHashes.get(file.vaultPath);
-    if (hash && file.vaultPath.startsWith(`${ATLAS_VTT_DIR}/`) && await vaultFileHash(app, file.vaultPath) === hash) sameContent.add(file.vaultPath);
+    if (hash && file.vaultPath.startsWith(`${GLOBAL_ASSETS_DIR}/`) && await vaultFileHash(app, file.vaultPath) === hash) sameContent.add(file.vaultPath);
   }
+  const recordTargets = record ? new Set(Object.values(record.files).map((file) => file.target)) : null;
   const planned = planImportPaths(unplaced, {
     sourceCollectionId: manifest.collection.id,
     targetCollectionId: collectionId,
     existsInVault: exists,
     hasSameContent: (file) => sameContent.has(file.vaultPath),
-    claimed: Object.values(record?.files ?? {}).map((file) => file.target),
+    recordTargets,
   });
   for (const [source, target] of planned) paths.set(source, target);
 
@@ -108,18 +122,20 @@ export async function planTargets(
   const collectionPrefix = `${COLLECTIONS_DIR}/${collectionId}/`;
   const shared = new Set<string>();
   for (const [source, target] of paths) {
-    if (!record?.files[source] && !target.startsWith(collectionPrefix) && exists(target)) shared.add(source);
+    // An import writes only inside Atlas's folder: the user's own notes elsewhere are read, never replaced.
+    const isOutsideAtlas = !target.startsWith(`${ATLAS_VTT_DIR}/`);
+    if (isOutsideAtlas || (!record?.files[source] && !target.startsWith(collectionPrefix) && exists(target))) shared.add(source);
   }
   const rewrites = new Map<string, string>();
   for (const [source, target] of [...paths, ...assetIds]) {
     if (source !== target) rewrites.set(source, target);
   }
   const targets: ImportTargets = {
-    collectionId, paths, assetIds, rewrites, shared,
+    collectionId, paths, assetIds, rewrites, shared, skipped: [],
     targetOf: (bundlePath) => paths.get(bundlePath) ?? record?.files[bundlePath]?.target,
     localIdOf: (bundleId) => assetIds.get(bundleId) ?? record?.assets[bundleId]?.localId ?? bundleId,
   };
-  assertAssetPathsInsideAtlas(manifest.assets.map((asset) => installedAsset(asset, targets)));
+  targets.skipped = unsafeAssets(manifest.assets, targets, recordTargets ?? new Set());
   return targets;
 }
 
@@ -137,9 +153,11 @@ export async function gatherImportInputs(
   const { manifest, zip, sourceHashes } = bundle;
   const items: PlanItemInput[] = [];
   const unitAssets = new Map<string, Asset>();
+  const skipped = new Set(targets.skipped.map((asset) => asset.bundleId));
+  const onlyUsedBySkipped = (file: BundleFile): boolean => file.owners !== undefined && file.owners.length > 0 && file.owners.every((owner) => skipped.has(owner));
 
   for (const file of manifest.files) {
-    if (targets.shared.has(file.vaultPath)) continue;
+    if (targets.shared.has(file.vaultPath) || onlyUsedBySkipped(file)) continue;
     const target = targets.paths.get(file.vaultPath)!;
     const theirs = sourceHashes.get(file.vaultPath) ?? null;
     let theirsInstalled = theirs ?? undefined;
@@ -164,6 +182,7 @@ export async function gatherImportInputs(
     return local && existing && local.collection === existing.id ? local : null;
   };
   for (const asset of manifest.assets) {
+    if (skipped.has(asset.id)) continue;
     const localId = targets.assetIds.get(asset.id)!;
     const local = await ownRecord(localId);
     const installed = installedAsset(asset, targets);

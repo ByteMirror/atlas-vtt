@@ -1,6 +1,7 @@
 import { wasTokenRegistrationSaved } from './assetRegistrationRecovery';
 import { SettingsService } from './SettingsService';
 import { App, TFile, TFolder } from 'obsidian';
+import { ensureAdapterFolder } from '../plugin/vaultFolders';
 import type { TokenStateSnapshot } from '../types';
 import type { CellCoord, EncounterFormation } from '../encounters/encounterFormation';
 import { getDataFilePath } from '../utils/dataFileMigration';
@@ -264,22 +265,7 @@ export class AssetService {
   }
 
   private async ensureDirectoryViaAdapter(path: string): Promise<void> {
-    const parts = path.split('/').filter(Boolean);
-    let currentPath = '';
-
-    for (const part of parts) {
-      currentPath = currentPath ? `${currentPath}/${part}` : part;
-      if (await this.app.vault.adapter.exists(currentPath)) {
-        continue;
-      }
-      try {
-        await this.app.vault.adapter.mkdir(currentPath);
-      } catch (error) {
-        if (!(error instanceof Error) || !error.message.includes('already exists')) {
-          throw error;
-        }
-      }
-    }
+    await ensureAdapterFolder(this.app, path);
   }
 
   private async ensureDefaultCollection(): Promise<void> {
@@ -1054,10 +1040,15 @@ export class AssetService {
     return this.registerAsset(newAsset);
   }
 
+  /** A new asset id; unique within this vault. */
+  static newAssetId(type: Asset['type']): string {
+    return `${type}-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+  }
+
   private createAssetIdentity(type: Asset['type']): Pick<BaseAsset, 'id' | 'createdAt' | 'modifiedAt'> {
     const now = Date.now();
     return {
-      id: `${type}-${now}-${Math.random().toString(36).substring(2, 8)}`,
+      id: AssetService.newAssetId(type),
       createdAt: now,
       modifiedAt: now
     };

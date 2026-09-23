@@ -1,4 +1,5 @@
 import type { App } from 'obsidian';
+import { ensureAdapterFolder } from '../../plugin/vaultFolders';
 import { ATLAS_VTT_DIR } from '../AssetService';
 import { isRecord } from '../assetMetadataGuards';
 
@@ -21,14 +22,14 @@ export interface InstalledItem {
   installed: string;
 }
 
-export interface InstalledFile extends InstalledItem {
+interface InstalledFile extends InstalledItem {
   /** Where the file lives in this vault. */
   target: string;
   /** The plan unit the file belongs to, so a later update can group its removal. */
   unit?: string;
 }
 
-export interface InstalledAsset extends InstalledItem {
+interface InstalledAsset extends InstalledItem {
   /** The record's id in this vault, which differs from the bundle's when it collided. */
   localId: string;
 }
@@ -74,20 +75,11 @@ export async function readInstallRecord(app: App, uid: string): Promise<InstallR
 }
 
 export async function writeInstallRecord(app: App, record: InstallRecord): Promise<void> {
-  await ensureHiddenFolder(app, INSTALLS_DIR);
+  await ensureAdapterFolder(app, INSTALLS_DIR);
   await app.vault.adapter.write(recordPath(record.uid), JSON.stringify(record));
 }
 
 export async function deleteInstallRecord(app: App, uid: string): Promise<void> {
   const path = recordPath(uid);
   if (await app.vault.adapter.exists(path)) await app.vault.adapter.remove(path);
-}
-
-/** Creates `path` and its parents through the adapter, which also reaches hidden folders. */
-export async function ensureHiddenFolder(app: App, path: string): Promise<void> {
-  let current = '';
-  for (const segment of path.split('/')) {
-    current = current ? `${current}/${segment}` : segment;
-    if (!(await app.vault.adapter.exists(current))) await app.vault.adapter.mkdir(current);
-  }
 }

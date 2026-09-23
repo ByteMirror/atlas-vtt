@@ -215,7 +215,7 @@ describe('installing', () => {
     zip.file(`files/${TOKEN_IMAGE}`, 'TAMPERED');
     const fan = await emptyVault();
     await expect(openCollectionImport(fan.vault.app, fan.assets, new Blob([await zip.generateAsync({ type: 'arraybuffer' })])))
-      .rejects.toThrow(/damaged: 1 file do not match their checksum \(goblin_1\.webp\)/);
+      .rejects.toThrow(/damaged: 1 file does not match its checksum \(goblin_1\.webp\)/);
     expect(fan.vault.files.has(TOKEN_IMAGE)).toBe(false);
   });
 
@@ -247,11 +247,11 @@ describe('updating', () => {
   it('reports the same version as up to date, and restores what the user changed only when asked', async () => {
     const { creator, fan } = await installedV1();
     const v1 = await exportFrom(creator, { kind: 'release', version: 1 });
-    expect((await reviewImport(fan, v1)).review).toMatchObject({ relation: 'same', hasChanges: false, canRestore: false, conflicts: [] });
+    expect((await reviewImport(fan, v1)).review).toMatchObject({ relation: 'same', upToDate: true, canRestore: false, conflicts: [] });
 
     fan.vault.files.set(MAP_PATH, 'PLAYED');
     const { review, apply } = await reviewImport(fan, v1);
-    expect(review).toMatchObject({ relation: 'same', hasChanges: false, canRestore: true, counts: { kept: 1 } });
+    expect(review).toMatchObject({ relation: 'same', upToDate: true, canRestore: true, counts: { kept: 1 } });
     const result = await apply({ restore: true });
     expect(result).toMatchObject({ written: 1, backupCount: 1 });
     expect(JSON.parse(fan.vault.files.get(MAP_PATH)!).state.objects.tokens.t1.hp).toBe(7);
@@ -296,23 +296,27 @@ describe('updating', () => {
     expect(JSON.parse(fan.vault.files.get(MAP_PATH)!).state.objects.tokens.t1.hp).toBe(12);
   });
 
-  it('asks about changes both sides made, keeps the user\'s by default, and keeps asking on later updates', async () => {
+  it('asks about changes both sides made, keeps the user\'s by default, and asks again only when the creator changes it again', async () => {
     const { creator, fan } = await installedV1();
-    const [scene] = await fan.assets.getAssets('source', 'scene');
     fan.vault.files.set(MAP_PATH, 'PLAYED');
     creator.vault.files.set(MAP_PATH, mapFile(12));
+    const v2 = await exportFrom(creator);
 
-    const { review, apply } = await reviewImport(fan, await exportFrom(creator));
+    const { review, apply } = await reviewImport(fan, v2);
     expect(review.conflicts).toEqual([expect.objectContaining({ kind: 'Scene', name: 'Cave', reason: 'both-changed' })]);
-    await apply();
+    expect(await apply()).toMatchObject({ keptLocal: 1 });
     expect(fan.vault.files.get(MAP_PATH)).toBe('PLAYED');
 
-    // A later release that leaves the scene alone must still not overwrite the user's version silently.
-    const v3 = await reviewImport(fan, await exportFrom(creator));
-    expect(v3.review.conflicts).toEqual([expect.objectContaining({ name: 'Cave', reason: 'both-changed' })]);
-    await v3.apply(theirs(review.conflicts[0]!.key));
-    expect(JSON.parse(fan.vault.files.get(MAP_PATH)!).state.objects.tokens.t1.hp).toBe(12);
-    expect(scene).toBeDefined();
+    // Importing the same release again, or a later one that leaves the scene alone, keeps the user's version without asking.
+    expect((await reviewImport(fan, v2)).review).toMatchObject({ conflicts: [], counts: { kept: 1 } });
+    await importInto(fan, await exportFrom(creator));
+    expect(fan.vault.files.get(MAP_PATH)).toBe('PLAYED');
+
+    creator.vault.files.set(MAP_PATH, mapFile(20));
+    const v4 = await reviewImport(fan, await exportFrom(creator));
+    expect(v4.review.conflicts).toEqual([expect.objectContaining({ name: 'Cave', reason: 'both-changed' })]);
+    await v4.apply(theirs(v4.review.conflicts[0]!.key));
+    expect(JSON.parse(fan.vault.files.get(MAP_PATH)!).state.objects.tokens.t1.hp).toBe(20);
   });
 
   it('asks before removing an asset the user changed', async () => {
@@ -391,7 +395,25 @@ describe('sharing and forking', () => {
     const shared = await exportFrom(fan, { kind: 'share' });
     AssetService.resetInstance();
     const { review } = await reviewImport(creator, shared);
-    expect(review).toMatchObject({ relation: 'same', kind: 'share', hasChanges: true, counts: { updated: 1, added: 0, removed: 0 } });
+    expect(review).toMatchObject({ relation: 'same', kind: 'share', upToDate: false, counts: { updated: 1, added: 0, removed: 0 } });
+  });
+
+  it('files a fan added to a renamed copy under the original collection\'s folder when shared back', async () => {
+    const creator = await creatorVault();
+    const fan = await emptyVault();
+    await fan.assets.createCollection('Source');
+    await importInto(fan, await exportFrom(creator), { name: 'Source (2)' });
+    await fan.vault.app.vault.create('atlas-vtt/collections/source-2/scenes/Lair.atlasmap', '{}');
+    await fan.assets.addAsset({ type: 'scene', name: 'Lair', collection: 'source-2', tags: [], data: { mapPath: 'atlas-vtt/collections/source-2/scenes/Lair.atlasmap' } });
+
+    const shared = await exportFrom(fan, { kind: 'share' }, 'source-2');
+    AssetService.resetInstance();
+    const { review, apply } = await reviewImport(creator, shared);
+    expect(review).toMatchObject({ relation: 'same', counts: { added: 1, removed: 0 } });
+    await apply();
+    const lair = (await creator.assets.getAssets('source', 'scene')).find((scene) => scene.name === 'Lair');
+    expect(lair?.data?.mapPath).toBe('atlas-vtt/collections/source/scenes/Lair.atlasmap');
+    expect(creator.vault.files.has('atlas-vtt/collections/source/scenes/Lair.atlasmap')).toBe(true);
   });
 
   it('publishes a fork as a new collection that no longer follows the original', async () => {

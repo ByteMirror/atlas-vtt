@@ -5,7 +5,7 @@ export async function sha256(data: ArrayBuffer | Uint8Array): Promise<string> {
 }
 
 /** JSON with object keys sorted, so equal values always serialise to equal text. */
-export function canonicalJson(value: unknown): string {
+function canonicalJson(value: unknown): string {
   return JSON.stringify(value, (_key, item: unknown) => {
     if (!item || typeof item !== 'object' || Array.isArray(item)) return item;
     return Object.fromEntries(Object.entries(item).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));

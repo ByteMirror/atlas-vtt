@@ -1,19 +1,13 @@
 import { TFile, type App } from 'obsidian';
-import { ATLAS_VTT_DIR, type Asset, type AssetService, type CollectionMetadata } from '../AssetService';
+import { ATLAS_VTT_DIR, COLLECTIONS_DIR, type Asset, type AssetService, type CollectionMetadata } from '../AssetService';
 import { BUNDLE_FORMAT, BUNDLE_MANIFEST, zipPathFor, type BundleFile, type CollectionBundleManifest } from './bundleFormat';
 import { rewriteContent } from './bundleContent';
+import { reportFileStep, type BundleProgressListener } from './bundleProgress';
 import { CollectionReferenceCollector, type MissingReference } from './collectionReferences';
 import { assetFingerprint, fieldFingerprint } from './fingerprints';
 import { sha256 } from './hashing';
 import { COLLECTION_FIELDS, deleteInstallRecord, readInstallRecord, writeInstallRecord, type InstallRecord } from './installRecord';
 import { remapPaths } from './pathRemap';
-
-export interface BundleProgress {
-  message: string;
-  /** 0..1 */
-  fraction: number;
-}
-export type BundleProgressListener = (progress: BundleProgress) => void;
 
 /** Images and audio are already compressed; deflating them only costs time. */
 const STORED_EXTENSIONS = /\.(png|jpe?g|webp|gif|avif|mp3|ogg|wav|m4a|zip)$/i;
@@ -81,7 +75,7 @@ export async function prepareCollectionExport(app: App, assets: AssetService, co
   };
 }
 
-export function bundleFileName(name: string, version: number): string {
+function bundleFileName(name: string, version: number): string {
   const safeName = name.replace(/[\\/:*?"<>|]+/g, '-').trim() || 'Collection';
   return `${safeName} v${version}.atlas-collection.zip`;
 }
@@ -124,14 +118,14 @@ export async function exportCollectionBundle(
   }
 
   const exportedAt = Date.now();
-  const origin = choice.kind === 'share' ? await originNames(app, preview.collection) : { collectionId: preview.collection.id, names: new Map<string, string>() };
+  const origin = choice.kind === 'share' ? await originNames(app, preview) : { collectionId: preview.collection.id, names: new Map<string, string>() };
   const collection = { ...await exportedCollection(assets, preview, choice, exportedAt), id: origin.collectionId };
   const named = (value: string): string => origin.names.get(value) ?? value;
   const { default: JSZip } = await import('jszip');
   const zip = new JSZip();
   const files: BundleFile[] = [];
   for (const [index, file] of preview.files.entries()) {
-    onProgress({ message: `Adding ${index + 1} of ${preview.files.length} files…`, fraction: (index / preview.files.length) * 0.6 });
+    reportFileStep(onProgress, 'Adding', index, preview.files.length, 0, 0.6);
     const vaultFile = app.vault.getAbstractFileByPath(file.vaultPath);
     if (!(vaultFile instanceof TFile)) continue;
     const data = rewriteContent(file, await app.vault.readBinary(vaultFile), origin.names);
@@ -173,9 +167,11 @@ export async function exportCollectionBundle(
 /**
  * A shared copy names its files and assets as the bundles it was installed
  * from did, so every vault that has the collection compares the same items.
+ * Files the sharer added move from their collection folder to the original's.
  */
-async function originNames(app: App, collection: CollectionMetadata): Promise<{ collectionId: string; names: Map<string, string> }> {
+async function originNames(app: App, { collection, files }: ExportPreview): Promise<{ collectionId: string; names: Map<string, string> }> {
   const record = await readInstallRecord(app, collection.uid);
+  const collectionId = record?.sourceCollectionId ?? collection.id;
   const names = new Map<string, string>();
   for (const [bundlePath, file] of Object.entries(record?.files ?? {})) {
     if (file.target !== bundlePath) names.set(file.target, bundlePath);
@@ -183,7 +179,15 @@ async function originNames(app: App, collection: CollectionMetadata): Promise<{ 
   for (const [bundleId, asset] of Object.entries(record?.assets ?? {})) {
     if (asset.localId !== bundleId) names.set(asset.localId, bundleId);
   }
-  return { collectionId: record?.sourceCollectionId ?? collection.id, names };
+  const localFolder = `${COLLECTIONS_DIR}/${collection.id}/`;
+  if (collectionId !== collection.id) {
+    for (const { vaultPath } of files) {
+      if (!names.has(vaultPath) && vaultPath.startsWith(localFolder)) {
+        names.set(vaultPath, `${COLLECTIONS_DIR}/${collectionId}/${vaultPath.slice(localFolder.length)}`);
+      }
+    }
+  }
+  return { collectionId, names };
 }
 
 /**

@@ -1,8 +1,8 @@
 import { TFile, normalizePath, type App } from 'obsidian';
-import { ATLAS_VTT_DIR, COLLECTIONS_DIR, type Asset, type AssetService, type CollectionMetadata } from '../AssetService';
+import { AssetService, COLLECTIONS_DIR, type Asset, type CollectionMetadata } from '../AssetService';
 import { zipPathFor, type BundleFile } from './bundleFormat';
 import type { OpenedBundle } from './bundleReader';
-import { rewriteContent, isContentPredictable } from './bundleContent';
+import { mayRewrite, rewriteContent } from './bundleContent';
 import { assetFingerprint, fieldFingerprint } from './fingerprints';
 import { sha256 } from './hashing';
 import { COLLECTION_FIELDS, type InstallRecord } from './installRecord';
@@ -12,6 +12,10 @@ import { planImportPaths, remapPaths } from './pathRemap';
 /** Where the bundle's files and records go in this vault. */
 export interface ImportTargets {
   collectionId: string;
+  /** Vault path of a bundle file, including files only the install record still knows. */
+  targetOf(bundlePath: string): string | undefined;
+  /** Id in this vault of a bundle asset, including assets only the install record still knows. */
+  localIdOf(bundleId: string): string;
   /** Bundle path → vault path. */
   paths: Map<string, string>;
   /** Bundle asset id → id in this vault. */
@@ -23,7 +27,7 @@ export interface ImportTargets {
 }
 
 /** What the planner compares, plus how to name each unit for the user. */
-export interface ImportInputs {
+interface ImportInputs {
   items: PlanItemInput[];
   /** Unit key → the asset it stands for, when it stands for one. */
   unitAssets: Map<string, Asset>;
@@ -33,8 +37,6 @@ export interface ImportInputs {
 export function installedAsset(asset: Asset, targets: ImportTargets): Asset {
   return { ...remapPaths(asset, targets.rewrites), id: targets.assetIds.get(asset.id) ?? asset.id, collection: targets.collectionId };
 }
-
-const newAssetId = (asset: Asset): string => `${asset.type}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
 export async function planTargets(
   app: App,
@@ -59,7 +61,7 @@ export async function planTargets(
   for (const asset of manifest.assets) {
     const recorded = record?.assets[asset.id]?.localId;
     const local = recorded ? null : await assets.getAssetById(asset.id);
-    const localId = recorded ?? (local && local.collection !== collectionId ? newAssetId(asset) : asset.id);
+    const localId = recorded ?? (local && local.collection !== collectionId ? AssetService.newAssetId(asset.type) : asset.id);
     assetIds.set(asset.id, localId);
     // A map record is found by id, so a renamed map takes its file along.
     const mapFile = `${COLLECTIONS_DIR}/${manifest.collection.id}/maps/${asset.id}.json`;
@@ -77,7 +79,11 @@ export async function planTargets(
   for (const [source, target] of [...paths, ...assetIds]) {
     if (source !== target) rewrites.set(source, target);
   }
-  return { collectionId, paths, assetIds, rewrites, shared };
+  return {
+    collectionId, paths, assetIds, rewrites, shared,
+    targetOf: (bundlePath) => paths.get(bundlePath) ?? record?.files[bundlePath]?.target,
+    localIdOf: (bundleId) => assetIds.get(bundleId) ?? record?.assets[bundleId]?.localId ?? bundleId,
+  };
 }
 
 async function vaultFileHash(app: App, path: string): Promise<string | null> {
@@ -104,9 +110,9 @@ export async function gatherImportInputs(
     if (targets.shared.has(file.vaultPath)) continue;
     const target = targets.paths.get(file.vaultPath)!;
     const theirs = sourceHashes.get(file.vaultPath) ?? null;
+    let theirsInstalled = theirs ?? undefined;
     const entry = zip.file(zipPathFor(file.vaultPath));
-    let theirsInstalled: string | undefined;
-    if (theirs !== null && entry && isContentPredictable(file)) {
+    if (theirs !== null && entry && mayRewrite(file, targets.rewrites)) {
       theirsInstalled = await sha256(rewriteContent(file, await entry.async('arraybuffer'), targets.rewrites));
     }
     items.push({
@@ -116,8 +122,8 @@ export async function gatherImportInputs(
   }
   const bundledPaths = new Set(manifest.files.map((file) => file.vaultPath));
   for (const [path, installed] of Object.entries(record?.files ?? {})) {
-    // Files outside Atlas's folder are the user's own notes; an import never removes them.
-    if (bundledPaths.has(path) || !installed.target.startsWith(`${ATLAS_VTT_DIR}/`)) continue;
+    // Only the collection's own folder is the import's to clean up: shared artwork and the user's notes stay.
+    if (bundledPaths.has(path) || !installed.target.startsWith(`${COLLECTIONS_DIR}/${targets.collectionId}/`)) continue;
     items.push({ key: `file:${path}`, kind: 'file', unit: installed.unit ?? `file:${path}`, theirs: null, base: installed, mine: await vaultFileHash(app, installed.target) });
   }
 

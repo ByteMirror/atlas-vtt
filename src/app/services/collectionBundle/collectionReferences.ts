@@ -16,7 +16,7 @@ export interface MissingReference {
   assetName: string;
 }
 
-export interface CollectedFiles {
+interface CollectedFiles {
   files: BundleFile[];
   missing: MissingReference[];
 }

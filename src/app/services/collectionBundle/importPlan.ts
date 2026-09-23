@@ -6,12 +6,10 @@ import type { InstalledItem } from './installRecord';
  * theirs (the bundle). Pure: callers gather the fingerprints.
  */
 
-export type PlanItemKind = 'file' | 'asset' | 'field';
-
 export interface PlanItemInput {
   /** Unique across the plan, e.g. `file:<bundle path>`. */
   key: string;
-  kind: PlanItemKind;
+  kind: 'file' | 'asset' | 'field';
   /** Items of one unit (an asset with its files) are decided together. */
   unit: string;
   /** Fingerprint of the bundle's item, or null when the bundle no longer has it. */
@@ -19,7 +17,7 @@ export interface PlanItemInput {
   base: InstalledItem | null;
   /** Fingerprint of the vault's item, or null when it is missing. */
   mine: string | null;
-  /** What `mine` would be right after installing theirs, when that can be known in advance. */
+  /** What `mine` is right after installing theirs; set whenever `theirs` is. */
   theirsInstalled?: string | undefined;
 }
 
@@ -33,18 +31,16 @@ export type ConflictReason =
   /** No record of what was installed, and your version differs from the update. */
   | 'unknown-origin';
 
-export type ItemStatus = 'unchanged' | 'added' | 'updated' | 'removed' | 'kept' | 'restored' | 'conflict';
+export type ChangeStatus = 'unchanged' | 'added' | 'updated' | 'removed' | 'kept' | 'restored' | 'conflict';
 
 export interface PlannedItem extends PlanItemInput {
-  status: ItemStatus;
+  status: ChangeStatus;
   conflict?: ConflictReason;
 }
 
-export type UnitStatus = 'added' | 'updated' | 'removed' | 'kept' | 'restored' | 'conflict' | 'unchanged';
-
 export interface PlannedUnit {
   key: string;
-  status: UnitStatus;
+  status: ChangeStatus;
   /** The most telling reason among the unit's conflicting items. */
   conflict?: ConflictReason;
   items: PlannedItem[];
@@ -52,38 +48,28 @@ export interface PlannedUnit {
 
 export interface ImportPlan {
   units: PlannedUnit[];
-  counts: Record<UnitStatus, number>;
+  counts: Record<ChangeStatus, number>;
 }
 
 export type Resolution = 'mine' | 'theirs';
 export type ImportAction = 'write' | 'remove';
 
-/** Re-applies the bundle over everything the user changed, instead of keeping their changes. */
-export interface PlanOptions {
-  restore?: boolean;
-}
-
-function planItem(item: PlanItemInput, { restore = false }: PlanOptions): PlannedItem {
+function planItem(item: PlanItemInput, restore: boolean): PlannedItem {
   const { theirs, base, mine, theirsInstalled } = item;
-  const matchesTheirs = theirsInstalled !== undefined && mine === theirsInstalled;
+  const matchesTheirs = theirs !== null && mine === theirsInstalled;
   if (!base) {
-    if (theirs === null) return { ...item, status: 'unchanged' };
+    if (theirs === null || matchesTheirs) return { ...item, status: 'unchanged' };
     if (mine === null) return { ...item, status: 'added' };
-    if (matchesTheirs) return { ...item, status: 'unchanged' };
-    if (restore) return { ...item, status: 'restored' };
-    // Without a record and without knowing what installing it yields, a difference says nothing: keep it.
-    if (theirsInstalled === undefined) return { ...item, status: 'unchanged' };
-    return { ...item, status: 'conflict', conflict: 'unknown-origin' };
+    return restore ? { ...item, status: 'restored' } : { ...item, status: 'conflict', conflict: 'unknown-origin' };
   }
   const theirsChanged = theirs !== base.source;
   const mineChanged = mine !== base.installed;
-  if (!theirsChanged) {
-    if (!mineChanged || matchesTheirs) return { ...item, status: 'unchanged' };
-    return { ...item, status: restore ? 'restored' : 'kept' };
+  if (!mineChanged) {
+    if (!theirsChanged) return { ...item, status: 'unchanged' };
+    return { ...item, status: theirs === null ? 'removed' : 'updated' };
   }
-  if (!mineChanged) return { ...item, status: theirs === null ? 'removed' : 'updated' };
-  if (theirs === null && mine === null) return { ...item, status: 'unchanged' };
-  if (matchesTheirs) return { ...item, status: 'unchanged' };
+  if (matchesTheirs || (theirs === null && mine === null)) return { ...item, status: 'unchanged' };
+  if (!theirsChanged) return { ...item, status: restore ? 'restored' : 'kept' };
   if (restore) return { ...item, status: theirs === null ? 'removed' : 'restored' };
   const conflict: ConflictReason = theirs === null ? 'removed-by-update' : mine === null ? 'deleted-by-you' : 'both-changed';
   return { ...item, status: 'conflict', conflict };
@@ -93,32 +79,28 @@ const CONFLICT_PRIORITY: readonly ConflictReason[] = ['removed-by-update', 'both
 
 function unitStatus(items: readonly PlannedItem[]): Pick<PlannedUnit, 'status' | 'conflict'> {
   const record = items.find((item) => item.kind === 'asset');
-  const conflicts = items.filter((item) => item.status === 'conflict');
   // An asset the update removes but the user changed stays or goes as a whole.
   if (record?.status === 'removed' && items.some((item) => item.status === 'kept' || item.status === 'conflict')) {
     return { status: 'conflict', conflict: 'removed-by-update' };
   }
-  if (conflicts.length > 0) {
-    const conflict = CONFLICT_PRIORITY.find((reason) => conflicts.some((item) => item.conflict === reason));
-    return conflict ? { status: 'conflict', conflict } : { status: 'conflict' };
-  }
-  const statuses = new Set(items.map((item) => item.status));
-  if (record?.status === 'removed' || (statuses.has('removed') && items.every((item) => item.status === 'removed' || item.status === 'unchanged'))) return { status: 'removed' };
-  if (record?.status === 'added' || (statuses.has('added') && items.every((item) => item.status === 'added' || item.status === 'unchanged'))) return { status: 'added' };
-  if (statuses.has('added') || statuses.has('updated') || statuses.has('removed')) return { status: 'updated' };
-  if (statuses.has('restored')) return { status: 'restored' };
-  if (statuses.has('kept')) return { status: 'kept' };
-  return { status: 'unchanged' };
+  const conflict = CONFLICT_PRIORITY.find((reason) => items.some((item) => item.conflict === reason));
+  if (conflict) return { status: 'conflict', conflict };
+  const only = (...statuses: ChangeStatus[]): boolean => items.every((item) => item.status === 'unchanged' || statuses.includes(item.status));
+  const has = (status: ChangeStatus): boolean => items.some((item) => item.status === status);
+  if (record?.status === 'removed' || (has('removed') && only('removed'))) return { status: 'removed' };
+  if (record?.status === 'added' || (has('added') && only('added'))) return { status: 'added' };
+  if (has('added') || has('updated') || has('removed')) return { status: 'updated' };
+  if (has('restored')) return { status: 'restored' };
+  return { status: has('kept') ? 'kept' : 'unchanged' };
 }
 
-export function planImport(inputs: readonly PlanItemInput[], options: PlanOptions = {}): ImportPlan {
+/** Plans an import; `restore` re-applies the bundle over the user's changes instead of keeping them. */
+export function planImport(inputs: readonly PlanItemInput[], { restore = false } = {}): ImportPlan {
   const byUnit = new Map<string, PlannedItem[]>();
   for (const input of inputs) {
-    const items = byUnit.get(input.unit) ?? [];
-    items.push(planItem(input, options));
-    byUnit.set(input.unit, items);
+    byUnit.set(input.unit, [...(byUnit.get(input.unit) ?? []), planItem(input, restore)]);
   }
-  const counts: Record<UnitStatus, number> = { added: 0, updated: 0, removed: 0, kept: 0, restored: 0, conflict: 0, unchanged: 0 };
+  const counts: Record<ChangeStatus, number> = { added: 0, updated: 0, removed: 0, kept: 0, restored: 0, conflict: 0, unchanged: 0 };
   const units = [...byUnit].map(([key, items]): PlannedUnit => {
     const unit: PlannedUnit = { key, ...unitStatus(items), items };
     counts[unit.status] += 1;
@@ -133,23 +115,23 @@ export function planHasChanges(plan: ImportPlan): boolean {
 }
 
 /**
- * What to do with each item once the user resolved the conflicts; units without
- * a resolution keep the user's version. Items missing from the map stay as they are.
+ * What to do with each item once the user resolved the conflicts. A conflicting
+ * unit keeps the user's version unless resolved as `theirs`; then every item
+ * that differs from the bundle is written or removed.
  */
 export function resolvePlan(plan: ImportPlan, resolutions: ReadonlyMap<string, Resolution>): Map<string, ImportAction> {
   const actions = new Map<string, ImportAction>();
   for (const unit of plan.units) {
-    const takeTheirs = unit.status === 'conflict' && resolutions.get(unit.key) === 'theirs';
-    for (const item of unit.items) {
-      const status = unit.status === 'conflict' ? (takeTheirs ? 'take' : 'keep') : item.status;
-      if (status === 'keep' || status === 'unchanged' || status === 'kept') continue;
-      if (status === 'take') {
-        if (item.theirs === null ? item.mine !== null : item.mine !== item.theirsInstalled || item.theirsInstalled === undefined) {
-          actions.set(item.key, item.theirs === null ? 'remove' : 'write');
-        }
-        continue;
+    if (unit.status === 'conflict') {
+      if (resolutions.get(unit.key) !== 'theirs') continue;
+      for (const item of unit.items) {
+        if (item.mine !== (item.theirs === null ? null : item.theirsInstalled)) actions.set(item.key, item.theirs === null ? 'remove' : 'write');
       }
-      actions.set(item.key, status === 'removed' ? 'remove' : 'write');
+      continue;
+    }
+    for (const item of unit.items) {
+      if (item.status === 'removed') actions.set(item.key, 'remove');
+      else if (item.status === 'added' || item.status === 'updated' || item.status === 'restored') actions.set(item.key, 'write');
     }
   }
   return actions;

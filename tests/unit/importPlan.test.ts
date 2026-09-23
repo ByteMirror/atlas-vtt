@@ -28,7 +28,6 @@ describe('three-way item planning', () => {
     ['only yours, never installed', { base: null, theirs: null, theirsInstalled: undefined }, 'unchanged'],
     ['no install record and yours differs', { base: null, mine: 'mine' }, 'unknown-origin'],
     ['no install record and yours matches', { base: null }, 'unchanged'],
-    ['no install record and content known only after installing', { base: null, mine: 'mine', theirsInstalled: undefined }, 'unchanged'],
   ] as const)('%s', (_name, input, expected) => {
     expect(statusOf(input)).toBe(expected);
   });

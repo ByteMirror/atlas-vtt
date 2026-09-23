@@ -4,28 +4,19 @@ import { isRecord } from '../assetMetadataGuards';
 /** Bumped when the zip layout or manifest shape changes. */
 export const BUNDLE_FORMAT = 3;
 /** Oldest format this version still imports. */
-export const OLDEST_BUNDLE_FORMAT = 2;
+const OLDEST_BUNDLE_FORMAT = 2;
 export const BUNDLE_MANIFEST = 'manifest.json';
 /** Vault files are stored under this folder with their vault path, so nothing is lost or renamed. */
 export const BUNDLE_FILES_DIR = 'files';
 
-export type BundleFileRole =
-  /** The file that backs an asset record (token image, map JSON, scene/encounter/player JSON). */
-  | 'asset-file'
-  | 'thumbnail'
-  | 'scene-map'
-  | 'scene-thumbnail'
-  | 'background'
-  | 'token-image'
-  | 'statblock-note'
-  | 'statblock-image';
-
-const BUNDLE_FILE_ROLES: ReadonlySet<string> = new Set<BundleFileRole>([
+/** `asset-file` is the file that backs an asset record: token image, map JSON, scene, encounter or player JSON. */
+const BUNDLE_FILE_ROLES = [
   'asset-file', 'thumbnail', 'scene-map', 'scene-thumbnail', 'background', 'token-image', 'statblock-note', 'statblock-image',
-]);
+] as const;
+export type BundleFileRole = typeof BUNDLE_FILE_ROLES[number];
 
 /** Roles of files that live outside `atlas-vtt/` in the exporting vault. */
-export const FOREIGN_FILE_ROLES: ReadonlySet<BundleFileRole> = new Set<BundleFileRole>(['statblock-note', 'statblock-image']);
+const FOREIGN_FILE_ROLES: ReadonlySet<BundleFileRole> = new Set<BundleFileRole>(['statblock-note', 'statblock-image']);
 
 /** The frontmatter field of a statblock note that points at its artwork. */
 export type StatblockImageKey = 'image' | 'token-image';
@@ -44,7 +35,7 @@ export interface BundleFile {
 /** How the bundle came to be. Only the collection's publisher makes releases; others share the version they have. */
 export type BundleKind = 'release' | 'share';
 
-export interface BundleRelease {
+interface BundleRelease {
   kind: BundleKind;
   /** Shown to people installing or updating. */
   notes?: string;
@@ -87,7 +78,7 @@ const isBundleFile = (value: unknown): value is BundleFile =>
   isRecord(value)
   && typeof value.vaultPath === 'string'
   && typeof value.role === 'string'
-  && BUNDLE_FILE_ROLES.has(value.role)
+  && (BUNDLE_FILE_ROLES as readonly string[]).includes(value.role)
   && (value.sha256 === undefined || (typeof value.sha256 === 'string' && /^[0-9a-f]{64}$/.test(value.sha256)))
   && (value.owners === undefined || (Array.isArray(value.owners) && value.owners.every((owner) => typeof owner === 'string')));
 

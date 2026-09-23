@@ -1,10 +1,11 @@
 import type { Asset, CollectionMetadata } from '../AssetService';
 import type { BundleKind, CollectionBundleManifest } from './bundleFormat';
 import type { CollectionField, InstallRecord } from './installRecord';
-import { planHasChanges, type ConflictReason, type ImportPlan, type UnitStatus } from './importPlan';
+import { planHasChanges, type ChangeStatus, type ConflictReason, type ImportPlan } from './importPlan';
+import { baseName } from '../../utils/pathUtils';
 
 /** How the bundle's version relates to the one in the vault. */
-export type ImportRelation = 'new' | 'newer' | 'same' | 'older';
+type ImportRelation = 'new' | 'newer' | 'same' | 'older';
 
 export interface ReviewUnit {
   key: string;
@@ -30,10 +31,10 @@ export interface ImportReview {
   hasInstallRecord: boolean;
   /** A new collection whose name another collection already uses. */
   suggestedName?: string | undefined;
-  counts: Record<UnitStatus, number>;
+  counts: Record<ChangeStatus, number>;
   conflicts: ReviewUnit[];
-  /** Whether importing would change anything, conflicts aside. */
-  hasChanges: boolean;
+  /** The vault already has this version and nothing differs that it would change or ask about. */
+  upToDate: boolean;
   /** Whether "restore original" would change anything the normal import keeps. */
   canRestore: boolean;
   assetCount: number;
@@ -53,8 +54,7 @@ function describeUnit(key: string, unitAssets: ReadonlyMap<string, Asset>): Pick
   const asset = unitAssets.get(key);
   if (asset) return { kind: ASSET_KINDS[asset.type] ?? 'Asset', name: asset.name };
   if (key.startsWith('field:')) return { kind: 'Collection', name: FIELD_NAMES[key.slice('field:'.length) as CollectionField] ?? key };
-  const path = key.slice(key.indexOf(':') + 1);
-  return { kind: 'File', name: path.slice(path.lastIndexOf('/') + 1) };
+  return { kind: 'File', name: baseName(key.slice(key.indexOf(':') + 1)) };
 }
 
 function relationOf(version: number, installedVersion: number | undefined): ImportRelation {
@@ -74,16 +74,16 @@ export function buildReview(
 ): ImportReview {
   const { collection } = manifest;
   const installedVersion = existing ? record?.version ?? existing.version : undefined;
-  const conflicts = plan.units
-    .filter((unit) => unit.status === 'conflict' && unit.conflict)
-    .map((unit): ReviewUnit => ({ key: unit.key, ...describeUnit(unit.key, unitAssets), reason: unit.conflict! }));
+  const conflicts = plan.units.flatMap((unit): ReviewUnit[] =>
+    unit.conflict ? [{ key: unit.key, ...describeUnit(unit.key, unitAssets), reason: unit.conflict }] : []);
+  const relation = relationOf(collection.version, installedVersion);
   return {
     collectionName: collection.name,
     localName: existing?.name,
     author: collection.author,
     version: collection.version,
     installedVersion,
-    relation: relationOf(collection.version, installedVersion),
+    relation,
     kind: manifest.release?.kind ?? 'release',
     releaseNotes: manifest.release?.notes,
     exportedAt: manifest.exportedAt,
@@ -91,7 +91,7 @@ export function buildReview(
     suggestedName,
     counts: plan.counts,
     conflicts,
-    hasChanges: planHasChanges(plan),
+    upToDate: relation === 'same' && conflicts.length === 0 && !planHasChanges(plan),
     canRestore: existing !== null && restorePlan.counts.restored > 0,
     assetCount: manifest.assets.length,
     fileCount: manifest.files.length,

@@ -1,15 +1,14 @@
 import { TFile, type App } from 'obsidian';
 import { AtlasView, ATLAS_VIEW_TYPE } from '../../atlas-view';
-import { ensureFolder } from '../../plugin/vaultFolders';
-import { COLLECTION_DATA_DIR, ensureHiddenFolder } from './installRecord';
+import { ensureAdapterFolder, ensureFolder } from '../../plugin/vaultFolders';
+import { parentPath } from '../../utils/pathUtils';
+import { COLLECTION_DATA_DIR } from './installRecord';
 
 interface JournalEntry {
   path: string;
   /** Where the file's previous content was backed up; null when the import created the file. */
   backup: string | null;
 }
-
-const parentOf = (path: string): string => path.slice(0, path.lastIndexOf('/'));
 
 /** `2026-09-23 19-30-05`: sortable, and valid as a folder name everywhere. */
 function timestamp(date: Date): string {
@@ -24,39 +23,32 @@ function timestamp(date: Date): string {
  */
 export class ImportJournal {
   private readonly entries: JournalEntry[] = [];
-  private backups = 0;
+  private readonly backupFolders = new Set<string>();
   readonly backupFolder: string;
 
-  constructor(private readonly app: App, collectionId: string, now = new Date()) {
-    this.backupFolder = `${COLLECTION_DATA_DIR}/backups/${collectionId}/${timestamp(now)}`;
+  constructor(private readonly app: App, collectionId: string) {
+    this.backupFolder = `${COLLECTION_DATA_DIR}/backups/${collectionId}/${timestamp(new Date())}`;
   }
 
   /** How many files were backed up. */
   get backupCount(): number {
-    return this.backups;
+    return this.entries.filter((entry) => entry.backup !== null).length;
   }
 
   async write(path: string, content: ArrayBuffer): Promise<void> {
-    const existing = this.app.vault.getAbstractFileByPath(path);
-    if (existing instanceof TFile) {
-      const backup = await this.backUp(existing);
-      await closeMapViews(this.app, path);
-      this.entries.push({ path, backup });
+    const existing = await this.prepare(path);
+    if (existing) {
       await this.app.vault.modifyBinary(existing, content);
-    } else {
-      await ensureFolder(this.app, parentOf(path));
-      this.entries.push({ path, backup: null });
-      await this.app.vault.createBinary(path, content);
+      return;
     }
+    await ensureFolder(this.app, parentPath(path));
+    this.entries.push({ path, backup: null });
+    await this.app.vault.createBinary(path, content);
   }
 
   async remove(path: string): Promise<void> {
-    const existing = this.app.vault.getAbstractFileByPath(path);
-    if (!(existing instanceof TFile)) return;
-    const backup = await this.backUp(existing);
-    await closeMapViews(this.app, path);
-    this.entries.push({ path, backup });
-    await this.app.fileManager.trashFile(existing);
+    const existing = await this.prepare(path);
+    if (existing) await this.app.fileManager.trashFile(existing);
   }
 
   /** Undoes every write and removal, newest first. Returns the paths it could not restore. */
@@ -72,7 +64,7 @@ export class ImportJournal {
         const content = await this.app.vault.adapter.readBinary(entry.backup);
         if (current instanceof TFile) await this.app.vault.modifyBinary(current, content);
         else {
-          await ensureFolder(this.app, parentOf(entry.path));
+          await ensureFolder(this.app, parentPath(entry.path));
           await this.app.vault.createBinary(entry.path, content);
         }
       } catch (error) {
@@ -84,31 +76,31 @@ export class ImportJournal {
     return failed;
   }
 
-  private async backUp(file: TFile): Promise<string> {
-    const backup = `${this.backupFolder}/${file.path}`;
-    await ensureHiddenFolder(this.app, parentOf(backup));
-    await this.app.vault.adapter.writeBinary(backup, await this.app.vault.readBinary(file));
-    this.backups += 1;
-    return backup;
+  /** Backs up the file at `path`, closes map views of it and journals the change; returns the file, or null when there is none. */
+  private async prepare(path: string): Promise<TFile | null> {
+    const existing = this.app.vault.getAbstractFileByPath(path);
+    if (!(existing instanceof TFile)) return null;
+    const backup = `${this.backupFolder}/${path}`;
+    await ensureAdapterFolder(this.app, parentPath(backup), this.backupFolders);
+    await this.app.vault.adapter.writeBinary(backup, await this.app.vault.readBinary(existing));
+    await forOpenMaps(this.app, (file) => file === path, async (view, detach) => {
+      await view.saveMap();
+      detach();
+    });
+    this.entries.push({ path, backup });
+    return existing;
   }
 }
 
-/**
- * An open Atlas view would save its stale state over a map file the import
- * replaces. Its pending saves are written first, so none lands after the import.
- */
-export async function closeMapViews(app: App, mapPath: string): Promise<void> {
+/** Calls `visit` for every open Atlas view whose map `matches`, with a way to close it. */
+async function forOpenMaps(app: App, matches: (file: string) => boolean, visit: (view: AtlasView, detach: () => void) => Promise<void>): Promise<void> {
   for (const leaf of app.workspace.getLeavesOfType(ATLAS_VIEW_TYPE)) {
-    if (leaf.view.getState().file !== mapPath) continue;
-    if (leaf.view instanceof AtlasView) await leaf.view.saveMap();
-    leaf.detach();
+    const file = leaf.view.getState().file;
+    if (typeof file === 'string' && matches(file) && leaf.view instanceof AtlasView) await visit(leaf.view, () => leaf.detach());
   }
 }
 
 /** Writes pending saves of open views of `paths`, so the vault holds what the user sees before it is compared. */
 export async function saveOpenMaps(app: App, paths: ReadonlySet<string>): Promise<void> {
-  for (const leaf of app.workspace.getLeavesOfType(ATLAS_VIEW_TYPE)) {
-    const file = leaf.view.getState().file;
-    if (typeof file === 'string' && paths.has(file) && leaf.view instanceof AtlasView) await leaf.view.saveMap();
-  }
+  await forOpenMaps(app, (file) => paths.has(file), (view) => view.saveMap());
 }

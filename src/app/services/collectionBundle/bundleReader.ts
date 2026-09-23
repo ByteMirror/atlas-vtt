@@ -1,7 +1,9 @@
 import type JSZip from 'jszip';
 import { BUNDLE_MANIFEST, manifestProblem, zipPathFor, type BundleFile, type CollectionBundleManifest } from './bundleFormat';
-import type { BundleProgressListener } from './collectionExport';
+import { reportFileStep, type BundleProgressListener } from './bundleProgress';
 import { sha256 } from './hashing';
+import { baseName } from '../../utils/pathUtils';
+import { plural } from '../../utils/plural';
 
 /** A bundle whose manifest is sound and whose files match their checksums. */
 export interface OpenedBundle {
@@ -40,7 +42,7 @@ export async function openBundle(data: Blob, onProgress: BundleProgressListener)
   const sourceHashes = new Map<string, string>();
   const damaged: BundleFile[] = [];
   for (const [index, file] of manifest.files.entries()) {
-    onProgress({ message: `Checking ${index + 1} of ${manifest.files.length} files…`, fraction: (index / manifest.files.length) * 0.5 });
+    reportFileStep(onProgress, 'Checking', index, manifest.files.length, 0, 0.5);
     const entry = zip.file(zipPathFor(file.vaultPath));
     if (!entry) {
       if (file.sha256) damaged.push(file);
@@ -51,8 +53,8 @@ export async function openBundle(data: Blob, onProgress: BundleProgressListener)
     sourceHashes.set(file.vaultPath, hash);
   }
   if (damaged.length > 0) {
-    const names = damaged.slice(0, 3).map((file) => file.vaultPath.slice(file.vaultPath.lastIndexOf('/') + 1)).join(', ');
-    throw new Error(`This collection export is damaged: ${damaged.length} file${damaged.length === 1 ? '' : 's'} do not match their checksum (${names}${damaged.length > 3 ? ', …' : ''}). Nothing was imported.`);
+    const names = damaged.slice(0, 3).map((file) => baseName(file.vaultPath)).join(', ');
+    throw new Error(`This collection export is damaged: ${plural(damaged.length, 'file')} ${damaged.length === 1 ? 'does' : 'do'} not match ${damaged.length === 1 ? 'its' : 'their'} checksum (${names}${damaged.length > 3 ? ', …' : ''}). Nothing was imported.`);
   }
   return { zip, manifest, sourceHashes };
 }

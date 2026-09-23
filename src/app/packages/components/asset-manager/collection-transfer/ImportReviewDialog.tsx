@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import type { ImportDecision } from '../../../../services/collectionBundle/collectionImport';
-import type { Resolution, UnitStatus } from '../../../../services/collectionBundle/importPlan';
+import type { ChangeStatus, Resolution } from '../../../../services/collectionBundle/importPlan';
 import type { ImportReview } from '../../../../services/collectionBundle/importReview';
 import { formatRelativeTime } from '../../../../utils/relativeTime';
 import { Button } from '../../primitives/button';
@@ -14,7 +14,7 @@ interface ImportReviewDialogProps {
   onCancel: () => void;
 }
 
-const COUNT_LABELS: ReadonlyArray<[UnitStatus, string]> = [
+const COUNT_LABELS: ReadonlyArray<[ChangeStatus, string]> = [
   ['added', 'new'], ['updated', 'updated'], ['removed', 'removed'], ['kept', 'of your changes kept'],
 ];
 
@@ -24,9 +24,13 @@ function titleOf(review: ImportReview, restore: boolean): string {
     case 'new': return `Import “${review.collectionName}”`;
     case 'newer': return `Update ${local}`;
     case 'older': return `Older version of ${local}`;
-    case 'same': return review.hasChanges || review.conflicts.length > 0 || restore ? `Changed copy of ${local}` : `${local} is up to date`;
+    case 'same': return review.upToDate && !restore ? `${local} is up to date` : `Changed copy of ${local}`;
   }
 }
+
+const CONFIRM_LABELS: Record<ImportReview['relation'], string> = {
+  new: 'Import', newer: 'Update', same: 'Apply changes', older: 'Install older version',
+};
 
 function versionLine(review: ImportReview): string {
   const version = review.relation === 'new' || review.installedVersion === undefined || review.installedVersion === review.version
@@ -44,13 +48,10 @@ export function ImportReviewDialog({ review, onConfirm, onCancel }: ImportReview
   const dialogRef = useRef<HTMLDivElement>(null);
   useDialogEscape(dialogRef, onCancel);
 
-  const isUpToDate = review.relation === 'same' && !review.hasChanges && review.conflicts.length === 0;
+  const title = titleOf(review, restore);
   const counts = COUNT_LABELS.filter(([status]) => review.counts[status] > 0).map(([status, label]) => `${review.counts[status]} ${label}`);
-  const canConfirm = restore || !isUpToDate;
-  const confirmLabel = restore ? 'Restore original'
-    : review.relation === 'new' ? 'Import'
-      : review.relation === 'older' ? 'Install older version'
-        : review.relation === 'newer' ? 'Update' : 'Apply changes';
+  const canConfirm = restore || !review.upToDate;
+  const confirmLabel = restore ? 'Restore original' : CONFIRM_LABELS[review.relation];
 
   const confirm = (): void => {
     if (review.suggestedName !== undefined && !name.trim()) return;
@@ -59,9 +60,9 @@ export function ImportReviewDialog({ review, onConfirm, onCancel }: ImportReview
 
   return (
     <div className="atlas-modal-overlay atlas-transfer-overlay" onClick={onCancel}>
-      <div ref={dialogRef} className="atlas-modal atlas-transfer-dialog" role="dialog" aria-modal="true" aria-label={titleOf(review, restore)} onClick={(event) => event.stopPropagation()}>
+      <div ref={dialogRef} className="atlas-modal atlas-transfer-dialog" role="dialog" aria-modal="true" aria-label={title} onClick={(event) => event.stopPropagation()}>
         <div className="atlas-modal-header">
-          <h3>{titleOf(review, restore)}</h3>
+          <h3>{title}</h3>
           <CloseButton onClick={onCancel} />
         </div>
         <div className="atlas-modal-body">
@@ -94,7 +95,7 @@ export function ImportReviewDialog({ review, onConfirm, onCancel }: ImportReview
           {review.relation === 'new'
             ? <p className="atlas-transfer-text">{review.assetCount} assets · {review.fileCount} files</p>
             : counts.length > 0 && <p className="atlas-transfer-text">{counts.join(' · ')}</p>}
-          {isUpToDate && !restore && <p className="atlas-transfer-text">Everything from this version is already in your vault.</p>}
+          {review.upToDate && !restore && <p className="atlas-transfer-text">Everything from this version is already in your vault.</p>}
           {review.conflicts.length > 0 && !restore && (
             <ConflictList conflicts={review.conflicts} resolutions={resolutions} onChange={setResolutions} />
           )}

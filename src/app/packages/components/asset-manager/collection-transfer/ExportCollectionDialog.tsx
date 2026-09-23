@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
 import type { ExportChoice, ExportPreview } from '../../../../services/collectionBundle/collectionExport';
 import { formatFileSize } from '../../../../utils/imageOptimizer';
+import { baseName } from '../../../../utils/pathUtils';
 import { Button } from '../../primitives/button';
 import { CloseButton } from '../../primitives/CloseButton';
 import { SegmentedControl } from '../../primitives/SegmentedControl';
@@ -111,7 +112,7 @@ export function ExportCollectionDialog({ preview, onExport, onCancel }: ExportCo
               <strong>{preview.missing.length} referenced {preview.missing.length === 1 ? 'file is' : 'files are'} missing and will not be included:</strong>
               <ul>
                 {preview.missing.slice(0, MISSING_SHOWN).map((missing) => (
-                  <li key={missing.path}>{missing.path.slice(missing.path.lastIndexOf('/') + 1)} ({missing.assetName})</li>
+                  <li key={missing.path}>{baseName(missing.path)} ({missing.assetName})</li>
                 ))}
                 {preview.missing.length > MISSING_SHOWN && <li>and {preview.missing.length - MISSING_SHOWN} more</li>}
               </ul>

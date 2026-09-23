@@ -14,7 +14,7 @@ function review(overrides: Partial<ImportReview> = {}): ImportReview {
   return {
     collectionName: 'Dragon Pack', localName: 'Dragon Pack', author: 'Dungeon Tube', version: 3, installedVersion: 2,
     relation: 'newer', kind: 'release', exportedAt: Date.now(), hasInstallRecord: true,
-    counts: { ...counts, added: 2, updated: 1, kept: 1 }, conflicts: [], hasChanges: true, canRestore: false,
+    counts: { ...counts, added: 2, updated: 1, kept: 1 }, conflicts: [], upToDate: false, canRestore: false,
     assetCount: 12, fileCount: 30, ...overrides,
   };
 }
@@ -62,14 +62,14 @@ describe('import review', () => {
 
   it('says a copy is up to date and offers restoring the original only when the user changed something', () => {
     const onCancel = vi.fn();
-    const { rerender } = render(<ImportReviewDialog review={review({ relation: 'same', installedVersion: 3, hasChanges: false, counts })} onConfirm={vi.fn()} onCancel={onCancel} />);
+    const { rerender } = render(<ImportReviewDialog review={review({ relation: 'same', installedVersion: 3, upToDate: true, counts })} onConfirm={vi.fn()} onCancel={onCancel} />);
     expect(screen.getByRole('heading', { name: '“Dragon Pack” is up to date' })).toBeTruthy();
     expect(screen.queryByRole('checkbox')).toBeNull();
     fireEvent.click(screen.getAllByRole('button', { name: 'Close' }).at(-1)!);
     expect(onCancel).toHaveBeenCalled();
 
     const onConfirm = vi.fn();
-    rerender(<ImportReviewDialog review={review({ relation: 'same', installedVersion: 3, hasChanges: false, canRestore: true, counts })} onConfirm={onConfirm} onCancel={onCancel} />);
+    rerender(<ImportReviewDialog review={review({ relation: 'same', installedVersion: 3, upToDate: true, canRestore: true, counts })} onConfirm={onConfirm} onCancel={onCancel} />);
     fireEvent.click(screen.getByRole('checkbox'));
     fireEvent.click(screen.getByRole('button', { name: 'Restore original' }));
     expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({ restore: true }));

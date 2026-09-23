@@ -1,5 +1,6 @@
 import { COLLECTIONS_DIR, ATLAS_VTT_DIR } from '../AssetService';
 import type { BundleFile } from './bundleFormat';
+import { baseName } from '../../utils/pathUtils';
 
 export type PathMap = ReadonlyMap<string, string>;
 
@@ -18,8 +19,6 @@ export function remapPaths<T>(value: T, map: PathMap): T {
   }
   return value;
 }
-
-const baseName = (path: string): string => path.slice(path.lastIndexOf('/') + 1);
 
 /** Where a file from outside `atlas-vtt/` is copied to, by what it is. */
 function foreignFileFolder(file: BundleFile, collectionId: string): string {
@@ -50,7 +49,7 @@ export function planImportPaths(
   targetCollectionId: string,
   existsInVault: (path: string) => boolean,
   /** Vault paths already given to other files, e.g. by an earlier import of the collection. */
-  alreadyClaimed: Iterable<string> = [],
+  alreadyClaimed: Iterable<string>,
 ): PathMap {
   const plan = new Map<string, string>();
   const claimed = new Set<string>(alreadyClaimed);

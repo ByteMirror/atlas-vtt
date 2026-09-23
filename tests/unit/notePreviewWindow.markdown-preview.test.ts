@@ -1,7 +1,7 @@
 import { waitFor } from '@testing-library/react';
 import { beforeEach, afterEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { MarkdownRenderer, TFile, WorkspaceLeaf } from 'obsidian';
-import { NotePreviewWindow } from '../../src/app/services/NotePreviewUIManager';
+import { NotePreviewWindow } from '../../src/app/services/NotePreviewWindow';
 
 function installDomHelpers(): void {
   (HTMLElement.prototype as any).empty = function empty(): void {

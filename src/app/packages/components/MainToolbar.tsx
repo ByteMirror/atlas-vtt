@@ -238,11 +238,7 @@ export const MainToolbar = forwardRef<HTMLDivElement, MainToolbarProps>(({ viewI
   // Handle asset manager opening without changing active tool
   const handleAssetManagerClick = useCallback(() => {
     store.getState().openAssetManager()
-    // Hide all note previews when opening asset manager
-    const notePreviewManager = view?.serviceManager?.getNotePreviewUIManager?.();
-    if (notePreviewManager) {
-      notePreviewManager.hideAllPreviews();
-    }
+    view?.serviceManager?.getNotePreviewUIManager?.()?.suspendPreviews();
     // Close dropdowns when asset manager is opened
     setMoveDropdownOpen(false)
     setFogDropdownOpen(false)
@@ -254,11 +250,7 @@ export const MainToolbar = forwardRef<HTMLDivElement, MainToolbarProps>(({ viewI
   // Handle closing asset manager
   const handleCloseAssetManager = useCallback(() => {
     store.getState().closeAssetManager()
-    // Show all note previews when closing asset manager
-    const notePreviewManager = view?.serviceManager?.getNotePreviewUIManager?.();
-    if (notePreviewManager) {
-      notePreviewManager.showAllPreviews();
-    }
+    view?.serviceManager?.getNotePreviewUIManager?.()?.resumePreviews();
   }, [view, store])
 
   // Handle asset manager toggle (for keyboard shortcut)

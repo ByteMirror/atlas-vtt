@@ -80,6 +80,7 @@ export const AssetCard = memo(function AssetCard({
         <div
           className={`atlas-asset-card ${isSelected ? 'atlas-selected' : ''} ${isDragging ? 'atlas-dragging' : ''}`}
           data-type={asset.type}
+          data-asset-id={asset.id}
           onClick={(event) => onSelect(asset.id, event)}
           onDoubleClick={handleDoubleClick}
           onContextMenu={(event) => { event.preventDefault(); event.stopPropagation(); onContextMenu(asset, event); }}
@@ -118,7 +119,7 @@ export const AssetCard = memo(function AssetCard({
                   <button
                     type="button"
                     className="atlas-spawn-btn"
-                    onClick={(event) => { event.stopPropagation(); onSpawnCountChange(asset.id, -1); }}
+                    onClick={(event) => { event.stopPropagation(); onSpawnCountChange(asset.id, spawnCount - 1); }}
                   >−</button>
                 </LabelTooltip>
                 <span className="atlas-spawn-count">×{spawnCount}</span>
@@ -126,7 +127,7 @@ export const AssetCard = memo(function AssetCard({
                   <button
                     type="button"
                     className="atlas-spawn-btn"
-                    onClick={(event) => { event.stopPropagation(); onSpawnCountChange(asset.id, 1); }}
+                    onClick={(event) => { event.stopPropagation(); onSpawnCountChange(asset.id, spawnCount + 1); }}
                   >+</button>
                 </LabelTooltip>
                 <LabelTooltip label={`Spawn ${spawnCount} tokens`}>
@@ -144,6 +145,7 @@ export const AssetCard = memo(function AssetCard({
       </TooltipTrigger>
       <TooltipContent className="atlas-asset-card-tooltip" side="top" sideOffset={10}>
         {asset.name}
+        {asset.type === 'tokens' && <span className="atlas-asset-card-tooltip-hint">Type a number to spawn several</span>}
       </TooltipContent>
     </Tooltip>
   );

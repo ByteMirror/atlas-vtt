@@ -546,7 +546,7 @@ export class PinRenderer {
         { type: 'item', label: 'Open Note', icon: 'file-text', onClick: () => this.dispatchPinAction('open', pin) },
         { type: 'item', label: 'Edit Pin', icon: 'edit', onClick: () => this.dispatchPinAction('edit', pin) },
         { type: 'separator' },
-        { type: 'item', label: 'Duplicate', icon: 'files', onClick: () => this.store.getState().duplicatePins([pin.id]) },
+        { type: 'item', label: 'Duplicate', icon: 'files', onClick: () => this.store.getState().duplicateMapObjects([pin.id]) },
         { type: 'separator' },
         { type: 'item', label: 'Delete', icon: 'trash', destructive: true, onClick: () => this.store.getState().deleteMapObject('pin', pin.id) },
       ],

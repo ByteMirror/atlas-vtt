@@ -16,7 +16,7 @@ function setup(records: Record<string, Partial<TokenAsset>> = {}) {
   const ctx: SpawnContext = {
     app,
     view,
-    addToken: vi.fn((data) => { spawned.push(data as Record<string, unknown>); return `tok_${spawned.length}`; }) as unknown as SpawnContext['addToken'],
+    addTokens: vi.fn((tokens: unknown[]) => tokens.map((data) => { spawned.push(data as Record<string, unknown>); return `tok_${spawned.length}`; })) as unknown as SpawnContext['addTokens'],
     setSelection: vi.fn(),
     assetService: {
       getAssetById: vi.fn(async (id: string) => (id in records ? { id, type: 'token', name: id, imagePath: `tokens/${id}.png`, ...records[id] } : null)),
@@ -44,6 +44,15 @@ describe('token spawning keeps asset defaults', () => {
     const { ctx, spawned } = setup({ goblin: { showRing: false } });
     await spawnTokenAsset(ctx, unframed, 2);
     expect(spawned.map(t => t.showRing)).toEqual([false, false]);
+  });
+
+  it('spawns several copies of one asset in a single batch, each on its own spot', async () => {
+    const { ctx, spawned } = setup();
+    const ids = await spawnTokenAsset(ctx, unframed, 4);
+    expect(ids).toHaveLength(4);
+    expect(ctx.addTokens).toHaveBeenCalledTimes(1);
+    expect(new Set(spawned.map(t => `${t.x},${t.y}`)).size).toBe(4);
+    expect(ctx.setSelection).toHaveBeenCalledWith(ids);
   });
 
   it('skips assets that have no image path', async () => {

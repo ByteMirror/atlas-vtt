@@ -18,7 +18,7 @@ export interface AssetCardHandlers {
   onOpen: (asset: AnyAsset, spawnCount: number) => void;
   onDragStart: (assetId: string, event: React.DragEvent) => void;
   onDragEnd: () => void;
-  onSpawnCountChange: (assetId: string, delta: number) => void;
+  onSpawnCountChange: (assetId: string, count: number) => void;
   onOpenStatblock: (statblockPath: string) => void;
 }
 

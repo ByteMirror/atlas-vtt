@@ -10,8 +10,10 @@ import type {
 import {
   spawnEncounterTokens,
   spawnSelectedTokens,
+  spawnTokenAsset,
   type SpawnContext,
 } from '../utils/tokenSpawnService';
+import { SPAWN_MULTIPLE_COUNTS } from '../utils/spawnCount';
 import type { AssetService } from '../../../../services/AssetService';
 import { TagSearchModal } from '../TagSearchModal';
 import { runInBackground } from '../../../../utils/backgroundTask';
@@ -24,7 +26,7 @@ import { tokenSizeSubmenu } from '../../../../react/components/context-menu/toke
 export interface AssetContextMenuDeps {
   app: ObsidianApp;
   view: AtlasView | null;
-  addToken: ViewAtlasState['addToken'];
+  addTokens: ViewAtlasState['addTokens'];
   setSelection: (ids: string[]) => void;
   assetService: AssetService | null;
   onClose: () => void;
@@ -58,7 +60,7 @@ export function buildAssetContextMenuEntries(
   const spawnCtx: SpawnContext = {
     app: deps.app,
     view: deps.view,
-    addToken: deps.addToken,
+    addTokens: deps.addTokens,
     setSelection: deps.setSelection,
     assetService: deps.assetService,
   };
@@ -89,6 +91,21 @@ export function buildAssetContextMenuEntries(
         if (ids.length > 0) deps.onClose();
       },
     });
+    if (spawnCount <= 1) {
+      entries.push({
+        type: 'submenu',
+        label: 'Spawn Multiple',
+        icon: 'copy-plus',
+        children: SPAWN_MULTIPLE_COUNTS.map((count) => ({
+          type: 'item' as const,
+          label: `${count} tokens`,
+          onClick: async (): Promise<void> => {
+            const ids = await spawnTokenAsset(spawnCtx, asset, count);
+            if (ids.length > 0) deps.onClose();
+          },
+        })),
+      });
+    }
     entries.push({ type: 'separator' });
   }
 

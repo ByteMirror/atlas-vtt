@@ -31,6 +31,7 @@ export function HotkeyHelp({ settings: explicit, onClose, isPlayerView = false }
             <div><dt>Move grid alignment</dt><dd><kbd>Arrow keys</kbd></dd></div>
             <div><dt>Fine grid alignment</dt><dd><kbd>Shift + Arrow keys</kbd></dd></div>
             <div><dt>Preview initiative statblock</dt><dd><kbd>Ctrl/Cmd</kbd> + hover</dd></div>
+            <div><dt>Drag out a copy of tokens</dt><dd><kbd>Alt/Option</kbd> + drag</dd></div>
             <div><dt>Close dialog</dt><dd><kbd>Escape</kbd></dd></div>
             <div><dt>Navigate menus</dt><dd><kbd>Tab</kbd> / <kbd>Arrow keys</kbd></dd></div>
           </dl>

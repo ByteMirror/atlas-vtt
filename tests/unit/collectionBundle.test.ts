@@ -739,6 +739,36 @@ describe('remaining findings', () => {
   });
 });
 
+describe('final review findings', () => {
+  it('updates artwork the vault already had identical at install time', async () => {
+    const creator = await creatorVault();
+    const fan = await emptyVault({ [TOKEN_IMAGE]: 'IMG' });
+    await importInto(fan, await exportFrom(creator));
+    creator.vault.files.set(TOKEN_IMAGE, 'NEW IMG');
+    const { review, apply } = await reviewImport(fan, await exportFrom(creator));
+    expect(review.conflicts).toEqual([]);
+    await apply();
+    expect(fan.vault.files.get(TOKEN_IMAGE)).toBe('NEW IMG');
+  });
+
+  it('gives a restored map asset its file after the original moved to another collection', async () => {
+    const creator = await creatorVault();
+    const mapAsset = await creator.assets.addAsset({ type: 'map', name: 'Region', collection: 'source', tags: [], mapFilePath: BACKGROUND } as never);
+    creator.vault.files.set(creator.assets.getAssetFilePath(mapAsset as never), '{"name":"Region"}');
+    const fan = await emptyVault();
+    const v1 = await exportFrom(creator);
+    await importInto(fan, v1);
+    await fan.assets.createCollection('Mine');
+    const [fanMap] = await fan.assets.getAssets('source', 'map');
+    await fan.assets.updateAsset(fanMap!.id, { collection: 'mine' });
+
+    await (await reviewImport(fan, v1)).apply({ restore: true });
+    const [restored] = await fan.assets.getAssets('source', 'map');
+    expect(restored?.id).not.toBe(fanMap!.id);
+    expect(fan.vault.files.get(fan.assets.getAssetFilePath(restored!))).toBe('{"name":"Region"}');
+  });
+});
+
 describe('sharing and forking', () => {
   it('shares a fan\'s copy as the same version, which the creator sees as a changed copy', async () => {
     const creator = await creatorVault();

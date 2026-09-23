@@ -111,7 +111,8 @@ export async function planTargets(
   const usedHere = referencedStrings(everyAsset.filter((asset) => asset.collection === collectionId));
   const usedElsewhere = referencedStrings(everyAsset.filter((asset) => asset.collection !== collectionId));
   const recordTargets = record ? new Set(Object.values(record.files).map((file) => file.target)) : null;
-  const isOwnArtwork = (path: string): boolean => usedHere.has(path) && !usedElsewhere.has(path);
+  // Artwork no other collection uses belongs to this one: already used by it, or the identical file it brings.
+  const isOwnArtwork = (path: string): boolean => !usedElsewhere.has(path) && (usedHere.has(path) || sameContent.has(path));
   const planned = planImportPaths(unplaced, {
     sourceCollectionId: manifest.collection.id,
     targetCollectionId: collectionId,
@@ -131,7 +132,7 @@ export async function planTargets(
     // Records without an explicit file path find their file by id, so a renamed record takes its file along.
     const derivesFile = asset.type === 'map' || (asset.type !== 'token' && asset.type !== 'note' && !asset.filePath);
     const bundleFile = assets.getAssetFilePath({ ...asset, collection: manifest.collection.id });
-    if (derivesFile && localId !== asset.id && !record?.files[bundleFile]) {
+    if (derivesFile && localId !== asset.id) {
       paths.set(bundleFile, assets.getAssetFilePath({ ...asset, id: localId, collection: collectionId }));
     }
   }

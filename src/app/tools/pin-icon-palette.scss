@@ -1,0 +1,205 @@
+@use '../../../styles/tokens' as *;
+@use '../../../styles/mixins' as *;
+
+// Pin icon palette of the note pin dropdown, and the place flyout of its location slot.
+// Radii come from the dropdown (`--pin-btn-radius`, `--pin-inset-radius`, styles/main.scss).
+
+$flyout-gap: $spacing-s; // matches ANCHOR_GAP_PX in pinPlaceFlyout.ts
+$flyout-columns: 8; // matches COLUMNS in pinPlaceFlyout.ts
+$flyout-enter: 160ms;
+
+.atlas-note-pin-dropdown {
+  .pin-icon-row {
+    @include atlas-inset-surface;
+    @include atlas-flex-row($gap: $spacing-xs);
+    padding: $spacing-xs;
+    border-radius: var(--pin-inset-radius);
+  }
+
+  // Tones are set inline per theme (`setPinTone`); label pins have none and use the text colour.
+  .pin-icon-btn,
+  .pin-place-caption {
+    --pin-color: var(--pin-color-light, var(--text-normal));
+  }
+
+  .pin-icon-btn {
+    @include atlas-icon-button('m');
+    @include atlas-focus-ring;
+    appearance: none;
+    position: relative;
+    flex-shrink: 0;
+    padding: 0;
+    border-radius: var(--pin-btn-radius);
+    background: transparent;
+    box-shadow: none;
+    color: var(--pin-color);
+    transition: background-color $transition-fast $transition-ease,
+                box-shadow $transition-fast $transition-ease,
+                transform $transition-press $transition-ease-out;
+
+    svg {
+      width: var(--icon-m);
+      height: var(--icon-m);
+      opacity: var(--icon-opacity);
+      transition: opacity $transition-fast $transition-ease;
+    }
+
+    .pin-icon-label {
+      font-size: $font-ui-medium;
+      font-weight: $font-weight-bold;
+      line-height: 1;
+    }
+
+    &:hover {
+      background: var(--background-modifier-hover);
+
+      svg {
+        opacity: var(--icon-opacity-hover);
+      }
+    }
+
+    // Hit area fills the gaps and row padding so hover never drops out between
+    // neighbours; half the gap each side keeps adjacent hit areas from overlapping.
+    &::before {
+      content: '';
+      position: absolute;
+      inset: (-$spacing-xs) calc(#{-$spacing-xs} / 2);
+    }
+
+    &:active {
+      transform: scale(0.96);
+    }
+
+    &.is-selected {
+      background: color-mix(in oklch, var(--pin-color) 16%, transparent);
+      box-shadow: inset 0 0 0 $border-width-s color-mix(in oklch, var(--pin-color) 55%, transparent);
+
+      svg {
+        opacity: var(--icon-opacity-active);
+      }
+    }
+  }
+
+  // Corner notch: the slot holds more icons than it shows, like a tool group.
+  .pin-place-slot {
+    &::after {
+      content: '';
+      position: absolute;
+      top: 3px;
+      right: 3px;
+      border-style: solid;
+      border-width: 0 5px 5px 0;
+      border-color: transparent currentColor transparent transparent;
+      opacity: 0.5;
+      transition: opacity $transition-fast $transition-ease;
+    }
+
+    &:hover::after,
+    &[aria-expanded='true']::after {
+      opacity: 1;
+    }
+  }
+
+  // ── Place flyout ───────────────────────────────────────────────
+  // Positioned (fixed) by the script above the slot, or below it near the window top.
+  .pin-place-flyout {
+    @include atlas-elevated-surface;
+    @include atlas-flex-col($gap: $spacing-m);
+    position: fixed;
+    z-index: 1;
+    padding: $spacing-m;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: translateY(4px) scale(0.97);
+    transform-origin: bottom center;
+    transition: opacity $transition-fast $transition-ease,
+                transform $transition-fast $transition-ease,
+                visibility 0s linear $transition-fast;
+
+    &[data-side='bottom'] {
+      transform: translateY(-4px) scale(0.97);
+      transform-origin: top center;
+    }
+
+    &.is-open {
+      opacity: 1;
+      visibility: visible;
+      pointer-events: auto;
+      transform: none;
+      transition: opacity $flyout-enter $transition-ease-out,
+                  transform $flyout-enter $transition-ease-out,
+                  visibility 0s;
+    }
+
+    // Bridges the gap to the slot so the pointer never leaves the flyout on the way over.
+    &::after {
+      content: '';
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 100%;
+      height: calc(#{$flyout-gap} + #{$border-width-m});
+    }
+
+    &[data-side='bottom']::after {
+      top: auto;
+      bottom: 100%;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      &,
+      &[data-side='bottom'] {
+        transform: none;
+      }
+    }
+  }
+
+  // Names the hovered or focused place, else the chosen one.
+  .pin-place-caption {
+    @include atlas-flex-row($gap: $spacing-s);
+    padding-bottom: $spacing-m;
+    border-bottom: var(--divider-width) solid var(--divider-color);
+    font-size: $font-ui-small;
+    font-weight: $font-weight-semibold;
+    color: var(--text-normal);
+
+    .pin-place-caption-glyph {
+      display: flex;
+      color: var(--pin-color);
+
+      svg {
+        width: var(--icon-m);
+        height: var(--icon-m);
+      }
+    }
+  }
+
+  .pin-place-group {
+    @include atlas-flex-col($gap: $spacing-xs);
+  }
+
+  .pin-place-group-name {
+    padding-inline: $spacing-xs;
+    font-size: $font-ui-smaller;
+    font-weight: $font-weight-semibold;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+  }
+
+  .pin-place-grid {
+    display: grid;
+    grid-template-columns: repeat($flyout-columns, auto);
+    // A short last row keeps the columns of full ones instead of stretching across the panel
+    justify-content: start;
+    gap: $spacing-xs;
+  }
+}
+
+.theme-dark .atlas-note-pin-dropdown {
+  .pin-icon-btn,
+  .pin-place-caption {
+    --pin-color: var(--pin-color-dark, var(--text-normal));
+  }
+}

@@ -36,6 +36,8 @@ export interface BaseToken {
   ringColor?: string;
   /** Active condition IDs referencing ConditionDefinition.id from collection settings */
   conditions?: string[];
+  /** Numbers of active valued conditions, by condition id; a valued condition without one has 1. */
+  conditionValues?: Record<string, number>;
   /** Whether the token is hidden (visible to DM but not players) */
   isHidden?: boolean;
   /** Whether this token generates a vision source (player character tokens) */
@@ -69,7 +71,8 @@ export interface Token extends BaseToken {
 export interface Character extends BaseToken {
   kind: 'character';
   name: string;
-  hp: number | { current: number; max: number }; // Support both simple and complex HP
+  /** Only set when the token has a statblock or its HP was entered in Edit Token; without it no HP bar shows. */
+  hp?: number | { current: number; max: number };
   stress?: number | { current: number; max: number }; // Current stress level
   maxStress?: number; // Maximum stress (defaults to 10)
   /** Max HP was set on this token; statblock edits no longer replace it. */

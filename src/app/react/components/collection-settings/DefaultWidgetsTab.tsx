@@ -44,8 +44,8 @@ export function DefaultWidgetsTab({
   return (
     <>
       <p className="atlas-csm-hint">
-        These defaults apply to newly created maps in this collection.
-        Existing maps are not affected.
+        Resource bars follow these settings in every scene of the collection,
+        also scenes that already exist. The other defaults apply to new maps.
       </p>
       {WIDGET_OPTIONS.map((w) => (
         <div key={w.key} className="atlas-csm-toggle-row">

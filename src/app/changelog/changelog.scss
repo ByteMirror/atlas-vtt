@@ -1,5 +1,6 @@
 @use '../../../styles/tokens' as *;
 @use '../../../styles/mixins' as *;
+@use 'community';
 
 $changelog-scroll-fade: $spacing-xl;
 
@@ -24,8 +25,6 @@ $changelog-scroll-fade: $spacing-xl;
     overflow: visible;
   }
 
-  @include atlas-native-modal-close-control;
-
   // ── Header ────────────────────────────────────────────────────────────────
   .atlas-changelog-title {
     display: flex;
@@ -33,9 +32,10 @@ $changelog-scroll-fade: $spacing-xl;
     gap: $spacing-m;
   }
 
+  // As tall as the close button, so the title row centres on it.
   .atlas-changelog-icon {
-    width: $button-height-l;
-    height: $button-height-l;
+    width: $close-button-size;
+    height: $close-button-size;
     flex-shrink: 0;
     object-fit: contain;
   }

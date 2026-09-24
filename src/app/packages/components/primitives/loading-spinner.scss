@@ -1,0 +1,134 @@
+// Comet spinner: a conic-gradient tail masked to a ring, led by a glowing head.
+// Two nested rotations (a linear orbit and an eased surge) give it an organic,
+// non-mechanical rhythm. Everything animates transform or opacity only, so it
+// stays on the compositor. Set --atlas-spinner-play-state: paused on an ancestor
+// to stop it while hidden.
+
+.atlas-spinner {
+  --atlas-spinner-stroke: max(2px, calc(var(--atlas-spinner-size) / 18));
+  --atlas-spinner-color: var(--interactive-accent);
+  --atlas-spinner-highlight: color-mix(in oklch, var(--interactive-accent), white 45%);
+  --atlas-spinner-core: color-mix(in oklch, var(--interactive-accent), white 80%);
+  --atlas-spinner-halo: 22%;
+
+  position: relative;
+  flex-shrink: 0;
+  width: var(--atlas-spinner-size);
+  height: var(--atlas-spinner-size);
+
+  *,
+  & {
+    animation-play-state: var(--atlas-spinner-play-state, running);
+  }
+
+  // A white-hot head reads as fading out on light backgrounds; keep it saturated there
+  .theme-light & {
+    --atlas-spinner-highlight: var(--interactive-accent);
+    --atlas-spinner-core: var(--interactive-accent);
+    --atlas-spinner-halo: 12%;
+  }
+}
+
+.atlas-spinner__ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  // 0.5px feather keeps the ring edges anti-aliased
+  mask: radial-gradient(
+    farthest-side,
+    transparent calc(100% - var(--atlas-spinner-stroke) - 0.5px),
+    #000 calc(100% - var(--atlas-spinner-stroke)),
+    #000 calc(100% - 0.5px),
+    transparent 100%
+  );
+}
+
+.atlas-spinner__track {
+  background: color-mix(in oklch, var(--text-normal) 7%, transparent);
+}
+
+.atlas-spinner__halo {
+  position: absolute;
+  inset: -60%;
+  border-radius: 50%;
+  background: radial-gradient(
+    closest-side,
+    color-mix(in oklch, var(--atlas-spinner-color) var(--atlas-spinner-halo), transparent),
+    transparent
+  );
+  animation: atlas-spinner-breathe 2.4s ease-in-out infinite alternate;
+}
+
+.atlas-spinner__orbit,
+.atlas-spinner__comet {
+  position: absolute;
+  inset: 0;
+}
+
+.atlas-spinner__orbit {
+  animation: atlas-spinner-rotate 3.2s linear infinite;
+}
+
+.atlas-spinner__comet {
+  animation: atlas-spinner-rotate 1.3s cubic-bezier(0.55, 0.15, 0.45, 0.85) infinite;
+}
+
+// Head sits at 12 o'clock (360deg); the tail trails counter-clockwise and fades out
+.atlas-spinner__tail {
+  background: conic-gradient(
+    transparent 0deg 110deg,
+    color-mix(in oklch, var(--atlas-spinner-color) 55%, transparent) 250deg,
+    var(--atlas-spinner-color) 330deg,
+    var(--atlas-spinner-highlight) 360deg
+  );
+}
+
+.atlas-spinner__bloom {
+  position: absolute;
+  inset: 0;
+  filter: blur(calc(var(--atlas-spinner-stroke) * 2));
+  opacity: 0.8;
+}
+
+.atlas-spinner__head {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: var(--atlas-spinner-stroke);
+  height: var(--atlas-spinner-stroke);
+  border-radius: 50%;
+  background: var(--atlas-spinner-core);
+  transform: translateX(-50%);
+  box-shadow:
+    0 0 calc(var(--atlas-spinner-stroke) * 1.5) calc(var(--atlas-spinner-stroke) * 0.5) var(--atlas-spinner-highlight),
+    0 0 calc(var(--atlas-spinner-stroke) * 5) var(--atlas-spinner-stroke) color-mix(in oklch, var(--atlas-spinner-color) 60%, transparent);
+}
+
+@keyframes atlas-spinner-rotate {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes atlas-spinner-breathe {
+  from {
+    opacity: 0.55;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+}
+
+// Loading feedback is essential motion: keep one steady rotation, drop the rest
+@media (prefers-reduced-motion: reduce) {
+  .atlas-spinner__comet,
+  .atlas-spinner__halo {
+    animation: none;
+  }
+
+  .atlas-spinner__orbit {
+    animation-duration: 1.6s;
+  }
+}

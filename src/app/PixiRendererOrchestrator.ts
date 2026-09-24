@@ -342,7 +342,7 @@ export class PixiRendererOrchestrator { // Renamed class
     // Initialize PinRenderer first
     // Check if this is a player view through the store
     const isPlayerView = this.store.getState().isPlayerView || false;
-    this.pinRenderer = new PinRenderer(this.obsApp, viewport, this.eventBus, this.store, isPlayerView);
+    this.pinRenderer = new PinRenderer(viewport, this.eventBus, this.store, isPlayerView);
 
     this.selectionManager = new SelectionManager(
         viewport,

@@ -1,5 +1,15 @@
-import { Plugin } from 'obsidian';
+import { App, Plugin } from 'obsidian';
 import type { ViewAtlasState, ViewAtlasStore } from '../storeFactory';
+import {
+  pickCollectionWidgets,
+  sameWidgets,
+  withCollectionWidgets,
+  type SceneWidgets,
+  type WidgetRecord,
+} from '../utils/collectionWidgets';
+import { runUntracked } from '../stores/history';
+import { AssetService } from './AssetService';
+import { CollectionWidgetStore } from './CollectionWidgetStore';
 
 /** Payload carried by each kind of widget animation. */
 export interface WidgetAnimationPayloads {
@@ -21,25 +31,29 @@ export type WidgetAnimationState = {
   };
 }[WidgetAnimationType];
 
-/** The slice of view state that is mirrored between views. */
-type SyncedWidgetState = Pick<ViewAtlasState, 'widgetValues'> & {
-  widgets: ViewAtlasState['widgetSettings']['widgets'];
-};
+/** Shared fallback, so a store without widget settings never looks changed. */
+const NO_WIDGETS: WidgetRecord = {};
 
-interface WidgetSyncEventDetail extends SyncedWidgetState {
-  sourceViewId: string;
+/** The slice of view state that is mirrored between views. */
+function sceneWidgets(state: ViewAtlasState): SceneWidgets {
+  return { widgets: state.widgetSettings?.widgets ?? NO_WIDGETS, widgetValues: state.widgetValues };
 }
 
-const WIDGET_SYNC_EVENT = 'atlas-widget-sync';
-/** Shared fallback, so a store without widget settings never looks changed. */
-const NO_WIDGETS: SyncedWidgetState['widgets'] = {};
-
 /**
- * Service to synchronize widget values between all atlas views
- * Uses custom events to broadcast changes across views
+ * Keeps widgets consistent between all Atlas views. Views showing the same scene
+ * mirror all its widgets; views of other scenes in the same collection mirror the
+ * collection-wide ones, which are also written to the collection settings.
  */
 export class WidgetSyncService {
+  private static readonly instances = new WeakMap<App, WidgetSyncService>();
+
+  /** The plugin's sync service, once a map view has created it. */
+  static forApp(app: App): WidgetSyncService | undefined {
+    return this.instances.get(app);
+  }
+
   private plugin: Plugin;
+  private collectionWidgets: CollectionWidgetStore;
   private stores: Map<string, ViewAtlasStore> = new Map();
   private unsubscribers: Map<string, () => void> = new Map();
   private isUpdating = false;
@@ -47,7 +61,22 @@ export class WidgetSyncService {
   
   constructor(plugin: Plugin) {
     this.plugin = plugin;
-    this.setupEventListeners();
+    this.collectionWidgets = new CollectionWidgetStore(AssetService.getInstance(plugin.app));
+    WidgetSyncService.instances.set(plugin.app, this);
+  }
+
+  /**
+   * Changes a collection's shared widgets from outside its maps, e.g. when its
+   * game system adds a timer, and shows the result in its open scenes at once.
+   */
+  editCollectionWidgets(collectionId: string, edit: (widgets: WidgetRecord) => WidgetRecord): void {
+    const widgets = edit(this.collectionWidgets.get(collectionId));
+    this.collectionWidgets.set(collectionId, widgets);
+    this.stores.forEach((store) => {
+      const { isMapLoading, mapPath } = store.getState();
+      if (isMapLoading || !mapPath || this.collectionWidgets.collectionFor(mapPath) !== collectionId) return;
+      this.replaceCollectionWidgets(store, widgets);
+    });
   }
   
   /**
@@ -57,18 +86,16 @@ export class WidgetSyncService {
     this.unsubscribers.get(viewId)?.();
     this.stores.set(viewId, store);
 
-    // Subscribe to widget value changes in this store
-    const unsubscribe = store.subscribe(
-      (state): SyncedWidgetState => ({
-        // Only sync widget definitions, not view-specific settings like globalVisible
-        widgets: state.widgetSettings?.widgets ?? NO_WIDGETS,
-        widgetValues: state.widgetValues
-      }),
+    const unsubscribeWidgets = store.subscribe(
+      // Only widget definitions and values sync, not view-specific settings like globalVisible
+      sceneWidgets,
       (curr) => {
-        // Only broadcast if not currently applying an update
-        if (!this.isUpdating) {
-          this.broadcastWidgetUpdate(viewId, curr);
-        }
+        if (this.isUpdating) return;
+        const { isMapLoading, mapPath } = store.getState();
+        // Loading a map clears and restores its widgets; the collection's stay on screen
+        // throughout, and only edits reach other views.
+        if (isMapLoading) this.showCollectionWidgets(store);
+        else this.propagateWidgets(viewId, mapPath, curr);
       },
       {
         // Immer keeps unchanged branches, so references tell whether widgets changed.
@@ -76,8 +103,17 @@ export class WidgetSyncService {
         equalityFn: (a, b) => a.widgets === b.widgets && a.widgetValues === b.widgetValues
       }
     );
+    const unsubscribeLoading = store.subscribe(
+      (state) => state.isMapLoading,
+      (loading) => {
+        if (!loading) this.applyCollectionWidgets(store);
+      }
+    );
 
-    this.unsubscribers.set(viewId, unsubscribe);
+    this.unsubscribers.set(viewId, () => {
+      unsubscribeWidgets();
+      unsubscribeLoading();
+    });
   }
   
   /**
@@ -91,22 +127,60 @@ export class WidgetSyncService {
     // Clean up animation listeners
     this.animationListeners.delete(viewId);
   }
-  
-  /**
-   * Broadcast widget updates to all other views
-   */
-  private broadcastWidgetUpdate(sourceViewId: string, widgetData: SyncedWidgetState): void {
-    // Create custom event
-    const event = new CustomEvent<WidgetSyncEventDetail>(WIDGET_SYNC_EVENT, {
-      detail: {
-        sourceViewId,
-        widgets: widgetData.widgets,
-        widgetValues: widgetData.widgetValues
-      }
-    });
-    
-    // Dispatch to window
-    window.dispatchEvent(event);
+
+  /** Adds the collection-wide widgets to a store whose scene has just loaded. */
+  private applyCollectionWidgets(store: ViewAtlasStore): void {
+    // The asset index loads once; waiting keeps a scene opened at startup from missing its widgets.
+    void AssetService.getInstance(this.plugin.app).initialize().then(() => this.showCollectionWidgets(store));
+  }
+
+  /** Shows the widgets of the store's collection next to its scene's own. */
+  private showCollectionWidgets(store: ViewAtlasStore): void {
+    const { mapPath } = store.getState();
+    const collectionId = mapPath ? this.collectionWidgets.collectionFor(mapPath) : null;
+    if (collectionId) this.replaceCollectionWidgets(store, this.collectionWidgets.get(collectionId));
+  }
+
+  /** Mirrors an edit in one view to the collection settings and every related view. */
+  private propagateWidgets(sourceViewId: string, mapPath: string | null, scene: SceneWidgets): void {
+    if (!mapPath) return;
+    const collectionId = this.collectionWidgets.collectionFor(mapPath);
+    const shared = pickCollectionWidgets(scene);
+    if (collectionId) this.collectionWidgets.set(collectionId, shared);
+
+    this.isUpdating = true;
+    try {
+      this.stores.forEach((store, viewId) => {
+        const state = store.getState();
+        if (viewId === sourceViewId || state.isMapLoading || !state.mapPath) return;
+        if (state.mapPath === mapPath) {
+          // Same scene: mirror every widget, keeping view-specific globalVisible, position and scale
+          runUntracked(store, () => store.setState({
+            widgetSettings: { ...state.widgetSettings, widgets: scene.widgets },
+            widgetValues: scene.widgetValues
+          }));
+        } else if (collectionId && this.collectionWidgets.collectionFor(state.mapPath) === collectionId) {
+          this.replaceCollectionWidgets(store, shared);
+        }
+      });
+    } finally {
+      this.isUpdating = false;
+    }
+  }
+
+  /** Syncs and loads are not edits of this view, so they never become undo steps. */
+  private replaceCollectionWidgets(store: ViewAtlasStore, shared: WidgetRecord): void {
+    const state = store.getState();
+    const current = sceneWidgets(state);
+    if (sameWidgets(pickCollectionWidgets(current), shared)) return;
+    const { widgets, widgetValues } = withCollectionWidgets(current, shared);
+    const wasUpdating = this.isUpdating;
+    this.isUpdating = true;
+    try {
+      runUntracked(store, () => store.setState({ widgetSettings: { ...state.widgetSettings, widgets }, widgetValues }));
+    } finally {
+      this.isUpdating = wasUpdating;
+    }
   }
   
   /**
@@ -164,46 +238,6 @@ export class WidgetSyncService {
   }
   
   /**
-   * Set up event listeners for widget sync
-   */
-  private setupEventListeners(): void {
-    // Listen for widget sync events
-    const handleWidgetSync = (event: Event): void => {
-      if (!(event instanceof CustomEvent)) return;
-      const { sourceViewId, widgets, widgetValues } = event.detail as WidgetSyncEventDetail;
-      
-      // Apply update to all stores except the source
-      this.isUpdating = true;
-      try {
-        this.stores.forEach((store, viewId) => {
-          if (viewId !== sourceViewId) {
-            const currentState = store.getState();
-            
-            // Update only the widget definitions, preserve view-specific settings
-            store.setState({
-              widgetSettings: {
-                ...currentState.widgetSettings,
-                widgets: widgets  // Only update widget definitions
-                // globalVisible, position, scale remain view-specific
-              },
-              widgetValues
-            });
-          }
-        });
-      } finally {
-        this.isUpdating = false;
-      }
-    };
-    
-    window.addEventListener(WIDGET_SYNC_EVENT, handleWidgetSync);
-
-    // Clean up on plugin unload
-    this.plugin.register(() => {
-      window.removeEventListener(WIDGET_SYNC_EVENT, handleWidgetSync);
-    });
-  }
-  
-  /**
    * Get all registered view IDs
    */
   getRegisteredViews(): string[] {
@@ -214,6 +248,8 @@ export class WidgetSyncService {
    * Clean up resources
    */
   destroy(): void {
+    WidgetSyncService.instances.delete(this.plugin.app);
+    this.collectionWidgets.flush();
     this.unsubscribers.forEach((unsubscribe) => unsubscribe());
     this.unsubscribers.clear();
 

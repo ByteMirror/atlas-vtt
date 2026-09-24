@@ -11,6 +11,7 @@ import { Button } from '../../packages/components/primitives/button';
 import { NumberOverrideField, parseNumberInput } from './NumberOverrideField';
 import { readStatblockVitals } from './statblockFrontmatter';
 import { buildResourceUpdates, statblockResourceDefaults, type ResourceDefaults } from './tokenResourceEdits';
+import { unitLabelFor } from '../../grid/measurementFormat';
 
 interface EditTokenValues {
   name: string;
@@ -191,8 +192,7 @@ export function openEditTokenModal(token: TokenEntity, store: StoreApi<ViewAtlas
     cleanup();
   };
 
-  const unitType = store.getState().grid?.unitType ?? 'feet';
-  const unitLabel = unitType === 'meters' ? 'm' : unitType === 'feet' ? 'ft' : '';
+  const unitLabel = unitLabelFor(store.getState().grid?.unitType);
 
   root.render(
     <EditTokenModalInner

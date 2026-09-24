@@ -16,6 +16,7 @@ describe('TokenRenderer ring updates', () => {
     // Inherit the prototype so updateTokenRing reaches the badge helpers it delegates to
     const harness = Object.assign(Object.create(TokenRenderer.prototype) as object, {
       spriteFactory: { createTokenRing },
+      downedTokenOverlay: { refresh: vi.fn() },
       store: {
         getState: () => ({
           tokenSettings: {

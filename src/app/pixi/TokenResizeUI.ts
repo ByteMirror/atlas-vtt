@@ -54,7 +54,6 @@ export class TokenResizeUI {
     // Listen for resize events to update handle positions
     window.addEventListener('atlas-tokens-resize-update', this.onResizeUpdate);
     window.addEventListener('atlas-tokens-drag-update', this.onTokenDragUpdate);
-    window.addEventListener('atlas-tokens-rotation-update', this.onRotationUpdate);
     
     // Listen for rotation events to hide/show resize handles
     window.addEventListener('atlas-token-rotation-started', this.onRotationStarted);
@@ -225,23 +224,10 @@ export class TokenResizeUI {
       const ringTokenSize = spriteSize * ringScale;
       const ringCenterRadius = getTokenRingCenterRadius(ringTokenSize, gridStrokeWidth, ringScale);
       
-      // Get current rotation for handle positioning
-      const currentRotation = (token.rotation || 0) * Math.PI / 180;
-      
-      // Center handles on token ring, accounting for rotation
-      const distance = ringCenterRadius;
-      
-      // Left handle (180 degrees from rotation)
-      const leftAngle = currentRotation + Math.PI;
-      const leftX = Math.cos(leftAngle) * distance;
-      const leftY = Math.sin(leftAngle) * distance;
-      handles.left.position.set(leftX, leftY);
-      
-      // Right handle (0 degrees from rotation)
-      const rightAngle = currentRotation;
-      const rightX = Math.cos(rightAngle) * distance;
-      const rightY = Math.sin(rightAngle) * distance;
-      handles.right.position.set(rightX, rightY);
+      // Handles sit on the ring's left and right, independent of the token's rotation,
+      // matching the horizontal drag that resizes the token.
+      handles.left.position.set(-ringCenterRadius, 0);
+      handles.right.position.set(ringCenterRadius, 0);
     }
   }
   
@@ -517,14 +503,6 @@ export class TokenResizeUI {
   };
   
   /**
-   * Handle rotation update events
-   */
-  private onRotationUpdate = (): void => {
-    // Update handle positions when tokens rotate
-    this.updateHandlePositions();
-  };
-  
-  /**
    * Handle rotation started events - hide resize handles
    */
   private onRotationStarted = (): void => {
@@ -569,7 +547,6 @@ export class TokenResizeUI {
     // Remove event listeners
     window.removeEventListener('atlas-tokens-resize-update', this.onResizeUpdate);
     window.removeEventListener('atlas-tokens-drag-update', this.onTokenDragUpdate);
-    window.removeEventListener('atlas-tokens-rotation-update', this.onRotationUpdate);
     window.removeEventListener('atlas-token-rotation-started', this.onRotationStarted);
     window.removeEventListener('atlas-token-rotation-ended', this.onRotationEnded);
     

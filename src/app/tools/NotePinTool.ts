@@ -1,10 +1,14 @@
 import { EventEmitter } from 'events';
 import type { NotePin } from '../types';
 import type { ViewAtlasState } from '../storeFactory';
-import { App, TFile, setIcon, type WorkspaceLeaf } from 'obsidian';
+import { App, TFile, type WorkspaceLeaf } from 'obsidian';
 import type { StoreApi } from 'zustand';
 import { runInBackground } from '../utils/backgroundTask';
+import { resolvePinIcon } from '../types/pinIcons';
+import { createPinIconPalette, type PinIconPalette } from './pinIconPalette';
+import { createPinNoteSearch } from './pinNoteSearch';
 import type { PinActionEventDetail } from '../types/atlasWindowEvents';
+import { animatePanelIn, animatePanelOutAndRemove } from '../ui/panelMotion';
 
 interface NotePinDropdownResult {
   accepted: boolean;
@@ -20,6 +24,7 @@ export class NotePinTool {
   private obsidianApp: App;
   private isActive = false;
   private pinDropdown: HTMLElement | null = null;
+  private iconPalette: PinIconPalette | null = null;
   private store: StoreApi<ViewAtlasState>;
   private currentPreviewIcon: string = 'pin';
   private storeUnsubscribe: (() => void) | null = null;
@@ -126,35 +131,16 @@ export class NotePinTool {
   }
 
   /**
-   * Displays a dropdown UI for selecting a note to link to the pin
+   * Displays a dropdown UI for choosing the pin's icon and linked note. For an
+   * existing pin, picking an icon applies it at once and keeps the linked note.
    */
-  private async showNotePinDropdown(x: number, y: number, existingIcon?: string): Promise<NotePinDropdownResult> {
+  private async showNotePinDropdown(x: number, y: number, editedPin?: NotePin): Promise<NotePinDropdownResult> {
     return new Promise<NotePinDropdownResult>((resolve) => {
       try {
         this.closeDropdown();
 
-      // Icon definitions
-      // Ids are Lucide icon names unless the option carries a text `label`
-      const iconOptions: Array<{ id: string; name: string; color: string; label?: string }> = [
-        { id: 'pin', name: 'Pin', color: '#ef4444' },
-        { id: 'scroll', name: 'Note', color: '#3b82f6' },
-        { id: 'coins', name: 'Treasure', color: '#eab308' },
-        { id: 'swords', name: 'Combat', color: '#dc2626' },
-        { id: 'skull', name: 'Boss', color: '#7c3aed' },
-        { id: 'info', name: 'Info', color: '#06b6d4' },
-        { id: 'alert-triangle', name: 'Warning', color: '#f97316' },
-        { id: 'map-pin', name: 'Location', color: '#10b981' },
-        { id: 'flag', name: 'Objective', color: '#6366f1' },
-        { id: 'star', name: 'Important', color: '#f59e0b' },
-        { id: 'heart', name: 'NPC', color: '#ec4899' },
-        { id: 'eye', name: 'Hidden', color: '#6b7280' },
-        // Enumerated pins: the store assigns the next free label of the sequence on placement
-        { id: 'number', name: 'Numbered (1, 2, 3…)', color: 'var(--text-normal)', label: '1' },
-        { id: 'letter', name: 'Lettered (A, B, C…)', color: 'var(--text-normal)', label: 'A' },
-      ];
-
       // New pins default to the last used icon so a numbered run needs no re-selection
-      let selectedIcon = existingIcon || this.currentPreviewIcon;
+      let selectedIcon = resolvePinIcon(editedPin?.icon || this.currentPreviewIcon);
 
       // ── Outer container ──
       const dropdown = createDiv();
@@ -162,225 +148,32 @@ export class NotePinTool {
       dropdown.classList.add('atlas-note-pin-dropdown');
 
       // ── Icon Palette ──
-      const iconRow = dropdown.createDiv({ cls: 'pin-icon-row' });
-      iconRow.setAttribute('role', 'radiogroup');
-      iconRow.setAttribute('aria-label', 'Pin icon');
-
-      const updateIconSelection = (iconId: string): void => {
-        iconRow.querySelectorAll<HTMLButtonElement>('.pin-icon-btn').forEach(btn => {
-          const isSelected = btn.dataset.icon === iconId;
-          btn.classList.toggle('is-selected', isSelected);
-          btn.setAttribute('aria-checked', String(isSelected));
-        });
-      };
-
-      iconOptions.forEach(option => {
-        const btn = iconRow.createEl('button');
-        btn.type = 'button';
-        btn.classList.add('pin-icon-btn');
-        btn.dataset.icon = option.id;
-        btn.setAttribute('role', 'radio');
-        btn.setAttribute('aria-label', option.name);
-        btn.title = option.name;
-        btn.style.setProperty('--pin-color', option.color);
-        if (option.label) {
-          btn.createSpan({ cls: 'pin-icon-label', text: option.label });
-        } else {
-          setIcon(btn, option.id);
-        }
-
-        btn.onclick = () => {
-          selectedIcon = option.id;
-          this.currentPreviewIcon = option.id;
-          updateIconSelection(option.id);
-          this.eventBus.emit('pin-preview-update-icon', { icon: option.id });
-        };
-      });
-      updateIconSelection(selectedIcon);
-
-      // ── Search ──
-      const searchWrapper = dropdown.createDiv({ cls: 'pin-search-wrapper' });
-
-      const searchIcon = searchWrapper.createDiv({ cls: 'pin-search-icon' });
-      setIcon(searchIcon, 'search');
-
-      const search = searchWrapper.createEl('input', { cls: 'pin-search-input' });
-      search.type = 'text';
-      search.placeholder = 'Search notes and maps...';
-
-      // Results container
-      const results = dropdown.createDiv({ cls: 'pin-results' });
-
-      // Footer hints
-      const footer = dropdown.createDiv({ cls: 'pin-footer' });
-      const footerHints: Array<[key: string, label: string]> = [['Esc', 'cancel'], ['Enter', 'select']];
-      footerHints.forEach(([key, label]) => {
-        const hint = footer.createSpan({ cls: 'pin-footer-hint' });
-        hint.createEl('kbd', { text: key });
-        hint.appendText(label);
+      this.iconPalette = createPinIconPalette(dropdown, {
+        selected: selectedIcon,
+        onSelect: (icon) => {
+          if (editedPin) {
+            this.closeDropdown();
+            resolve({ accepted: true, notePath: editedPin.notePath, icon });
+            return;
+          }
+          selectedIcon = icon;
+          this.currentPreviewIcon = icon;
+          this.eventBus.emit('pin-preview-update-icon', { icon });
+        },
       });
 
-      // ── File data ──
-      const allFiles = this.obsidianApp.vault.getAllLoadedFiles();
-      const files = allFiles.filter((f): f is TFile =>
-        f instanceof TFile && (f.extension === 'md' || f.extension === 'atlasmap')
-      );
-      let filteredFiles = files;
-
-      // ── Render results ──
-      const renderResults = (filter = ''): void => {
-        results.empty();
-
-        // Header search mode (file#header)
-        const hashIndex = filter.indexOf('#');
-        if (hashIndex !== -1) {
-          const fileNamePart = filter.substring(0, hashIndex);
-          const headerQuery = filter.substring(hashIndex + 1).toLowerCase();
-
-          let targetFile: TFile | null = null;
-          targetFile = files.find(f => f.basename.toLowerCase() === fileNamePart.toLowerCase()) || null;
-          if (!targetFile) {
-            const matches = files.filter(f => f.basename.toLowerCase().includes(fileNamePart.toLowerCase()));
-            if (matches.length === 1) targetFile = matches[0] ?? null;
-          }
-
-          if (targetFile) {
-            const cache = this.obsidianApp.metadataCache.getFileCache(targetFile);
-            if (cache?.headings && cache.headings.length > 0) {
-              // "Entire note" option at the top
-              if (headerQuery === '') {
-                const entireItem = results.createDiv({ cls: 'pin-result-item pin-header-item' });
-
-                const icon = entireItem.createDiv({ cls: 'pin-result-icon' });
-                setIcon(icon, 'file');
-
-                entireItem.createSpan({ cls: 'pin-result-name', text: 'Entire note' });
-
-                const fileBadge = entireItem.createSpan({ cls: 'pin-header-file' });
-                fileBadge.textContent = targetFile.basename;
-
-                entireItem.onclick = () => {
-                  this.closeDropdown();
-                  resolve({ accepted: true, notePath: targetFile.path, icon: selectedIcon });
-                };
-              }
-
-              const matchingHeaders = cache.headings.filter(h =>
-                h.heading.toLowerCase().includes(headerQuery)
-              );
-
-              if (matchingHeaders.length > 0) {
-                matchingHeaders.forEach(header => {
-                  const item = results.createDiv({ cls: 'pin-result-item pin-header-item' });
-
-                  const level = item.createSpan({ cls: 'pin-header-level' });
-                  level.textContent = `H${header.level}`;
-
-                  const name = item.createSpan({ cls: 'pin-result-name' });
-                  name.textContent = header.heading;
-
-                  const file = item.createSpan({ cls: 'pin-header-file' });
-                  file.textContent = targetFile.basename;
-
-                  item.onclick = () => {
-                    this.closeDropdown();
-                    resolve({ accepted: true, notePath: `${targetFile.path}#${header.heading}`, icon: selectedIcon });
-                  };
-
-                });
-              } else {
-                results.createDiv({ cls: 'pin-empty-state', text: 'No matching headers found' });
-              }
-            } else {
-              // File has no headers — offer direct link to entire note
-              const entireItem = results.createDiv({ cls: 'pin-result-item pin-header-item' });
-
-              const icon = entireItem.createDiv({ cls: 'pin-result-icon' });
-              setIcon(icon, 'file');
-
-              entireItem.createSpan({ cls: 'pin-result-name', text: 'Pin to entire note' });
-
-              const fileBadge = entireItem.createSpan({ cls: 'pin-header-file' });
-              fileBadge.textContent = targetFile.basename;
-
-              entireItem.onclick = () => {
-                this.closeDropdown();
-                resolve({ accepted: true, notePath: targetFile.path, icon: selectedIcon });
-              };
-            }
-          } else {
-            results.createDiv({ cls: 'pin-empty-state', text: 'File not found' });
-          }
-          return;
-        }
-
-        // Normal file search
-        filteredFiles = files.filter(f =>
-          f.basename.toLowerCase().includes(filter.toLowerCase())
-        );
-
-        if (filteredFiles.length === 0) {
-          results.createDiv({ cls: 'pin-empty-state', text: 'No notes found' });
-        } else {
-          filteredFiles.slice(0, 30).forEach(file => {
-            const item = results.createDiv({ cls: 'pin-result-item' });
-
-            // File icon
-            const icon = item.createDiv({ cls: 'pin-result-icon' });
-            if (file.extension === 'atlasmap') {
-              setIcon(icon, 'map');
-            } else {
-              setIcon(icon, 'file');
-            }
-
-            const name = item.createSpan({ cls: 'pin-result-name' });
-            name.textContent = file.basename;
-
-            if (file.extension === 'atlasmap') {
-              item.createSpan({ cls: 'pin-result-badge is-map', text: 'Map' });
-            }
-
-            item.onclick = () => {
-              const cache = this.obsidianApp.metadataCache.getFileCache(file);
-              if (cache?.headings && cache.headings.length > 0) {
-                search.value = file.basename + '#';
-                search.focus();
-                search.setSelectionRange(search.value.length, search.value.length);
-                search.dispatchEvent(new Event('input'));
-              } else {
-                this.closeDropdown();
-                resolve({ accepted: true, notePath: file.path, icon: selectedIcon });
-              }
-            };
-
-          });
-        }
-      };
-
-      renderResults();
-      search.oninput = () => renderResults(search.value);
-
-      search.onkeydown = (e) => {
-        e.stopPropagation();
-        if (e.key === 'Escape') {
+      // ── Search, results and key hints ──
+      const noteSearch = createPinNoteSearch(dropdown, {
+        app: this.obsidianApp,
+        onPick: (notePath) => {
+          this.closeDropdown();
+          resolve({ accepted: true, notePath, icon: selectedIcon });
+        },
+        onCancel: () => {
           this.closeDropdown();
           resolve({ accepted: false });
-        } else if (e.key === 'Enter') {
-          const hashIdx = search.value.indexOf('#');
-          if (hashIdx !== -1) return;
-          const topFile = filteredFiles[0];
-          if (topFile) {
-            const cache = this.obsidianApp.metadataCache.getFileCache(topFile);
-            if (cache?.headings && cache.headings.length > 0) {
-              search.value = topFile.basename + '#';
-              search.dispatchEvent(new Event('input'));
-            } else {
-              this.closeDropdown();
-              resolve({ accepted: true, notePath: topFile.path, icon: selectedIcon });
-            }
-          }
-        }
-      };
+        },
+      });
 
       // ── Position & mount ──
       document.body.appendChild(dropdown);
@@ -416,12 +209,15 @@ export class NotePinTool {
 
             dropdown.style.left = `${left}px`;
             dropdown.style.top = `${top}px`;
+            // Grows out of the pin it belongs to
+            dropdown.style.transformOrigin = `${clientX - left}px ${clientY - top}px`;
           }
         }
       });
       window.dispatchEvent(viewportEvent);
+      animatePanelIn(dropdown);
 
-      window.setTimeout(() => search.focus(), 10);
+      window.setTimeout(() => noteSearch.focus(), 10);
 
       // Outside click handler
       const handleOutsideClick = (e: MouseEvent): void => {
@@ -452,8 +248,12 @@ export class NotePinTool {
         document.removeEventListener('mousedown', this.outsideClickHandler, true);
         this.outsideClickHandler = null;
       }
-      
-      this.pinDropdown.remove();
+
+      // The palette is torn down once the dropdown has faded out, so it leaves whole.
+      const palette = this.iconPalette;
+      this.iconPalette = null;
+      this.pinDropdown.removeAttribute('id');
+      animatePanelOutAndRemove(this.pinDropdown, () => palette?.destroy());
       this.pinDropdown = null;
     }
   }
@@ -530,18 +330,18 @@ export class NotePinTool {
   }
 
   /**
-   * Shows the dropdown for an existing pin to edit its linked note
+   * Shows the dropdown for an existing pin to change its icon or linked note
    */
   private async showNotePinDropdownForExistingPin(pin: NotePin): Promise<void> {
-    const result = await this.showNotePinDropdown(pin.x, pin.y, pin.icon);
-    
-    if (result.accepted && result.notePath) {
-      // Update the pin in the store
-      this.store.getState().updateNotePin(pin.id, { 
-        notePath: result.notePath,
-        ...(result.icon !== undefined && { icon: result.icon }),
-      });
-    }
+    const result = await this.showNotePinDropdown(pin.x, pin.y, pin);
+    if (!result.accepted || !result.notePath) return;
+    // Re-picking what the pin already shows is not an edit, and must not add an undo step
+    if (result.notePath === pin.notePath && result.icon === pin.icon) return;
+
+    this.store.getState().updateNotePin(pin.id, {
+      notePath: result.notePath,
+      ...(result.icon !== undefined && { icon: result.icon }),
+    });
   }
 
   public destroy(): void {

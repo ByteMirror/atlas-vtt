@@ -38,9 +38,9 @@ export interface AssetContextMenuDeps {
   setInputModalState: (state: InputModalState) => void;
   setAssets: React.Dispatch<React.SetStateAction<AnyAsset[]>>;
   setSelectedAssetIds: React.Dispatch<React.SetStateAction<string[]>>;
-  setAvailableTags: React.Dispatch<React.SetStateAction<TagType[]>>;
   loadAssetsForActiveTab: () => Promise<void>;
-  handleCreateTag: (tag: string) => Promise<void>;
+  handleCreateTag: (tag: string) => Promise<TagType | null>;
+  setAssetTags: (asset: AnyAsset, tags: string[]) => Promise<void>;
   handleSaveAsEncounter: (tokenAssets: AnyAsset[]) => Promise<void>;
   openStatblockLinkModal: (asset: AnyAsset) => void;
   unlinkStatblock: (asset: AnyAsset) => Promise<void>;
@@ -238,40 +238,21 @@ export function buildAssetContextMenuEntries(
         availableTags: deps.availableTags,
         allAssets: deps.assets,
         onToggleTag: (tagId: string, modalSelectedAssets: AnyAsset[]) => {
-          deps.setAssets((prev) =>
-            prev.map((a) => {
-              if (modalSelectedAssets.some((sa) => sa.id === a.id)) {
-                const currentTags = a.tags || [];
-                return currentTags.includes(tagId)
-                  ? { ...a, tags: currentTags.filter((t) => t !== tagId) }
-                  : { ...a, tags: [...currentTags, tagId] };
-              }
-              return a;
-            })
-          );
-          if (deps.assetService) {
-            const service = deps.assetService;
-            modalSelectedAssets.forEach((sa) => {
-              const currentTags = sa.tags || [];
-              const newTags = currentTags.includes(tagId)
-                ? currentTags.filter((t) => t !== tagId)
-                : [...currentTags, tagId];
-              runInBackground(service.updateAssetTags(sa.id, newTags), `Updating tags of asset ${sa.id}`);
-            });
+          for (const sa of modalSelectedAssets) {
+            const currentTags = sa.tags || [];
+            const newTags = currentTags.includes(tagId)
+              ? currentTags.filter((t) => t !== tagId)
+              : [...currentTags, tagId];
+            void deps.setAssetTags(sa, newTags);
           }
         },
-        onCreateTag: (tagName: string) => {
-          deps.setAvailableTags((prev) => [...prev, { id: tagName, name: tagName }]);
+        onCreateTag: (tagName: string, modalSelectedAssets: AnyAsset[]) => {
           const applyNewTag = async (): Promise<void> => {
-            await deps.handleCreateTag(tagName);
-            deps.setAssets((prev) =>
-              prev.map((a) => {
-                if (assetsToTag.some((sa) => sa.id === a.id)) {
-                  return { ...a, tags: [...(a.tags || []), tagName] };
-                }
-                return a;
-              })
-            );
+            const tag = await deps.handleCreateTag(tagName);
+            if (!tag) return;
+            await Promise.all(modalSelectedAssets
+              .filter((sa) => !(sa.tags || []).includes(tag.id))
+              .map((sa) => deps.setAssetTags(sa, [...(sa.tags || []), tag.id])));
           };
           runInBackground(applyNewTag(), `Creating tag ${tagName}`);
         },

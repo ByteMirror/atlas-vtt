@@ -18,6 +18,7 @@ import { TokenStatblockLinkService } from '../../services/TokenStatblockLinkServ
 import { StatblockTokenResources, type StatblockTokenActions } from './statblock/StatblockTokenResources';
 import type { StatblockEditApi } from './statblock/statblockEditContext';
 import { isEditableNote, writeStatblockValue } from '../../services/statblockEditing';
+import { useBestiaryRevision } from '../hooks/useBestiaryRevision';
 
 interface FantasyStatblockProps {
   /** Vault path of the note backing the Fantasy Statblocks creature */
@@ -57,27 +58,8 @@ export function FantasyStatblock({
 
   const key = useMemo(() => vitalsKey(tokens), [tokens]);
 
-  // Bumped whenever Fantasy Statblocks re-parses its bestiary, so edits made
-  // here (and elsewhere in the vault) show up without a manual refresh.
-  const [revision, setRevision] = useState(0);
-
-  // Subscribe through Obsidian's event bus rather than the plugin API: on a
-  // window reload Fantasy Statblocks may load *after* this component mounts, in
-  // which case its API isn't on `window` yet and a direct subscription would be
-  // silently skipped, leaving the statblock permanently blank.
-  useEffect(() => {
-    const bump = (): void => setRevision((value) => value + 1);
-    const events = [
-      'fantasy-statblocks:loaded',
-      'fantasy-statblocks:bestiary:resolved',
-      'fantasy-statblocks:bestiary:updated',
-    ] as const;
-
-    const refs = events.map((event) =>
-      app.workspace.on(event as never, bump as never),
-    );
-    return () => refs.forEach((ref) => app.workspace.offref(ref));
-  }, [app]);
+  // Edits made here (and elsewhere in the vault) show up without a manual refresh.
+  const revision = useBestiaryRevision(app);
 
   // A note outside the vault is read from its own text; the bestiary knows only vault notes.
   const bestiaryCreature = useMemo(

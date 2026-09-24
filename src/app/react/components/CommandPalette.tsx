@@ -1,6 +1,7 @@
 import { Tutorial } from '../../onboarding/Tutorial';
 import { useHotkeyLabels } from '../../keyboard/useMapHotkeys';
 import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
+import { AnimatePresence, MotionConfig, motion } from 'framer-motion';
 import {
   Search,
   ArrowUp,
@@ -32,6 +33,7 @@ import { playerWindowStore } from '../../stores/playerWindowStore';
 import { debounce } from '../../../utils/debounce';
 import { cn } from '../../../utils/cn';
 import { isShortcutScopeActive } from '../../utils/activeLeafGuard';
+import { EASE_OUT_CONTROL_POINTS as EASE_OUT } from '../../utils/motion';
 import { Button } from '../../packages/components/primitives/button';
 import { CloseButton } from '../../packages/components/primitives/CloseButton';
 import { CommandItem } from './command-palette/CommandItem';
@@ -58,6 +60,20 @@ interface PalettePosition {
 
 const DEFAULT_PALETTE_WIDTH = 600;
 const TOOLBAR_GAP = 8;
+
+// The palette opens by hotkey many times per session, so it rises out of the
+// toolbar quickly and over a short distance, and leaves quicker still. Full
+// transform strings keep the animation on the compositor thread.
+const overlayVariants = {
+  open: { pointerEvents: 'auto' as const },
+  // Clicks go through to the map while the palette is leaving.
+  closed: { pointerEvents: 'none' as const, transition: { when: 'afterChildren' as const } },
+};
+
+const paletteVariants = {
+  closed: { opacity: 0, transform: 'translateY(6px) scale(0.97)', transition: { duration: 0.11, ease: EASE_OUT } },
+  open: { opacity: 1, transform: 'translateY(0px) scale(1)', transition: { duration: 0.16, ease: EASE_OUT } },
+};
 
 const SETTINGS_PANEL_META: Record<SettingsPanelId, { title: string; icon: React.ReactNode }> = {
   'scene-snapshots': { title: 'Scene Snapshots', icon: <History /> },
@@ -396,11 +412,11 @@ export function CommandPalette({ isOpen, onClose, toolbarRef }: CommandPalettePr
   }, [toolbarRef]);
 
   // Measure before the first paint so the palette never flashes at a stale spot
+  // The position is kept after closing so the palette leaves from where it was.
   useLayoutEffect(() => {
     if (isOpen) {
       updatePosition(true);
     } else {
-      setPosition(null);
       setHasCalculatedInitialPosition(false);
     }
   }, [isOpen, updatePosition]);
@@ -760,148 +776,166 @@ export function CommandPalette({ isOpen, onClose, toolbarRef }: CommandPalettePr
     }
   };
 
-  if (!isOpen) return null;
-
-  const containerStyle: React.CSSProperties = !position
+  // The anchor places the palette and slides between list and panel; the
+  // container inside sizes it and carries the open / close animation.
+  const anchorStyle: React.CSSProperties = !position
     ? {}
     : activePanel
       ? { left: '50%', transform: 'translateX(-50%)', bottom: `${position.bottom}px` }
-      : {
-          width: `${position.width}px`,
-          left: `${position.left}px`,
-          transform: 'none',
-          bottom: `${position.bottom}px`,
-        };
+      : { left: `${position.left}px`, transform: 'none', bottom: `${position.bottom}px` };
+  const containerStyle = position && !activePanel ? { width: `${position.width}px` } : {};
 
   return (
-    <div ref={overlayRef} className="atlas-vtt-plugin atlas-vtt-root atlas-command-palette-overlay">
-      {!isTemporarilyHidden && position && <Tutorial id="palette" steps={[
-        { title: 'Find a command', body: 'Search for a tool or setting here. Use the tabs to narrow the list, then arrow keys and Enter to choose.', selector: '.atlas-command-palette-search' },
-        { title: 'Make the map your own', body: `Adjust your grid, tokens, and widgets from Settings. Back on the map, press ${hotkeyLabel('help')} to see shortcuts. Change them in Obsidian Settings → Atlas VTT → Map hotkeys.`, selector: '.atlas-command-palette-tabs' },
-      ]} />}
-      <div className="atlas-command-palette-backdrop" onClick={onClose} />
+    <MotionConfig reducedMotion="user">
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            key="command-palette"
+            ref={overlayRef}
+            className="atlas-vtt-plugin atlas-vtt-root atlas-command-palette-overlay"
+            variants={overlayVariants}
+            initial="closed"
+            animate="open"
+            exit="closed"
+          >
+            {!isTemporarilyHidden && position && <Tutorial id="palette" steps={[
+              { title: 'Find a command', body: 'Search for a tool or setting here. Use the tabs to narrow the list, then arrow keys and Enter to choose.', selector: '.atlas-command-palette-search' },
+              { title: 'Make the map your own', body: `Adjust your grid, tokens, and widgets from Settings. Back on the map, press ${hotkeyLabel('help')} to see shortcuts. Change them in Obsidian Settings → Atlas VTT → Map hotkeys.`, selector: '.atlas-command-palette-tabs' },
+            ]} />}
+            <div className="atlas-command-palette-backdrop" onClick={onClose} />
 
-      <div
-        ref={containerRef}
-        className={cn(
-          'atlas-command-palette-container',
-          activePanel && 'atlas-command-palette-container--expanded',
-          activePanel && `atlas-command-palette-container--${activePanel}`,
-          !hasCalculatedInitialPosition && 'atlas-no-transition',
-          (isTemporarilyHidden || !position) && 'atlas-command-palette-container--hidden',
-        )}
-        style={containerStyle}
-      >
-        {activePanel ? (
-          <SettingsPanelHeader
-            icon={SETTINGS_PANEL_META[activePanel].icon}
-            title={SETTINGS_PANEL_META[activePanel].title}
-            onBack={exitSubmenu}
-            actions={
-              activePanel === 'grid-settings' ? (
-                <Button variant="secondary" size="sm" onClick={() => store.getState().setGridAlignmentOpen(true)}>
-                  <Move />
-                  Enter Alignment Mode
-                </Button>
-              ) : undefined
-            }
-          />
-        ) : (
-          <>
-            <div className="atlas-command-palette-search">
-              <div className="atlas-command-palette-search-inner">
-                <Search className="atlas-command-palette-search-icon" />
-                <input
-                  ref={inputRef}
-                  type="text"
-                  placeholder="Search commands..."
-                  className="atlas-command-palette-input"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  autoFocus
-                  tabIndex={0}
-                  autoComplete="off"
-                  spellCheck={false}
-                />
-                {searchQuery && (
-                  <CloseButton onClick={clearSearch} aria-label="Clear search" />
+            <div
+              className={cn(
+                'atlas-command-palette-anchor',
+                !hasCalculatedInitialPosition && 'atlas-no-transition',
+                (isTemporarilyHidden || !position) && 'atlas-command-palette-anchor--hidden',
+              )}
+              style={anchorStyle}
+            >
+              <motion.div
+                ref={containerRef}
+                className={cn(
+                  'atlas-command-palette-container',
+                  activePanel && 'atlas-command-palette-container--expanded',
+                  activePanel && `atlas-command-palette-container--${activePanel}`,
                 )}
-              </div>
-            </div>
+                style={containerStyle}
+                variants={paletteVariants}
+              >
+                {activePanel ? (
+                  <SettingsPanelHeader
+                    icon={SETTINGS_PANEL_META[activePanel].icon}
+                    title={SETTINGS_PANEL_META[activePanel].title}
+                    onBack={exitSubmenu}
+                    actions={
+                      activePanel === 'grid-settings' ? (
+                        <Button variant="secondary" size="sm" onClick={() => store.getState().setGridAlignmentOpen(true)}>
+                          <Move />
+                          Enter Alignment Mode
+                        </Button>
+                      ) : undefined
+                    }
+                  />
+                ) : (
+                  <>
+                    <div className="atlas-command-palette-search">
+                      <div className="atlas-command-palette-search-inner">
+                        <Search className="atlas-command-palette-search-icon" />
+                        <input
+                          ref={inputRef}
+                          type="text"
+                          placeholder="Search commands..."
+                          className="atlas-command-palette-input"
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          autoFocus
+                          tabIndex={0}
+                          autoComplete="off"
+                          spellCheck={false}
+                        />
+                        {searchQuery && (
+                          <CloseButton placement="inline" onClick={clearSearch} aria-label="Clear search" />
+                        )}
+                      </div>
+                    </div>
 
-            <div className="atlas-command-palette-tabs">
-              {tabs.map((tab) => (
-                <Button
-                  key={tab.id}
-                  variant="ghost"
-                  size="sm"
-                  className={cn(
-                    'atlas-command-palette-tab',
-                    activeTab === tab.id && 'atlas-active',
-                  )}
-                  onClick={() => setActiveTab(tab.id)}
+                    <div className="atlas-command-palette-tabs">
+                      {tabs.map((tab) => (
+                        <Button
+                          key={tab.id}
+                          variant="ghost"
+                          size="sm"
+                          className={cn(
+                            'atlas-command-palette-tab',
+                            activeTab === tab.id && 'atlas-active',
+                          )}
+                          onClick={() => setActiveTab(tab.id)}
+                        >
+                          <span className="atlas-command-palette-tab-label">{tab.label}</span>
+                        </Button>
+                      ))}
+                    </div>
+                  </>
+                )}
+
+                <div
+                  ref={optionsContainerRef}
+                  className="atlas-command-palette-options"
+                  onMouseMove={handleMouseMove}
                 >
-                  <span className="atlas-command-palette-tab-label">{tab.label}</span>
-                </Button>
-              ))}
-            </div>
-          </>
-        )}
+                  {activePanel ? (
+                    renderSettingsPanel(activePanel)
+                  ) : (
+                    <div className="atlas-command-palette-options-inner">
+                      {sections.map((section) =>
+                        section.options.length > 0 ? (
+                          <div key={section.id} className="atlas-command-palette-section">
+                            <div className="atlas-command-palette-section-header">{section.title}</div>
+                            {section.options.map((option) => renderCommandItem(option))}
+                          </div>
+                        ) : null,
+                      )}
 
-        <div
-          ref={optionsContainerRef}
-          className="atlas-command-palette-options"
-          onMouseMove={handleMouseMove}
-        >
-          {activePanel ? (
-            renderSettingsPanel(activePanel)
-          ) : (
-            <div className="atlas-command-palette-options-inner">
-              {sections.map((section) =>
-                section.options.length > 0 ? (
-                  <div key={section.id} className="atlas-command-palette-section">
-                    <div className="atlas-command-palette-section-header">{section.title}</div>
-                    {section.options.map((option) => renderCommandItem(option))}
-                  </div>
-                ) : null,
-              )}
-
-              {filteredOptions.length === 0 && (
-                <div className="atlas-command-palette-empty">
-                  <div className="atlas-command-palette-empty-text">No results found</div>
-                  <div className="atlas-command-palette-empty-hint">Try a different search term</div>
+                      {filteredOptions.length === 0 && (
+                        <div className="atlas-command-palette-empty">
+                          <div className="atlas-command-palette-empty-text">No results found</div>
+                          <div className="atlas-command-palette-empty-hint">Try a different search term</div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          )}
-        </div>
 
-        {!activePanel && (
-          <div className="atlas-command-palette-footer">
-            <div className="atlas-command-palette-footer-left">
-              <div className="atlas-command-palette-footer-item">
-                <kbd className="atlas-command-palette-kbd">Tab / Shift+Tab</kbd>
-                <span>to switch tabs</span>
-              </div>
-              <div className="atlas-command-palette-footer-item">
-                <span className="atlas-command-palette-footer-arrows">
-                  <ArrowUp className="atlas-command-palette-arrow" />
-                  <ArrowUp className="atlas-command-palette-arrow atlas-down" />
-                </span>
-                <span>to navigate</span>
-              </div>
-              <div className="atlas-command-palette-footer-item">
-                <kbd className="atlas-command-palette-kbd">↵</kbd>
-                <span>to select</span>
-              </div>
+                {!activePanel && (
+                  <div className="atlas-command-palette-footer">
+                    <div className="atlas-command-palette-footer-left">
+                      <div className="atlas-command-palette-footer-item">
+                        <kbd className="atlas-command-palette-kbd">Tab / Shift+Tab</kbd>
+                        <span>to switch tabs</span>
+                      </div>
+                      <div className="atlas-command-palette-footer-item">
+                        <span className="atlas-command-palette-footer-arrows">
+                          <ArrowUp className="atlas-command-palette-arrow" />
+                          <ArrowUp className="atlas-command-palette-arrow atlas-down" />
+                        </span>
+                        <span>to navigate</span>
+                      </div>
+                      <div className="atlas-command-palette-footer-item">
+                        <kbd className="atlas-command-palette-kbd">↵</kbd>
+                        <span>to select</span>
+                      </div>
+                    </div>
+                    <div className="atlas-command-palette-footer-right">
+                      <kbd className="atlas-command-palette-kbd">Esc</kbd>
+                      <span>{searchQuery ? "to clear" : "to close"}</span>
+                    </div>
+                  </div>
+                )}
+              </motion.div>
             </div>
-            <div className="atlas-command-palette-footer-right">
-              <kbd className="atlas-command-palette-kbd">Esc</kbd>
-              <span>{searchQuery ? "to clear" : "to close"}</span>
-            </div>
-          </div>
+          </motion.div>
         )}
-      </div>
-    </div>
+      </AnimatePresence>
+    </MotionConfig>
   );
 }

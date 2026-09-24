@@ -5,16 +5,33 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // Asset Manager – Header toolbar
 // ═══════════════════════════════════════════════════════════════════════════
-// One row: [navigation + breadcrumb] [tabs] [search · sort · folder · create]
+// One row: [navigation + selection] [asset type] [search · sort · folder · create].
+// The header's own width decides how compact it gets, since the sidebar takes a
+// varying share of the window: first the tabs fold into a menu, then the search
+// into a button, then the sort into a menu. Only the narrowest headers wrap.
 
 .atlas-asset-manager-header {
+  container: atlas-am-header / inline-size;
+  position: relative;
+  padding: $spacing-m;
+  border-bottom: $border-width-s solid var(--divider-color);
+  min-height: 0;
+}
+
+.atlas-am-toolbar {
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
   gap: $spacing-m;
-  padding: $spacing-m;
-  border-bottom: $border-width-s solid var(--divider-color);
-  min-height: 0;
+
+  @container atlas-am-header (width < #{$header-wrap-width}) {
+    grid-template-columns: minmax(0, 1fr) auto;
+
+    .atlas-am-toolbar-center {
+      grid-row: 2;
+      grid-column: 1 / -1;
+    }
+  }
 }
 
 .atlas-am-toolbar-left,
@@ -22,10 +39,9 @@
   @include atlas-flex-row($gap: $spacing-xs);
 }
 
-// The left cluster may truncate (breadcrumb); the right cluster keeps its
-// min-content width so it can never slide under the centred tabs.
+// Never narrower than its buttons, so the centre can not slide over them.
 .atlas-am-toolbar-left {
-  min-width: 0;
+  min-width: max-content;
 }
 
 .atlas-am-toolbar-right {
@@ -34,6 +50,7 @@
 
 .atlas-am-toolbar-center {
   justify-self: center;
+  min-width: 0;
 }
 
 .atlas-am-toolbar-divider {
@@ -42,63 +59,6 @@
   background: var(--divider-color);
   margin: 0 $spacing-xs;
   flex-shrink: 0;
-}
-
-.atlas-sidebar-toggle-btn .atlas-toggle-icon {
-  transition: transform $transition-normal $transition-ease;
-
-  &.atlas-rotated {
-    transform: rotate(180deg);
-  }
-}
-
-// ── Breadcrumb (only shown inside a folder) ─────────────────────────────────
-
-.atlas-asset-manager-breadcrumb {
-  @include atlas-flex-row($gap: 2px);
-  min-width: 0;
-  overflow: hidden;
-
-  .atlas-breadcrumb-separator {
-    color: var(--text-faint);
-    flex-shrink: 0;
-    width: $icon-xs;
-    height: $icon-xs;
-  }
-
-  .atlas-breadcrumb-btn {
-    appearance: none;
-    border: none !important;
-    box-shadow: none !important;
-    outline: none;
-    @include atlas-ghost-button;
-    display: flex;
-    align-items: center;
-    gap: $spacing-xs;
-    height: $control-height;
-    padding: 0 $spacing-s;
-    border-radius: $radius-m;
-    font-size: $font-ui-small;
-    cursor: pointer;
-    white-space: nowrap;
-    max-width: 180px;
-
-    span {
-      @include atlas-truncate;
-    }
-
-    svg {
-      width: $icon-xs;
-      height: $icon-xs;
-      flex-shrink: 0;
-      color: var(--text-faint);
-    }
-
-    &.atlas-current {
-      color: var(--text-normal);
-      pointer-events: none;
-    }
-  }
 }
 
 // ── Selection pill ──────────────────────────────────────────────────────────
@@ -143,212 +103,8 @@
   }
 }
 
-// ── Tabs ────────────────────────────────────────────────────────────────────
-
-.atlas-asset-manager-tabs {
-  @include atlas-tab-switcher;
-
-  .atlas-tab-button {
-    @include atlas-tab-button;
-    text-transform: capitalize;
-
-    .atlas-tab-count {
-      min-width: 2ch;
-      text-align: left;
-    }
-
-    &.atlas-active .atlas-tab-count {
-      color: var(--text-muted);
-    }
+@container atlas-am-header (width < #{$header-sort-inline-width}) {
+  .atlas-selection-label {
+    display: none;
   }
-}
-
-// ── Search ──────────────────────────────────────────────────────────────────
-
-.atlas-asset-manager-search {
-  @include atlas-flex-row($gap: $spacing-xs);
-  flex: 0 1 180px;
-  width: 180px;
-  height: $control-height;
-  padding: 0 $spacing-xs 0 $spacing-s;
-  background: var(--background-modifier-form-field);
-  border: $border-width-s solid var(--background-modifier-border);
-  border-radius: $radius-m;
-  transition: border-color $transition-fast $transition-ease, width $transition-normal $transition-ease;
-  min-width: 120px;
-
-  &:focus-within {
-    border-color: var(--background-modifier-border-focus);
-  }
-
-  > svg {
-    width: $icon-s;
-    height: $icon-s;
-    color: var(--text-faint);
-    flex-shrink: 0;
-  }
-
-  input {
-    flex: 1;
-    min-width: 0;
-    height: 100%;
-    background: transparent !important;
-    border: none !important;
-    outline: none !important;
-    box-shadow: none !important;
-    padding: 0;
-    color: var(--text-normal);
-    font-size: $font-ui-small;
-
-    &::placeholder {
-      color: var(--text-faint);
-    }
-  }
-
-  .atlas-am-icon-btn {
-    &.btn,
-    &.btn--icon {
-      width: 20px;
-      height: 20px;
-      border-radius: $radius-s;
-    }
-
-    svg {
-      width: 12px;
-      height: 12px;
-    }
-  }
-}
-
-// ── Sort ────────────────────────────────────────────────────────────────────
-
-.atlas-am-sort {
-  &.btn {
-    height: $control-height;
-    padding: 0 $spacing-s;
-    border-radius: $radius-m;
-    font-size: $font-ui-small;
-    font-weight: $font-weight-normal;
-    color: var(--text-muted);
-    transition: transform $transition-press $transition-ease-out;
-  }
-
-  &:hover {
-    color: var(--text-normal);
-  }
-
-  &:active {
-    transform: scale(0.97);
-  }
-
-  // All labels stacked in one grid cell: width = longest label, no layout shift
-  .atlas-am-sort-stack {
-    display: grid;
-
-    > span {
-      grid-area: 1 / 1;
-      text-align: left;
-      white-space: nowrap;
-      visibility: hidden;
-
-      &.atlas-current {
-        visibility: visible;
-      }
-    }
-  }
-}
-
-// ── Create ──────────────────────────────────────────────────────────────────
-
-.atlas-asset-manager-create-dropdown {
-  position: relative;
-}
-
-.atlas-asset-manager-create-btn {
-  &.btn,
-  &.btn--icon {
-    width: $control-height;
-    height: $control-height;
-    border-radius: $radius-m;
-    @include atlas-concentric-corner(top-right, $window-radius, $window-corner-inset);
-    flex-shrink: 0;
-  }
-
-  transition: transform $transition-press $transition-ease-out;
-
-  svg {
-    width: $icon-s;
-    height: $icon-s;
-    transition: transform $transition-normal $transition-ease-in-out;
-  }
-
-  &:active {
-    transform: scale(0.95);
-  }
-
-  &.atlas-active svg {
-    transform: rotate(45deg);
-  }
-}
-
-.atlas-asset-manager-create-dropdown-content {
-  position: absolute;
-  top: calc(100% + #{$spacing-xs});
-  right: 0;
-  min-width: 200px;
-  padding: $spacing-xs;
-  z-index: $z-popover;
-  background: var(--menu-background);
-  border: var(--menu-border-width, #{$border-width-s}) solid var(--menu-border-color);
-  border-radius: $radius-xl;
-  box-shadow: var(--menu-shadow, #{$shadow-md});
-
-  // Scale in from the trigger, not from centre
-  transform-origin: top right;
-  opacity: 1;
-  transform: scale(1);
-  transition: opacity 150ms $transition-ease-out, transform 150ms $transition-ease-out;
-
-  @starting-style {
-    opacity: 0;
-    transform: scale(0.96);
-  }
-}
-
-.atlas-asset-manager-create-option {
-  width: 100%;
-  height: $control-height;
-  padding: 0 $spacing-s;
-  margin: 0;
-  @include atlas-flex-row;
-  justify-content: flex-start;
-  font-size: $font-ui-small;
-  background-color: transparent !important;
-  color: var(--text-normal);
-  border: none !important;
-  outline: none !important;
-  box-shadow: none !important;
-  border-radius: $radius-m;
-  cursor: pointer;
-  text-align: left;
-
-  &:hover {
-    background-color: var(--background-modifier-hover) !important;
-  }
-
-  &:active {
-    background-color: var(--background-modifier-active-hover) !important;
-  }
-
-  svg {
-    width: $icon-s;
-    height: $icon-s;
-    color: var(--text-muted);
-  }
-}
-
-.atlas-asset-manager-create-divider {
-  height: 1px;
-  background-color: var(--divider-color);
-  margin: $spacing-xs;
 }

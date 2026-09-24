@@ -10,6 +10,7 @@ import type { SoundRegistry } from '../../audio/SoundRegistry';
 import './audio-config-panel.scss';
 import { CloseButton } from '../../packages/components/primitives/CloseButton';
 import { LabelTooltip } from '../../packages/components/primitives/tooltip';
+import { unitLabelFor } from '../../grid/measurementFormat';
 
 /** Convert game units (feet/meters) to world pixels. */
 function unitsToPixels(units: number, gridSize: number, unitDistance: number): number {
@@ -45,7 +46,7 @@ function AudioConfigPanelInner({
   const grid = store.getState().grid;
   const gridSize = grid?.size ?? 70;
   const unitDistance = grid?.unitDistance ?? 5;
-  const unitLabel = grid?.unitType === 'meters' ? 'm' : grid?.unitType === 'units' ? '' : 'ft';
+  const unitLabel = unitLabelFor(grid?.unitType);
 
   const [soundId, setSoundId] = useState(audio.soundId);
   const [volume, setVolume] = useState(Math.round(audio.volume * 100));

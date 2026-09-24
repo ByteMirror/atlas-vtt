@@ -5,12 +5,20 @@
 @use '../../../../../styles/tokens' as *;
 
 $sidebar-width: 240px;
-$sidebar-collapsed-width: 8px;
-$sidebar-hover-animation: 150ms cubic-bezier(0.4, 0, 0.2, 1);
-$sidebar-content-fade: 100ms ease-in-out;
 
 /// Height of every control in the toolbar (buttons, search, sort). Matches Obsidian inputs.
 $control-height: var(--input-height);
+
+/// Header content widths below which the toolbar gets more compact. Derived from
+/// the measured widths of its parts (navigation with a selection ≈ 200px, tabs ≈
+/// 410px, type menu ≈ 150px, search 180px, sort ≈ 130px, other actions ≈ 130px).
+$header-tabs-inline-width: 1080px;   // tabs fold into a menu
+$header-search-inline-width: 820px;  // search folds into a button
+$header-sort-inline-width: 670px;    // sort folds into a menu, selection shows only its count
+$header-wrap-width: 510px;           // the type menu moves to a second row
+
+/// Inset of the floating sidebar from the window's inner edge.
+$sidebar-float-inset: $spacing-s;
 
 /// The window frame radius, published as a custom property so corner controls
 /// can derive concentric radii and follow the responsive reset to square.

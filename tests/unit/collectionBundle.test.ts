@@ -78,7 +78,7 @@ async function creatorVault(): Promise<Vault> {
   })) {
     await vault.app.vault.create(path, content);
   }
-  await assets.createTag('source', 'Dragon');
+  await assets.createTag('source', 'tokens', 'Dragon');
   await assets.updateCollectionSettings('source', { conditions: [{ id: 'c1', name: 'Poisoned', color: '#0f0' }] });
   await assets.addTokenAsset({ name: 'Goblin', imagePath: TOKEN_IMAGE, thumbnailPath: TOKEN_THUMB, statblockPath: NOTE_PATH, showRing: false, size: 1.5, collection: 'source', tags: ['dragon'] });
   await assets.addAsset({ type: 'scene', name: 'Cave', collection: 'source', tags: [], data: { mapPath: MAP_PATH } });
@@ -242,7 +242,7 @@ describe('installing', () => {
     });
 
     const collection = await fan.assets.getCollection('source');
-    expect(collection).toMatchObject({ name: 'Source', version: 1, tags: { dragon: { id: 'dragon', name: 'Dragon' } } });
+    expect(collection).toMatchObject({ name: 'Source', version: 1, tags: { 'tokens:dragon': { id: 'dragon', name: 'Dragon', group: 'tokens' } } });
     expect(collection?.settings.conditions).toEqual([{ id: 'c1', name: 'Poisoned', color: '#0f0' }]);
     const statblocks = 'atlas-vtt/collections/source/statblocks';
     const [token] = await fan.assets.getAssets('source', 'token');

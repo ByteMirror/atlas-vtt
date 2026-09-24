@@ -14,7 +14,7 @@ import { createInMemoryApp } from '../mocks/inMemoryVault';
 
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 
-const goblin: TokenAsset = { id: 'goblin', name: 'Goblin', type: 'tokens', imageUrl: 'app://goblin.png', imagePath: 'tokens/goblin.png' };
+const goblin: TokenAsset = { id: 'goblin', name: 'Goblin', type: 'tokens', imageUrl: 'app://goblin.png', imagePath: 'tokens/goblin.png', modifiedAt: 0 };
 
 describe('typing a spawn count', () => {
   it('builds multi-digit counts from quick keystrokes on the same card', () => {

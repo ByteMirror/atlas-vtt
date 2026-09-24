@@ -1,5 +1,6 @@
 import { requestUrl, type RequestUrlParam } from 'obsidian';
 import type { IssueReport } from './issueReport';
+import { ATLAS_GITHUB_URL } from './communityLinks';
 
 export interface IssueReceipt {
   number: number;
@@ -37,7 +38,7 @@ export function createIssueSubmitter(
       throw new Error(typeof data?.error === 'string' ? data.error : 'The reporting service could not confirm submission.');
     }
     if (!Number.isSafeInteger(data?.number) || (data?.number ?? 0) < 1
-      || data?.url !== `https://github.com/ByteMirror/atlas-vtt/issues/${data?.number}`) {
+      || data?.url !== `${ATLAS_GITHUB_URL}/issues/${data?.number}`) {
       throw new Error('The reporting service returned an invalid confirmation.');
     }
     return { number: data.number!, url: data.url };

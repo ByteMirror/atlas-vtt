@@ -66,22 +66,38 @@ it('types digits into a non-empty query, ignores the current map and closes on E
   expect(screen.queryByRole('dialog')).toBeNull();
 });
 
-it('sends an open player view along on Shift+Enter and Shift+click, and only switches the GM otherwise', () => {
+it('opens the map in both views on Shift+Enter and Shift+click, whether or not the player view is open', () => {
   const { ids, onSwitchTab, onPresentTab, open } = setup();
   let input = open();
-  fireEvent.change(input, { target: { value: 'tavern' } });
-  fireEvent.keyDown(input, { key: 'Enter', shiftKey: true });
-  expect(onPresentTab).not.toHaveBeenCalled();
-  expect(onSwitchTab).not.toHaveBeenCalled();
-
-  playerWindowStore.setState({ isOpen: true });
-  input = open();
+  expect(screen.getByText('Open in both views')).toBeTruthy();
   fireEvent.change(input, { target: { value: 'tavern' } });
   fireEvent.keyDown(input, { key: 'Enter', shiftKey: true });
   expect(onPresentTab).toHaveBeenLastCalledWith(ids[0]);
 
-  open();
-  fireEvent.click(screen.getAllByRole('option')[2]!, { shiftKey: true });
+  playerWindowStore.setState({ isOpen: true });
+  input = open();
+  fireEvent.change(input, { target: { value: 'cave' } });
+  fireEvent.keyDown(input, { key: 'Enter', shiftKey: true });
   expect(onPresentTab).toHaveBeenLastCalledWith(ids[2]);
+
+  open();
+  fireEvent.click(screen.getAllByRole('option')[1]!, { shiftKey: true });
+  expect(onPresentTab).toHaveBeenLastCalledWith(ids[1]);
   expect(onSwitchTab).not.toHaveBeenCalled();
+});
+
+it('has no labels that Obsidian would show as tooltips and raises the footer only while maps are scrolled out below', () => {
+  const { open } = setup();
+  open();
+  expect(document.querySelector('.atlas-scene-switcher [aria-label]')).toBeNull();
+  const footer = document.querySelector('.atlas-scene-switcher__footer')!;
+  expect(footer.classList.contains('atlas-scene-switcher__footer--raised')).toBe(false);
+
+  const list = screen.getByRole('listbox');
+  Object.defineProperties(list, { scrollHeight: { value: 300 }, clientHeight: { value: 100 }, scrollTop: { value: 0, writable: true } });
+  fireEvent.scroll(list);
+  expect(footer.classList.contains('atlas-scene-switcher__footer--raised')).toBe(true);
+  list.scrollTop = 200;
+  fireEvent.scroll(list);
+  expect(footer.classList.contains('atlas-scene-switcher__footer--raised')).toBe(false);
 });

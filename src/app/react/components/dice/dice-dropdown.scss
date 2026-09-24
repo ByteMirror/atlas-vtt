@@ -3,6 +3,7 @@
 // Uses shared design tokens from _tokens.scss
 // ──────────────────────────────────────────────
 @use '../../../../../styles/tokens' as *;
+@use '../../../../../styles/mixins' as *;
 
 // ── Keyframes ────────────────────────────────
 
@@ -42,7 +43,7 @@
 .atlas-dice-panel {
   background: var(--background-primary);
   border: $border-width-m solid color-mix(in oklch, var(--mono-100) $border-opacity-default, transparent);
-  border-radius: $radius-xl;
+  @include atlas-panel-radius($radius-2xl);
   box-shadow: $shadow-elevated;
   padding: $spacing-s;
   display: flex;
@@ -58,6 +59,16 @@
   flex-direction: row;
   gap: $spacing-s;
   align-items: flex-start;
+}
+
+// The dice row sits $spacing-s below the panel's top border: the outer dice's
+// top corners run concentric with the panel's.
+.atlas-dice-cell:first-child > .atlas-dice-btn {
+  @include atlas-panel-inset-radius($spacing-s, top-left);
+}
+
+.atlas-dice-cell:last-child > .atlas-dice-btn {
+  @include atlas-panel-inset-radius($spacing-s, top-right);
 }
 
 .atlas-dice-cell {
@@ -175,5 +186,10 @@
   .btn--ghost {
     width: $button-height-m;
     padding: 0;
+  }
+
+  // Roll sits in the panel's bottom-right corner.
+  > .btn:last-of-type {
+    @include atlas-panel-inset-radius($spacing-s, bottom-right);
   }
 }

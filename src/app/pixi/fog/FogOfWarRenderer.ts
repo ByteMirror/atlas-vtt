@@ -10,7 +10,6 @@ import * as PIXI from 'pixi.js';
 import type { Viewport } from 'pixi-viewport';
 import type { StoreApi } from 'zustand';
 import type { EventEmitter } from 'events';
-import { Menu } from 'obsidian';
 import type { ViewAtlasState } from '../../storeFactory';
 import type { FogBounds, FogOperation } from '../../types/fogTypes';
 import { FogCanvasCompositor } from './FogCanvasCompositor';
@@ -23,6 +22,7 @@ import { canInteractWithFog, resolveFogPreviewAlpha } from './fogVisibilityPolic
 import type { LayerVisibility } from '../playerSafeFrame';
 import { destroyTree } from '../utils/destroyTree';
 import { requestRender } from '../RenderScheduler';
+import { openContextMenuGlobal } from '../../react/root/ContextMenuContext';
 
 const DEFAULT_BOUNDS: FogBounds = { x: -2000, y: -2000, width: 4000, height: 4000 };
 const BOUNDS_PADDING = 200;
@@ -593,23 +593,19 @@ export class FogOfWarRenderer {
   }
 
   private showFogContextMenu(fogIds: string[], e: PIXI.FederatedPointerEvent): void {
-    const menu = new Menu();
-
-    menu.addItem((item) => {
-      item
-        .setTitle('Delete')
-        .setIcon('trash')
-        .onClick(() => {
-          const worldPos = this.viewport.toWorld(e.global);
-          const erased = this.eraseConnectedVisibleRegionAt(worldPos.x, worldPos.y);
-          if (!erased) {
-            this.store.getState().deleteFogOperations(fogIds);
-          }
-        });
-    });
-
-    const globalPos = e.global;
-    menu.showAtPosition({ x: globalPos.x, y: globalPos.y });
+    const worldPos = this.viewport.toWorld(e.global);
+    openContextMenuGlobal([{
+      type: 'item',
+      label: 'Delete',
+      icon: 'trash',
+      destructive: true,
+      onClick: () => {
+        const erased = this.eraseConnectedVisibleRegionAt(worldPos.x, worldPos.y);
+        if (!erased) {
+          this.store.getState().deleteFogOperations(fogIds);
+        }
+      },
+    }], { x: e.global.x, y: e.global.y });
   }
 
   private eraseConnectedVisibleRegionAt(worldX: number, worldY: number): boolean {

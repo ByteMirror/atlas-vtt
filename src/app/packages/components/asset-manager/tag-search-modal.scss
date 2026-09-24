@@ -21,11 +21,12 @@
 
 .atlas-tag-search__search {
   position: relative;
-  padding: $spacing-s $spacing-l;
+  // The list's own padding separates it from the search field.
+  margin: $spacing-s $spacing-l 0;
 
   .atlas-tag-search__search-icon {
     position: absolute;
-    left: calc(#{$spacing-l} + #{$spacing-s});
+    left: $spacing-s;
     top: 50%;
     transform: translateY(-50%);
     width: $icon-xs;
@@ -42,9 +43,11 @@
 // ── Tag list ────────────────────────────────────────────────────────────────
 
 .atlas-tag-search__list {
+  @include atlas-flex-col($gap: $spacing-s);
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
-  padding: $spacing-xs $spacing-s;
+  padding: $spacing-s;
   @include atlas-scrollbar;
 }
 

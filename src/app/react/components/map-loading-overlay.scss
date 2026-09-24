@@ -19,6 +19,8 @@
     transition:
         opacity var(--atlas-map-loading-fade) $transition-ease-out,
         visibility 0s linear var(--atlas-map-loading-fade);
+    // The overlay stays mounted between loads; don't keep spinning while it is hidden
+    --atlas-spinner-play-state: paused;
 
     &.atlas-map-loading-overlay--active {
         opacity: 1;
@@ -27,169 +29,73 @@
         transition:
             opacity var(--atlas-map-loading-fade) $transition-ease-out var(--atlas-map-loading-reveal-delay),
             visibility 0s;
+        --atlas-spinner-play-state: running;
     }
-    
-    // Add subtle gradient overlay for depth
+
+    // Vignette for depth
     &::before {
         content: '';
         position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
+        inset: 0;
         background: radial-gradient(ellipse at center, transparent 0%, rgba(0, 0, 0, 0.1) 100%);
         pointer-events: none;
     }
-    
+}
+
+.theme-dark .atlas-map-loading-overlay::before {
+    background: radial-gradient(ellipse at center, transparent 0%, rgba(0, 0, 0, 0.2) 100%);
 }
 
 .atlas-map-loading-content {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 24px;
+    gap: $spacing-l;
     position: relative;
     z-index: 1;
-}
+    // Settles into place as the overlay fades in
+    transform: scale(0.96);
+    transition: transform var(--atlas-map-loading-fade) $transition-ease-out;
 
-.atlas-map-loading-spinner {
-    position: relative;
-    width: 64px;
-    height: 64px;
-    
-    .atlas-map-loading-spinner-ring {
-        position: absolute;
-        width: 100%;
-        height: 100%;
-        border: 2px solid transparent;
-        border-top-color: var(--interactive-accent);
-        border-radius: 50%;
-        animation: atlas-spin 1.5s cubic-bezier(0.68, -0.55, 0.265, 1.55) infinite;
-        opacity: 0.9;
-
-        // The overlay stays mounted between loads; don't keep spinning while it is hidden
-        .atlas-map-loading-overlay:not(.atlas-map-loading-overlay--active) & {
-            animation-play-state: paused;
-        }
-        
-        &:nth-child(1) {
-            border-width: 3px;
-            filter: drop-shadow(0 0 4px var(--interactive-accent));
-        }
-        
-        &:nth-child(2) {
-            animation-delay: -0.5s;
-            border-top-color: var(--interactive-accent-hover);
-            transform: scale(0.85);
-            opacity: 0.7;
-        }
-        
-        &:nth-child(3) {
-            animation-delay: -1s;
-            border-top-color: var(--text-muted);
-            transform: scale(0.7);
-            opacity: 0.5;
-        }
-    }
-}
-
-@keyframes atlas-spin {
-    0% {
-        transform: rotate(0deg);
-    }
-    100% {
-        transform: rotate(360deg);
+    .atlas-map-loading-overlay--active & {
+        transform: none;
+        transition-delay: var(--atlas-map-loading-reveal-delay);
     }
 }
 
 .atlas-map-loading-text {
-    color: var(--text-normal);
-    font-size: var(--font-ui-medium);
-    font-weight: 600;
-    letter-spacing: 0.02em;
-    margin-top: 8px;
-    opacity: 0.9;
+    display: grid;
+    justify-items: center;
+    margin-top: $spacing-s;
+    color: var(--text-muted);
+    font-size: $font-ui-small;
+    font-weight: $font-weight-medium;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+
+    > * {
+        grid-area: 1 / 1;
+    }
 }
 
 .atlas-map-loading-progress {
-    width: 240px;
-    height: 8px;
-    background-color: var(--background-modifier-border);
-    border-radius: 4px;
-    overflow: hidden;
-    position: relative;
-    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
-    
+    width: 160px;
+    height: 2px;
+    border-radius: $radius-full;
+    background: color-mix(in oklch, var(--text-normal) 8%, transparent);
+
     .atlas-map-loading-progress-bar {
         height: 100%;
-        background: linear-gradient(
-            90deg,
-            var(--interactive-accent),
-            var(--interactive-accent-hover)
-        );
-        transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-        border-radius: 4px;
-        position: relative;
-        overflow: hidden;
-        
-        // Add shimmer effect
-        &::after {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            bottom: 0;
-            right: 0;
-            background: linear-gradient(
-                90deg,
-                transparent,
-                rgba(255, 255, 255, 0.2),
-                transparent
-            );
-            transform: translateX(-100%);
-            animation: shimmer 1.5s infinite;
-        }
+        border-radius: inherit;
+        background: var(--interactive-accent);
+        box-shadow: 0 0 8px color-mix(in oklch, var(--interactive-accent) 70%, transparent);
+        transform-origin: left center;
+        transition: transform 400ms $transition-ease-out;
     }
 }
 
-@keyframes shimmer {
-    to {
-        transform: translateX(100%);
-    }
-}
-
-// Dark theme adjustments
-.theme-dark {
-    .atlas-map-loading-overlay {
-        background-color: var(--background-primary);
-        
-        &::before {
-            background: radial-gradient(ellipse at center, transparent 0%, rgba(0, 0, 0, 0.2) 100%);
-        }
-    }
-    
-    
-    .atlas-map-loading-spinner-ring {
-        &:nth-child(1) {
-            filter: drop-shadow(0 0 6px var(--interactive-accent));
-        }
-        
-        &:nth-child(3) {
-            border-top-color: var(--text-faint);
-        }
-    }
-    
-    .atlas-map-loading-progress {
-        background-color: rgba(255, 255, 255, 0.05);
-        box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.3);
-    }
-}
-
-// Reduced motion support
 @media (prefers-reduced-motion: reduce) {
-    .atlas-map-loading-spinner-ring {
-        animation: none;
-        border: 3px solid var(--interactive-accent);
-        opacity: 0.5;
+    .atlas-map-loading-content {
+        transform: none;
     }
 }

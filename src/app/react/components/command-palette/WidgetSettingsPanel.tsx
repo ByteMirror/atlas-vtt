@@ -5,6 +5,7 @@ import { Button } from '../../../packages/components/primitives/button';
 import { LabelTooltip } from '../../../packages/components/primitives/tooltip';
 import type { AnyWidget } from '../../../types/widgetTypes';
 import type { ViewAtlasState } from '../../../storeFactory';
+import { useMapCollectionId } from '../../hooks/useMapCollectionId';
 import { WidgetIconGlyph } from '../WidgetIconGlyph';
 import { SettingToggleRow } from './SettingRows';
 import { WidgetEditorForm, type WidgetDraft } from './WidgetEditorForm';
@@ -39,6 +40,7 @@ export const WidgetSettingsPanel = React.memo(function WidgetSettingsPanel({
   const [initiativeExpanded, setInitiativeExpanded] = useState(true);
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const collectionId = useMapCollectionId();
 
   // Persisted state from older maps can lack these fields; both default to on.
   const globalVisible = widgetSettings?.globalVisible !== false;
@@ -58,13 +60,14 @@ export const WidgetSettingsPanel = React.memo(function WidgetSettingsPanel({
 
   const handleSubmit = (draft: WidgetDraft): void => {
     if (editingWidget) {
-      updateWidget(editingWidget.id, { label: draft.label, icon: draft.icon, color: draft.color });
+      updateWidget(editingWidget.id, { label: draft.label, icon: draft.icon, color: draft.color, scope: draft.scope });
     } else {
       const base = {
         id: `${draft.type}-${Date.now()}`,
         label: draft.label,
         icon: draft.icon,
         color: draft.color,
+        scope: draft.scope,
         visible: true,
         visibleToPlayers: true,
         order: sortedWidgets.length,
@@ -121,6 +124,7 @@ export const WidgetSettingsPanel = React.memo(function WidgetSettingsPanel({
             <WidgetEditorForm
               key={editingWidget?.id ?? 'new'}
               {...(editingWidget ? { initial: editingWidget } : {})}
+              canShareWithCollection={collectionId !== null}
               submitLabel={editingWidget ? 'Save' : 'Add widget'}
               onSubmit={handleSubmit}
               onCancel={closeEditor}
@@ -150,7 +154,9 @@ export const WidgetSettingsPanel = React.memo(function WidgetSettingsPanel({
                 <WidgetIconGlyph icon={widget.icon} size={20} {...(widget.color !== undefined ? { color: widget.color } : {})} />
                 <div className="atlas-command-palette-widget-info">
                   <div className="atlas-command-palette-widget-name">{widget.label}</div>
-                  <div className="atlas-command-palette-widget-type">{widget.type}</div>
+                  <div className="atlas-command-palette-widget-type">
+                    {widget.scope === 'collection' ? `${widget.type} · collection` : widget.type}
+                  </div>
                 </div>
                 <div className="atlas-command-palette-widget-controls">
                   <LabelTooltip label="Edit name and icon">
@@ -185,7 +191,7 @@ export const WidgetSettingsPanel = React.memo(function WidgetSettingsPanel({
                       <Users />
                     </Button>
                   </LabelTooltip>
-                  <LabelTooltip label="Delete widget">
+                  <LabelTooltip label={widget.scope === 'collection' ? 'Delete from every scene' : 'Delete widget'}>
                     <Button
                       variant="ghost"
                       size="icon"

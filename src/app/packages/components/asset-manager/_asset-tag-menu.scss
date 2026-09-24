@@ -1,0 +1,191 @@
+@use '../../../../../styles/tokens' as *;
+@use '../../../../../styles/mixins' as *;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Asset Manager – Card tag button and tag menu
+// ═══════════════════════════════════════════════════════════════════════════
+// The button rests on the artwork's bottom-left corner and appears with the
+// card's hover. The menu reuses the Atlas context menu surface and rows.
+
+.atlas-asset-card-tags {
+  position: absolute;
+  left: $spacing-s;
+  bottom: $spacing-s;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: $spacing-xs;
+  height: auto;
+  padding: $spacing-xs;
+  border: $border-width-s solid color-mix(in oklch, var(--mono-100) $border-opacity-default, transparent);
+  border-radius: $radius-full;
+  background: color-mix(in oklch, var(--background-primary) 82%, transparent);
+  backdrop-filter: blur(6px);
+  box-shadow: $shadow-sm;
+  color: var(--text-muted);
+  cursor: pointer;
+  opacity: 0;
+  transform: scale(0.92);
+  transition:
+    opacity $transition-fast $transition-ease,
+    transform $transition-press $transition-ease-out,
+    background-color $transition-fast $transition-ease,
+    color $transition-fast $transition-ease;
+
+  svg {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+  }
+
+  &:hover {
+    background: var(--background-primary);
+    color: var(--text-normal);
+  }
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--background-modifier-border-focus);
+  }
+
+  // The open menu is read from aria-expanded: the tooltip wrapping the button
+  // overrides the menu's data-state with its own.
+  &[aria-expanded='true'] {
+    background: color-mix(in oklch, var(--interactive-accent) 18%, var(--background-primary));
+    border-color: color-mix(in oklch, var(--interactive-accent) 45%, transparent);
+    color: var(--text-accent);
+  }
+
+  .atlas-asset-card:hover &,
+  .atlas-asset-card:focus-visible &,
+  &:focus-visible,
+  &[aria-expanded='true'] {
+    opacity: 1;
+    transform: none;
+  }
+
+  .atlas-asset-card:hover &:active {
+    transform: scale(0.94);
+  }
+}
+
+.atlas-asset-card-tags__count {
+  font-size: $font-ui-smaller;
+  font-weight: $font-weight-semibold;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+// ── Menu ────────────────────────────────────────────────────────────────────
+
+.atlas-asset-tag-menu {
+  width: 240px;
+  max-height: none;
+  overflow: hidden;
+  transform-origin: var(--radix-dropdown-menu-content-transform-origin);
+  animation: atlas-asset-tag-menu-in $transition-normal $transition-ease-out;
+
+  &[data-state='closed'] {
+    animation: atlas-asset-tag-menu-out $transition-fast $transition-ease-out forwards;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+
+    &[data-state='closed'] {
+      animation: none;
+    }
+  }
+}
+
+.atlas-asset-tag-menu__search {
+  display: flex;
+  align-items: center;
+  gap: $spacing-s;
+  padding: $spacing-xs $spacing-s;
+
+  svg {
+    width: $icon-s;
+    height: $icon-s;
+    flex-shrink: 0;
+    color: var(--text-faint);
+  }
+
+  input {
+    @include atlas-flush-input;
+  }
+}
+
+.atlas-asset-tag-menu__list {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-xs;
+  max-height: 240px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  @include atlas-scrollbar;
+}
+
+.atlas-asset-tag-menu__option {
+  justify-content: flex-start;
+  gap: $spacing-s;
+
+  &[data-active] {
+    background: var(--background-modifier-hover);
+  }
+
+  &[aria-disabled='true'] {
+    opacity: 0.6;
+    pointer-events: none;
+  }
+}
+
+.atlas-asset-tag-menu__check {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: $icon-s;
+  height: $icon-s;
+  flex-shrink: 0;
+  color: var(--text-accent);
+
+  svg {
+    width: $icon-s;
+    height: $icon-s;
+  }
+
+  .atlas-asset-tag-menu__option--create & {
+    color: var(--text-muted);
+  }
+}
+
+.atlas-asset-tag-menu__name {
+  flex: 1;
+  min-width: 0;
+  @include atlas-truncate;
+
+  .atlas-asset-tag-menu__option--create & {
+    color: var(--text-muted);
+  }
+}
+
+.atlas-asset-tag-menu__empty {
+  padding: $spacing-s;
+  color: var(--text-faint);
+  font-size: $font-ui-smaller;
+  text-align: center;
+}
+
+@keyframes atlas-asset-tag-menu-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+
+@keyframes atlas-asset-tag-menu-out {
+  to {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+}

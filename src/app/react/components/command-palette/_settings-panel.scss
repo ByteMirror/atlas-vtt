@@ -6,8 +6,8 @@
 
 .atlas-command-palette-panel-header {
   @include atlas-flex-row($spacing-l);
+  @include atlas-close-header;
   justify-content: space-between;
-  padding: $spacing-l;
   border-bottom: $border-width-s solid var(--divider-color);
 }
 

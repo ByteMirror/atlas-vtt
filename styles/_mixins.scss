@@ -173,6 +173,32 @@
   @include atlas-input-focus;
 }
 
+/// Search field without a frame, for a search row that sits flush in a menu or
+/// pane. Obsidian frames text inputs in every state, so each state is reset.
+@mixin atlas-flush-input {
+  &,
+  &:hover,
+  &:focus,
+  &:focus-visible,
+  &:active {
+    flex: 1;
+    min-width: 0;
+    height: auto;
+    padding: 0;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    outline: none;
+    color: var(--text-normal);
+    font-size: $font-ui-small;
+  }
+
+  &::placeholder {
+    color: var(--text-faint);
+  }
+}
+
 /// Shared footer button shape (Obsidian control height).
 @mixin atlas-modal-button-base {
   @include atlas-flex-row($gap: $spacing-xs);
@@ -379,13 +405,133 @@
   pointer-events: auto;
 }
 
-/// Distance from a modal window's outer edge to the controls in its corners:
-/// the elevated-surface border plus the header / footer padding.
+// ── Panel close button ──────────────────────────────────────────────────────
+// Every panel closes with the same "×": the same size, $close-button-gap from
+// the panel's border above and beside it, and a corner concentric with the
+// panel's own (outer radius = inner radius + gap). Floating surfaces (panels,
+// dialogs, bars, widgets) use $radius-2xl, Obsidian's modal radius: a smaller
+// corner leaves inset controls almost no curve, and one radius everywhere keeps
+// every control in a corner alike. Bars shorter than twice that render as capsules.
+
+/// Radius of a panel that holds a close button. Also publishes the radius
+/// inside its border, which the close button's corner runs concentric with.
+/// @param {Length} $radius       - the panel's outer radius
+/// @param {Length} $border-width - the panel's border width
+@mixin atlas-panel-radius($radius, $border-width: $border-width-m) {
+  --atlas-panel-inner-radius: calc(#{$radius} - #{$border-width});
+  border-radius: $radius;
+  @include atlas-corner-shape;
+}
+
+/// Obsidian's corner shape (a superellipse on macOS, round elsewhere), which it
+/// gives buttons, inputs, menus and modals. A panel and everything inset in its
+/// corners must share one shape: a squircle never runs parallel to a circle.
+@mixin atlas-corner-shape {
+  corner-shape: var(--corner-shape, round);
+}
+
+/// Radius of an element $inset inside the border of a panel set up with
+/// `atlas-panel-radius`: concentric with the panel's corner (outer radius =
+/// inner radius + inset).
+/// @param {Length} $inset - distance from the panel's border to the element
+/// @param {Length} $max   - half the element's height in a capsule-shaped bar,
+///                          where the browser rounds the bar to half its height
+@function atlas-panel-inset-radius-value($inset, $max: null) {
+  $radius: calc(var(--atlas-panel-inner-radius, #{$radius-xl}) - #{$inset});
+  @if $max {
+    @return clamp(0px, #{$radius}, #{$max});
+  }
+  @return max(0px, #{$radius});
+}
+
+/// Rounds an element concentric with the corner of the panel it sits in (see
+/// `atlas-panel-inset-radius-value`). Pass corners to round only the ones that
+/// face the panel's corners; the others keep the element's own radius, so its
+/// edges run parallel to the panel's.
+/// @param {Length} $inset   - distance from the panel's border to the element
+/// @param {List}   $corners - top-left | top-right | bottom-left | bottom-right
+@mixin atlas-panel-inset-radius($inset, $corners...) {
+  $radius: atlas-panel-inset-radius-value($inset);
+  @include atlas-corner-shape;
+
+  @if length($corners) == 0 {
+    border-radius: $radius;
+  } @else {
+    @each $corner in $corners {
+      border-#{$corner}-radius: $radius;
+    }
+  }
+}
+
+/// The close button itself, for CloseButton and Obsidian's native modal control.
+@mixin atlas-close-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  // Stays in the header's corner when a taller title grows the header.
+  align-self: flex-start;
+  flex-shrink: 0;
+  width: $close-button-size;
+  height: $close-button-size;
+  padding: 0;
+  border: none;
+  // Only the corner facing the panel's follows its curve. The others keep the
+  // control radius, so the button's top and right edges run parallel to the
+  // panel's at $close-button-gap all the way along.
+  border-radius: $radius-m;
+  @include atlas-panel-inset-radius($close-button-gap, top-right);
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: transform $transition-press $transition-ease-out;
+
+  svg {
+    width: $icon-s;
+    height: $icon-s;
+    stroke-width: 2;
+  }
+
+  &:hover {
+    background: var(--background-modifier-hover);
+    color: var(--text-normal);
+  }
+
+  &:active {
+    background: var(--background-modifier-active-hover);
+    transform: scale(0.95);
+  }
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--background-modifier-border-focus);
+  }
+}
+
+/// Header along the top edge of a panel, ending in the close button: the
+/// button sits $close-button-gap from the panel's border, and the rest of the
+/// header centres on it.
+/// @param {Length} $inline-start - space before the title
+@mixin atlas-close-header($inline-start: $spacing-l) {
+  min-height: calc(#{$close-button-size} + 2 * #{$close-button-gap});
+  padding: $close-button-gap $close-button-gap $close-button-gap $inline-start;
+  align-items: center;
+}
+
+/// Close button floating in the top-right corner of a panel without a header row.
+@mixin atlas-close-corner {
+  position: absolute;
+  top: $close-button-gap;
+  right: $close-button-gap;
+  z-index: 1;
+}
+
+/// Distance from a modal window's outer edge to its footer's corner button:
+/// the elevated-surface border plus the footer padding.
 $modal-corner-inset: calc(#{$border-width-m} + #{$spacing-l});
 
-/// Control sitting in a modal window's corner (close button top-right,
-/// primary action bottom-right): its outer corner runs concentric with the
-/// window's $radius-2xl frame.
+/// Primary action in a modal window's bottom-right corner: its outer corner
+/// runs concentric with the window's $radius-2xl frame.
 @mixin atlas-modal-corner-control($corner) {
   @include atlas-concentric-corner($corner, $radius-2xl, $modal-corner-inset, $radius-s);
 }
@@ -394,7 +540,7 @@ $modal-corner-inset: calc(#{$border-width-m} + #{$spacing-l});
 /// never taller than the viewport. Put header / body / footer inside.
 @mixin atlas-modal-window {
   @include atlas-elevated-surface;
-  border-radius: $radius-2xl;
+  @include atlas-panel-radius($radius-2xl);
   display: flex;
   flex-direction: column;
   max-height: 100%;
@@ -407,8 +553,8 @@ $modal-corner-inset: calc(#{$border-width-m} + #{$spacing-l});
 /// Standard modal header — title left, close button right, bottom divider.
 @mixin atlas-modal-header {
   @include atlas-flex-row($gap: $spacing-m);
+  @include atlas-close-header;
   justify-content: space-between;
-  padding: $spacing-l;
   border-bottom: $border-width-s solid var(--divider-color);
   flex-shrink: 0;
 
@@ -427,13 +573,6 @@ $modal-corner-inset: calc(#{$border-width-m} + #{$spacing-l});
       height: $icon-m;
       color: var(--text-muted);
       flex-shrink: 0;
-    }
-  }
-
-  .atlas-close-btn {
-    &.btn,
-    &.btn--icon {
-      @include atlas-modal-corner-control(top-right);
     }
   }
 }
@@ -460,24 +599,29 @@ $modal-corner-inset: calc(#{$border-width-m} + #{$spacing-l});
   }
 }
 
-/// Obsidian's own `Modal` with $spacing-l padding: the native close control
-/// sits $spacing-s from the corner at the standard control size, so its outer
-/// corner runs concentric with --modal-radius.
+/// Obsidian's own `Modal` (padded by $spacing-l): its native close control
+/// looks and sits like CloseButton, and the title centres on it.
 @mixin atlas-native-modal-close-control {
+  --atlas-panel-inner-radius: calc(var(--modal-radius) - var(--modal-border-width, 1px));
+
   > :is(.modal-close-button, .modal-header-button) {
-    top: $spacing-s;
-    right: $spacing-s;
-    width: $button-height-l;
-    height: $button-height-l;
-    padding: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: max(0px, calc(var(--modal-radius) - #{$spacing-s} - var(--modal-border-width, 1px)));
+    @include atlas-close-button;
+    @include atlas-close-corner;
   }
 
-  // Reserve the control's width so long titles cannot run underneath it.
-  > .modal-header .modal-title { padding-inline-end: $button-height-l; }
+  > .modal-header {
+    display: flex;
+    align-items: center;
+    min-height: $close-button-size;
+    margin-top: calc(#{$close-button-gap} - #{$spacing-l});
+    // Keeps long titles clear of the close button.
+    padding-inline-end: calc(#{$close-button-size} + #{$close-button-gap} + #{$spacing-s} - #{$spacing-l});
+
+    > .modal-title {
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+  }
 }
 
 /// Action button flush with the bottom-right corner of an Obsidian `Modal`
@@ -550,7 +694,6 @@ $modal-corner-inset: calc(#{$border-width-m} + #{$spacing-l});
     box-shadow: $shadow-sm !important;
   }
 
-  .atlas-tab-shortcut,
   .atlas-tab-count {
     font-size: $font-ui-smaller;
     font-weight: $font-weight-normal;
@@ -609,6 +752,16 @@ $modal-corner-inset: calc(#{$border-width-m} + #{$spacing-l});
   @media (prefers-reduced-motion: reduce) {
     transition: none;
   }
+}
+
+/// Equal padding on both sides of a scroll area: the scrollbar sits inside the
+/// inline-end padding instead of adding to it. `useScrollbarGutter` measures the
+/// gutter, which stays reserved, so content never shifts when overflow starts.
+/// @param {Number} $padding - Padding on every side
+@mixin atlas-scroll-padding($padding) {
+  scrollbar-gutter: stable;
+  padding: $padding;
+  padding-inline-end: max(0px, #{$padding} - var(--atlas-scrollbar-gutter, 0px));
 }
 
 // ── Text ─────────────────────────────────────────────────────────────────────

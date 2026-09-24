@@ -1,6 +1,7 @@
 // Dropdown Menu Styles
 // Uses design tokens from _tokens.scss
 @use '../../../../../styles/tokens' as *;
+@use '../../../../../styles/mixins' as *;
 
 .atlas-dropdown-menu {
   position: relative;
@@ -39,8 +40,31 @@
   // Elevated surface styles (consistent with toolbar/modals)
   background: var(--background-primary);
   border: $border-width-m solid color-mix(in oklch, var(--mono-100) $border-opacity-default, transparent);
-  border-radius: $radius-xl;
+  @include atlas-panel-radius($radius-2xl);
   box-shadow: $shadow-elevated;
+
+  // Items in the menu's corners run concentric with it; the rest keep $radius-l.
+  .btn {
+    border-radius: var(--atlas-menu-top-radius, #{$radius-l}) var(--atlas-menu-top-radius, #{$radius-l})
+      var(--atlas-menu-bottom-radius, #{$radius-l}) var(--atlas-menu-bottom-radius, #{$radius-l});
+  }
+
+  > .atlas-dropdown-section:first-child > .btn:first-child {
+    --atlas-menu-top-radius: #{atlas-panel-inset-radius-value($spacing-s)};
+  }
+
+  > .atlas-dropdown-section:last-child > .btn:last-of-type {
+    --atlas-menu-bottom-radius: #{atlas-panel-inset-radius-value($spacing-s)};
+  }
+
+  // A toggle closing the menu sits in its bottom-right corner, like a button would.
+  > .atlas-dropdown-section:last-child .atlas-dropdown-toggle-row:last-child {
+    padding-bottom: 0;
+
+    .atlas-toggle__switch {
+      @include atlas-panel-inset-radius($spacing-s, bottom-right);
+    }
+  }
 }
 
 /* Default position - below trigger */
@@ -128,7 +152,8 @@
   align-items: center;
   justify-content: space-between;
   gap: $spacing-l;
-  padding: $spacing-s $spacing-m;
+  // The toggle lines up with the right edge of the menu's items.
+  padding: $spacing-s 0 $spacing-s $spacing-m;
   min-height: $button-height-m;
   box-sizing: border-box;
 

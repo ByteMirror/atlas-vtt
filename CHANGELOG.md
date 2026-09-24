@@ -2,6 +2,133 @@
 
 <!-- Generated from changelog/*.md. Run npm run changelog:generate. -->
 
+## 0.3.1 — Completes 0.3.0 with game systems, new pin icons and conditions
+
+2026-09-24
+
+### Important changes
+
+- This release completes 0.3.0. Several finished features were missing from the 0.3.0 build and are included now. Pins that show no icon in 0.3.0 get their icons back.
+
+### New
+
+**New Feature: Game System Presets**
+
+- Set a collection's measurement, conditions and token bars in one click in Collection Settings → Game System.
+- Built-in presets: Daggerheart, D&D 5e, Old-School Essentials, Shadowdark, Pathfinder 2e, Call of Cthulhu 7th Edition and Cyberpunk RED.
+- Save your own rules as a preset and use them in other collections.
+- Choose the game system when you create a collection.
+
+**New Feature: Place Pins**
+
+- 65 new place icons for pins, from a world map down to a single room. Hover the location marker in the pin picker to open them.
+
+**General**
+
+- Share a counter or timer with every scene of a collection ("Share across collection" in Widget Settings).
+- Tokens at 0 hit points turn grey and show a skull.
+- Tag assets right from their card in the asset manager.
+- Measure in yards.
+- Conditions can carry a number, like Frightened 2 or Exhaustion 3.
+- Apply a condition to several selected tokens at once.
+- Join the Atlas community on Discord. The changelog and settings now link to it.
+
+### Improved
+
+- New Atlas app icon.
+- New fantasy icons for map pins. Existing pins switch to the new icons on their own.
+- Change a pin's icon in one click with Edit Pin.
+- Conditions show as badges on the token, with a hover card that names them.
+- Resource bars stay at a normal size and grow when you select a token.
+- Resource bars animate when their value changes.
+- Rotate and resize handles stay in place on rotated tokens.
+- Smooth mouse-wheel zoom and a gentle stop after panning.
+- Widgets float on their own cards above the map.
+- Redesigned Link Statblock dialog with a statblock preview.
+- Search and tag filters in the asset manager find assets in every folder.
+- The asset manager sidebar floats over the library on narrow windows.
+- Smoother animations for the asset manager, its dialogs, the pin menu and the command palette.
+- Every panel closes with the same × button and shares the same rounded corners.
+- Atlas shows its own tooltips instead of plain grey browser tooltips.
+- Shift+Enter in the map switcher opens the map in both views.
+- The End Combat button shows a white flag.
+
+### Fixed
+
+- The asset manager fits narrow and tall windows.
+- Conditions show on the token at once.
+- Every resource bar can be edited and has working +/- buttons.
+- Tokens without a statblock no longer get a hit point bar of 100.
+- Range band fields in Grid & Measure can be cleared and retyped.
+- Sorting in the asset manager works.
+- Map tags and character tags are kept apart.
+- Tags created from an asset's right-click menu are saved.
+- Manage Tags & Collections no longer reacts to Ctrl/Cmd shortcuts.
+
+## 0.3.0 — Map switcher, scene snapshots and copy and paste
+
+2026-09-24
+
+### New
+
+**New Feature: Map Switcher**
+
+- Hit 'g' to open a keyboard friendly map/tab switcher (hotkey adjustable in settings)
+
+**New Feature: Snapshots**
+
+- Save multiple save states of a map under a name. Restore it later, for example to run the same fight with another group. Open the command palette (spacebar) and choose Scene snapshots. Snapshots move with their scene and export with their collection.
+
+**General**
+
+- Copy, cut, paste and duplicate on maps. This works for tokens, drawings, texts and pins. Use Ctrl/Cmd+C, X, V and D. Paste puts the objects at the cursor, also on another open map.
+- Spawn many copies of a token at once. In the asset manager, hover a token, type a number and press Go. You can also right-click it and choose Spawn Multiple. On the map, hold Alt/Option while you drag to make copies.
+- Updated Collection Export to include more granular Settings and a thumbnail
+- See the drag distance when you drag tokens
+- Choose how diagonals count on square grids in the collection settings
+
+### Improved
+
+- Improved Performance for Atlas Maps. They use much less CPU and GPU
+- The player view copies a new frame only when the map changes.
+- Switching maps is much faster now.
+- Improved animations throughout Atlas
+- Improved performance of Maps tab in Asset Manager
+- Token controls grow with the token. Large creatures get large bars, nameplates and handles.
+- Delete and Backspace also remove selected texts and pins.
+- Import and export dialogs stay open and show the result until you close them.
+- Dates in the note picker use your app language.
+
+### Fixed
+
+- Fixed memory leak when map switching
+- Old player windows no longer stay open in the background after you reload Obsidian.
+- Atlas releases token art and the player view's old map when you leave them.
+- The player view shows the initiative tracker and widgets of its own map. Another open map no longer changes them.
+- Pinned note previews are saved with their map. They come back in the same place, with the same scroll position and mode.
+- Import of a collection you already have no longer stops without a message.
+- Import asks for a new name when the name is already in use.
+- A new collection no longer replaces a collection with the same name.
+- Collection updates also update token art.
+- Imports check each file. Atlas refuses damaged files and files that go outside its folder.
+- A failed import undoes its changes. Atlas backs up each file before it replaces or removes it.
+- Export tells you about missing files. It no longer skips them without a message.
+- Imports during an asset manager refresh no longer add duplicate tokens or remove tokens.
+- The Show Nameplate setting of a token stays as you set it when you link or unlink a statblock.
+- Ctrl/Cmd no longer opens a preview from a map you left.
+- Number badges show on new tokens at once. Before, you had to move a token first.
+- Dice cards and the roll log show a token's portrait as it looks on the map.
+- Encounters keep the ring setting of their tokens.
+- Renamed collections keep their scenes, maps and tokens. This includes the default collection.
+- When you rename, move or delete a collection folder in the file explorer, the asset manager and dashboard update.
+- Collections with the same name get a number, for example "Default (2)".
+- Collections with a name of more than one word show their assets.
+- Manage Tags & Collections: "Delete selected" deletes the items.
+- Manage Tags & Collections: tag names you change are saved.
+- Manage Tags & Collections: right-click → Delete removes the row you clicked.
+- Atlas no longer removes tokens at startup before Obsidian lists all files.
+- If Atlas cannot read its asset index at startup, it tries again. If it fails again, it keeps a copy and builds a new index from your collection files.
+
 ## 0.2.3 — Maintenance release
 
 2026-09-22

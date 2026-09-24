@@ -118,21 +118,21 @@ it('numbers collections that an older import left with the same name', async () 
 
 it('renames and deletes tags whether assets store their id or their name', async () => {
   const service = await setup();
-  await service.createTag('winter-camp', 'Big Dragon');
+  await service.createTag('winter-camp', 'tokens', 'Big Dragon');
   const byId = await service.addTokenAsset({ name: 'Wyrmling', imagePath: 'goblin.webp', collection: 'winter-camp', tags: ['big-dragon'] });
   const byName = await service.addTokenAsset({ name: 'Drake', imagePath: 'goblin.webp', collection: 'winter-camp', tags: ['Big Dragon', 'beast'] });
   const tagsOf = async (id: string): Promise<string[]> => (await service.getAssets('winter-camp')).find((asset) => asset.id === id)!.tags;
 
-  expect(await service.renameTag('winter-camp', 'big-dragon', 'Wyrm')).toMatchObject({ id: 'wyrm', name: 'Wyrm' });
-  expect((await service.getCollectionTags('winter-camp')).map((tag) => tag.id)).toEqual(['wyrm']);
+  expect(await service.renameTag('winter-camp', 'tokens', 'big-dragon', 'Wyrm')).toMatchObject({ id: 'wyrm', name: 'Wyrm' });
+  expect((await service.getCollectionTags('winter-camp', 'tokens')).map((tag) => tag.id)).toEqual(['wyrm']);
   expect(await tagsOf(byId.id)).toEqual(['wyrm']);
   expect(await tagsOf(byName.id)).toEqual(['Wyrm', 'beast']);
 
-  await service.createTag('winter-camp', 'Beast');
-  await expect(service.renameTag('winter-camp', 'wyrm', 'beast')).rejects.toThrow('already exists');
+  await service.createTag('winter-camp', 'tokens', 'Beast');
+  await expect(service.renameTag('winter-camp', 'tokens', 'wyrm', 'beast')).rejects.toThrow('already exists');
 
-  await service.deleteTag('winter-camp', 'wyrm');
-  expect((await service.getCollectionTags('winter-camp')).map((tag) => tag.id)).toEqual(['beast']);
+  await service.deleteTag('winter-camp', 'tokens', 'wyrm');
+  expect((await service.getCollectionTags('winter-camp', 'tokens')).map((tag) => tag.id)).toEqual(['beast']);
   expect(await tagsOf(byId.id)).toEqual([]);
   expect(await tagsOf(byName.id)).toEqual(['beast']);
 });

@@ -45,12 +45,27 @@ export function resolveMeasurementSettings(
   };
 }
 
-const UNIT_SUFFIX: Record<GridUnitType, string> = { feet: 'ft', meters: 'm', units: 'u', custom: '' };
+const UNIT_SUFFIX: Record<GridUnitType, string> = { feet: 'ft', yards: 'yd', meters: 'm', units: 'u', custom: '' };
+
+/** Unit shown next to a distance input, e.g. "ft"; none for generic units. Maps without a unit use feet. */
+export function unitLabelFor(unitType: GridUnitType | undefined): string {
+  if (unitType === 'units' || unitType === 'custom') return '';
+  return UNIT_SUFFIX[unitType ?? 'feet'];
+}
 
 /** Label for a distance of `cells` grid cells, e.g. "30ft" or a range band name. */
 export function formatDistance(cells: number, settings: MeasurementSettings): string {
   if (settings.mode === 'abstract') return rangeBandName(cells, settings.rangeBands);
   return `${Math.round(cells * settings.unitDistance)}${UNIT_SUFFIX[settings.unitType]}`;
+}
+
+/** A band threshold must be a whole number of at least one square. */
+export function isValidRangeBandThreshold(maxSquares: number): boolean {
+  return Number.isInteger(maxSquares) && maxSquares >= 1;
+}
+
+export function areRangeBandsValid(bands: readonly RangeBand[] | undefined): boolean {
+  return (bands ?? []).every(band => isValidRangeBandThreshold(band.maxSquares));
 }
 
 /** The first band whose threshold covers the distance; the last band beyond all of them. */

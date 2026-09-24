@@ -1,0 +1,17 @@
+// Obsidian shows its own tooltip for every element with an `aria-label`, unless the
+// element's computed `--no-tooltip` is `true`. Atlas labels its controls for screen
+// readers and shows its own tooltip (`LabelTooltip`) only where one is wanted, so
+// Obsidian's are switched off on every Atlas element (an `atlas-` class) and, since
+// custom properties inherit, everything inside it. Body and html carry Atlas state
+// classes but are not Atlas UI. `:where` keeps this at zero specificity, so the
+// exceptions below and any element that wants Obsidian's tooltip override it simply.
+:where([class^='atlas-'], [class*=' atlas-']):not(html, body) {
+  --no-tooltip: true;
+}
+
+// Obsidian UI hosted inside Atlas keeps Obsidian's behaviour: view headers and the
+// note editors embedded in previews and the dashboard.
+:where([class^='atlas-'], [class*=' atlas-']) .view-header,
+.atlas-embedded-leaf-view {
+  --no-tooltip: initial;
+}

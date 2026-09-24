@@ -1,50 +1,20 @@
-import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
+import { AnimatePresence, motion } from 'framer-motion';
 import type { AnyAsset } from '../types';
+import { useGridMetrics } from './useGridMetrics';
+import { cellTransform, enterTransition, exitingCell, hiddenCell, moveTransition } from './gridMotion';
 
-/** Must match the `minmax()` lower bound of `.atlas-asset-grid` in `_grid-and-folders.scss`. */
-const CARD_MIN_WIDTH = 132;
-/** Name row, paddings and inner gap below the square artwork; rows are measured once rendered. */
+/** Name row, paddings and inner gap below the square artwork, until a card has been measured. */
 const CARD_EXTRA_HEIGHT = 44;
+/**
+ * The measured height below the artwork per asset type, kept across mounts so a
+ * grid shown again (another tab, folder or search) lays its rows out right from
+ * its first frame instead of shifting them once a card is measured.
+ */
+const cardExtraHeights = new Map<AnyAsset['type'], number>();
 const OVERSCAN_ROWS = 2;
-
-interface GridMetrics {
-  columns: number;
-  gap: number;
-  cardWidth: number;
-}
-
-function measureGrid(element: HTMLElement): GridMetrics {
-  const width = element.clientWidth;
-  const gap = parseFloat(getComputedStyle(element).columnGap) || 0;
-  const columns = Math.max(1, Math.floor((width + gap) / (CARD_MIN_WIDTH + gap)));
-  return { columns, gap, cardWidth: Math.max(0, (width - gap * (columns - 1)) / columns) };
-}
-
-function sameMetrics(a: GridMetrics, b: GridMetrics): boolean {
-  return a.columns === b.columns && a.gap === b.gap && a.cardWidth === b.cardWidth;
-}
-
-/** Column count and card size of the grid, following the container's width. */
-function useGridMetrics(ref: React.RefObject<HTMLElement | null>): GridMetrics {
-  const [metrics, setMetrics] = useState<GridMetrics>({ columns: 1, gap: 0, cardWidth: CARD_MIN_WIDTH });
-  useLayoutEffect(() => {
-    const element = ref.current;
-    if (!element) return;
-    const update = (): void => {
-      setMetrics((previous) => {
-        const next = measureGrid(element);
-        return sameMetrics(previous, next) ? previous : next;
-      });
-    };
-    update();
-    if (typeof ResizeObserver === 'undefined') return;
-    const observer = new ResizeObserver(update);
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, [ref]);
-  return metrics;
-}
+const CELL_CLASS = 'atlas-asset-grid-cell';
 
 export interface VirtualAssetGridProps {
   assets: AnyAsset[];
@@ -56,35 +26,73 @@ export interface VirtualAssetGridProps {
   scrollElement: HTMLElement | null;
   renderCard: (asset: AnyAsset) => React.ReactNode;
   onBackgroundClick: (event: React.MouseEvent) => void;
+  /** Animates the first cards in, for a grid that mounts into content already on screen. */
+  appear?: boolean;
 }
 
 /**
  * Asset grid that only mounts the rows in and around the viewport, so the
  * cost of the library stays flat however many assets it holds.
+ *
+ * Every card is a direct child placed by its own transform, so a card keeps
+ * its element when the order changes and can glide to its new cell. Cards
+ * that mount because the list changed fade in; cards that mount because the
+ * user scrolled appear as they are.
  */
-export function VirtualAssetGrid({ assets, scrollElement, renderCard, onBackgroundClick }: VirtualAssetGridProps): React.JSX.Element {
+export function VirtualAssetGrid({
+  assets, scrollElement, renderCard, onBackgroundClick, appear = false,
+}: VirtualAssetGridProps): React.JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null);
   const { columns, gap, cardWidth } = useGridMetrics(containerRef);
-  const rowCount = Math.ceil(assets.length / columns);
+  const assetType = assets[0]?.type;
+  const [extraHeight, setExtraHeight] = useState(() => (assetType && cardExtraHeights.get(assetType)) ?? CARD_EXTRA_HEIGHT);
+  const rowHeight = cardWidth + extraHeight;
+  const rowPitch = rowHeight + gap;
 
   const virtualizer = useVirtualizer({
-    count: rowCount,
+    count: Math.ceil(assets.length / columns),
     getScrollElement: () => scrollElement,
-    estimateSize: () => cardWidth + CARD_EXTRA_HEIGHT,
+    estimateSize: () => rowHeight,
     overscan: OVERSCAN_ROWS,
     gap,
     scrollMargin: containerRef.current?.offsetTop ?? 0,
   });
 
-  // Row heights change with the column count; drop the measurements taken for the old layout.
+  // Every row is as tall as a card; drop the sizes computed for the previous height.
   useEffect(() => {
     virtualizer.measure();
-  }, [columns, virtualizer]);
+  }, [rowHeight, virtualizer]);
 
-  const rowStyle = (start: number): React.CSSProperties => ({
-    transform: `translateY(${start - virtualizer.options.scrollMargin}px)`,
-    '--atlas-grid-columns': columns,
-  } as React.CSSProperties);
+  const rows = virtualizer.getVirtualItems();
+  const scrollMargin = virtualizer.options.scrollMargin;
+
+  const listKey = useMemo(() => assets.map((asset) => asset.id).join('\n'), [assets]);
+  const settledListKey = useRef<string | null>(appear ? null : listKey);
+  const shownIds = useRef<ReadonlySet<string>>(new Set());
+  const listChanged = settledListKey.current !== listKey;
+  const firstVisibleRow = rowPitch > 0 ? Math.floor(((virtualizer.scrollOffset ?? 0) - scrollMargin) / rowPitch) : 0;
+
+  const visibleAssets = rows.flatMap((row) =>
+    assets.slice(row.index * columns, (row.index + 1) * columns).map((asset, column) => ({
+      asset, column, row: row.index, y: row.start - scrollMargin,
+    })),
+  );
+
+  useEffect(() => {
+    shownIds.current = new Set(visibleAssets.map(({ asset }) => asset.id));
+    // A list is settled once it has been on screen; the first render has no scroll element yet.
+    if (visibleAssets.length > 0 || assets.length === 0) settledListKey.current = listKey;
+  });
+
+  // Cards of one type share a height; measure it once one is on screen.
+  const hasCards = visibleAssets.length > 0;
+  useLayoutEffect(() => {
+    const card = containerRef.current?.querySelector<HTMLElement>(`.${CELL_CLASS}`);
+    if (!card?.offsetHeight || !assetType) return;
+    const measured = card.offsetHeight - cardWidth;
+    cardExtraHeights.set(assetType, measured);
+    setExtraHeight(measured);
+  }, [cardWidth, hasCards, assetType]);
 
   return (
     <div
@@ -93,18 +101,25 @@ export function VirtualAssetGrid({ assets, scrollElement, renderCard, onBackgrou
       style={{ height: virtualizer.getTotalSize() }}
       onClick={onBackgroundClick}
     >
-      {virtualizer.getVirtualItems().map((row) => (
-        <div
-          key={row.key}
-          data-index={row.index}
-          ref={virtualizer.measureElement}
-          className="atlas-asset-grid atlas-asset-grid-row"
-          style={rowStyle(row.start)}
-          onClick={onBackgroundClick}
-        >
-          {assets.slice(row.index * columns, (row.index + 1) * columns).map(renderCard)}
-        </div>
-      ))}
+      <AnimatePresence>
+        {visibleAssets.map(({ asset, column, row, y }) => {
+          const x = column * (cardWidth + gap);
+          const entering = listChanged && !shownIds.current.has(asset.id);
+          return (
+            <motion.div
+              key={asset.id}
+              className={CELL_CLASS}
+              style={{ width: cardWidth }}
+              initial={entering ? hiddenCell(x, y) : false}
+              animate={{ opacity: 1, transform: cellTransform(x, y) }}
+              exit={exitingCell(x, y)}
+              transition={entering ? enterTransition(row - firstVisibleRow + column) : moveTransition(listChanged)}
+            >
+              {renderCard(asset)}
+            </motion.div>
+          );
+        })}
+      </AnimatePresence>
     </div>
   );
 }

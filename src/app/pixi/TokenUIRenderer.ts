@@ -1,68 +1,54 @@
 import type { AtlasSettings } from '../services/SettingsService';
-import { Container, Graphics, Text, TextStyle, Texture, FillGradient } from 'pixi.js';
+import { Container, Graphics, Text, TextStyle, Texture, type Ticker } from 'pixi.js';
 import type { Character, BaseToken } from '../types';
 import type { ViewAtlasState } from '../storeFactory';
 import type { StoreApi } from 'zustand';
-import { colors, barDimensions, getHealthColor, lightenColor, darkenColor } from '../styles/designTokens';
-import { ConditionDotsRenderer } from './token-renderer/ConditionDotsRenderer';
-import { ConditionHoverPanel } from './token-renderer/ConditionHoverPanel';
+import { colors, barDimensions, getHealthColor } from '../styles/designTokens';
+import { TokenConditionsUI, type TokenConditionsLayout } from './token-renderer/TokenConditionsUI';
+import { tokenHp, tokenStress } from './token-renderer/tokenResources';
 import { isNameplateVisible } from './token-renderer/nameplateVisibility';
 import type { ConditionDefinition } from '../types/collectionSettingsTypes';
 import type { TokenGestureEventDetail } from '../types/atlasWindowEvents';
-import { resourceBarFill } from './resourceBarFill';
+import { AnimatedBarFill, type BarFillRect } from './token-renderer/AnimatedBarFill';
 import { ResourceBarLabel } from './ResourceBarLabel';
 import { destroyTree } from './utils/destroyTree';
-import { tokenUIScale } from './token-renderer/tokenSizing';
+import { computeTokenStrokeWidth, restingTokenUIScale, selectedTokenUIScale } from './token-renderer/tokenSizing';
+import { getTokenRingCenterRadius } from './token-renderer/tokenRingMetrics';
+import { ValueTransition } from './utils/ValueTransition';
+import { MOTION_SLOW_MS, prefersReducedMotion } from '../utils/motion';
 
 /**
  * Text is drawn at scale 0.333 and the viewport zooms to at most 5x, so a
  * resolution of 3 keeps glyphs crisp on HiDPI screens for a medium token without
- * rasterising every nameplate at eight times its size. Larger tokens scale their
- * UI up, so their text resolution grows with it, up to a gargantuan token's.
+ * rasterising every nameplate at eight times its size. Larger grids scale the
+ * UI up, so its text resolution grows with it.
  */
 const TEXT_RESOLUTION = 3;
 const MAX_TEXT_RESOLUTION = 12;
 
-/**
- * Metallic bar gradients depend only on the base colour, so one FillGradient
- * (and its backing texture) is shared by every token bar of that colour.
- */
-const barGradientCache = new Map<number, FillGradient>();
+function textResolutionFor(uiScale: number): number {
+  return Math.min(TEXT_RESOLUTION * Math.max(1, uiScale), MAX_TEXT_RESOLUTION);
+}
 
-function getBarGradient(baseColor: number): FillGradient {
-  let gradient = barGradientCache.get(baseColor);
-  if (!gradient) {
-    gradient = new FillGradient({
-      type: 'linear',
-      colorStops: [
-        { offset: 0, color: lightenColor(baseColor, 0.5) },
-        { offset: 0.15, color: lightenColor(baseColor, 0.25) },
-        { offset: 0.4, color: baseColor },
-        { offset: 0.6, color: darkenColor(baseColor, 0.1) },
-        { offset: 0.85, color: darkenColor(baseColor, 0.2) },
-        { offset: 1, color: lightenColor(baseColor, 0.15) },
-      ],
-      start: { x: 0, y: 0 },
-      end: { x: 0, y: 1 },
-    });
-    barGradientCache.set(baseColor, gradient);
-  }
-  return gradient;
+/** A bar's fill sits 1 unit inside its dark background, so it looks contained. */
+function insetFillRect(x: number, y: number, width: number, height: number): BarFillRect {
+  const inset = 1;
+  return { x: x + inset, y: y + inset, width: width - inset * 2, height: height - inset * 2 };
 }
 
 export class TokenUIRenderer {
   private barTextureCache: Map<string, Texture> = new Map();
 
   private container: Container;
-  /** Bars, nameplate and condition dots, anchored at the token's bottom edge and scaled with the token. */
+  /** Bars and nameplate, anchored at the token's bottom edge and scaled with the token. */
   private belowToken: Container;
-  /** Condition hover panel, anchored at the token's right edge and scaled with the token. */
-  private besideToken: Container;
+  /** Eases the UI between its resting scale (0) and a selected token's on-screen size (1). */
+  private emphasis: ValueTransition;
   private hpBar: Graphics;
-  private hpFill: Graphics;
+  private hpFill: AnimatedBarFill;
   private hpText: ResourceBarLabel;
   private stressBar: Graphics;
-  private stressFill: Graphics;
+  private stressFill: AnimatedBarFill;
   private stressText: ResourceBarLabel;
   private difficultyBadge: Container;
   private difficultyText: Text;
@@ -73,6 +59,10 @@ export class TokenUIRenderer {
   private currentTokenSize: number = 0;
   private isHovered: boolean = false;
   private isSelected: boolean = false;
+  /** The pointer is down on this token (a press or drag), which keeps its UI at rest. */
+  private isHeld = false;
+  /** Hovered without Cmd/Ctrl, which is reserved for the statblock preview. */
+  private isPlainHover = false;
   private fadeAnimation: number | null = null;
   private store: StoreApi<ViewAtlasState> | undefined;
   private lastUpdateData: string = ''; // Cache for checking if update is needed
@@ -91,33 +81,34 @@ export class TokenUIRenderer {
   private editCursor: Graphics;
   private cursorBlinkInterval: number | null = null;
 
-  // Condition UI
-  private conditionDots: ConditionDotsRenderer;
-  private conditionPanel: ConditionHoverPanel;
+  /** Condition badges on the token's ring and the card naming them on hover. */
+  private conditionUI = new TokenConditionsUI();
   public conditionDefsProvider: (() => ConditionDefinition[]) | null = null;
+  /** Viewport zoom, for the constant on-screen size of a selected token's UI; none in the player view. */
+  public zoomProvider: (() => number) | null = null;
+  /** Receives every new UI scale, so the +/- controls can match the bars. */
+  public onScaleChange: ((scale: number) => void) | null = null;
   
 
-  constructor(store?: StoreApi<ViewAtlasState>) {
+  /** Bar value changes animate on `ticker`, in step with the frames it renders. */
+  constructor(store?: StoreApi<ViewAtlasState>, ticker: Ticker | null = null) {
     this.store = store;
-
-    // Condition dots and hover panel
-    this.conditionDots = new ConditionDotsRenderer();
-    this.conditionPanel = new ConditionHoverPanel();
 
     // The container sits at the token centre in world units; the UI itself lives in
     // anchors on the token's edges, laid out in UI units and scaled with the token.
     this.container = new Container();
     this.container.zIndex = 10; // UI is above token and ring
     this.belowToken = new Container();
-    this.belowToken.sortableChildren = true; // Needed for condition dots to render above bars
-    this.besideToken = new Container();
-    this.container.addChild(this.belowToken, this.besideToken);
+    this.belowToken.sortableChildren = true;
+    // Conditions come last, so the hover card covers the bars of a neighbouring selected token
+    this.container.addChild(this.belowToken, this.conditionUI.container);
+    this.emphasis = new ValueTransition(0, MOTION_SLOW_MS, () => this.layoutUIScale());
     
     // Create HP bar
     this.hpBar = new Graphics();
     this.hpBar.zIndex = 10; // HP bar above status badges
-    this.hpFill = new Graphics();
-    this.hpFill.zIndex = 11; // HP fill above bar background
+    this.hpFill = new AnimatedBarFill((fraction) => getHealthColor(fraction * 100), ticker);
+    this.hpFill.view.zIndex = 11; // HP fill above bar background
     this.hpText = new ResourceBarLabel();
     this.hpText.zIndex = 12; // Text on top of HP bar
     this.hpText.alpha = 0; // Start with text hidden
@@ -125,10 +116,8 @@ export class TokenUIRenderer {
     // Create stress bar
     this.stressBar = new Graphics();
     this.stressBar.zIndex = 10; // Stress bar above status badges
-    this.stressFill = new Graphics();
-    this.stressFill.zIndex = 11; // Stress fill above bar background
-    // Event mode not set - let events propagate naturally
-    // this.stressFill also doesn't need eventMode set
+    this.stressFill = new AnimatedBarFill(() => colors.stress.fill, ticker);
+    this.stressFill.view.zIndex = 11; // Stress fill above bar background
     this.stressText = new ResourceBarLabel();
     this.stressText.zIndex = 12; // Text on top of stress bar
     this.stressText.alpha = 0; // Start with text hidden
@@ -191,17 +180,14 @@ export class TokenUIRenderer {
     this.belowToken.addChild(this.nameText); // z: 2 - name text
     this.belowToken.addChild(this.editCursor); // z: 3 - edit cursor
     this.belowToken.addChild(this.hpBar); // z: 10
-    this.belowToken.addChild(this.hpFill); // z: 11
+    this.belowToken.addChild(this.hpFill.view); // z: 11
     this.belowToken.addChild(this.hpText); // z: 12
     this.belowToken.addChild(this.stressBar); // z: 10
-    this.belowToken.addChild(this.stressFill); // z: 11
+    this.belowToken.addChild(this.stressFill.view); // z: 11
     this.belowToken.addChild(this.stressText); // z: 12
     this.belowToken.addChild(this.difficultyBadge); // z: 20
     this.belowToken.addChild(this.difficultyText); // z: 21
     this.belowToken.addChild(this.defeatedOverlay); // z: 30 - on top
-    this.conditionDots.container.zIndex = 25; // Above HP bars (12) and nameplate (2)
-    this.belowToken.addChild(this.conditionDots.container); // Condition dots between nameplate and HP bar
-    this.besideToken.addChild(this.conditionPanel.container); // Hover panel to the right
     
     // Initially visible
     this.container.visible = true;
@@ -236,13 +222,14 @@ export class TokenUIRenderer {
       
       // Hide HP/stress bars and status badges during resize
       this.hpBar.visible = false;
-      this.hpFill.visible = false;
+      this.hpFill.view.visible = false;
       this.hpText.visible = false;
       this.stressBar.visible = false;
-      this.stressFill.visible = false;
+      this.stressFill.view.visible = false;
       this.stressText.visible = false;
       this.nameBadge.visible = false;
       this.nameText.visible = false;
+      this.conditionUI.setHidden(true);
     }
   };
 
@@ -276,14 +263,15 @@ export class TokenUIRenderer {
       
       // Hide HP/stress bars and status badges during rotation
       this.hpBar.visible = false;
-      this.hpFill.visible = false;
+      this.hpFill.view.visible = false;
       this.hpText.visible = false;
       this.stressBar.visible = false;
-      this.stressFill.visible = false;
+      this.stressFill.view.visible = false;
       this.stressText.visible = false;
       this.defeatedOverlay.visible = false;
       this.nameBadge.visible = false;
       this.nameText.visible = false;
+      this.conditionUI.setHidden(true);
     }
   };
   
@@ -350,7 +338,7 @@ export class TokenUIRenderer {
     const hpString = token.hp === undefined ? 'no-hp' : (typeof token.hp === 'object' ? `${token.hp.current}/${token.hp.max}` : String(token.hp));
     const stressString = token.stress === undefined ? 'no-stress' : (typeof token.stress === 'object' ? `${token.stress.current}/${token.stress.max}` : `${token.stress}/${token.maxStress ?? 10}`);
     const showNameplate = playerSettings ? playerSettings.showTokenNameplates : isNameplateVisible(token, tokenSettings.showNameplates);
-    const conditionsKey = token.conditions?.join(',') ?? '';
+    const conditionsKey = `${token.conditions?.join(',') ?? ''}${JSON.stringify(token.conditionValues ?? {})}`;
     const updateKey = `${hpString}_${stressString}_${spriteWidth}_${this.isHovered}_${this.isSelected}_${token.name || ''}_${showNameplate}_${token.statblockName || ''}_${tokenSettings.showHPBars}_${tokenSettings.showStressBars}_${conditionsKey}`;
     
     // Skip update if nothing has changed
@@ -363,9 +351,7 @@ export class TokenUIRenderer {
     
     // Clear previous graphics
     this.hpBar.clear();
-    this.hpFill.clear();
     this.stressBar.clear();
-    this.stressFill.clear();
     this.difficultyBadge.removeChildren();
     this.defeatedOverlay.clear();
     this.nameBadge.clear();
@@ -373,11 +359,23 @@ export class TokenUIRenderer {
     
     // Check if we have any data to display
     const hasStatblock = !!token.statblockPath;
-    const hasHP = token.hp !== undefined && tokenSettings.showHPBars;
-    const hasStress = token.stress !== undefined && tokenSettings.showStressBars;
+    const hpValue = tokenSettings.showHPBars ? tokenHp(token) : null;
+    const stressResource = tokenSettings.showStressBars ? tokenStress(token) : null;
+    const hasHP = hpValue !== null;
+    const hasStress = stressResource !== null;
     // showNameplate is already calculated above for change detection
 
     const hasConditions = (token.conditions?.length ?? 0) > 0;
+
+    // Store current token data for theme updates
+    this.currentToken = token;
+    this.currentTokenSize = spriteWidth;
+
+    // Anchor the UI on the token's edges; everything below is laid out from there in UI units
+    this.belowToken.position.set(0, spriteWidth / 2);
+    this.layoutUIScale();
+    this.refreshConditions();
+    this.conditionUI.setHidden(this.isHiddenDuringResize || this.isHiddenDuringRotation);
 
     if (!hasHP && !hasStress && !showNameplate && !hasConditions) {
       this.container.visible = false;
@@ -385,14 +383,6 @@ export class TokenUIRenderer {
     }
     
     this.container.visible = true;
-
-    // Anchor the UI on the token's edges; everything below is laid out from there in UI units
-    const uiScale = tokenUIScale(spriteWidth);
-    this.belowToken.position.set(0, spriteWidth / 2);
-    this.besideToken.position.set(spriteWidth / 2, 0);
-    this.belowToken.scale.set(uiScale);
-    this.besideToken.scale.set(uiScale);
-    this.setTextResolution(Math.min(TEXT_RESOLUTION * Math.max(1, uiScale), MAX_TEXT_RESOLUTION));
 
     // Use design tokens for consistent sizing
     const barWidth = barDimensions.token.width;
@@ -404,12 +394,8 @@ export class TokenUIRenderer {
     let currentY = baseGap; // Start below token
     
     // HP Bar
-    if (hasHP) {
-      const hp = typeof token.hp === 'number' 
-        ? { current: token.hp, max: 100 } 
-        : token.hp;
-      
-      
+    if (hpValue) {
+      const hp = hpValue;
       const hpPercentage = hp ? Math.max(0, Math.min(100, (hp.current / hp.max) * 100)) : 0;
       const isDefeated = hp ? hp.current <= 0 : false;
       
@@ -442,20 +428,7 @@ export class TokenUIRenderer {
       }
       
       // Layer 4: Colored HP fill with metallic/energy gradient (slightly inset)
-      const baseColor = getHealthColor(hpPercentage);
-      const fillPadding = 1;  // Inset from dark background to look contained
-      const fillX = innerX + fillPadding;
-      const fillY = innerY + fillPadding;
-      const fillableWidth = innerWidth - fillPadding * 2;
-      const fillHeight = innerHeight - fillPadding * 2;
-      const fillWidth = fillableWidth * (hpPercentage / 100);
-      
-      if (fillWidth > 0) {
-        const fillGradient = getBarGradient(baseColor);
-        
-        resourceBarFill(this.hpFill, fillX, fillY, fillWidth, fillHeight)
-          .fill(fillGradient);
-      }
+      this.hpFill.set(hpPercentage / 100, insetFillRect(innerX, innerY, innerWidth, innerHeight), this.canAnimateValues());
       
       // Text
       this.hpText.setValue(hp ?? { current: 0, max: 0 });
@@ -471,10 +444,9 @@ export class TokenUIRenderer {
     }
     
     // Stress Bar
-    if (hasStress && token.stress !== undefined) {
-      // Handle both number and object format for stress
-      const stressValue = typeof token.stress === 'number' ? token.stress : token.stress.current;
-      const maxStress = typeof token.stress === 'object' ? token.stress.max : (token.maxStress || 10);
+    if (stressResource) {
+      const stressValue = stressResource.current;
+      const maxStress = stressResource.max;
       const stressPercentage = Math.max(0, Math.min(100, (stressValue / maxStress) * 100));
       
       // Bar styling - layered approach for proper pill shape
@@ -506,29 +478,12 @@ export class TokenUIRenderer {
       }
       
       // Layer 4: Colored stress fill with metallic/energy gradient (slightly inset)
-      const baseStressColor = colors.stress.fill;
-      const fillPadding = 1;  // Inset from dark background to look contained
-      const fillX = innerX + fillPadding;
-      const fillY = innerY + fillPadding;
-      const fillableWidth = innerWidth - fillPadding * 2;
-      const fillHeight = innerHeight - fillPadding * 2;
-      const fillWidth = fillableWidth * (stressPercentage / 100);
-      
-      if (fillWidth > 0) {
-        const fillGradient = getBarGradient(baseStressColor);
-        
-        resourceBarFill(this.stressFill, fillX, fillY, fillWidth, fillHeight)
-          .fill(fillGradient);
-      }
+      this.stressFill.set(stressPercentage / 100, insetFillRect(innerX, innerY, innerWidth, innerHeight), this.canAnimateValues());
       
       // Text
       this.stressText.setValue({ current: stressValue, max: maxStress });
       this.stressText.position.set(0, currentY + barHeight/2);
     }
-    
-    // Store current token data for theme updates
-    this.currentToken = token;
-    this.currentTokenSize = spriteWidth; // Store the sprite width for later use
     
     // Name badge - only show if showNameplate is true AND there's a meaningful name
     // Determine displayName first to decide whether to show the nameplate
@@ -587,10 +542,10 @@ export class TokenUIRenderer {
     // Hide unused elements (but respect resize and rotation hidden state)
     const isHidden = this.isHiddenDuringResize || this.isHiddenDuringRotation;
     this.hpBar.visible = hasHP && !isHidden;
-    this.hpFill.visible = hasHP && !isHidden;
+    this.hpFill.view.visible = hasHP && !isHidden;
     this.hpText.visible = hasHP && !isHidden;
     this.stressBar.visible = hasStress && !isHidden;
-    this.stressFill.visible = hasStress && !isHidden;
+    this.stressFill.view.visible = hasStress && !isHidden;
     this.stressText.visible = hasStress && !isHidden;
     this.difficultyBadge.visible = false; // Never show difficulty badge
     // Check if token is defeated (matches TokenRenderer logic)
@@ -603,16 +558,78 @@ export class TokenUIRenderer {
     const hasDisplayName = showNameplate && !!displayName;
     this.nameBadge.visible = hasDisplayName && !isHidden; // Only show if enabled, has name, and not hidden
     this.nameText.visible = hasDisplayName && !isHidden; // Only show if enabled, has name, and not hidden
-    
-    // Condition dots — horizontal row between nameplate and HP bar
-    const conditionDefs = this.conditionDefsProvider?.() ?? [];
-    const conditionY = baseGap / 2;
-    this.conditionDots.update(token.conditions ?? [], conditionDefs, conditionY);
-
   }
   
+  private canAnimateValues(): boolean {
+    return !prefersReducedMotion(document.body);
+  }
+
   public getContainer(): Container {
     return this.container;
+  }
+
+  /** Current scale of the bars, nameplate and condition markers, including mid-transition. */
+  public getUIScale(): number {
+    return this.belowToken.scale.x;
+  }
+
+  /** Re-applies the UI scale after the viewport zoomed. */
+  public refreshScale(): void {
+    if (this.currentTokenSize <= 0) return;
+    this.layoutUIScale();
+    const { ringRadius, cardScale } = this.conditionsLayout();
+    this.conditionUI.setCardScale(ringRadius, cardScale);
+  }
+
+  /** Redraws the condition badges from the current definitions, e.g. after an icon or colour was edited. */
+  public refreshConditions(): void {
+    if (!this.currentToken || this.currentTokenSize <= 0) return;
+    this.conditionUI.update(this.currentToken, this.conditionDefsProvider?.() ?? [], this.conditionsLayout());
+  }
+
+  /**
+   * Condition badges sit on the token's ring at the resting UI scale, whatever the
+   * selection; the hover card keeps a constant screen size, like a tooltip.
+   */
+  private conditionsLayout(): TokenConditionsLayout {
+    const state = this.store?.getState();
+    const gridSize = state?.grid?.size ?? 70;
+    const ringScale = state?.tokenSettings?.tokenRingSize ?? 1;
+    const ringRadius = getTokenRingCenterRadius(this.currentTokenSize * ringScale, computeTokenStrokeWidth(gridSize), ringScale);
+    const badgeScale = restingTokenUIScale(gridSize);
+    const zoom = this.zoomProvider?.();
+    return { ringRadius, badgeScale, cardScale: zoom ? 1 / zoom : badgeScale };
+  }
+
+  /** Marks the pointer as down on this token; a held or dragged token keeps its UI at rest. */
+  public setHeld(held: boolean): void {
+    if (this.isHeld === held) return;
+    this.isHeld = held;
+    this.updateEmphasis();
+    this.updateConditionCard();
+  }
+
+  /** Eases the UI to a selected token's on-screen size, or back to rest while unselected or held. */
+  private updateEmphasis(): void {
+    const target = this.isSelected && !this.isHeld ? 1 : 0;
+    if (target === this.emphasis.targetValue) return;
+    if (prefersReducedMotion(document.body)) this.emphasis.jumpTo(target);
+    else this.emphasis.animateTo(target);
+  }
+
+  /**
+   * Scales both anchors between `restingTokenUIScale` and `selectedTokenUIScale` by the
+   * current emphasis. The selected size follows the zoom, so it is recomputed on every call.
+   */
+  private layoutUIScale(): void {
+    const resting = restingTokenUIScale(this.store?.getState().grid?.size ?? 70);
+    const zoom = this.zoomProvider?.();
+    const selected = zoom ? selectedTokenUIScale(resting, zoom) : resting;
+    const scale = resting + (selected - resting) * this.emphasis.value;
+    this.belowToken.scale.set(scale);
+    // A selected token's text keeps a constant screen size, which the resting resolution covers
+    this.setTextResolution(textResolutionFor(resting));
+    this.onScaleChange?.(scale);
   }
 
   /** Re-rasterises the nameplate and bar numbers only when their resolution changes. */
@@ -629,26 +646,20 @@ export class TokenUIRenderer {
   public setHoverState(hovered: boolean, modifierKeyDown = false): void {
     this.isHovered = hovered;
     this.updateTextVisibility();
+    this.isPlainHover = hovered && !modifierKeyDown;
+    this.updateConditionCard();
+  }
 
-    // Condition UI: show panel on hover only when CMD/Ctrl is NOT held
-    // (CMD+hover is reserved for statblock preview)
-    const conditions = this.currentToken?.conditions ?? [];
-    const conditionDefs = this.conditionDefsProvider?.() ?? [];
-
-    // Dots always stay visible when conditions exist
-    this.conditionDots.setVisible(conditions.length > 0);
-
-    const showPanel = hovered && !modifierKeyDown && conditions.length > 0;
-    if (showPanel) {
-      this.conditionPanel.show(conditions, conditionDefs);
-    } else {
-      this.conditionPanel.hide();
-    }
+  /** The conditions card is for looking at a token: selecting, pressing or dragging it hides the card. */
+  private updateConditionCard(): void {
+    this.conditionUI.setHovered(this.isPlainHover && !this.isSelected && !this.isHeld);
   }
   
   public setSelectionState(selected: boolean): void {
     if (this.isSelected === selected) return;
     this.isSelected = selected;
+    this.updateEmphasis();
+    this.updateConditionCard();
     this.updateTextVisibility();
   }
   
@@ -696,6 +707,9 @@ export class TokenUIRenderer {
   destroy(): void {
     // End any active editing
     this.endNameEdit();
+    this.emphasis.cancel();
+    this.hpFill.destroy();
+    this.stressFill.destroy();
     
     // Cancel any pending animation
     if (this.fadeAnimation !== null) {
@@ -719,9 +733,7 @@ export class TokenUIRenderer {
     window.removeEventListener('atlas-token-rotation-started', this.onRotationStarted);
     window.removeEventListener('atlas-token-rotation-ended', this.onRotationEnded);
     
-    // Clean up condition renderers
-    this.conditionDots.destroy();
-    this.conditionPanel.destroy();
+    this.conditionUI.destroy();
 
     // Clear references
     this.currentToken = null;

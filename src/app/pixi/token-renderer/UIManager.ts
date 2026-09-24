@@ -18,6 +18,7 @@ import { TokenRotationUI } from '../TokenRotationUI';
 import { TokenResizeUI } from '../TokenResizeUI';
 import type { ConditionDefinition } from '../../types/collectionSettingsTypes';
 import { destroyTree } from '../utils/destroyTree';
+import { restingTokenUIScale } from './tokenSizing';
 
 export class UIManager implements ITokenUIManager {
   private viewport: Viewport;
@@ -102,6 +103,17 @@ export class UIManager implements ITokenUIManager {
       (state: ViewAtlasState) => state.grid,
       () => this.refreshSelectionControls()
     );
+
+    // A selected token's bars keep their size on screen, so they follow the zoom like map pins
+    const onZoom = (): void => {
+      for (const ui of Object.values(this.tokenUIs)) ui.refreshScale();
+    };
+    this.viewport.on('zoomed', onZoom);
+    this.viewport.on('zoomed-end', onZoom);
+    this.unsubscribeViewport = (): void => {
+      this.viewport.off('zoomed', onZoom);
+      this.viewport.off('zoomed-end', onZoom);
+    };
   }
 
   createTokenUI(tokenId: string, container: TokenGroupContainer, token: TokenEntity): TokenUIRenderer | null {
@@ -110,8 +122,10 @@ export class UIManager implements ITokenUIManager {
       return null;
     }
     
-    const ui = new TokenUIRenderer(this.store);
+    const ui = new TokenUIRenderer(this.store, this.viewport.options?.ticker);
     ui.conditionDefsProvider = this.conditionDefsProvider;
+    ui.zoomProvider = () => this.viewport.scale.x;
+    ui.onScaleChange = (scale) => this.tokenControlsUI?.setScaleFor(tokenId, scale);
     this.tokenUIs[tokenId] = ui;
     
     const uiElement = ui.getContainer();
@@ -157,7 +171,8 @@ export class UIManager implements ITokenUIManager {
               tokenId,
               tokenSprite.position.x,
               tokenSprite.position.y,
-              tokenSize
+              tokenSize,
+              this.barScale(tokenId)
             );
           }
         }
@@ -227,7 +242,8 @@ export class UIManager implements ITokenUIManager {
         tokenId,
         container.position.x,
         container.position.y,
-        tokenSize
+        tokenSize,
+        this.barScale(tokenId)
       );
     }
     
@@ -324,10 +340,24 @@ export class UIManager implements ITokenUIManager {
         ui.update(token, tokenSize);
       }
     }
+    const tokenGroup = this.getTokenSprite(tokenId);
+    if (tokenGroup) {
+      this.tokenControlsUI?.followTokenSize(tokenId, tokenGroup.position.x, tokenGroup.position.y, tokenSize);
+    }
   }
 
   updateControlsPosition(x: number, y: number, tokenSize: number): void {
     this.tokenControlsUI?.updatePosition(x, y, tokenSize);
+  }
+
+  /** Keeps the UI of `tokenIds` at rest while the pointer holds or drags them; the rest are released. */
+  setTokensHeld(tokenIds: string[]): void {
+    for (const [tokenId, ui] of Object.entries(this.tokenUIs)) ui.setHeld(tokenIds.includes(tokenId));
+  }
+
+  /** Scale of `tokenId`'s bars, which its +/- controls match. */
+  private barScale(tokenId: string): number {
+    return this.tokenUIs[tokenId]?.getUIScale() ?? restingTokenUIScale(this.store.getState().grid?.size ?? 70);
   }
 
   updateHandlePositions(): void {
@@ -384,6 +414,11 @@ export class UIManager implements ITokenUIManager {
     }
   }
 
+  /** Redraws every token's condition badges, after the collection's condition definitions changed. */
+  public refreshConditions(): void {
+    for (const ui of [...Object.values(this.tokenUIs), ...Object.values(this.playerTokenUIs)]) ui.refreshConditions();
+  }
+
   private updateAllTokenSettings(): void {
     // Update all token UIs when settings change
     for (const tokenId in this.tokenUIs) {
@@ -423,7 +458,7 @@ export class UIManager implements ITokenUIManager {
       if (!token || token.kind !== 'character' || !sprite) continue;
       let ui = this.playerTokenUIs[tokenId];
       if (!ui) {
-        ui = new TokenUIRenderer(this.store);
+        ui = new TokenUIRenderer(this.store, this.viewport.options?.ticker);
         this.playerTokenUIs[tokenId] = ui;
         this.playerUIContainer.addChild(ui.getContainer());
       }

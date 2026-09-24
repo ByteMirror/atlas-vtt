@@ -9,6 +9,7 @@ import { Button } from '../../../packages/components/primitives/button';
 import { SegmentedControl, type SegmentedOption } from '../../../packages/components/primitives/SegmentedControl';
 import { LabelTooltip } from '../../../packages/components/primitives/tooltip';
 import { ObsidianMenuDropdown } from '../ObsidianMenuDropdown';
+import { areRangeBandsValid, isValidRangeBandThreshold } from '../../../grid/measurementFormat';
 import type {
   CollectionGridDefaults,
   DiagonalRule,
@@ -29,6 +30,7 @@ interface GridMeasurementTabProps {
 
 const UNIT_OPTIONS: Record<GridUnitType, string> = {
   feet: 'Feet',
+  yards: 'Yards',
   meters: 'Meters',
   units: 'Units',
   custom: 'Custom',
@@ -52,6 +54,7 @@ export function GridMeasurementTab({
   };
 
   const bands = gridDefaults.abstractRangeBands ?? [];
+  const bandsValid = areRangeBandsValid(bands);
 
   const updateBand = (index: number, partial: Partial<RangeBand>): void => {
     const updated = bands.map((b, i) => (i === index ? { ...b, ...partial } : b));
@@ -125,41 +128,52 @@ export function GridMeasurementTab({
           <label className="atlas-csm-label">Range Bands</label>
           {bands.length > 0 ? (
             <div className="atlas-csm-band-list">
-              {bands.map((band, i) => (
-                <div key={i} className="atlas-csm-band-row">
-                  <input
-                    type="text"
-                    className="atlas-csm-input"
-                    placeholder="Band name"
-                    value={band.name}
-                    onChange={(e) => updateBand(i, { name: e.target.value })}
-                  />
-                  <input
-                    type="number"
-                    className="atlas-csm-input atlas-csm-input--number"
-                    min={1}
-                    placeholder="Max"
-                    value={band.maxSquares}
-                    onChange={(e) => {
-                      const val = Number(e.target.value);
-                      if (!Number.isNaN(val)) updateBand(i, { maxSquares: Math.max(1, val) });
-                    }}
-                  />
-                  <LabelTooltip label="Remove band">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="atlas-csm-band-delete"
-                      onClick={() => removeBand(i)}
-                    >
-                      <Trash2 />
-                    </Button>
-                  </LabelTooltip>
-                </div>
-              ))}
+              {bands.map((band, i) => {
+                const thresholdValid = isValidRangeBandThreshold(band.maxSquares);
+                return (
+                  <div key={i} className="atlas-csm-band-row">
+                    <input
+                      type="text"
+                      className="atlas-csm-input"
+                      placeholder="Band name"
+                      value={band.name}
+                      onChange={(e) => updateBand(i, { name: e.target.value })}
+                    />
+                    <input
+                      type="number"
+                      className="atlas-csm-input atlas-csm-input--number"
+                      min={1}
+                      step={1}
+                      placeholder="Max"
+                      aria-invalid={!thresholdValid || undefined}
+                      value={Number.isNaN(band.maxSquares) ? '' : band.maxSquares}
+                      onChange={(e) => {
+                        // Keep whatever was typed, even an empty field; Save stays disabled until it is valid.
+                        const raw = e.target.value.trim();
+                        updateBand(i, { maxSquares: raw === '' ? NaN : Number(raw) });
+                      }}
+                    />
+                    <LabelTooltip label="Remove band">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="atlas-csm-band-delete"
+                        onClick={() => removeBand(i)}
+                      >
+                        <Trash2 />
+                      </Button>
+                    </LabelTooltip>
+                  </div>
+                );
+              })}
             </div>
           ) : (
             <div className="atlas-csm-empty">No range bands defined</div>
+          )}
+          {!bandsValid && (
+            <p className="atlas-csm-hint atlas-csm-hint--error" role="alert">
+              Every band needs a whole number of squares, 1 or more.
+            </p>
           )}
           <Button variant="ghost" className="atlas-csm-add-btn" onClick={addBand}>
             <Plus />

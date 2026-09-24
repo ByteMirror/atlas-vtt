@@ -1,8 +1,10 @@
 import React from 'react';
+import { motion } from 'framer-motion';
 import { Home, Folder, Check } from 'lucide-react';
 import type { Tab, Folder as FolderType } from '../types';
 import { CloseButton } from '../../primitives/CloseButton';
 import { Button } from '../../primitives/button';
+import { dialogOverlayMotion, useDialogWindowVariants } from '../../primitives/dialogMotion';
 
 export interface MoveModalProps {
   selectedAssetIds: string[];
@@ -23,13 +25,15 @@ export function MoveModal({
   setMoveTargetFolderId, moveFolderSearch, setMoveFolderSearch,
   moveFolderListOpen, setMoveFolderListOpen, onClose, onConfirm,
 }: MoveModalProps): React.JSX.Element {
+  const windowVariants = useDialogWindowVariants();
   return (
-    <div
+    <motion.div
+      {...dialogOverlayMotion}
       className="atlas-asset-manager-move-modal"
       onClick={(e) => { e.stopPropagation(); if (e.target === e.currentTarget) onClose(); }}
       onMouseDown={(e) => e.stopPropagation()}
     >
-      <div className="atlas-asset-manager-move-container" onClick={(e) => e.stopPropagation()}>
+      <motion.div className="atlas-asset-manager-move-container" variants={windowVariants} onClick={(e) => e.stopPropagation()}>
         <div className="atlas-asset-manager-move-header">
           <h3>Move to Folder</h3>
           <CloseButton onClick={(e) => { e.stopPropagation(); onClose(); }} />
@@ -87,7 +91,7 @@ export function MoveModal({
           <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); onClose(); }}>Cancel</Button>
           <Button variant="default" size="sm" onClick={(e) => { e.stopPropagation(); onConfirm(); }}>Move</Button>
         </div>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }

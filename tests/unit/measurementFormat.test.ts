@@ -1,6 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import type { RangeBand } from '../../src/app/types/collectionSettingsTypes';
-import { formatDistance, rangeBandName, resolveMeasurementSettings, type MeasurementSettings } from '../../src/app/grid/measurementFormat';
+import {
+  areRangeBandsValid,
+  formatDistance,
+  isValidRangeBandThreshold,
+  rangeBandName,
+  resolveMeasurementSettings,
+  unitLabelFor,
+  type MeasurementSettings,
+} from '../../src/app/grid/measurementFormat';
 
 describe('rangeBandName', () => {
   const bands: RangeBand[] = [
@@ -76,5 +84,31 @@ describe('resolveMeasurementSettings', () => {
       .toEqual({ mode: 'metric', unitType: 'meters', unitDistance: 3, diagonalRule: 'equidistant', rangeBands: [] });
     expect(resolveMeasurementSettings(undefined, grid).mode).toBe('abstract');
     expect(resolveMeasurementSettings(undefined, null)).toMatchObject({ unitType: 'feet', unitDistance: 5 });
+  });
+});
+
+describe('range band validation', () => {
+  it('accepts whole thresholds of at least one square', () => {
+    expect(isValidRangeBandThreshold(1)).toBe(true);
+    expect(isValidRangeBandThreshold(12)).toBe(true);
+  });
+
+  it('rejects empty, zero, negative and fractional thresholds', () => {
+    for (const value of [NaN, 0, -3, 1.5, Infinity]) {
+      expect(isValidRangeBandThreshold(value)).toBe(false);
+    }
+  });
+
+  it('requires every band to be valid', () => {
+    expect(areRangeBandsValid(undefined)).toBe(true);
+    expect(areRangeBandsValid([{ name: 'Close', maxSquares: 3 }])).toBe(true);
+    expect(areRangeBandsValid([{ name: 'Close', maxSquares: 3 }, { name: 'Far', maxSquares: NaN }])).toBe(false);
+  });
+});
+
+describe('unitLabelFor', () => {
+  it('labels feet, yards and metres, nothing for generic units, and feet for maps without a unit', () => {
+    expect(['feet', 'yards', 'meters', 'units', 'custom', undefined].map((unit) => unitLabelFor(unit as never)))
+      .toEqual(['ft', 'yd', 'm', '', '', 'ft']);
   });
 });

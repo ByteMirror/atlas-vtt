@@ -6,9 +6,8 @@
 // never drift apart.
 
 /// Fixed-position box that hugs the statblock card. The padding leaves room for
-/// the card's shadow. JS sets `max-height`; the flex chain below passes that
-/// limit down to the card body, which is the only element that scrolls, so
-/// the card keeps its rounded corners and shadow however tall the statblock.
+/// the card's shadow. JS sets `max-height`, which `atlas-statblock-contained-card`
+/// passes down to the card body.
 @mixin atlas-statblock-preview-surface {
   position: fixed;
   display: flex;
@@ -26,6 +25,14 @@
     max-width: min(540px, calc(100vw - #{$spacing-s}));
   }
 
+  @include atlas-statblock-contained-card;
+}
+
+/// Passes the height limit of a flex column container down to the statblock
+/// card's body, which is the only element that scrolls, so the card keeps its
+/// rounded corners and shadow however tall the statblock. For every place that
+/// shows a statblock in a bounded area: the hover previews, the link dialog.
+@mixin atlas-statblock-contained-card {
   .atlas-fantasy-statblock,
   .atlas-statblock {
     display: flex;

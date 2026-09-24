@@ -2,31 +2,35 @@
  * CollectionSettingsModal
  *
  * Vertical-tabbed modal for configuring per-collection settings:
- *   Game System | Grid & Measurement | Default Widgets | Conditions
+ *   Game System | Grid & Measurement | Default Widgets | Conditions | Vision
  *
  * Opens after collection creation and via a gear button in the sidebar.
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Grid3X3, LayoutGrid, ShieldAlert, Eye } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { Dices, Grid3X3, LayoutGrid, ShieldAlert, Eye } from 'lucide-react';
 import { Button } from '../../packages/components/primitives/button';
 import { useAtlasUI } from '../root/AtlasUIContext';
 import { AssetService } from '../../services/AssetService';
-import type {
-  CollectionSettings,
-  CollectionGridDefaults,
-  ConditionDefinition,
-  VisionSettings,
-} from '../../types/collectionSettingsTypes';
+import type { SystemPreset } from '../../types/systemPresetTypes';
+import { deleteSystemPreset } from '../../services/systemPresetDeletion';
+import { syncCollectionSystem } from '../../services/collectionSystemSync';
+import { applyTokenBars } from '../../services/collectionTokenBars';
+import { useSystemPresets } from '../hooks/useSystemPresets';
+import { useCollectionSettingsDraft } from './collection-settings/useCollectionSettingsDraft';
 
 import { GridMeasurementTab } from './collection-settings/GridMeasurementTab';
 import { DefaultWidgetsTab } from './collection-settings/DefaultWidgetsTab';
 import { ConditionsTab } from './collection-settings/ConditionsTab';
 import { VisionTab } from './collection-settings/VisionTab';
+import { SystemTab } from './collection-settings/SystemTab';
 import { WALLS_AND_LIGHTING_ENABLED } from '../../featureFlags';
+import { areRangeBandsValid, unitLabelFor } from '../../grid/measurementFormat';
 
 import { CloseButton } from '../../packages/components/primitives/CloseButton';
+import { dialogOverlayMotion, useDialogWindowVariants } from '../../packages/components/primitives/dialogMotion';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -36,7 +40,7 @@ interface CollectionSettingsModalProps {
   collectionId: string;
 }
 
-type TabId = 'grid' | 'widgets' | 'conditions' | 'vision';
+type TabId = 'system' | 'grid' | 'widgets' | 'conditions' | 'vision';
 
 interface TabDef {
   id: TabId;
@@ -45,19 +49,12 @@ interface TabDef {
 }
 
 const TABS: TabDef[] = [
+  { id: 'system', label: 'Game System', icon: <Dices size={16} /> },
   { id: 'grid', label: 'Grid & Measure', icon: <Grid3X3 size={16} /> },
   { id: 'widgets', label: 'Default Widgets', icon: <LayoutGrid size={16} /> },
   { id: 'conditions', label: 'Conditions', icon: <ShieldAlert size={16} /> },
   ...(WALLS_AND_LIGHTING_ENABLED ? [{ id: 'vision' as const, label: 'Vision', icon: <Eye size={16} /> }] : []),
 ];
-
-const DEFAULT_GRID: CollectionGridDefaults = {
-  unitType: 'feet',
-  unitDistance: 5,
-  measurementMode: 'metric',
-  abstractRangeBands: [],
-  diagonalRule: 'equidistant',
-};
 
 // ── Component ──────────────────────────────────────────────────────────────
 
@@ -68,29 +65,22 @@ export function CollectionSettingsModal({
 }: CollectionSettingsModalProps): React.ReactElement | null {
   const { app } = useAtlasUI();
   const assetService = app ? AssetService.getInstance(app) : null;
+  const systemPresets = useSystemPresets(app);
+  const windowVariants = useDialogWindowVariants();
 
-  const [activeTab, setActiveTab] = useState<TabId>('grid');
+  const [activeTab, setActiveTab] = useState<TabId>('system');
   const [collectionName, setCollectionName] = useState('');
   const [releaseLine, setReleaseLine] = useState('');
 
   // Local draft of settings — only persisted on Save
-  const [gridDefaults, setGridDefaults] = useState<CollectionGridDefaults>(DEFAULT_GRID);
-  const [defaultWidgets, setDefaultWidgets] = useState<Record<string, boolean>>({});
-  const [conditions, setConditions] = useState<ConditionDefinition[]>([]);
-  const [vision, setVision] = useState<VisionSettings | undefined>(undefined);
+  const draft = useCollectionSettingsDraft(assetService, collectionId, isOpen);
+  const { gridDefaults, conditions } = draft;
 
-  // Load existing settings on open
+  // Resolve the collection name for the header
   useEffect(() => {
     if (!isOpen || !assetService) return;
     let cancelled = false;
 
-    const settings = assetService.getCollectionSettings(collectionId);
-    setGridDefaults(settings.gridDefaults ?? { ...DEFAULT_GRID });
-    setDefaultWidgets(settings.defaultWidgets ?? {});
-    setConditions(settings.conditions ?? []);
-    setVision(settings.vision);
-
-    // Resolve collection name for the header
     assetService.getCollections().then((cols) => {
       if (cancelled) return;
       const match = cols.find((c) => c.id === collectionId);
@@ -113,28 +103,32 @@ export function CollectionSettingsModal({
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
-  const handleSave = useCallback(async (): Promise<void> => {
-    if (!assetService) return;
+  const canSave = areRangeBandsValid(gridDefaults.abstractRangeBands);
+
+  const handleSave = async (): Promise<void> => {
+    if (!app || !assetService || !canSave) return;
 
     try {
-      const updated: Partial<CollectionSettings> = {
-        gridDefaults,
-        defaultWidgets,
-        conditions,
-        ...(vision !== undefined && { vision }),
-      };
-
-      await assetService.updateCollectionSettings(collectionId, updated);
+      await assetService.updateCollectionSettings(collectionId, draft.toSettings());
+      // Widgets and token conditions follow the saved game system in every scene.
+      await syncCollectionSystem(app, collectionId, systemPresets.presets);
+      await applyTokenBars(app, collectionId, draft.tokenBarChanges());
       onClose();
     } catch (err) {
       console.error('[CollectionSettingsModal] Failed to save:', err);
     }
-  }, [assetService, collectionId, gridDefaults, defaultWidgets, conditions, vision, onClose]);
+  };
+
+  const handleDeletePreset = async (preset: SystemPreset): Promise<void> => {
+    if (!app || !systemPresets.service) return;
+    if (draft.systemPresetId === preset.id) draft.clearSystem();
+    await deleteSystemPreset(app, systemPresets.service, preset.id);
+  };
 
   if (!isOpen) return null;
 
   return createPortal(
-    <div className="atlas-vtt-plugin atlas-vtt-root atlas-collection-settings-overlay"
+    <motion.div {...dialogOverlayMotion} className="atlas-vtt-plugin atlas-vtt-root atlas-collection-settings-overlay"
       onMouseDown={(e) => e.stopPropagation()}
     >
       {/* Backdrop */}
@@ -144,8 +138,9 @@ export function CollectionSettingsModal({
       />
 
       {/* Modal */}
-      <div
+      <motion.div
         className="atlas-vtt-plugin atlas-collection-settings-modal"
+        variants={windowVariants}
         role="dialog"
         aria-modal="true"
         aria-labelledby="atlas-csm-title"
@@ -178,29 +173,40 @@ export function CollectionSettingsModal({
 
           {/* Tab content */}
           <div className="atlas-collection-settings-content">
+            {activeTab === 'system' && systemPresets.service && (
+              <SystemTab
+                service={systemPresets.service}
+                presets={systemPresets.presets}
+                rules={{ gridDefaults, conditions, defaultWidgets: draft.defaultWidgets }}
+                presetId={draft.systemPresetId}
+                onApplyPreset={draft.applyPreset}
+                onPresetIdChange={draft.setSystemPresetId}
+                onDeletePreset={handleDeletePreset}
+              />
+            )}
             {activeTab === 'grid' && (
               <GridMeasurementTab
                 gridDefaults={gridDefaults}
-                onChange={setGridDefaults}
+                onChange={draft.setGridDefaults}
               />
             )}
             {activeTab === 'widgets' && (
               <DefaultWidgetsTab
-                defaultWidgets={defaultWidgets}
-                onChange={setDefaultWidgets}
+                defaultWidgets={draft.defaultWidgets}
+                onChange={draft.setDefaultWidgets}
               />
             )}
             {activeTab === 'conditions' && (
               <ConditionsTab
                 conditions={conditions}
-                onChange={setConditions}
+                onChange={draft.setConditions}
               />
             )}
             {activeTab === 'vision' && (
               <VisionTab
-                vision={vision}
-                onChange={setVision}
-                unitLabel={gridDefaults.unitType === 'meters' ? 'm' : gridDefaults.unitType === 'feet' ? 'ft' : ''}
+                vision={draft.vision}
+                onChange={draft.setVision}
+                unitLabel={unitLabelFor(gridDefaults.unitType)}
               />
             )}
           </div>
@@ -211,12 +217,12 @@ export function CollectionSettingsModal({
           <Button variant="outline" className="atlas-csm-cancel" onClick={onClose}>
             Cancel
           </Button>
-          <Button variant="default" className="atlas-csm-save" onClick={() => { void handleSave(); }}>
+          <Button variant="default" className="atlas-csm-save" disabled={!canSave} onClick={() => { void handleSave(); }}>
             Save
           </Button>
         </div>
-      </div>
-    </div>,
+      </motion.div>
+    </motion.div>,
     document.body,
   );
 }

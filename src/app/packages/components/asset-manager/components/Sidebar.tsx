@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { MotionConfig, motion } from 'framer-motion';
 import {
   Search, X, Folder, Settings, ChevronDown, Check, Tag,
   Download, Upload,
@@ -6,11 +7,15 @@ import {
 import { Button } from '../../primitives/button';
 import { LabelTooltip } from '../../primitives/tooltip';
 import type { AnyAsset, CollectionOption, Tag as TagType } from '../types';
-import { hasAssetTag } from '../utils/assetTags';
+import { hasAssetTag } from '../../../../services/tagGroups';
+import type { SidebarLayout } from '../hooks/useSidebarLayout';
+import { sidebarContentVariants, sidebarMotionState, sidebarVariants } from './sidebarMotion';
+import { ClearTagsChip } from './ClearTagsChip';
 
 export interface SidebarProps {
   selectedTagIds: string[];
   onSelectTag: (tagId: string) => void;
+  onClearTags: () => void;
   tags: TagType[];
   assets: AnyAsset[];
   collections: CollectionOption[];
@@ -21,13 +26,14 @@ export interface SidebarProps {
   onEditCollectionSettings?: (collectionId: string) => void;
   onExportCollection?: () => void;
   onImportCollection?: () => void;
-  isCollapsed: boolean;
-  onToggleCollapse: () => void;
+  /** Floating behaviour from `useSidebarLayout`; omitted, the sidebar is docked. */
+  layout?: Pick<SidebarLayout, 'isFloating' | 'isPeeking' | 'isNearEdge' | 'panelRef'>;
 }
 
 export function Sidebar({
   selectedTagIds,
   onSelectTag,
+  onClearTags,
   tags,
   assets,
   collections,
@@ -37,7 +43,7 @@ export function Sidebar({
   onEditCollectionSettings,
   onExportCollection,
   onImportCollection,
-  isCollapsed,
+  layout,
 }: SidebarProps): React.JSX.Element {
   const [isCollectionDropdownOpen, setIsCollectionDropdownOpen] = useState(false);
   const [collectionSearchQuery, setCollectionSearchQuery] = useState('');
@@ -46,9 +52,6 @@ export function Sidebar({
   const [isTagsSearchVisible, setIsTagsSearchVisible] = useState(false);
   const [tagsSearchQuery, setTagsSearchQuery] = useState('');
   const tagsSearchInputRef = useRef<HTMLInputElement>(null);
-
-  const [isTemporarilyExpanded, setIsTemporarilyExpanded] = useState(false);
-  const hoverTimeoutRef = useRef<number | null>(null);
 
   const filteredCollections = collections.filter((c) =>
     c.name.toLowerCase().includes(collectionSearchQuery.toLowerCase())
@@ -79,32 +82,10 @@ export function Sidebar({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isCollectionDropdownOpen]);
 
-  useEffect(() => {
-    return () => {
-      if (hoverTimeoutRef.current) window.clearTimeout(hoverTimeoutRef.current);
-    };
-  }, []);
-
   const handleCollectionSelect = (collectionId: string | null): void => {
     onSelectCollection(collectionId);
     setIsCollectionDropdownOpen(false);
     setCollectionSearchQuery('');
-  };
-
-  const handleSidebarMouseEnter = (): void => {
-    if (isCollapsed && !isTemporarilyExpanded) {
-      hoverTimeoutRef.current = window.setTimeout(() => setIsTemporarilyExpanded(true), 100);
-    }
-  };
-
-  const handleSidebarMouseLeave = (): void => {
-    if (hoverTimeoutRef.current) {
-      window.clearTimeout(hoverTimeoutRef.current);
-      hoverTimeoutRef.current = null;
-    }
-    if (isCollapsed && isTemporarilyExpanded) {
-      setIsTemporarilyExpanded(false);
-    }
   };
 
   const toggleTagSearch = (): void => {
@@ -132,17 +113,22 @@ export function Sidebar({
     </button>
   );
 
+  const isFloating = layout?.isFloating === true;
+  const isHidden = isFloating && !layout.isPeeking;
+
   return (
-    <>
-      {isCollapsed && !isTemporarilyExpanded && (
-        <div className="atlas-sidebar-hover-zone" onMouseEnter={handleSidebarMouseEnter} />
-      )}
-      <aside
-        className={`atlas-asset-manager-sidebar ${isCollapsed ? 'atlas-collapsed' : ''} ${isTemporarilyExpanded ? 'atlas-expanded' : ''}`}
-        onMouseEnter={isTemporarilyExpanded ? undefined : handleSidebarMouseEnter}
-        onMouseLeave={handleSidebarMouseLeave}
+    <MotionConfig reducedMotion="user">
+      {isFloating && <div className={`atlas-sidebar-edge ${layout.isNearEdge && !layout.isPeeking ? 'atlas-near' : ''}`} aria-hidden />}
+      <motion.aside
+        ref={layout?.panelRef}
+        className={`atlas-asset-manager-sidebar ${isFloating ? 'atlas-floating' : ''}`}
+        aria-hidden={isHidden ? true : undefined}
+        inert={isHidden ? true : undefined}
+        variants={sidebarVariants}
+        initial={false}
+        animate={sidebarMotionState(isFloating, layout?.isPeeking === true)}
       >
-        <div className="atlas-asset-manager-sidebar-content">
+        <motion.div className="atlas-asset-manager-sidebar-content" variants={sidebarContentVariants}>
           <div className="atlas-collections">
             <div className="atlas-collections-heading-row">
               <div className="atlas-section-title">Collection</div>
@@ -221,7 +207,10 @@ export function Sidebar({
 
           <div className="atlas-tags">
             <div className="atlas-tags-header">
-              <div className="atlas-section-title">Tags</div>
+              <div className="atlas-tags-heading">
+                <div className="atlas-section-title">Tags</div>
+                <ClearTagsChip count={selectedTagIds.length} onClear={onClearTags} />
+              </div>
               <LabelTooltip label="Search tags">
                 <Button
                   variant="ghost"
@@ -293,8 +282,8 @@ export function Sidebar({
             <Settings />
             <span>Manage</span>
           </Button>
-        </div>
-      </aside>
-    </>
+        </motion.div>
+      </motion.aside>
+    </MotionConfig>
   );
 }

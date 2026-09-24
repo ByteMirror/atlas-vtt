@@ -7,6 +7,7 @@ import { formatDiagnostics, type IssueDiagnostics } from './diagnostics';
 import { formatErrors, type LoggedError } from './errorLog';
 import { ISSUE_AREAS, ISSUE_TYPES, type IssueArea, type IssueType } from './issueCategories';
 import { formatReportMarkdown, issueForm, type IssueForm, type IssueReport } from './issueReport';
+import { ATLAS_NATIVE_MODAL_CLASSES } from '../ui/nativeModal';
 
 export interface IssueReportPreset {
   type?: IssueType;
@@ -57,7 +58,7 @@ export class IssueReportModal extends Modal {
 
   onOpen(): void {
     this.setTitle(this.form.title);
-    this.modalEl.addClass('atlas-vtt-plugin', 'atlas-issue-report-modal');
+    this.modalEl.addClass(...ATLAS_NATIVE_MODAL_CLASSES, 'atlas-issue-report-modal');
     this.contentEl.createEl('p', {
       cls: 'atlas-issue-report-intro',
       text: 'Submit your report directly from Atlas. Your report and included diagnostics will be posted publicly on GitHub. No GitHub account is needed.',

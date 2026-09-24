@@ -4,6 +4,7 @@ import type { Folder, Tab, SortOption, SortOrder, SelectionEvent } from '../type
 import { NavigationHistory } from '../NavigationHistory';
 import { applyClickSelection, resolveSelectAll } from '../utils/clickSelection';
 import { clampSpawnCount } from '../utils/spawnCount';
+import { resolveSortOption, sortOptionsFor } from '../utils/assetSort';
 
 /** IDs currently rendered, in display order, so Shift-click can span them. */
 export interface VisibleIds {
@@ -18,7 +19,10 @@ export interface SelectionState {
   selectedTagIds: string[];
   spawnCounts: Record<string, number>;
   navigationHistory: NavigationHistory;
+  /** The chosen sort option as it applies to the active tab. */
   sortBy: SortOption;
+  /** The sort options of the active tab. */
+  sortOptions: readonly SortOption[];
   sortOrder: SortOrder;
   // Setters
   setSelectedAssetIds: React.Dispatch<React.SetStateAction<string[]>>;
@@ -54,7 +58,7 @@ export function useSelectionHandlers(
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
   const [spawnCounts, setSpawnCounts] = useState<Record<string, number>>({});
-  const [sortBy, setSortBy] = useState<SortOption>('name');
+  const [chosenSortBy, setSortBy] = useState<SortOption>('name');
   const [sortOrder, setSortOrder] = useState<SortOrder>('asc');
   const [navigationHistory] = useState(() => new NavigationHistory());
 
@@ -187,9 +191,12 @@ export function useSelectionHandlers(
     return () => document.removeEventListener('keydown', handler);
   }, [isOpen, visibleIds, selectedAssetIds, selectedFolderIds]);
 
+  const sortBy = resolveSortOption(chosenSortBy, activeTab);
+  const sortOptions = sortOptionsFor(activeTab);
+
   return {
     selectedAssetIds, selectedFolderIds, selectedFolderId, selectedTagIds,
-    spawnCounts, navigationHistory, sortBy, sortOrder,
+    spawnCounts, navigationHistory, sortBy, sortOptions, sortOrder,
     setSelectedAssetIds, setSelectedFolderIds, setSelectedFolderId, setSelectedTagIds,
     setSpawnCounts, setSortBy, setSortOrder,
     handleAssetSelect, handleFolderSelect, handleFolderSelection,

@@ -19,6 +19,7 @@
   gap: $spacing-s;
 
   @include atlas-elevated-surface;
+  @include atlas-panel-radius($radius-2xl);
 
   animation: note-preview-slide-in $transition-normal $transition-ease-out;
 }
@@ -28,16 +29,14 @@
   cursor: grabbing;
 }
 
-// ── Header (floating bar) ───────────────────────────────────────────────
+// ── Header ───────────────────────────────────────────────────────────────
+// Reaches past the window's padding to its top-right corner, where the close button belongs.
 
 .atlas-note-preview-header {
   display: flex;
-  align-items: center;
   gap: $spacing-s;
-  padding: $spacing-s;
-  background-color: var(--background-secondary);
-  border: $border-width-s solid color-mix(in oklch, var(--mono-100) $border-opacity-subtle, transparent);
-  border-radius: $radius-l;
+  @include atlas-close-header($spacing-s);
+  margin: calc(-1 * #{$spacing-s}) calc(-1 * #{$spacing-s}) 0 0;
   cursor: grab;
   user-select: none;
   flex-shrink: 0;
@@ -61,8 +60,7 @@
 
 .atlas-note-preview-pin-btn,
 .atlas-note-preview-open-btn,
-.atlas-note-preview-edit-btn,
-.atlas-note-preview-close-btn {
+.atlas-note-preview-edit-btn {
   appearance: none;
   border: none !important;
   box-shadow: none !important;
@@ -71,11 +69,11 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: $button-height-s;
-  height: $button-height-s;
+  width: $close-button-size;
+  height: $close-button-size;
   padding: 0;
   cursor: pointer;
-  border-radius: $radius-l;
+  border-radius: $radius-m;
   transition: background-color $transition-fast $transition-ease,
               color $transition-fast $transition-ease;
 
@@ -83,6 +81,11 @@
     width: $icon-s;
     height: $icon-s;
   }
+}
+
+.atlas-note-preview-close-btn {
+  appearance: none;
+  @include atlas-close-button;
 }
 
 .atlas-note-preview-pin-btn.is-pinned {
@@ -100,7 +103,7 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  border-radius: $radius-l;
+  @include atlas-panel-inset-radius($spacing-s);
   @include atlas-scrollbar;
 }
 

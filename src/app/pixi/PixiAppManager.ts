@@ -1,5 +1,6 @@
 import { Application, Ticker } from "pixi.js";
 import { Viewport } from "pixi-viewport";
+import { SmoothDecelerate } from "./SmoothDecelerate";
 import { RenderScheduler } from "./RenderScheduler";
 import { destroyTree } from "./utils/destroyTree";
 
@@ -125,12 +126,11 @@ export class PixiAppManager {
 
     this.viewport
       .drag({ mouseButtons: 'right', pressDrag: true })
-      .wheel()
-      .decelerate()
       .clampZoom({
         minScale: 0.1,
         maxScale: 5,
       });
+    this.viewport.plugins.add('decelerate', new SmoothDecelerate(this.viewport));
     
     this._canvasContextMenuPreventer = (e) => e.preventDefault();
     this.canvasEl.addEventListener('contextmenu', this._canvasContextMenuPreventer);

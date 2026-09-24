@@ -155,17 +155,32 @@ export class NotePreviewUIManager {
 
     this.eventBus.on('map-loaded', () => {
       this.mapUnloading = false;
+      this.forgetHover();
       this.restorePinnedPreviews();
     });
 
     // Leaving the map closes hover previews; pinned ones live in the map's leaf and hide with it
     this.activeLeafChangeRef = this.app.workspace.on('active-leaf-change', (leaf: WorkspaceLeaf | null) => {
       if (!leaf) return;
+      // Every map view listens to CMD/Ctrl on the whole document, another map's leaf included
+      if (leaf !== findAtlasLeafByViewId(this.app.workspace, this.viewId)) {
+        this.forgetHover();
+      }
       const viewType = leaf.view?.getViewType?.();
       if (viewType !== 'atlas-vtt' && viewType !== 'atlas-vtt-player') {
         this.hideAllUnpinnedPreviews();
       }
     });
+  }
+
+  /**
+   * Hover events only fire when the hovered element changes, so the remembered
+   * hover must be dropped explicitly once its map is out of sight. Otherwise
+   * every later CMD/Ctrl press replays its preview over another map or tab.
+   */
+  private forgetHover(): void {
+    this.currentHover = null;
+    this.lastHoveredPinId = null;
   }
 
   /**

@@ -59,8 +59,21 @@ export async function openBundle(data: Blob, onProgress: BundleProgressListener)
   return { zip, manifest, sourceHashes };
 }
 
+/** Reads files packed in a bundle by their bundle path, before anything is imported. */
+export interface BundleFileReader {
+  blob(path: string): Promise<Blob | null>;
+  text(path: string): Promise<string | null>;
+}
+
+export function bundleFileReader({ zip }: OpenedBundle): BundleFileReader {
+  return {
+    blob: async (path) => (await zip.file(zipPathFor(path))?.async('blob')) ?? null,
+    text: async (path) => (await zip.file(zipPathFor(path))?.async('string')) ?? null,
+  };
+}
+
 /** The collection's cover image packed in the bundle, if it has one. */
-export async function bundleCover({ zip, manifest }: OpenedBundle): Promise<Blob | undefined> {
-  const { coverPath } = manifest.collection;
-  return coverPath ? zip.file(zipPathFor(coverPath))?.async('blob') : undefined;
+export async function bundleCover(bundle: OpenedBundle): Promise<Blob | undefined> {
+  const { coverPath } = bundle.manifest.collection;
+  return (coverPath && await bundleFileReader(bundle).blob(coverPath)) || undefined;
 }

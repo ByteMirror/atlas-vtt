@@ -4,10 +4,19 @@ import { baseName } from '../../utils/pathUtils';
 
 export type ContentCategory = 'scenes' | 'maps' | 'tokens' | 'encounters' | 'statblocks' | 'notes';
 
+/** How a token looks when spawned, and the statblock it opens. Paths are the vault's when exporting and the bundle's when importing. */
+export interface TokenPreview {
+  imagePath: string;
+  thumbnailPath?: string | undefined;
+  showRing: boolean;
+  statblockPath?: string | undefined;
+}
+
 /** One asset or note of a collection, keyed like the import plan's units: `asset:<id>` or `file:<vault path>`. */
 export interface ContentItem {
   key: string;
   name: string;
+  token?: TokenPreview | undefined;
 }
 
 export interface ContentGroup {
@@ -44,11 +53,18 @@ const byName = (a: ContentItem, b: ContentItem): number => a.name.localeCompare(
 export function groupContents(assets: readonly Asset[], files: readonly BundleFile[]): ContentGroup[] {
   const items = new Map<ContentCategory, ContentItem[]>();
   const add = (category: ContentCategory, item: ContentItem): void => {
-    items.set(category, [...(items.get(category) ?? []), item]);
+    const list = items.get(category);
+    if (list) list.push(item);
+    else items.set(category, [item]);
   };
   for (const asset of assets) {
     const category = ASSET_CATEGORIES[asset.type];
-    if (category) add(category, { key: assetKey(asset.id), name: asset.name });
+    if (!category) continue;
+    const item: ContentItem = { key: assetKey(asset.id), name: asset.name };
+    if (asset.type === 'token') {
+      item.token = { imagePath: asset.imagePath, thumbnailPath: asset.thumbnailPath, showRing: asset.showRing !== false, statblockPath: asset.statblockPath };
+    }
+    add(category, item);
   }
   for (const file of files) {
     const category = FILE_CATEGORIES[file.role];

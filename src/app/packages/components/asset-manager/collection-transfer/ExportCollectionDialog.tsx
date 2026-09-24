@@ -8,6 +8,7 @@ import { plural } from '../../../../utils/plural';
 import { Button } from '../../primitives/button';
 import { LabelTooltip } from '../../primitives/tooltip';
 import { CollectionHero } from './CollectionHero';
+import type { ContentMedia } from './contentMedia';
 import { ContentsList } from './ContentsList';
 import { CoverPicker } from './CoverPicker';
 import { TransferDialog } from './TransferDialog';
@@ -15,6 +16,7 @@ import { useObjectUrl } from './useObjectUrl';
 
 interface ExportCollectionDialogProps {
   preview: ExportPreview;
+  media: ContentMedia;
   /** Resolves with a message to show when the choice cannot be exported. */
   onExport: (choice: ExportChoice) => Promise<string | null>;
   onCancel: () => void;
@@ -42,7 +44,7 @@ function coverUrl(choice: CoverChoice, preview: ExportPreview, uploadUrl: string
  * new name. The user picks a cover and what to include, and sees it the way
  * people who import it will.
  */
-export function ExportCollectionDialog({ preview, onExport, onCancel }: ExportCollectionDialogProps): React.JSX.Element {
+export function ExportCollectionDialog({ preview, media, onExport, onCancel }: ExportCollectionDialogProps): React.JSX.Element {
   const { collection } = preview;
   const isFork = preview.publisher === 'other';
   const [version, setVersion] = useState(String(preview.suggestedVersion));
@@ -157,7 +159,7 @@ export function ExportCollectionDialog({ preview, onExport, onCancel }: ExportCo
         <span>Release notes</span>
         <textarea className="atlas-input atlas-transfer-notes" value={notes} placeholder="What is new in this version" onChange={(event) => setNotes(event.target.value)} />
       </label>
-      <ContentsList groups={groups} selection={{ included, excluded, onChange: setExcluded }} />
+      <ContentsList groups={groups} media={media} selection={{ included, excluded, onChange: setExcluded }} />
       {preview.missing.length > 0 && (
         <div className="atlas-transfer-callout atlas-transfer-callout--warning" role="note">
           <strong>{preview.missing.length} referenced {preview.missing.length === 1 ? 'file is' : 'files are'} missing and will not be included:</strong>

@@ -236,6 +236,10 @@ describe('installing', () => {
     expect(review.contents.map((group) => [group.label, group.items.map((item) => item.name)])).toEqual([
       ['Scenes', ['Cave']], ['Maps', []], ['Tokens', ['Goblin']], ['Encounters', ['Ambush']], ['Statblocks', ['Goblin']], ['Notes', []],
     ]);
+    // Token cards show the bundle's art, ring and statblock before anything is written.
+    expect(review.contents.find((group) => group.category === 'tokens')?.items[0]?.token).toEqual({
+      imagePath: TOKEN_IMAGE, thumbnailPath: TOKEN_THUMB, showRing: false, statblockPath: NOTE_PATH,
+    });
 
     const collection = await fan.assets.getCollection('source');
     expect(collection).toMatchObject({ name: 'Source', version: 1, tags: { dragon: { id: 'dragon', name: 'Dragon' } } });

@@ -1,13 +1,47 @@
 import React from 'react';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { ExportCollectionDialog } from '../../src/app/packages/components/asset-manager/collection-transfer/ExportCollectionDialog';
 import { ImportReviewDialog } from '../../src/app/packages/components/asset-manager/collection-transfer/ImportReviewDialog';
+import type { App } from 'obsidian';
+import type { ContentMedia } from '../../src/app/packages/components/asset-manager/collection-transfer/contentMedia';
 import type { Asset } from '../../src/app/services/AssetService';
 import type { ExportPreview } from '../../src/app/services/collectionBundle/collectionExport';
 import type { ImportReview } from '../../src/app/services/collectionBundle/importReview';
 
 afterEach(cleanup);
+
+const VIEWPORT = { width: 800, height: 600 };
+const rect = (): DOMRect => ({
+  ...VIEWPORT, top: 0, left: 0, right: VIEWPORT.width, bottom: VIEWPORT.height, x: 0, y: 0, toJSON: () => ({}),
+}) as DOMRect;
+
+// jsdom has no layout: give every element the viewport's box, so the virtual
+// lists inside the dialog's scrolling pane have room to show their first rows.
+const layoutStubs: Array<[object, string, PropertyDescriptor]> = [
+  [Element.prototype, 'getBoundingClientRect', { configurable: true, value: rect }],
+  [Element.prototype, 'clientWidth', { configurable: true, get: () => VIEWPORT.width }],
+  [HTMLElement.prototype, 'offsetWidth', { configurable: true, get: () => VIEWPORT.width }],
+  [HTMLElement.prototype, 'offsetHeight', { configurable: true, get: () => VIEWPORT.height }],
+];
+const originals = layoutStubs.map(([target, name]) => [target, name, Object.getOwnPropertyDescriptor(target, name)] as const);
+beforeAll(() => {
+  for (const [target, name, descriptor] of layoutStubs) Object.defineProperty(target, name, descriptor);
+});
+afterAll(() => {
+  for (const [target, name, descriptor] of originals) {
+    if (descriptor) Object.defineProperty(target, name, descriptor);
+    else Reflect.deleteProperty(target, name);
+  }
+});
+
+const media: ContentMedia = {
+  // Just what the statblock preview reaches for; without Fantasy Statblocks it shows its install hint.
+  app: { vault: { getAbstractFileByPath: () => null }, workspace: { on: () => ({}), offref: () => undefined } } as unknown as App,
+  imageUrl: (path) => `app://${path}`,
+  noteText: vi.fn(async () => undefined),
+  dispose: vi.fn(),
+};
 
 const counts = { added: 0, updated: 0, removed: 0, kept: 0, restored: 0, conflict: 0, unchanged: 0 };
 
@@ -24,7 +58,7 @@ describe('import review', () => {
   it('summarises an update with its release notes and lets the user resolve conflicts one by one or all at once', () => {
     const onConfirm = vi.fn();
     render(
-      <ImportReviewDialog
+      <ImportReviewDialog media={media}
         review={review({
           releaseNotes: 'New lair map',
           counts: { ...counts, added: 2, updated: 1, kept: 1, conflict: 2 },
@@ -56,7 +90,7 @@ describe('import review', () => {
 
   it('asks for another name when the vault already has a different collection with this one', () => {
     const onConfirm = vi.fn();
-    render(<ImportReviewDialog review={review({ relation: 'new', localName: undefined, installedVersion: undefined, suggestedName: 'Dragon Pack (2)' })} onConfirm={onConfirm} onCancel={vi.fn()} />);
+    render(<ImportReviewDialog media={media} review={review({ relation: 'new', localName: undefined, installedVersion: undefined, suggestedName: 'Dragon Pack (2)' })} onConfirm={onConfirm} onCancel={vi.fn()} />);
     const name = screen.getByDisplayValue('Dragon Pack (2)');
     fireEvent.change(name, { target: { value: 'Dragons of the East' } });
     fireEvent.click(screen.getByRole('button', { name: 'Import' }));
@@ -65,7 +99,7 @@ describe('import review', () => {
 
   it('says a copy is up to date and offers restoring the original only when the user changed something', () => {
     const onCancel = vi.fn();
-    const { rerender } = render(<ImportReviewDialog review={review({ relation: 'same', installedVersion: 3, upToDate: true, counts })} onConfirm={vi.fn()} onCancel={onCancel} />);
+    const { rerender } = render(<ImportReviewDialog media={media} review={review({ relation: 'same', installedVersion: 3, upToDate: true, counts })} onConfirm={vi.fn()} onCancel={onCancel} />);
     expect(screen.getByRole('dialog', { name: '“Dragon Pack” is up to date' })).toBeTruthy();
     expect(screen.getByText('Up to date')).toBeTruthy();
     expect(screen.queryByRole('checkbox')).toBeNull();
@@ -73,14 +107,14 @@ describe('import review', () => {
     expect(onCancel).toHaveBeenCalled();
 
     const onConfirm = vi.fn();
-    rerender(<ImportReviewDialog review={review({ relation: 'same', installedVersion: 3, upToDate: true, canRestore: true, counts })} onConfirm={onConfirm} onCancel={onCancel} />);
+    rerender(<ImportReviewDialog media={media} review={review({ relation: 'same', installedVersion: 3, upToDate: true, canRestore: true, counts })} onConfirm={onConfirm} onCancel={onCancel} />);
     fireEvent.click(screen.getByRole('checkbox'));
     fireEvent.click(screen.getByRole('button', { name: 'Restore original' }));
     expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({ restore: true }));
   });
 
   it('warns before installing an older version, a shared copy, or a copy without an install record', () => {
-    render(<ImportReviewDialog review={review({ relation: 'older', installedVersion: 4, kind: 'share', hasInstallRecord: false })} onConfirm={vi.fn()} onCancel={vi.fn()} />);
+    render(<ImportReviewDialog media={media} review={review({ relation: 'older', installedVersion: 4, kind: 'share', hasInstallRecord: false })} onConfirm={vi.fn()} onCancel={vi.fn()} />);
     expect(screen.getByText(/You have v4\. This file holds the older v3/)).toBeTruthy();
     expect(screen.getByText(/copy someone shared/)).toBeTruthy();
     expect(screen.getByText(/cannot tell your changes from the author/)).toBeTruthy();
@@ -91,7 +125,7 @@ describe('import review', () => {
     vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: vi.fn(() => 'blob:cover'), revokeObjectURL: vi.fn() }));
     const onConfirm = vi.fn();
     const { container } = render(
-      <ImportReviewDialog
+      <ImportReviewDialog media={media}
         review={review({
           relation: 'new', localName: undefined, installedVersion: undefined, releaseNotes: 'First release', cover: new Blob(['COVER']),
           contents: [
@@ -122,13 +156,13 @@ describe('import review', () => {
   });
 
   it('names nothing through aria-label or title, which would show Obsidian\'s or the browser\'s tooltip', () => {
-    const { container } = render(<ImportReviewDialog review={review({ canRestore: true, conflicts: [{ key: 'asset:cave', kind: 'Scene', name: 'Cave', reason: 'both-changed' }] })} onConfirm={vi.fn()} onCancel={vi.fn()} />);
+    const { container } = render(<ImportReviewDialog media={media} review={review({ canRestore: true, conflicts: [{ key: 'asset:cave', kind: 'Scene', name: 'Cave', reason: 'both-changed' }] })} onConfirm={vi.fn()} onCancel={vi.fn()} />);
     expect(container.querySelectorAll('[aria-label], [title]')).toHaveLength(0);
   });
 
   it('cancels on Escape', () => {
     const onCancel = vi.fn();
-    render(<ImportReviewDialog review={review()} onConfirm={vi.fn()} onCancel={onCancel} />);
+    render(<ImportReviewDialog media={media} review={review()} onConfirm={vi.fn()} onCancel={onCancel} />);
     fireEvent.keyDown(document.body, { key: 'Escape' });
     expect(onCancel).toHaveBeenCalledOnce();
   });
@@ -154,7 +188,7 @@ describe('export options', () => {
 
   it('releases the publisher\'s next version with author and notes, and refuses a lower version', async () => {
     const onExport = vi.fn(async () => null);
-    render(<ExportCollectionDialog preview={preview({ missing: [{ path: 'atlas-vtt/assets/orc.webp', role: 'token-image', assetName: 'Orc' }] })} onExport={onExport} onCancel={vi.fn()} />);
+    render(<ExportCollectionDialog media={media} preview={preview({ missing: [{ path: 'atlas-vtt/assets/orc.webp', role: 'token-image', assetName: 'Orc' }] })} onExport={onExport} onCancel={vi.fn()} />);
     expect(screen.getByText('orc.webp (Orc)')).toBeTruthy();
     expect(screen.getByText('4 items · 3 files · 2 KB')).toBeTruthy();
     const version = screen.getByDisplayValue('3');
@@ -173,7 +207,7 @@ describe('export options', () => {
 
   it('publishes a collection installed from someone else as the user\'s own, without offering to share it', async () => {
     const onExport = vi.fn(async () => null);
-    render(<ExportCollectionDialog preview={preview({ publisher: 'other' })} onExport={onExport} onCancel={vi.fn()} />);
+    render(<ExportCollectionDialog media={media} preview={preview({ publisher: 'other' })} onExport={onExport} onCancel={vi.fn()} />);
     expect(screen.getByRole('dialog', { name: 'Publish Dragon Pack as your own' })).toBeTruthy();
     expect(screen.getByText('Publish as your own')).toBeTruthy();
     expect(screen.queryByText(/share/i)).toBeNull();
@@ -189,12 +223,13 @@ describe('export options', () => {
 
   it('leaves out what the user unticks, along with the notes only that content uses', async () => {
     const onExport = vi.fn(async () => null);
-    render(<ExportCollectionDialog preview={preview()} onExport={onExport} onCancel={vi.fn()} />);
+    render(<ExportCollectionDialog media={media} preview={preview()} onExport={onExport} onCancel={vi.fn()} />);
     fireEvent.click(screen.getByRole('button', { name: /Scenes/ }));
     fireEvent.click(screen.getByRole('checkbox', { name: 'Cave' }));
     expect(screen.getByRole('button', { name: /Notes/ }).textContent).toContain('0 of 1');
+    fireEvent.click(screen.getByRole('button', { name: /Notes/ }));
     expect(screen.getByText('Only used by content you left out')).toBeTruthy();
-    expect((screen.getByRole('checkbox', { name: /^Cave/ }) as HTMLInputElement).checked).toBe(false);
+    expect((screen.getByRole('checkbox', { name: /^Cave.*left out/ }) as HTMLInputElement).checked).toBe(false);
 
     fireEvent.click(screen.getByRole('checkbox', { name: 'Include all statblocks' }));
     expect(screen.getByText('1 item · 1 file · 2 KB')).toBeTruthy();
@@ -206,7 +241,7 @@ describe('export options', () => {
   });
 
   it('names nothing through aria-label or title, and shows no banner without a cover', () => {
-    const { container } = render(<ExportCollectionDialog preview={preview({ publisher: 'other' })} onExport={vi.fn(async () => null)} onCancel={vi.fn()} />);
+    const { container } = render(<ExportCollectionDialog media={media} preview={preview({ publisher: 'other' })} onExport={vi.fn(async () => null)} onCancel={vi.fn()} />);
     expect(container.querySelectorAll('[aria-label], [title]')).toHaveLength(0);
     expect(container.querySelector('.atlas-transfer-hero__art')).toBeNull();
   });
@@ -214,7 +249,7 @@ describe('export options', () => {
   it('starts from the first map as cover and exports the one the user picks', async () => {
     const onExport = vi.fn(async () => null);
     const { container } = render(
-      <ExportCollectionDialog
+      <ExportCollectionDialog media={media}
         preview={preview({ coverCandidates: [
           { key: 'lair', name: 'Lair', sourcePath: 'maps/lair.webp', imageUrl: 'app://lair', previewUrl: 'app://lair-small' },
           { key: 'cave', name: 'Cave', sourcePath: 'maps/cave.webp', imageUrl: 'app://cave', previewUrl: 'app://cave-small' },
@@ -233,5 +268,42 @@ describe('export options', () => {
 
     fireEvent.click(screen.getByRole('radio', { name: 'No cover' }));
     expect(hero()).toBeUndefined();
+  });
+
+  it('shows tokens as cards the way they spawn, and opens a token\'s statblock after resting on it', async () => {
+    vi.useFakeTimers();
+    const goblin = { ...token, thumbnailPath: 'atlas-vtt/assets/thumbnails/goblin.webp', showRing: false, statblockPath: 'Bestiary/Goblin.md' } as Asset;
+    const orc = { ...token, id: 'orc', name: 'Orc', imagePath: 'atlas-vtt/assets/orc.webp' } as Asset;
+    const noteText = vi.fn(async () => '---\nstatblock: true\nname: Goblin\n---');
+    const { container } = render(<ExportCollectionDialog media={{ ...media, noteText }} preview={preview({ assets: [scene, goblin, orc] })} onExport={vi.fn(async () => null)} onCancel={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: /Tokens/ }));
+
+    const cards = [...container.querySelectorAll('.atlas-transfer-token')];
+    expect(cards.map((card) => card.textContent)).toEqual(['Goblin', 'Orc']);
+    expect(cards[0]!.querySelector('img')?.getAttribute('src')).toBe('app://atlas-vtt/assets/thumbnails/goblin.webp');
+    expect(cards[0]!.querySelector('.atlas-token-portrait--unframed')).toBeTruthy();
+    expect(cards[1]!.querySelector('.atlas-token-ring')).toBeTruthy();
+    expect(cards[0]!.querySelector('.atlas-transfer-token__statblock')).toBeTruthy();
+    expect(cards[1]!.querySelector('.atlas-transfer-token__statblock')).toBeNull();
+
+    fireEvent.pointerEnter(cards[0]!);
+    await act(async () => { await vi.advanceTimersByTimeAsync(100); });
+    expect(document.querySelector('.statblock-hover-preview--over-modal')).toBeNull();
+    await act(async () => { await vi.advanceTimersByTimeAsync(400); });
+    expect(noteText).toHaveBeenCalledWith('Bestiary/Goblin.md');
+    expect(document.querySelector('.statblock-hover-preview--over-modal')).toBeTruthy();
+
+    fireEvent.click(within(cards[1] as HTMLElement).getByRole('checkbox'));
+    expect(cards[1]!.getAttribute('data-state')).toBe('excluded');
+    vi.useRealTimers();
+  });
+
+  it('mounts only the token cards the pane shows, however many the collection holds', () => {
+    const many = Array.from({ length: 1000 }, (_, index) => ({ ...token, id: `t${index}`, name: `Token ${index}` }) as Asset);
+    const { container } = render(<ExportCollectionDialog media={media} preview={preview({ assets: many, files: [] })} onExport={vi.fn(async () => null)} onCancel={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: /Tokens/ }));
+    const mounted = container.querySelectorAll('.atlas-transfer-token').length;
+    expect(mounted).toBeGreaterThan(0);
+    expect(mounted).toBeLessThan(100);
   });
 });

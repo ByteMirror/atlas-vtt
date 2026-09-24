@@ -1,6 +1,7 @@
-import React, { useId, useRef } from 'react';
+import React, { useId, useRef, useState } from 'react';
 import { CloseButton } from '../../primitives/CloseButton';
 import { useDialogEscape } from '../../primitives/useDialogEscape';
+import { TransferScrollContext } from './transferScroll';
 
 interface TransferDialogProps {
   /** Names the dialog for assistive technology; the hero shows it visually. */
@@ -22,6 +23,8 @@ interface TransferDialogProps {
 export function TransferDialog({ label, onClose, hero, ambientUrl, aside, summary, actions, children }: TransferDialogProps): React.JSX.Element {
   const dialogRef = useRef<HTMLDivElement>(null);
   const labelId = useId();
+  // State rather than a ref: lists inside need the pane once it exists.
+  const [scroller, setScroller] = useState<HTMLDivElement | null>(null);
   useDialogEscape(dialogRef, onClose);
   return (
     <div className="atlas-transfer-overlay" onClick={onClose}>
@@ -37,9 +40,11 @@ export function TransferDialog({ label, onClose, hero, ambientUrl, aside, summar
         <span id={labelId} hidden>{label}</span>
         {ambientUrl && <img key={ambientUrl} className="atlas-transfer-dialog__ambient" src={ambientUrl} alt="" aria-hidden="true" />}
         <CloseButton className="atlas-transfer-dialog__close" onClick={onClose} />
-        <div className="atlas-transfer-dialog__main">
+        <div ref={setScroller} className="atlas-transfer-dialog__main">
           {hero}
-          <div className="atlas-transfer-dialog__content">{children}</div>
+          <TransferScrollContext.Provider value={scroller}>
+            <div className="atlas-transfer-dialog__content">{children}</div>
+          </TransferScrollContext.Provider>
         </div>
         {aside && <aside className="atlas-transfer-dialog__aside">{aside}</aside>}
         <div className="atlas-transfer-dialog__footer">

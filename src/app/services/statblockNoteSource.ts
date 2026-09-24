@@ -51,6 +51,32 @@ export function parseStatblockFence(content: string): Record<string, unknown> | 
   }
 }
 
+const FRONTMATTER = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/;
+
+/** How a note's text defines its statblock, for a note that is not in the vault (one inside a collection being imported). */
+export type StatblockTextSource =
+  | { kind: 'frontmatter'; frontmatter: Record<string, unknown> }
+  | { kind: 'codeblock'; params: Record<string, unknown> };
+
+export function statblockSourceFromText(content: string): StatblockTextSource | null {
+  const block = FRONTMATTER.exec(content)?.[1];
+  if (block !== undefined) {
+    try {
+      const frontmatter: unknown = parseYaml(block);
+      if (frontmatter && typeof frontmatter === 'object') {
+        const { statblock } = frontmatter as Record<string, unknown>;
+        if (statblock === true || statblock === 'true' || statblock === 'inline') {
+          return { kind: 'frontmatter', frontmatter: frontmatter as Record<string, unknown> };
+        }
+      }
+    } catch {
+      // Unreadable frontmatter: the note may still define its statblock in a fence.
+    }
+  }
+  const params = parseStatblockFence(content);
+  return params ? { kind: 'codeblock', params } : null;
+}
+
 /**
  * Resolves how a note defines its statblock, or null when it defines none.
  * Reads the file only when the frontmatter marker is absent.

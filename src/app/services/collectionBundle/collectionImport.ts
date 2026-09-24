@@ -3,7 +3,7 @@ import type { Asset, AssetService, CollectionMetadata } from '../AssetService';
 import { zipPathFor } from './bundleFormat';
 import { rewriteContent } from './bundleContent';
 import { reportFileStep, type BundleProgressListener } from './bundleProgress';
-import { bundleCover, openBundle, type OpenedBundle } from './bundleReader';
+import { bundleCover, bundleFileReader, openBundle, type BundleFileReader, type OpenedBundle } from './bundleReader';
 import { assetFingerprint, fieldFingerprint } from './fingerprints';
 import { gatherImportInputs, installedAsset, ownAsset, planTargets, referencedStrings, vaultFileHash, type ImportTargets } from './importInputs';
 import { ImportJournal, saveOpenMaps } from './importJournal';
@@ -36,6 +36,8 @@ export interface CollectionImportResult {
 /** A read and checked bundle, planned against the vault, waiting for the user's decision. */
 export interface ImportSession {
   review: ImportReview;
+  /** The bundle's files, for showing its token art and statblocks before the import. */
+  files: BundleFileReader;
   apply(decision: ImportDecision, onProgress?: BundleProgressListener): Promise<CollectionImportResult>;
 }
 
@@ -80,6 +82,7 @@ export async function openCollectionImport(
       ...buildReview(manifest, await assets.getVaultId(), existing, record, plan, restorePlan, unitAssets, suggestedName, targets.skipped),
       cover: await bundleCover(bundle),
     },
+    files: bundleFileReader(bundle),
     // Nothing may re-read or check the index while the import writes files and commits them.
     apply: (decision, progress = () => undefined) => assets.runExclusive(() =>
       applyImport(app, assets, { bundle, existing, record, targets, plan: decision.restore ? restorePlan : plan }, decision, progress)),

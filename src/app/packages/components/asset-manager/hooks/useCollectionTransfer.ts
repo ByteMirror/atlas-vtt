@@ -4,6 +4,7 @@ import type { AssetService } from '../../../../services/AssetService';
 import type { BundleProgress, BundleProgressListener } from '../../../../services/collectionBundle/bundleProgress';
 import { exportCollectionBundle, prepareCollectionExport, type ExportChoice, type ExportPreview } from '../../../../services/collectionBundle/collectionExport';
 import { openCollectionImport, type CollectionImportResult, type ImportDecision, type ImportSession } from '../../../../services/collectionBundle/collectionImport';
+import type { BundleFileReader } from '../../../../services/collectionBundle/bundleReader';
 import type { ImportReview } from '../../../../services/collectionBundle/importReview';
 import { describeError } from '../../../../utils/errors';
 import { plural } from '../../../../utils/plural';
@@ -12,7 +13,7 @@ import { plural } from '../../../../utils/plural';
 export type CollectionTransfer =
   | { step: 'working'; title: string; progress: BundleProgress }
   | { step: 'export-options'; preview: ExportPreview }
-  | { step: 'import-review'; review: ImportReview }
+  | { step: 'import-review'; review: ImportReview; files: BundleFileReader }
   | { step: 'done'; title: string; message: string };
 
 export interface CollectionTransferActions {
@@ -127,7 +128,7 @@ export function useCollectionTransfer({ app, assetService, selectedCollection, o
     setTransfer({ step: 'working', title: IMPORTING, progress: { message: 'Reading bundle…', fraction: 0 } });
     try {
       session.current = await openCollectionImport(app, assetService, file, working(IMPORTING));
-      setTransfer({ step: 'import-review', review: session.current.review });
+      setTransfer({ step: 'import-review', review: session.current.review, files: session.current.files });
     } catch (error) {
       console.error('[useCollectionTransfer] Reading the bundle failed:', error);
       finish('Import failed', describeError(error));

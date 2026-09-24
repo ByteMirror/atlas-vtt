@@ -1,10 +1,16 @@
 @use './statblock/statblock-preview-surface' as *;
+@use '../../../../styles/tokens' as *;
 
 // CMD+hover statblock preview shared by token hover on the map and the
 // initiative tracker. Positioning is computed in StatblockHoverPreview.tsx.
 .statblock-hover-preview {
   @include atlas-statblock-preview-surface;
   z-index: 101;
+}
+
+// Opened from inside a modal, such as the collection export and import dialogs.
+.statblock-hover-preview--over-modal {
+  z-index: $z-atlas-modal + 1;
 }
 
 .statblock-hover-preview--closing {

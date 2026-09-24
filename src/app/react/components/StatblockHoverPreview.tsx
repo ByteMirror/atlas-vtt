@@ -8,6 +8,10 @@ import './statblock-hover-preview.scss';
 export interface StatblockHoverPreviewProps {
   /** Vault path of the linked statblock note */
   notePath: string | null;
+  /** The note's text when it is not in the vault, e.g. inside a collection being imported. */
+  noteContent?: string | undefined;
+  /** Extra class, e.g. to lift the preview above a modal. */
+  className?: string | undefined;
   /** Enables click-to-roll on dice notation inside the statblock */
   app?: App | null | undefined;
   /** Token/entry whose HP and stress the statblock should mirror */
@@ -112,6 +116,8 @@ function calculatePreviewPosition(
  */
 export function StatblockHoverPreview({
   notePath,
+  noteContent,
+  className: extraClassName,
   app,
   vitals,
   isVisible,
@@ -172,12 +178,12 @@ export function StatblockHoverPreview({
     return null;
   }
 
-  const className = `statblock-hover-preview ${isClosing ? 'statblock-hover-preview--closing' : ''}`;
+  const className = `statblock-hover-preview ${isClosing ? 'statblock-hover-preview--closing' : ''} ${extraClassName ?? ''}`;
 
   return createPortal(
     <div ref={containerRef} className={className} style={positionStyles}>
       {app && (
-        <FantasyStatblock notePath={notePath} app={app} tokens={vitals ? [vitals] : []} />
+        <FantasyStatblock notePath={notePath} noteContent={noteContent} app={app} tokens={vitals ? [vitals] : []} />
       )}
     </div>,
     document.body

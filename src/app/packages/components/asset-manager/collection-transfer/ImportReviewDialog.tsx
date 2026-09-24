@@ -8,12 +8,14 @@ import { Button } from '../../primitives/button';
 import { LabelTooltip } from '../../primitives/tooltip';
 import { CollectionHero } from './CollectionHero';
 import { ConflictList } from './ConflictList';
+import type { ContentMedia } from './contentMedia';
 import { ContentsList } from './ContentsList';
 import { TransferDialog } from './TransferDialog';
 import { useObjectUrl } from './useObjectUrl';
 
 interface ImportReviewDialogProps {
   review: ImportReview;
+  media: ContentMedia;
   onConfirm: (decision: ImportDecision) => void;
   onCancel: () => void;
 }
@@ -53,7 +55,7 @@ function versionLabel(review: ImportReview): string {
  * and contents) and what the import would do (new, updated, removed,
  * conflicts), and collects the user's choices.
  */
-export function ImportReviewDialog({ review, onConfirm, onCancel }: ImportReviewDialogProps): React.JSX.Element {
+export function ImportReviewDialog({ review, media, onConfirm, onCancel }: ImportReviewDialogProps): React.JSX.Element {
   const [name, setName] = useState(review.suggestedName ?? review.collectionName);
   const [resolutions, setResolutions] = useState<Map<string, Resolution>>(new Map());
   const [restore, setRestore] = useState(false);
@@ -145,7 +147,7 @@ export function ImportReviewDialog({ review, onConfirm, onCancel }: ImportReview
       )}
       {review.relation !== 'new' && counts.length > 0 && <p className="atlas-transfer-text">{counts.join(' · ')}</p>}
       {review.upToDate && !restore && <p className="atlas-transfer-text">Everything from this version is already in your vault.</p>}
-      <ContentsList groups={review.contents} />
+      <ContentsList groups={review.contents} media={media} />
       {review.conflicts.length > 0 && !restore && (
         <ConflictList conflicts={review.conflicts} resolutions={resolutions} onChange={setResolutions} />
       )}

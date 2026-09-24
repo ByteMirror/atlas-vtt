@@ -586,43 +586,46 @@ export class TokenRenderer {
     }
 
     // Update instance badge position/size for ring size changes
-    const token = this.store.getState().objects.tokens[tokenId];
-    if (token) {
-      const allTokens = this.store.getState().objects.tokens;
-      const sameCount = Object.values(allTokens).filter(t => t.imagePath === token.imagePath).length;
-      const showBadge = sameCount >= 2 && (this.store.getState().tokenSettings?.showInstanceBadges ?? true);
-      updateInstanceBadge(tokenGroup, token.instanceNumber ?? 1, sizeWithMultiplier, showBadge);
-    }
+    if (current) this.drawInstanceBadge(current, tokenGroup, this.countTokensWithImage(current.imagePath), sizeWithMultiplier);
   }
 
   /**
    * Re-evaluates instance badges for every token on the map.
-   * Called when the showInstanceBadges setting changes.
+   * Tokens whose sprite is still loading get their badge from `refreshInstanceBadge` once loaded.
    */
   private refreshInstanceBadges(): void {
-    const tokens = this.store.getState().objects.tokens;
-    const tokenSettings = this.store.getState().tokenSettings;
-    const showBadges = tokenSettings?.showInstanceBadges ?? true;
-
-    // Group tokens by imagePath
-    const tokensByImage = new Map<string, TokenEntity[]>();
-    for (const token of Object.values(tokens)) {
-      const group = tokensByImage.get(token.imagePath) || [];
-      group.push(token);
-      tokensByImage.set(token.imagePath, group);
+    const tokens = Object.values(this.store.getState().objects.tokens);
+    const countByImage = new Map<string, number>();
+    for (const token of tokens) {
+      countByImage.set(token.imagePath, (countByImage.get(token.imagePath) ?? 0) + 1);
     }
 
-    // Update all badges
-    for (const [, groupTokens] of tokensByImage) {
-      const shouldShow = showBadges && groupTokens.length >= 2;
-      for (const token of groupTokens) {
-        const tokenGroup = this.tokenSprites[token.id];
-        if (tokenGroup) {
-          const tokenSize = tokenGroup.tokenSize || 70;
-          updateInstanceBadge(tokenGroup, token.instanceNumber ?? 1, tokenSize, shouldShow);
-        }
-      }
+    for (const token of tokens) {
+      const tokenGroup = this.tokenSprites[token.id];
+      if (tokenGroup) this.drawInstanceBadge(token, tokenGroup, countByImage.get(token.imagePath) ?? 0);
     }
+  }
+
+  /** Draws the badge of a single token, e.g. one whose sprite finished loading after the last sync. */
+  private refreshInstanceBadge(tokenId: string): void {
+    const token = this.store.getState().objects.tokens[tokenId];
+    const tokenGroup = this.tokenSprites[tokenId];
+    if (token && tokenGroup) this.drawInstanceBadge(token, tokenGroup, this.countTokensWithImage(token.imagePath));
+  }
+
+  private countTokensWithImage(imagePath: string): number {
+    const tokens = Object.values(this.store.getState().objects.tokens);
+    return tokens.filter((token) => token.imagePath === imagePath).length;
+  }
+
+  private drawInstanceBadge(
+    token: TokenEntity,
+    tokenGroup: TokenGroupContainer,
+    sameImageCount: number,
+    size: number = tokenGroup.tokenSize || 70
+  ): void {
+    const showBadges = this.store.getState().tokenSettings?.showInstanceBadges ?? true;
+    updateInstanceBadge(tokenGroup, token.instanceNumber ?? 1, size, showBadges && sameImageCount >= 2);
   }
 
   private isInPlayerMode(): boolean {
@@ -910,7 +913,10 @@ export class TokenRenderer {
           
           // Store sprite reference
           this.tokenSprites[token.id] = tokenGroup;
-          
+
+          // The sync that added this token refreshed badges before its sprite existed
+          this.refreshInstanceBadge(token.id);
+
           // Remove from loading set
           this.tokensLoading.delete(token.id);
           

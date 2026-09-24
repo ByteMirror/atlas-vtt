@@ -74,7 +74,7 @@ $hero-height: 288px;
     flex-direction: column;
     min-height: 0;
     overflow-y: auto;
-    @include atlas-scrollbar;
+    @include atlas-scrollbar-on-hover;
   }
 
   &__content {

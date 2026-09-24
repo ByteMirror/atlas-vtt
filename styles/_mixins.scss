@@ -587,6 +587,27 @@ $modal-corner-inset: calc(#{$border-width-m} + #{$spacing-l});
   }
 }
 
+/// Thin scrollbar that only shows while the pointer is over the scroll area or
+/// keyboard focus is inside it (a mouse click does not keep it visible). Its
+/// space stays reserved, so content never shifts.
+@mixin atlas-scrollbar-on-hover {
+  @include atlas-scrollbar;
+  scrollbar-color: transparent transparent;
+
+  &::-webkit-scrollbar-thumb {
+    background: transparent;
+  }
+
+  &:hover,
+  &:has(:focus-visible) {
+    scrollbar-color: var(--scrollbar-thumb-bg) transparent;
+
+    &::-webkit-scrollbar-thumb {
+      background: var(--scrollbar-thumb-bg);
+    }
+  }
+}
+
 // ── Text ─────────────────────────────────────────────────────────────────────
 
 /// Truncate text with ellipsis.

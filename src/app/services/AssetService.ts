@@ -5,6 +5,8 @@ import { ensureAdapterFolder } from '../plugin/vaultFolders';
 import type { TokenStateSnapshot } from '../types';
 import type { CellCoord, EncounterFormation } from '../encounters/encounterFormation';
 import { getDataFilePath } from '../utils/dataFileMigration';
+import { mapStrings } from '../utils/mapStrings';
+import { collectionNameKey, freeCollectionId, uniqueCollectionName } from './collectionNaming';
 import type { CollectionSettings } from '../types/collectionSettingsTypes';
 import {
   isAssetMetadata,
@@ -202,6 +204,16 @@ export const COLLECTIONS_DIR = `${ATLAS_VTT_DIR}/collections`;
 export const GLOBAL_ASSETS_DIR = `${ATLAS_VTT_DIR}/assets`;
 const ASSETS_METADATA_PATH = getDataFilePath(`${ATLAS_VTT_DIR}/assets-metadata.json`);
 
+/** Tags are keyed by their lower-case, hyphenated name. */
+const tagIdOf = (name: string): string => name.trim().toLowerCase().replace(/\s+/g, '-');
+
+/** The id of a collection folder (`atlas-vtt/collections/goblins` → `goblins`), or null for any other path. */
+function collectionIdOfFolder(path: string): string | null {
+  const prefix = `${COLLECTIONS_DIR}/`;
+  const id = path.startsWith(prefix) ? path.slice(prefix.length) : '';
+  return id && !id.includes('/') ? id : null;
+}
+
 export class AssetService {
   private static instance: AssetService | null = null;
   private app: App;
@@ -393,7 +405,7 @@ export class AssetService {
 
   private createCollectionMetadata(id: string): CollectionMetadata {
     const now = Date.now();
-    const name = id === 'default' ? 'Default' : this.prettifyIdentifier(id);
+    const name = id === 'default' ? 'Default' : this.numberedCollectionName(this.prettifyIdentifier(id));
     return {
       id,
       uid: crypto.randomUUID(),
@@ -800,6 +812,20 @@ export class AssetService {
       }
     }
 
+    // Older imports could reuse a taken name; numbering them keeps every collection distinguishable.
+    const takenNames: string[] = [];
+    const defaultFirst = Object.values(this.metadata.collections)
+      .sort((a, b) => Number(b.id === 'default') - Number(a.id === 'default'));
+    for (const collection of defaultFirst) {
+      const stored = typeof collection.name === 'string' && collection.name.trim() ? collection.name : this.prettifyIdentifier(collection.id);
+      const name = uniqueCollectionName(stored, takenNames);
+      if (name !== collection.name) {
+        collection.name = name;
+        needsSave = true;
+      }
+      takenNames.push(name);
+    }
+
     if (needsSave) {
       await this.saveMetadata();
     }
@@ -993,10 +1019,12 @@ export class AssetService {
     return Object.values(this.metadata!.collections);
   }
 
-  /** Finds a collection by its display name or id; the UI lists names, metadata is keyed by id, and a name wins over another collection's id. */
-  async resolveCollectionId(nameOrId: string): Promise<string | null> {
-    const collections = await this.getCollections();
-    return (collections.find((collection) => collection.name === nameOrId) ?? collections.find((collection) => collection.id === nameOrId))?.id ?? null;
+  /** Registers a record for a collection id that assets already point at. */
+  private async ensureCollectionRecord(id: string): Promise<void> {
+    if (this.metadata!.collections[id]) return;
+    this.metadata!.collections[id] = this.createCollectionMetadata(id);
+    await this.ensureCollectionStructure(id);
+    await this.saveMetadata();
   }
 
   async renameCollection(collectionId: string, name: string): Promise<void> {
@@ -1007,6 +1035,70 @@ export class AssetService {
     collection.name = name;
     collection.modifiedAt = Date.now();
     await this.saveMetadata();
+  }
+
+  /**
+   * Follows a collection folder renamed in the vault: the record moves to the
+   * new folder name as its id and takes it as display name, and every stored
+   * path into the folder is rewritten. Renaming the default folder turns its
+   * contents into a normal collection and starts an empty default one. A
+   * folder moved out of the collections folder is no longer a collection.
+   * Returns whether `oldPath` was a collection folder.
+   */
+  async followCollectionFolderRename(oldPath: string, newPath: string): Promise<boolean> {
+    await this.ensureLoaded();
+    const oldId = collectionIdOfFolder(oldPath);
+    const newId = collectionIdOfFolder(newPath);
+    const collection = oldId ? this.metadata!.collections[oldId] : undefined;
+    if (!oldId || oldId === newId || !collection) return false;
+    if (!newId) return this.forgetDeletedCollectionFolder(oldPath);
+
+    delete this.metadata!.collections[oldId];
+    this.metadata!.collections[newId] = {
+      ...collection,
+      id: newId,
+      name: this.numberedCollectionName(this.prettifyIdentifier(newId), oldId),
+      modifiedAt: Date.now(),
+    };
+
+    const oldPrefix = `${oldPath}/`;
+    const newPrefix = `${newPath}/`;
+    const movePath = (text: string): string => (text.startsWith(oldPrefix) ? newPrefix + text.slice(oldPrefix.length) : text);
+    for (const [id, asset] of Object.entries(this.metadata!.assets)) {
+      const moved = mapStrings(asset, movePath);
+      this.metadata!.assets[id] = asset.collection === oldId ? { ...moved, collection: newId } : moved;
+    }
+
+    if (oldId === 'default') {
+      this.metadata!.collections.default = this.createCollectionMetadata('default');
+      await this.ensureDefaultCollection();
+    }
+    await this.saveMetadata();
+    return true;
+  }
+
+  /**
+   * Follows a collection folder deleted in the vault: the collection and its
+   * assets leave the metadata. Files outside the folder, such as token images
+   * in the global assets folder, stay. Deleting the default folder starts an
+   * empty default collection. Returns whether `path` was a collection folder.
+   */
+  async forgetDeletedCollectionFolder(path: string): Promise<boolean> {
+    await this.ensureLoaded();
+    const id = collectionIdOfFolder(path);
+    if (!id || !this.metadata!.collections[id]) return false;
+
+    for (const [assetId, asset] of Object.entries(this.metadata!.assets)) {
+      if (asset.collection === id) delete this.metadata!.assets[assetId];
+    }
+    delete this.metadata!.collections[id];
+
+    if (id === 'default') {
+      this.metadata!.collections.default = this.createCollectionMetadata('default');
+      await this.ensureDefaultCollection();
+    }
+    await this.saveMetadata();
+    return true;
   }
 
   async deleteCollection(collectionId: string): Promise<void> {
@@ -1062,10 +1154,7 @@ export class AssetService {
       newAsset.filePath = this.getAssetPath(newAsset);
     }
 
-    // Ensure collection exists
-    if (!this.metadata!.collections[newAsset.collection]) {
-      await this.createCollection(newAsset.collection);
-    }
+    await this.ensureCollectionRecord(newAsset.collection);
 
     // Save asset data if needed
     if (newAsset.type === 'map') {
@@ -1275,10 +1364,7 @@ export class AssetService {
     const asset = this.metadata!.assets[assetId];
     if (!asset) return;
 
-    // Ensure target collection exists
-    if (!this.metadata!.collections[targetCollection]) {
-      await this.createCollection(targetCollection);
-    }
+    await this.ensureCollectionRecord(targetCollection);
 
     const oldPath = this.getAssetPath(asset);
     const updatedAsset = { ...asset, collection: targetCollection, modifiedAt: Date.now() };
@@ -1350,9 +1436,7 @@ export class AssetService {
   /** `name`, or `name (2)`, `name (3)`, … when another collection already uses it. */
   async freeCollectionName(name: string, exceptId?: string): Promise<string> {
     await this.ensureLoaded();
-    let candidate = name;
-    for (let n = 2; this.findCollectionByName(candidate, exceptId); n++) candidate = `${name} (${n})`;
-    return candidate;
+    return this.numberedCollectionName(name, exceptId);
   }
 
   /** A new id derived from `name` that no collection uses yet. */
@@ -1362,18 +1446,21 @@ export class AssetService {
   }
 
   private freeCollectionId(name: string): string {
-    const base = name.trim().toLowerCase().replace(/[\s/\\]+/g, '-').replace(/^\.+/, '') || 'collection';
     // A leftover folder of a deleted collection must not leak its files into the new one.
-    const isTaken = (id: string): boolean => Boolean(this.metadata!.collections[id] || this.app.vault.getAbstractFileByPath(`${COLLECTIONS_DIR}/${id}`));
-    let id = base;
-    for (let n = 2; isTaken(id); n++) id = `${base}-${n}`;
-    return id;
+    return freeCollectionId(name, (id) => Boolean(this.metadata!.collections[id] || this.app.vault.getAbstractFileByPath(`${COLLECTIONS_DIR}/${id}`)));
+  }
+
+  private numberedCollectionName(name: string, exceptId?: string): string {
+    const taken = Object.values(this.metadata?.collections ?? {})
+      .filter((collection) => collection.id !== exceptId)
+      .map((collection) => collection.name);
+    return uniqueCollectionName(name, taken);
   }
 
   private findCollectionByName(name: string, exceptId?: string): CollectionMetadata | undefined {
-    const wanted = name.trim().toLocaleLowerCase();
+    const wanted = collectionNameKey(name);
     return Object.values(this.metadata!.collections)
-      .find((collection) => collection.id !== exceptId && collection.name.trim().toLocaleLowerCase() === wanted);
+      .find((collection) => collection.id !== exceptId && collectionNameKey(collection.name) === wanted);
   }
 
   private assertCollectionNameFree(name: string, exceptId?: string): void {
@@ -1591,8 +1678,7 @@ export class AssetService {
       collection.tags = {};
     }
     
-    // Create tag with ID based on name
-    const tagId = tagName.toLowerCase().replace(/\s+/g, '-');
+    const tagId = tagIdOf(tagName);
     const tag: TagMetadata = {
       id: tagId,
       name: tagName
@@ -1605,6 +1691,29 @@ export class AssetService {
   }
 
   /**
+   * Renames a tag. Its id follows the name, and every asset in the collection
+   * that carries the tag (by id or, as creators store it, by name) is retagged.
+   */
+  async renameTag(collectionId: string, tagId: string, name: string): Promise<TagMetadata> {
+    await this.ensureLoaded();
+    const tags = this.metadata!.collections[collectionId]?.tags;
+    const tag = tags?.[tagId];
+    if (!tags || !tag) throw new Error(`Tag ${tagId} not found`);
+
+    const renamed: TagMetadata = { ...tag, id: tagIdOf(name), name: name.trim() };
+    if (renamed.id !== tagId && tags[renamed.id]) throw new Error(`A tag named "${name}" already exists`);
+    delete tags[tagId];
+    tags[renamed.id] = renamed;
+
+    const retag = (value: string): string => (value === tag.id ? renamed.id : value === tag.name ? renamed.name : value);
+    for (const asset of Object.values(this.metadata!.assets)) {
+      if (asset.collection === collectionId) asset.tags = asset.tags.map(retag);
+    }
+    await this.saveMetadata();
+    return renamed;
+  }
+
+  /**
    * Delete a tag from a collection and remove it from all assets
    */
   async deleteTag(collectionId: string, tagId: string): Promise<void> {
@@ -1612,15 +1721,15 @@ export class AssetService {
     if (!this.metadata) throw new Error('Metadata not loaded');
     
     const collection = this.metadata.collections[collectionId];
-    if (!collection || !collection.tags) return;
+    const tag = collection?.tags?.[tagId];
+    if (!collection?.tags || !tag) return;
     
-    // Remove tag from collection
     delete collection.tags[tagId];
     
-    // Remove tag from all assets in this collection
+    // Assets reference the tag by id or, as creators store it, by name.
     Object.values(this.metadata.assets).forEach(asset => {
       if (asset.collection === collectionId) {
-        asset.tags = asset.tags.filter(t => t !== tagId);
+        asset.tags = asset.tags.filter(t => t !== tag.id && t !== tag.name);
       }
     });
     

@@ -139,6 +139,7 @@ export function createInMemoryApp(seed: InMemoryVaultSeed = {}): InMemoryApp {
       files.set(file.path, fn(files.get(file.path) ?? ''));
     }),
     read: vi.fn(async (file: TFile) => files.get(file.path) ?? ''),
+    getResourcePath: vi.fn((file: TFile) => `app://vault/${file.path}`),
     readBinary: vi.fn(async (file: TFile) => new TextEncoder().encode(files.get(file.path) ?? '').buffer),
     createBinary: vi.fn(async (path: string, content: ArrayBuffer) => {
       assertFree(path);

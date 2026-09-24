@@ -8,7 +8,7 @@ import type { AnyAsset } from '../../src/app/packages/components/asset-manager/t
 // Stub vault loading, unrelated modal actions, and asset card rendering.
 vi.mock('../../src/app/packages/components/asset-manager/hooks/useAssetData', () => ({
   useAssetData: () => ({
-    folders: [], collections: ['Default'],
+    folders: [], collections: [{ id: 'default', uid: 'u-default', name: 'Default' }],
     availableTags: [{ id: 'testing-tags', name: 'Testing Tags' }, { id: 'forest', name: 'Forest' }],
     assets: [
       { id: 'one', name: 'First token', type: 'tokens', folderId: null, tags: ['Testing Tags', 'Forest'] },

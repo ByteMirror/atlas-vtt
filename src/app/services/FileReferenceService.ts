@@ -39,6 +39,27 @@ export class FileReferenceService {
     await this.updateStatblockFrontmatter(oldPath, newPath);
   }
 
+  /**
+   * Called when a vault folder is renamed/moved. Its files each get their own
+   * rename event; a renamed collection folder also renames the collection.
+   */
+  async handleFolderRenamed(oldPath: string, newPath: string): Promise<void> {
+    const assetService = AssetService.getInstance(this.app);
+    await assetService.initialize();
+    if (await assetService.followCollectionFolderRename(oldPath, newPath)) {
+      this.app.workspace.trigger('atlas-vtt:refresh-assets');
+    }
+  }
+
+  /** Called when a vault folder is deleted; a deleted collection folder removes the collection. */
+  async handleFolderDeleted(path: string): Promise<void> {
+    const assetService = AssetService.getInstance(this.app);
+    await assetService.initialize();
+    if (await assetService.forgetDeletedCollectionFolder(path)) {
+      this.app.workspace.trigger('atlas-vtt:refresh-assets');
+    }
+  }
+
   // ---------------------------------------------------------------------------
   // Asset metadata
   // ---------------------------------------------------------------------------

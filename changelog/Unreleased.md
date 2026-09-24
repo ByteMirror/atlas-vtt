@@ -40,3 +40,11 @@
 - Tokens that share an image show their number badges as soon as they are spawned. Before, the numbers only appeared after you moved a token.
 - Dice roll cards and the roll log show a token's portrait the way it looks on the map: with its ring and ring colour, and uncropped for tokens without a ring.
 - Encounters keep the ring setting of their tokens. Tokens with the ring turned off no longer get one when you spawn an encounter made from them in the asset manager, and the encounter card previews show each token with or without its ring.
+- Renaming a collection in the asset manager, including the default one, keeps its scenes, maps and tokens visible, also after reloading Obsidian.
+- Deleting a collection's folder in Obsidian's file explorer, or moving it out of the collections folder, removes the collection from the asset manager and dashboard.
+- Collections that an earlier import left with a duplicate name are numbered ("Default (2)"), so each one can be selected, renamed and deleted.
+- Renaming a collection's folder in Obsidian's file explorer renames the collection in the asset manager and dashboard, and its tokens, scenes and maps keep working.
+- Collections with a name of several words now show their assets in the asset manager.
+- "Delete selected" in Manage Tags & Collections deletes the selected tags and collections instead of only clearing the selection.
+- Renaming a tag in Manage Tags & Collections is saved; before, the new name was lost on the next reload.
+- Deleting from the right-click menu in Manage Tags & Collections deletes the row you clicked, not an earlier selection, and switching between Tags and Collections clears the selection.

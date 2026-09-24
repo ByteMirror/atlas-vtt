@@ -130,7 +130,7 @@ export function ModalLayer({
       <TagManager
         isOpen={tags.isTagManagerOpen}
         onClose={() => tags.setIsTagManagerOpen(false)}
-        tags={data.availableTags.map(t => t.name)}
+        tags={data.availableTags}
         collections={data.collections}
         onCreateTag={(tag) => { void tags.handleCreateTag(tag); }}
         onCreateCollection={crud.handleCreateCollection}
@@ -180,7 +180,6 @@ export function ModalLayer({
         <CreateSceneModal
           isOpen={crud.isCreateSceneModalOpen}
           onClose={() => crud.setIsCreateSceneModalOpen(false)}
-          collections={data.collections}
           selectedCollection={collectionOrDefault}
           assetService={data.assetService}
           backgroundPath={crud.createScenePrefill?.backgroundPath ?? null}

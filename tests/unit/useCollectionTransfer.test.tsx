@@ -12,7 +12,7 @@ vi.mock('../../src/app/services/collectionBundle/collectionExport', () => ({ pre
 
 const review = { relation: 'newer', collectionName: 'Source', version: 2 } as ImportReview;
 const updated: CollectionImportResult = {
-  collectionName: 'Source', version: 2, created: false, written: 3, removed: 1, keptLocal: 1,
+  collectionId: 'source', collectionName: 'Source', version: 2, created: false, written: 3, removed: 1, keptLocal: 1,
   backupCount: 4, backupFolder: 'atlas-vtt/.atlas-data/backups/source/2026-09-23 19-30-05',
 };
 
@@ -23,7 +23,6 @@ function session(apply: ImportSession['apply'] = vi.fn(async () => updated)): Im
 function setup(): { hook: RenderHookResult<CollectionTransferActions, unknown>; onImported: ReturnType<typeof vi.fn>; assetService: Record<string, ReturnType<typeof vi.fn>> } {
   const onImported = vi.fn(async (): Promise<void> => undefined);
   const assetService = {
-    resolveCollectionId: vi.fn(async () => 'source'),
     isCollectionNameTaken: vi.fn(async (name: string) => name === 'Taken'),
   };
   const app = { workspace: { trigger: vi.fn() } };

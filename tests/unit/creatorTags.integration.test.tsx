@@ -15,6 +15,7 @@ vi.mock('../../src/app/utils/imageOptimizer', () => ({ optimizeImage: async () =
 const service = {
   initialize: vi.fn().mockResolvedValue(undefined),
   getCollections: vi.fn().mockResolvedValue([{ id: 'default', name: 'Default' }]),
+  getCollection: vi.fn(async (id: string) => (await service.getCollections()).find((c: { id: string }) => c.id === id) ?? null),
   getAllTags: vi.fn().mockResolvedValue(['Existing']),
   createTag: vi.fn(async (_collection: string, name: string) => ({ name })),
   addTokenAsset: vi.fn().mockResolvedValue({}),
@@ -69,7 +70,7 @@ it.each(['token', 'map'] as const)('persists selected and newly created tags whe
 });
 
 it('persists selected and newly created tags when creating a scene', async () => {
-  mount(<CreateSceneModal isOpen onClose={() => {}} onSceneCreated={() => {}} collections={['default']}
+  mount(<CreateSceneModal isOpen onClose={() => {}} onSceneCreated={() => {}}
     selectedCollection="default" assetService={service as unknown as AssetService} />);
   fireEvent.change(screen.getByPlaceholderText('Enter scene name'), { target: { value: 'Forest scene' } });
   await selectAndCreateTags();
@@ -79,11 +80,9 @@ it('persists selected and newly created tags when creating a scene', async () =>
 });
 
 it.each([
-  { name: 'Jojo', id: 'jojo', selection: 'Jojo' },
-  { name: 'My Campaign', id: 'my-campaign', selection: 'My Campaign' },
-  { name: 'Renamed Campaign', id: 'original-id', selection: 'Renamed Campaign' },
-  { name: 'Jojo', id: 'jojo', selection: 'jojo' },
-])('creates a scene in the stored collection folder for $selection', async ({ name, id, selection }) => {
+  { name: 'My Campaign', id: 'my-campaign' },
+  { name: 'Renamed Campaign', id: 'original-id' },
+])('creates a scene in the folder of the selected collection "$name"', async ({ name, id }) => {
   service.getCollections.mockResolvedValue([{ id, name }]);
   const folderPath = `atlas-vtt/collections/${id}/scenes`;
   const folder = new TFolder(folderPath);
@@ -93,7 +92,7 @@ it.each([
   app.vault.createFolder.mockImplementation(async () => { throw new Error('Folder already exists.'); });
   const onSceneCreated = vi.fn();
   mount(<CreateSceneModal isOpen onClose={() => {}} onSceneCreated={onSceneCreated}
-    collections={[name]} selectedCollection={selection} assetService={service as unknown as AssetService}
+    selectedCollection={id} assetService={service as unknown as AssetService}
     backgroundPath="atlas-vtt/assets/forest.webp" defaultName="Forest" />);
 
   fireEvent.click(screen.getByRole('button', { name: 'Create scene' }));

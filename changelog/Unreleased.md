@@ -4,6 +4,8 @@
 - Spawn several copies of a token at once: in the asset manager, hover a token and type a number (for example 6), then double-click it or press Go. Right-click → Spawn Multiple offers quick counts too. On the map, hold Alt/Option while dragging tokens to drag out copies and leave the originals in place. A multi-token spawn is now a single undo step.
 - Publish and update collections like mods. Exporting your own collection releases a new version with an author name and release notes. People who imported an earlier version import the new file and see exactly what changes: new, updated and removed assets, and which of their own changes are kept. When they changed something the update changes too, they choose per item whether to keep theirs or take the update. Older versions are recognised and only installed on request, the same version is reported as up to date, and a changed copy of a collection can be restored to its original.
 - Share a collection you installed as a copy of its version, or publish it as your own collection under a new name.
+- See how far a token travels while you drag it. A line runs from where the token started to the cell it will land in, and the distance shows above the token in the collection's units or range bands. Press Space during the drag to add a waypoint; the distance adds up along the whole path. Players see the measurement in the player view, except while you drag a hidden token.
+- Choose how diagonals count on square grids in Collection Settings → Grid & Measure: every diagonal counts 1 (5e), diagonals alternate between 1 and 2 (5/10/5), or the exact distance. The measure tool and the drag distance both use it; hex grids always count hex steps.
 
 ## Improved
 

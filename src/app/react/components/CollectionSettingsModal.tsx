@@ -56,6 +56,7 @@ const DEFAULT_GRID: CollectionGridDefaults = {
   unitDistance: 5,
   measurementMode: 'metric',
   abstractRangeBands: [],
+  diagonalRule: 'equidistant',
 };
 
 // ── Component ──────────────────────────────────────────────────────────────

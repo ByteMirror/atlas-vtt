@@ -80,8 +80,9 @@ export async function openCollectionImport(
       ...buildReview(manifest, await assets.getVaultId(), existing, record, plan, restorePlan, unitAssets, suggestedName, targets.skipped),
       cover: await bundleCover(bundle),
     },
-    apply: (decision, progress = () => undefined) =>
-      applyImport(app, assets, { bundle, existing, record, targets, plan: decision.restore ? restorePlan : plan }, decision, progress),
+    // Nothing may re-read or check the index while the import writes files and commits them.
+    apply: (decision, progress = () => undefined) => assets.runExclusive(() =>
+      applyImport(app, assets, { bundle, existing, record, targets, plan: decision.restore ? restorePlan : plan }, decision, progress)),
   };
 }
 

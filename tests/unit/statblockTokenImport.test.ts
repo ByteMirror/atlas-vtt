@@ -9,7 +9,7 @@ const note = 'Bestiary/Goblin.md';
 const image = 'Artwork/goblin.webp';
 function setup() {
   const state = createInMemoryApp({ files: { [note]: 'Original note', [image]: 'image-bytes' } });
-  state.app.workspace = { trigger: vi.fn() };
+  state.app.workspace = { ...state.app.workspace, trigger: vi.fn() };
   const frontmatter: Record<string, Record<string, unknown>> = { [note]: { statblock: true, name: 'Goblin', image } };
   state.app.vault.cachedRead = state.app.vault.read;
   state.app.vault.getMarkdownFiles = () => [...state.files.keys()].filter(p => p.endsWith('.md')).map(p => new TFile(p));

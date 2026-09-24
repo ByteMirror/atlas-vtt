@@ -108,6 +108,7 @@ export function createInMemoryApp(seed: InMemoryVaultSeed = {}): InMemoryApp {
         folders: [...folders].filter((candidate) => parentOf(candidate) === path),
       })),
       rename: vi.fn(async (from: string, to: string) => move(from, to)),
+      copy: vi.fn(async (from: string, to: string) => writeFile(to, files.get(from) ?? '')),
       rmdir: vi.fn(async (path: string) => { folders.delete(path); }),
       trashSystem: vi.fn(async (path: string) => { removeWithin(path); return true; }),
       trashLocal: vi.fn(async (path: string) => removeWithin(path)),
@@ -166,6 +167,8 @@ export function createInMemoryApp(seed: InMemoryVaultSeed = {}): InMemoryApp {
   };
 
   app.workspace = {
+    layoutReady: true,
+    onLayoutReady: vi.fn((callback: () => void) => callback()),
     getLeavesOfType: vi.fn(() => []),
     on: vi.fn(() => ({})),
     offref: vi.fn(),

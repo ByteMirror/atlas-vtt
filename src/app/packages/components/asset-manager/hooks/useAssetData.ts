@@ -1,5 +1,5 @@
 import type * as React from 'react';
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { TFolder, App as ObsidianApp } from 'obsidian';
 import type { AnyAsset, CollectionOption, Folder, Tag, Tab } from '../types';
 import { ATLAS_VTT_DIR } from '../types';
@@ -174,29 +174,32 @@ export function useAssetData(
     if (assetService && isOpen) void reloadGlobalTags();
   }, [selectedCollection, assetService, reloadGlobalTags, isOpen]);
 
-  // ── Refresh on open ───────────────────────────────────────────
-  useEffect(() => {
-    if (isOpen && assetService) {
-      const refresh = async (): Promise<void> => {
-        await assetService.refreshMetadata();
-        await reloadCollections();
-        await loadAssetsForActiveTab();
-      };
-      runInBackground(refresh(), 'Refreshing asset metadata');
-    }
-  }, [isOpen, assetService, reloadCollections, loadAssetsForActiveTab]);
+  // ── Refresh from disk on open and on refresh events ───────────
+  // Reading the index from disk takes a while, and the selection may change
+  // meanwhile (an import selects its collection, then announces it). The
+  // reload afterwards therefore always uses the current selection.
+  const showLoaded = useCallback(async (): Promise<void> => {
+    await reloadCollections();
+    await loadAssetsForActiveTab();
+  }, [reloadCollections, loadAssetsForActiveTab]);
+  const latestShowLoaded = useRef(showLoaded);
+  useEffect(() => { latestShowLoaded.current = showLoaded; }, [showLoaded]);
 
-  // ── Listen for refresh events ─────────────────────────────────
+  const refreshFromDisk = useCallback(async (): Promise<void> => {
+    if (!assetService) return;
+    await assetService.refreshMetadata();
+    await latestShowLoaded.current();
+  }, [assetService]);
+
   useEffect(() => {
-    if (!app || !assetService) return;
-    const handler = async (): Promise<void> => {
-      await assetService.refreshMetadata();
-      await reloadCollections();
-      await loadAssetsForActiveTab();
-    };
-    const refreshRef = app.workspace.on('atlas-vtt:refresh-assets', handler);
+    if (isOpen) runInBackground(refreshFromDisk(), 'Refreshing asset metadata');
+  }, [isOpen, refreshFromDisk]);
+
+  useEffect(() => {
+    if (!app) return;
+    const refreshRef = app.workspace.on('atlas-vtt:refresh-assets', () => runInBackground(refreshFromDisk(), 'Refreshing asset metadata'));
     return () => { app.workspace.offref(refreshRef); };
-  }, [app, assetService, reloadCollections, loadAssetsForActiveTab]);
+  }, [app, refreshFromDisk]);
 
   // ── Load on tab / collection change ───────────────────────────
   useEffect(() => {

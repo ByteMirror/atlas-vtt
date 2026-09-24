@@ -19,6 +19,9 @@ import { computeTokenPixelSize } from './token-renderer/tokenSizing';
 import { TextureCache } from './token-renderer/TextureCache';
 import { UIManager } from './token-renderer/UIManager';
 import { InteractionController } from './token-renderer/InteractionController';
+import { DragRuler } from './token-renderer/DragRuler';
+import { DragRulerView } from './token-renderer/DragRulerView';
+import { mapMeasurementSettings } from '../services/mapMeasurementSettings';
 import { SyncService } from './token-renderer/SyncService';
 import { updateInstanceBadge } from './token-renderer/InstanceBadge';
 import { HiddenTokenIcon } from './token-renderer/HiddenTokenIcon';
@@ -51,6 +54,7 @@ export class TokenRenderer {
   private readonly hiddenTokenIcon = new HiddenTokenIcon();
   private uiManager: UIManager;
   private interactionController: InteractionController;
+  private dragRuler: DragRuler;
   private syncService: SyncService;
   
   
@@ -210,6 +214,14 @@ export class TokenRenderer {
     this.tokenContainer.interactiveChildren = true;
     this.tokenContainer.zIndex = 0;
     this.viewport.addChild(this.tokenContainer);
+
+    this.dragRuler = new DragRuler(
+      new DragRulerView(this.viewport, this.tokenContainer),
+      this.gridSystem,
+      this.store,
+      () => mapMeasurementSettings(this.assetService, this.store.getState()),
+    );
+    this.interactionController.setDragRuler(this.dragRuler);
 
     // Initialize sync service
     this.syncService.initialize();
@@ -1123,6 +1135,7 @@ export class TokenRenderer {
     
     // Destroy interaction controller
     this.interactionController.destroyAll();
+    this.dragRuler.destroy();
     
     // Clean up theme observer
     if (this.themeObserver) {
@@ -1292,6 +1305,7 @@ export class TokenRenderer {
     return [
       ...hiddenTokenLayers(this.store.getState().objects.tokens, this.tokenSprites),
       ...this.uiManager.getPlayerViewLayers(settings),
+      ...this.dragRuler.getPlayerViewLayers(),
     ];
   }
 

@@ -115,6 +115,9 @@ if (typeof document !== 'undefined') {
   for (const [name, helper] of Object.entries(globalHelpers)) {
     if (!(name in scope)) scope[name] = helper;
   }
+  // Obsidian points these at the focused window; jsdom has only one.
+  if (!('activeWindow' in scope)) scope.activeWindow = window;
+  if (!('activeDocument' in scope)) scope.activeDocument = document;
 }
 
 if (typeof Element !== 'undefined') {

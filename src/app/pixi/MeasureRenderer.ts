@@ -1,12 +1,13 @@
-import { FederatedPointerEvent, Graphics, Text, TextStyle } from "pixi.js";
+import { FederatedPointerEvent, Graphics, Text } from "pixi.js";
 import { Viewport } from "pixi-viewport";
 import { EventEmitter } from 'events';
 import { getObsidianAccentColor, cssColorToHexNumber } from "./utils/colorUtils";
 import type { GridSystem } from "../grid/GridSystem";
-import { axialDistance, createHexLayout, isHexGridType, pixelToAxial } from '../grid/hexGeometry';
+import { pathLengthInCells } from '../grid/gridDistance';
+import { formatDistance, resolveMeasurementSettings, type MeasurementSettings } from '../grid/measurementFormat';
 import type { ViewAtlasState } from '../storeFactory';
 import type { StoreApi } from 'zustand';
-import type { RangeBand } from '../types/collectionSettingsTypes';
+import { createMeasureLabelText, drawMeasureLabel, drawMeasurePath, drawMeasurePoint, measureLabelFontSize } from './utils/measureDrawing';
 
 interface PersistentMeasurement {
   graphics: Graphics;
@@ -23,10 +24,8 @@ export class MeasureRenderer {
   private measureGraphics: Graphics;
   private measureText: Text;
   private measurePill: Graphics; // Background pill for text
-  /** Provider for user-defined abstract range bands from collection settings. */
-  public rangeBandsProvider: (() => RangeBand[]) | null = null;
-  /** Provider for collection-level grid defaults (measurement mode, unit type, unit distance). */
-  public gridDefaultsProvider: (() => { measurementMode: string; unitType: string; unitDistance: number } | undefined) | null = null;
+  /** Measurement settings of the current map, from its collection when it has one. */
+  public measurementSettingsProvider: (() => MeasurementSettings) | null = null;
 
   private isDrawing: boolean = false;
   private startPoint: { x: number; y: number } | null = null;
@@ -44,7 +43,6 @@ export class MeasureRenderer {
   private _viewportScaleHandler?: () => void;
   private _measureShapeChangedHandler?: (shape: 'line' | 'cone' | 'circle' | 'sphere') => void;
   private _measurePersistenceChangedHandler?: (persist: boolean) => void;
-  private baseTextSize: number = 16;
 
   constructor(
     viewport: Viewport,
@@ -68,15 +66,7 @@ export class MeasureRenderer {
     this.measurePill.eventMode = 'none';
     this.viewport.addChild(this.measurePill);
     
-    // Create text for displaying measurement value
-    const textStyle = new TextStyle({
-      fontSize: this.baseTextSize,
-      fill: 0xffffff, // White text
-      fontWeight: 'normal' // Normal weight like HP bars
-    });
-    this.measureText = new Text({ text: '', style: textStyle });
-    this.measureText.eventMode = 'none';
-    this.measureText.anchor.set(0.5);
+    this.measureText = createMeasureLabelText();
     this.viewport.addChild(this.measureText);
     
     // Setup viewport scale listener
@@ -144,18 +134,7 @@ export class MeasureRenderer {
   private updateTextScale(): void {
     if (!this.measureText.visible) return;
     
-    // Get current viewport scale
-    const viewportScale = this.viewport.scale.x; // x and y should be the same
-    
-    // Calculate dynamic font size
-    // As we zoom out (scale < 1), make text bigger
-    // As we zoom in (scale > 1), make text smaller
-    // This keeps the text roughly the same screen size
-    const scaleFactor = 1 / viewportScale;
-    const fontSize = Math.max(12, Math.min(32, this.baseTextSize * scaleFactor));
-    
-    // Update text style
-    this.measureText.style.fontSize = fontSize;
+    this.measureText.style.fontSize = measureLabelFontSize(this.viewport.scale.x);
     
     // Redraw pill if text is visible
     if (this.startPoint && this.endPoint) {
@@ -288,32 +267,9 @@ export class MeasureRenderer {
         break;
     }
     
-    // Draw start point for all shapes
-    const pointRadius = 8;
-    this.measureGraphics.circle(this.startPoint.x, this.startPoint.y, pointRadius + 3);
-    this.measureGraphics.fill({ color: 0x000000, alpha: 0.3 });
-    this.measureGraphics.circle(this.startPoint.x, this.startPoint.y, pointRadius);
-    this.measureGraphics.fill({ color: accentHex, alpha: 0.9 });
-    this.measureGraphics.circle(this.startPoint.x, this.startPoint.y, pointRadius - 1);
-    this.measureGraphics.stroke({ width: 2, color: accentHex, alpha: 1 });
-    
-    // Calculate distance based on measurement type
-    // Prefer collection-level grid defaults; fall back to per-map state
-    const collectionDefaults = this.gridDefaultsProvider?.();
-    let measurementType: string;
-    if (collectionDefaults) {
-      measurementType = collectionDefaults.measurementMode;
-    } else {
-      const rawType = this.store.getState().grid?.measurementType || 'abstract';
-      measurementType = (rawType as string) === 'daggerheart' ? 'abstract' : rawType;
-    }
-    const measurementText = this.calculateMeasurement(this.startPoint, this.endPoint, measurementType);
-    
-    // Update text
-    this.measureText.text = measurementText;
-    
-    // Text is already white from the style definition
-    
+    drawMeasurePoint(this.measureGraphics, accentHex, this.startPoint);
+
+    this.measureText.text = this.measurementLabel(this.startPoint, this.endPoint);
     this.measureText.visible = true;
     this.measurePill.visible = true;
     
@@ -338,101 +294,17 @@ export class MeasureRenderer {
   
   private updatePillAndText(): void {
     if (!this.startPoint || !this.endPoint || !this.measureText.text) return;
-    
-    // Get current viewport scale
-    const viewportScale = this.viewport.scale.x;
-    const scaleFactor = 1 / viewportScale;
-    
-    // Position at midpoint
-    const midX = (this.startPoint.x + this.endPoint.x) / 2;
-    const midY = (this.startPoint.y + this.endPoint.y) / 2;
-    const offset = 30 * scaleFactor; // Slightly more offset for the pill
-    
-    // Update text position
-    this.measureText.position.set(midX, midY - offset);
-    
-    // Get text bounds for pill sizing
-    const textBounds = this.measureText.getLocalBounds();
-    const textScale = this.measureText.scale.x; // Get current text scale
-    const scaledTextWidth = textBounds.width * textScale;
-    const scaledTextHeight = textBounds.height * textScale;
-    
-    // Pill dimensions - similar to HP bars
-    const padding = 8 * scaleFactor; // Scale padding with zoom
-    const pillWidth = scaledTextWidth + padding * 2;
-    const pillHeight = Math.max(20 * scaleFactor, scaledTextHeight + 4 * scaleFactor); // Minimum height
-    const pillRadius = pillHeight / 2;
-    
-    // Get theme colors
-    const isDarkMode = document.body.classList.contains('theme-dark');
-    const bgColor = isDarkMode ? 0x2a2a2a : 0xe3e3e3; // Same as HP bars
-    const strokeColor = isDarkMode ? 0xffffff : 0x000000;
-    
-    // Draw pill background
-    this.measurePill.clear();
-    
-    // Center the pill around the text position
-    const pillX = midX - pillWidth / 2;
-    const pillY = midY - offset - pillHeight / 2;
-    
-    // Background
-    this.measurePill.roundRect(pillX, pillY, pillWidth, pillHeight, pillRadius)
-      .fill({ color: bgColor, alpha: 0.95 });
-    
-    // Subtle border
-    this.measurePill.roundRect(pillX, pillY, pillWidth, pillHeight, pillRadius)
-      .stroke({ width: 0.5 * scaleFactor, color: strokeColor, alpha: isDarkMode ? 0.4 : 0.3 });
-  }
-  
-  private calculateMeasurement(start: { x: number; y: number }, end: { x: number; y: number }, measurementType: string): string {
-    const gridOptions = this.gridSystem.getOptions();
-    const gridSize = gridOptions.size;
-    const gridType = gridOptions.type;
-    
-    let gridDistance: number;
-    
-    if (isHexGridType(gridType)) {
-      const layout = createHexLayout(gridType, gridSize, gridOptions.offsetX ?? 0, gridOptions.offsetY ?? 0);
-      gridDistance = axialDistance(pixelToAxial(layout, start), pixelToAxial(layout, end));
-    } else {
-      // Chebyshev distance (D&D 5e style) - diagonal movement counts as 1
-      const dx = Math.abs(end.x - start.x) / gridSize;
-      const dy = Math.abs(end.y - start.y) / gridSize;
-      gridDistance = Math.max(dx, dy);
-    }
-    
-    // Convert to appropriate measurement
-    if (measurementType === 'abstract') {
-      return this.getAbstractRange(gridDistance);
-    }
-
-    // Metric mode: multiply grid distance by unitDistance and label with unitType
-    const collectionDefaults = this.gridDefaultsProvider?.();
-    const grid = this.store.getState().grid;
-    const unitDistance = collectionDefaults?.unitDistance ?? grid?.unitDistance ?? 5;
-    const unitType = collectionDefaults?.unitType ?? grid?.unitType ?? 'feet';
-    const label = unitType === 'units' ? 'u' : unitType === 'meters' ? 'm' : 'ft';
-    const distance = Math.round(gridDistance * unitDistance);
-    return `${distance}${label}`;
+    drawMeasureLabel(this.measurePill, this.measureText, this.labelAnchor(this.startPoint, this.endPoint), this.viewport.scale.x);
   }
 
-  /** Map grid distance to the best-matching abstract range band from collection settings. */
-  private getAbstractRange(gridDistance: number): string {
-    const grids = Math.round(gridDistance);
-    const bands = this.rangeBandsProvider?.() ?? [];
+  /** Midpoint of the measurement, lifted a constant screen distance above the line. */
+  private labelAnchor(start: { x: number; y: number }, end: { x: number; y: number }): { x: number; y: number } {
+    return { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 - 30 / this.viewport.scale.x };
+  }
 
-    if (bands.length === 0) {
-      // Fallback when no bands are defined
-      return `${grids} sq`;
-    }
-
-    // Bands are sorted by maxSquares ascending. Walk through until
-    // we find the first band whose threshold encompasses the distance.
-    for (const band of bands) {
-      if (grids <= band.maxSquares) return band.name;
-    }
-    // Beyond all thresholds → use the last band name
-    return bands[bands.length - 1]!.name;
+  private measurementLabel(start: { x: number; y: number }, end: { x: number; y: number }): string {
+    const settings = this.measurementSettingsProvider?.() ?? resolveMeasurementSettings(undefined, this.store.getState().grid);
+    return formatDistance(pathLengthInCells(this.gridSystem.getOptions(), [start, end], settings.diagonalRule), settings);
   }
   
   private clearMeasurement(): void {
@@ -479,20 +351,10 @@ export class MeasureRenderer {
         break;
     }
     
-    // Draw start point
-    const pointRadius = 8;
-    persistGraphics.circle(this.startPoint.x, this.startPoint.y, pointRadius + 3);
-    persistGraphics.fill({ color: 0x000000, alpha: 0.3 });
-    persistGraphics.circle(this.startPoint.x, this.startPoint.y, pointRadius);
-    persistGraphics.fill({ color: accentHex, alpha: 0.9 });
-    persistGraphics.circle(this.startPoint.x, this.startPoint.y, pointRadius - 1);
-    persistGraphics.stroke({ width: 2, color: accentHex, alpha: 1 });
-    
-    // Copy the pill and text
-    this.drawPillOnGraphics(persistPill, persistText, this.startPoint, this.endPoint);
-    
-    // Set text properties
+    drawMeasurePoint(persistGraphics, accentHex, this.startPoint);
+
     persistText.anchor.set(0.5);
+    drawMeasureLabel(persistPill, persistText, this.labelAnchor(this.startPoint, this.endPoint), this.viewport.scale.x);
     persistText.visible = true;
     
     // Add to viewport
@@ -509,29 +371,8 @@ export class MeasureRenderer {
   }
   
   private drawLineOnGraphics(graphics: Graphics, color: number, start: { x: number; y: number }, end: { x: number; y: number }): void {
-    // Outer shadow
-    graphics.moveTo(start.x, start.y);
-    graphics.lineTo(end.x, end.y);
-    graphics.stroke({ width: 6, color: 0x000000, alpha: 0.3 });
-    
-    // Main line
-    graphics.moveTo(start.x, start.y);
-    graphics.lineTo(end.x, end.y);
-    graphics.stroke({ width: 4, color: color, alpha: 0.8 });
-    
-    // Inner highlight
-    graphics.moveTo(start.x, start.y);
-    graphics.lineTo(end.x, end.y);
-    graphics.stroke({ width: 2, color: color, alpha: 1 });
-    
-    // Draw end point
-    const pointRadius = 8;
-    graphics.circle(end.x, end.y, pointRadius + 3);
-    graphics.fill({ color: 0x000000, alpha: 0.3 });
-    graphics.circle(end.x, end.y, pointRadius);
-    graphics.fill({ color: color, alpha: 0.9 });
-    graphics.circle(end.x, end.y, pointRadius - 1);
-    graphics.stroke({ width: 2, color: color, alpha: 1 });
+    drawMeasurePath(graphics, color, [start, end]);
+    drawMeasurePoint(graphics, color, end);
   }
   
   private drawCircleOnGraphics(graphics: Graphics, color: number, radius: number, center: { x: number; y: number }): void {
@@ -598,52 +439,6 @@ export class MeasureRenderer {
       false
     );
     graphics.stroke({ width: 3, color: color, alpha: 0.8 });
-  }
-  
-  private drawPillOnGraphics(pill: Graphics, text: Text, start: { x: number; y: number }, end: { x: number; y: number }): void {
-    // Get current viewport scale
-    const viewportScale = this.viewport.scale.x;
-    const scaleFactor = 1 / viewportScale;
-    
-    // Position at midpoint
-    const midX = (start.x + end.x) / 2;
-    const midY = (start.y + end.y) / 2;
-    const offset = 30 * scaleFactor;
-    
-    // Update text position
-    text.position.set(midX, midY - offset);
-    
-    // Get text bounds for pill sizing
-    const textBounds = text.getLocalBounds();
-    const textScale = text.scale.x;
-    const scaledTextWidth = textBounds.width * textScale;
-    const scaledTextHeight = textBounds.height * textScale;
-    
-    // Pill dimensions
-    const padding = 8 * scaleFactor;
-    const pillWidth = scaledTextWidth + padding * 2;
-    const pillHeight = Math.max(20 * scaleFactor, scaledTextHeight + 4 * scaleFactor);
-    const pillRadius = pillHeight / 2;
-    
-    // Get theme colors
-    const isDarkMode = document.body.classList.contains('theme-dark');
-    const bgColor = isDarkMode ? 0x2a2a2a : 0xe3e3e3;
-    const strokeColor = isDarkMode ? 0xffffff : 0x000000;
-    
-    // Draw pill background
-    pill.clear();
-    
-    // Center the pill around the text position
-    const pillX = midX - pillWidth / 2;
-    const pillY = midY - offset - pillHeight / 2;
-    
-    // Background
-    pill.roundRect(pillX, pillY, pillWidth, pillHeight, pillRadius)
-      .fill({ color: bgColor, alpha: 0.95 });
-    
-    // Subtle border
-    pill.roundRect(pillX, pillY, pillWidth, pillHeight, pillRadius)
-      .stroke({ width: 0.5 * scaleFactor, color: strokeColor, alpha: isDarkMode ? 0.4 : 0.3 });
   }
   
   private clearAllPersistentMeasurements(): void {

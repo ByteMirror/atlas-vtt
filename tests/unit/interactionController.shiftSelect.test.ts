@@ -14,6 +14,10 @@ function makeController(selectedIds: string[]): { controller: InteractionControl
       activeTool: 'select',
       selectedIds,
       setSelection,
+      setIsDragging: vi.fn(),
+      setTokenPositions: vi.fn(),
+      moveToken: vi.fn(),
+      grid: { snapToGrid: false },
       objects: { tokens: { a: { id: 'a' }, b: { id: 'b' } } },
     }),
   } as any;
@@ -46,5 +50,30 @@ describe('InteractionController shift-click selection', () => {
     const { controller, setSelection } = makeController(['a']);
     controller.handleViewportTokenPointerDown('b', plainClick);
     expect(setSelection).toHaveBeenCalledWith(['b']);
+  });
+});
+
+describe('InteractionController drag ruler', () => {
+  it('measures the grabbed token of a group drag and stops on release', () => {
+    const { controller, viewport } = makeController(['a', 'b']);
+    const sprites: Record<string, { position: { x: number; y: number; set: ReturnType<typeof vi.fn> } }> = {
+      a: { position: { x: 35, y: 35, set: vi.fn() } },
+      b: { position: { x: 105, y: 35, set: vi.fn() } },
+    };
+    controller.setTokenSpriteProvider(id => (sprites[id] ?? null) as any);
+    const ruler = { begin: vi.fn(), update: vi.fn(), end: vi.fn() };
+    controller.setDragRuler(ruler as any);
+    (viewport.toWorld as ReturnType<typeof vi.fn>).mockImplementation((point: { x: number; y: number }) => point);
+
+    controller.handleViewportTokenPointerDown('b', { ...plainClick, global: { x: 105, y: 35 } });
+    const onMove = viewport.on.mock.calls.find(([name]: [string]) => name === 'pointermove')[1];
+    const onUp = viewport.on.mock.calls.find(([name]: [string]) => name === 'pointerup')[1];
+    onMove({ global: { x: 245, y: 35 } });
+
+    expect(ruler.begin).toHaveBeenCalledWith('b', { x: 105, y: 35 });
+    expect(ruler.update).toHaveBeenLastCalledWith({ x: 245, y: 35 });
+
+    onUp({ global: { x: 245, y: 35 } });
+    expect(ruler.end).toHaveBeenCalled();
   });
 });

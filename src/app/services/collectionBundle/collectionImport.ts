@@ -21,6 +21,7 @@ export interface ImportDecision {
 }
 
 export interface CollectionImportResult {
+  collectionId: string;
   collectionName: string;
   version: number;
   created: boolean;
@@ -200,6 +201,7 @@ async function applyImport(
   }
   onProgress({ message: 'Done', fraction: 1 });
   return {
+    collectionId: targets.collectionId,
     collectionName: collection.name,
     version: manifest.collection.version,
     created: !existing,

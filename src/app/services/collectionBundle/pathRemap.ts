@@ -1,9 +1,10 @@
 import { COLLECTIONS_DIR, ATLAS_VTT_DIR, GLOBAL_ASSETS_DIR } from '../AssetService';
-
-const GLOBAL_ASSETS_PREFIX = `${GLOBAL_ASSETS_DIR}/`;
 import { REUSABLE_FILE_ROLES, type BundleFile } from './bundleFormat';
 import { sceneThumbnailPath } from './collectionReferences';
 import { baseName, parentPath } from '../../utils/pathUtils';
+import { mapStrings } from '../../utils/mapStrings';
+
+const GLOBAL_ASSETS_PREFIX = `${GLOBAL_ASSETS_DIR}/`;
 
 export type PathMap = ReadonlyMap<string, string>;
 
@@ -13,14 +14,7 @@ export type PathMap = ReadonlyMap<string, string>;
  * `.atlasmap` files alike, since all of them store paths as plain strings.
  */
 export function remapPaths<T>(value: T, map: PathMap): T {
-  if (typeof value === 'string') return (map.get(value) ?? value) as T;
-  if (Array.isArray(value)) return value.map((item: unknown) => remapPaths(item, map)) as T;
-  if (value && typeof value === 'object') {
-    const out: Record<string, unknown> = {};
-    for (const [key, item] of Object.entries(value)) out[key] = remapPaths(item, map);
-    return out as T;
-  }
-  return value;
+  return mapStrings(value, (text) => map.get(text) ?? text);
 }
 
 /** Where a file without a place of its own in the target collection is copied to, by what it is. */

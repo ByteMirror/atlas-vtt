@@ -33,3 +33,11 @@
 - A token's own "Show Nameplate" setting now stays as you set it. Linking or unlinking a statblock no longer turns it on or off, so the nameplate still shows after reopening the map or importing its collection into another vault, even when the map hides nameplates. A newly linked token therefore shows its name only when the map shows all nameplates or you turn on "Show Nameplate" for it.
 - Ctrl/Cmd no longer reopens a note or statblock preview from a map you have left. After switching scenes, following a link or moving to another map or Obsidian tab, the hovered pin or token is forgotten.
 - Tokens that share an image show their number badges as soon as they are spawned. Before, the numbers only appeared after you moved a token.
+- Renaming a collection in the asset manager, including the default one, keeps its scenes, maps and tokens visible, also after reloading Obsidian.
+- Deleting a collection's folder in Obsidian's file explorer, or moving it out of the collections folder, removes the collection from the asset manager and dashboard.
+- Collections that an earlier import left with a duplicate name are numbered ("Default (2)"), so each one can be selected, renamed and deleted.
+- Renaming a collection's folder in Obsidian's file explorer renames the collection in the asset manager and dashboard, and its tokens, scenes and maps keep working.
+- Collections with a name of several words now show their assets in the asset manager.
+- "Delete selected" in Manage Tags & Collections deletes the selected tags and collections instead of only clearing the selection.
+- Renaming a tag in Manage Tags & Collections is saved; before, the new name was lost on the next reload.
+- Deleting from the right-click menu in Manage Tags & Collections deletes the row you clicked, not an earlier selection, and switching between Tags and Collections clears the selection.

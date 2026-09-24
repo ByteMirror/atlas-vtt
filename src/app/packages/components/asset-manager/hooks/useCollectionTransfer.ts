@@ -28,7 +28,8 @@ interface Deps {
   app: ObsidianApp;
   assetService: AssetService | null;
   selectedCollection: string | null;
-  onImported: () => Promise<void>;
+  /** Called with the id of the collection an import or fork created or updated. */
+  onImported: (collectionId: string) => Promise<void>;
 }
 
 const EXPORTING = 'Exporting collection';
@@ -84,11 +85,9 @@ export function useCollectionTransfer({ app, assetService, selectedCollection, o
 
   const handleExportCollection = async (): Promise<void> => {
     if (!assetService || !selectedCollection || transfer) return;
-    const id = await assetService.resolveCollectionId(selectedCollection);
-    if (!id) return;
     setTransfer({ step: 'working', title: EXPORTING, progress: { message: 'Checking the collection…', fraction: 0 } });
     try {
-      setTransfer({ step: 'export-options', preview: await prepareCollectionExport(app, assetService, id) });
+      setTransfer({ step: 'export-options', preview: await prepareCollectionExport(app, assetService, selectedCollection) });
     } catch (error) {
       console.error('[useCollectionTransfer] Export preparation failed:', error);
       finish('Export failed', describeError(error));
@@ -115,7 +114,7 @@ export function useCollectionTransfer({ app, assetService, selectedCollection, o
         return null;
       }
       finish('Collection exported', packed);
-      if (choice.kind === 'fork') await onImported();
+      if (choice.kind === 'fork') await onImported(preview.collection.id);
     } catch (error) {
       console.error('[useCollectionTransfer] Export failed:', error);
       finish('Export failed', describeError(error));
@@ -150,7 +149,7 @@ export function useCollectionTransfer({ app, assetService, selectedCollection, o
     finish(result.created ? 'Collection imported' : 'Collection updated', describeImport(result));
     // The import is complete; a failed refresh must not report it as failed.
     try {
-      await onImported();
+      await onImported(result.collectionId);
     } catch (error) {
       console.error('[useCollectionTransfer] Refreshing after import failed:', error);
     }

@@ -1,10 +1,10 @@
 import type * as React from 'react';
 import { useState } from 'react';
 import { TFolder, TFile, App as ObsidianApp } from 'obsidian';
-import type { AnyAsset, TokenAsset, Folder, Tab, InputModalState } from '../types';
+import type { AnyAsset, CollectionOption, TokenAsset, Folder, Tab, InputModalState } from '../types';
 import { ATLAS_VTT_DIR } from '../types';
 import { saveEncounter, type EncounterTokenDraft } from '../../../../encounters/encounterSaveService';
-import type { AssetService, CollectionMetadata } from '../../../../services/AssetService';
+import type { AssetService } from '../../../../services/AssetService';
 import { showAtlasToast } from '../../../../react/components/AtlasToast';
 import { ensureFolder } from '../../../../plugin/vaultFolders';
 import { useCollectionTransfer, type CollectionTransferActions } from './useCollectionTransfer';
@@ -65,10 +65,10 @@ export function useAssetCrud(
   selectedFolderId: string | null,
   folders: Folder[],
   assets: AnyAsset[],
-  collections: string[],
+  collections: CollectionOption[],
   setFolders: React.Dispatch<React.SetStateAction<Folder[]>>,
   setAssets: React.Dispatch<React.SetStateAction<AnyAsset[]>>,
-  setCollections: React.Dispatch<React.SetStateAction<string[]>>,
+  reloadCollections: () => Promise<void>,
   setSelectedCollection: (c: string | null) => void,
   loadFoldersForActiveTab: () => Promise<void>,
   loadAssetsForActiveTab: () => Promise<void>,
@@ -122,7 +122,7 @@ export function useAssetCrud(
         id: `folder-${path}`,
         name: folderName.trim(),
         type: activeTab,
-        path: path.substring(`${ATLAS_VTT_DIR}/collections/${(selectedCollection || 'default').toLowerCase()}/${activeTab}/`.length),
+        path: path.substring(`${ATLAS_VTT_DIR}/collections/${selectedCollection || 'default'}/${activeTab}/`.length),
         parentId: selectedFolderId,
       };
       setFolders((prev) => [...prev, newFolder]);
@@ -175,7 +175,7 @@ export function useAssetCrud(
   const moveAssetsToFolder = async (assetIds: string[], targetFolderId: string | null): Promise<void> => {
     if (!app || !assetService) return;
     const col = selectedCollection || 'default';
-    const tabBase = `${ATLAS_VTT_DIR}/collections/${col.toLowerCase()}/${activeTab}`;
+    const tabBase = `${ATLAS_VTT_DIR}/collections/${col}/${activeTab}`;
     const targetDir = targetFolderId ? targetFolderId.replace('folder-', '') : tabBase;
     const movedPathById: Record<string, string> = {};
 
@@ -234,9 +234,8 @@ export function useAssetCrud(
     if (!assetService) return;
     try {
       const created = await assetService.createCollection(name);
-      const updated = await assetService.getCollections();
-      setCollections(updated.map((c: CollectionMetadata) => c.name));
-      setSelectedCollection(name);
+      await reloadCollections();
+      setSelectedCollection(created.id);
       await loadFoldersForActiveTab();
       await loadAssetsForActiveTab();
       setSettingsModalCollectionId(created.id);
@@ -255,7 +254,7 @@ export function useAssetCrud(
       validation: (value: string) => {
         const trimmed = value.trim();
         if (!trimmed) return 'Collection name cannot be empty';
-        if (collections.includes(trimmed)) return `Collection "${trimmed}" already exists`;
+        if (collections.some((collection) => collection.name.toLowerCase() === trimmed.toLowerCase())) return `Collection "${trimmed}" already exists`;
         return null;
       },
     });
@@ -277,10 +276,13 @@ export function useAssetCrud(
     app,
     assetService,
     selectedCollection,
-    onImported: async (): Promise<void> => {
-      if (!assetService) return;
-      const updated = await assetService.getCollections();
-      setCollections(updated.map((c: CollectionMetadata) => c.name));
+    onImported: async (collectionId: string): Promise<void> => {
+      await reloadCollections();
+      // Selecting another collection reloads its contents by itself.
+      if (collectionId !== selectedCollection) {
+        setSelectedCollection(collectionId);
+        return;
+      }
       await loadFoldersForActiveTab();
       await loadAssetsForActiveTab();
     },

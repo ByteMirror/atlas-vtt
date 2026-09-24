@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { Button } from '../../primitives/button';
 import { LabelTooltip } from '../../primitives/tooltip';
-import type { AnyAsset, Tag as TagType } from '../types';
+import type { AnyAsset, CollectionOption, Tag as TagType } from '../types';
 import { hasAssetTag } from '../utils/assetTags';
 
 export interface SidebarProps {
@@ -13,11 +13,12 @@ export interface SidebarProps {
   onSelectTag: (tagId: string) => void;
   tags: TagType[];
   assets: AnyAsset[];
-  collections: string[];
+  collections: CollectionOption[];
+  /** Id of the selected collection. */
   selectedCollection: string | null;
-  onSelectCollection: (collection: string | null) => void;
+  onSelectCollection: (collectionId: string | null) => void;
   onManageTags: () => void;
-  onEditCollectionSettings?: (collectionName: string) => void;
+  onEditCollectionSettings?: (collectionId: string) => void;
   onExportCollection?: () => void;
   onImportCollection?: () => void;
   isCollapsed: boolean;
@@ -50,8 +51,9 @@ export function Sidebar({
   const hoverTimeoutRef = useRef<number | null>(null);
 
   const filteredCollections = collections.filter((c) =>
-    c.toLowerCase().includes(collectionSearchQuery.toLowerCase())
+    c.name.toLowerCase().includes(collectionSearchQuery.toLowerCase())
   );
+  const selectedCollectionName = collections.find((c) => c.id === selectedCollection)?.name;
 
   const filteredTags = tagsSearchQuery
     ? tags.filter((t) => t.name.toLowerCase().includes(tagsSearchQuery.toLowerCase()))
@@ -83,8 +85,8 @@ export function Sidebar({
     };
   }, []);
 
-  const handleCollectionSelect = (collection: string | null): void => {
-    onSelectCollection(collection);
+  const handleCollectionSelect = (collectionId: string | null): void => {
+    onSelectCollection(collectionId);
     setIsCollectionDropdownOpen(false);
     setCollectionSearchQuery('');
   };
@@ -115,12 +117,12 @@ export function Sidebar({
     }
   };
 
-  const renderCollectionOption = (collection: string | null, label: string): React.JSX.Element => (
+  const renderCollectionOption = (collectionId: string | null, label: string): React.JSX.Element => (
     <button
-      key={collection ?? '__all__'}
+      key={collectionId ?? '__all__'}
       type="button"
-      className={`atlas-collection-option ${selectedCollection === collection ? 'atlas-selected' : ''}`}
-      onClick={() => handleCollectionSelect(collection)}
+      className={`atlas-collection-option ${selectedCollection === collectionId ? 'atlas-selected' : ''}`}
+      onClick={() => handleCollectionSelect(collectionId)}
     >
       <div className="atlas-collection-option-content">
         <Folder className="atlas-collection-option-icon" />
@@ -173,7 +175,7 @@ export function Sidebar({
                 >
                   <span className="atlas-collection-selected">
                     <Folder />
-                    <span>{selectedCollection || 'All Collections'}</span>
+                    <span>{selectedCollection ? selectedCollectionName ?? selectedCollection : 'All Collections'}</span>
                   </span>
                   <ChevronDown className={`atlas-collection-chevron ${isCollectionDropdownOpen ? 'atlas-rotated' : ''}`} />
                 </button>
@@ -193,7 +195,7 @@ export function Sidebar({
                     </div>
                     <div className="atlas-collection-options">
                       {renderCollectionOption(null, 'All Collections')}
-                      {filteredCollections.map((collection) => renderCollectionOption(collection, collection))}
+                      {filteredCollections.map((collection) => renderCollectionOption(collection.id, collection.name))}
                       {filteredCollections.length === 0 && collectionSearchQuery && (
                         <div className="atlas-collection-no-results">No collections found</div>
                       )}

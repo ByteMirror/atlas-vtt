@@ -1,6 +1,6 @@
 import { App as ObsidianApp, Modal } from 'obsidian';
 import type { KeyboardEvent, MouseEvent } from 'react';
-import type { EncounterAsset as StoredEncounterAsset } from '../../../services/AssetService';
+import type { CollectionMetadata, EncounterAsset as StoredEncounterAsset } from '../../../services/AssetService';
 
 // ─── Tab / View Constants ───────────────────────────────────────────
 
@@ -80,6 +80,9 @@ export interface Folder {
 }
 
 // ─── Tag ────────────────────────────────────────────────────────────
+
+/** A collection as the asset manager lists it: selected by id, shown by name, followed across folder renames by uid. */
+export type CollectionOption = Pick<CollectionMetadata, 'id' | 'uid' | 'name'>;
 
 export interface Tag {
   id: string;

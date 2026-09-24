@@ -55,6 +55,31 @@
   }
 }
 
+// Busy work that finishes quickly (reading a collection before its dialog opens)
+// never shows the card: it only fades in once the work takes a noticeable moment.
+.atlas-progress-modal-overlay[aria-busy='true'] .atlas-progress-modal {
+  animation: atlas-progress-modal-appear $transition-normal $transition-ease-out 250ms both;
+}
+
+@keyframes atlas-progress-modal-appear {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .atlas-progress-modal-overlay[aria-busy='true'] .atlas-progress-modal {
+    animation-name: atlas-progress-modal-fade;
+  }
+}
+
+@keyframes atlas-progress-modal-fade {
+  from {
+    opacity: 0;
+  }
+}
+
 @keyframes atlas-progress-modal-spin {
   to { transform: rotate(360deg); }
 }

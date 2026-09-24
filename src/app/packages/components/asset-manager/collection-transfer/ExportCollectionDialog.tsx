@@ -85,13 +85,17 @@ export function ExportCollectionDialog({ preview, media, onExport, onCancel }: E
   const confirmLabel = isFork ? 'Publish' : `Export v${isWholeVersion ? versionNumber : '…'}`;
 
   const heroUrl = coverUrl(cover, preview, uploadUrl);
+  // The tint is blurred beyond recognition, so the small preview gives the same colours at a fraction of the cost.
+  const ambientUrl = cover.kind === 'artwork'
+    ? preview.coverCandidates.find((candidate) => candidate.sourcePath === cover.path)?.previewUrl
+    : heroUrl;
   const itemCount = groups.reduce((count, group) => count + group.items.filter((item) => included.has(item.key)).length, 0);
 
   return (
     <TransferDialog
       label={isFork ? `Publish ${collection.name} as your own` : `Export ${collection.name}`}
       onClose={onCancel}
-      ambientUrl={heroUrl}
+      ambientUrl={ambientUrl}
       hero={(
         <CollectionHero
           eyebrow={isFork ? 'Publish as your own' : 'Export collection'}

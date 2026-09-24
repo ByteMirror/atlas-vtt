@@ -7,16 +7,11 @@
 $aside-width: 296px;
 $hero-height: 288px;
 
+// The same backdrop as the progress dialog it replaces, and never faded: the
+// swap between them must not let the interface flash through.
 .atlas-transfer-overlay {
   @include atlas-modal-overlay($z-atlas-modal);
   pointer-events: all;
-  background-color: color-mix(in oklch, var(--mono-0) 62%, transparent);
-  backdrop-filter: blur(10px);
-  transition: opacity $transition-normal $transition-ease-out;
-
-  @starting-style {
-    opacity: 0;
-  }
 }
 
 .atlas-transfer-dialog {
@@ -270,7 +265,6 @@ $hero-height: 288px;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .atlas-transfer-overlay,
   .atlas-transfer-dialog,
   .atlas-transfer-hero__art img,
   .atlas-transfer-dialog__footer .btn {

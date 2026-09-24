@@ -38,6 +38,7 @@ import { SoundRegistry } from './audio/SoundRegistry';
 import { AudioBufferCache } from './audio/AudioBufferCache';
 import { SpatialAudioEngine } from './audio/SpatialAudioEngine';
 import { AssetService } from './services/AssetService';
+import { mapMeasurementSettings } from './services/mapMeasurementSettings';
 import { findAtlasLeafByViewId } from './utils/atlasLeafLookup';
 import { destroyTree } from './pixi/utils/destroyTree';
 import { requestRender } from './pixi/RenderScheduler';
@@ -867,25 +868,11 @@ export class PixiRendererOrchestrator { // Renamed class
     }
   }
 
-  /** Wires the rangeBandsProvider closure on MeasureRenderer so it reads
-   *  abstract range bands from the current map's collection settings. */
+  /** Lets MeasureRenderer read the current map's measurement settings. */
   private wireMeasureRendererProvider(): void {
     if (!this.measureRenderer) return;
     const assetService = AssetService.getInstance(this.obsApp);
-    this.measureRenderer.rangeBandsProvider = () => {
-      const mapPath = this.store.getState().mapPath;
-      if (!mapPath) return [];
-      const collectionId = assetService.getCollectionForMap(mapPath);
-      if (!collectionId) return [];
-      return assetService.getCollectionSettings(collectionId).gridDefaults?.abstractRangeBands ?? [];
-    };
-    this.measureRenderer.gridDefaultsProvider = () => {
-      const mapPath = this.store.getState().mapPath;
-      if (!mapPath) return undefined;
-      const collectionId = assetService.getCollectionForMap(mapPath);
-      if (!collectionId) return undefined;
-      return assetService.getCollectionSettings(collectionId).gridDefaults;
-    };
+    this.measureRenderer.measurementSettingsProvider = () => mapMeasurementSettings(assetService, this.store.getState());
   }
 
   // ─── Wall tool viewport handlers ─────────────────────────────────────

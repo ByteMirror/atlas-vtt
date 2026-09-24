@@ -11,6 +11,7 @@ import { LabelTooltip } from '../../../packages/components/primitives/tooltip';
 import { ObsidianMenuDropdown } from '../ObsidianMenuDropdown';
 import type {
   CollectionGridDefaults,
+  DiagonalRule,
   GridUnitType,
   MeasurementMode,
   RangeBand,
@@ -31,6 +32,12 @@ const UNIT_OPTIONS: Record<GridUnitType, string> = {
   meters: 'Meters',
   units: 'Units',
   custom: 'Custom',
+};
+
+const DIAGONAL_OPTIONS: Record<DiagonalRule, string> = {
+  equidistant: 'Every diagonal counts 1 (5e)',
+  alternating: 'Alternate 1 and 2 (5/10/5)',
+  euclidean: 'Exact distance',
 };
 
 export function GridMeasurementTab({
@@ -87,6 +94,17 @@ export function GridMeasurementTab({
             const val = Number(e.target.value);
             if (!Number.isNaN(val)) updateField('unitDistance', Math.max(1, val));
           }}
+        />
+      </div>
+
+      {/* Diagonal rule (square grids; hex grids always count hex steps) */}
+      <div className="atlas-csm-field">
+        <label className="atlas-csm-label">Diagonal Movement</label>
+        <ObsidianMenuDropdown
+          className="atlas-setting-dropdown atlas-csm-dropdown"
+          value={gridDefaults.diagonalRule ?? 'equidistant'}
+          options={DIAGONAL_OPTIONS}
+          onChange={(value) => updateField('diagonalRule', value as DiagonalRule)}
         />
       </div>
 

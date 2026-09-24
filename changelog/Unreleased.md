@@ -1,55 +1,59 @@
 ## New
 
-- Scene snapshots: save the state of a map (tokens, conditions, hit points, pins, fog, drawings, walls, lights, initiative and counters) under a name and reset the map to it later, for example to run the same encounter again with another group. Open the command palette and choose Scene snapshots: New snapshot saves the map right away, click a name to rename it, click a thumbnail to restore it, and right-click a snapshot to overwrite it with the map as it is now, rename it or delete it. Snapshots are saved next to the scene, follow it when it is renamed or moved, and are included when you export a collection.
-- Press G on a map to open the map switcher: every open map is listed with a number, so press its number or type part of its name and hit Enter to jump to it. Shift+Enter also sends the player view to that map when it is open. Change the key in Settings → Atlas VTT → Map hotkeys.
-- Copy, cut, paste and duplicate on maps. Select one or many tokens, drawings, texts or pins and press Ctrl/Cmd+C, Ctrl/Cmd+X or Ctrl/Cmd+D; Ctrl/Cmd+V pastes at the cursor, snapped to the grid with the group's layout intact, and works across open maps. Duplicate and Copy are also in the token right-click menu. Each paste, cut or duplicate is one undo step and is saved with the map.
-- Spawn several copies of a token at once: in the asset manager, hover a token and type a number (for example 6), then double-click it or press Go. Right-click → Spawn Multiple offers quick counts too. On the map, hold Alt/Option while dragging tokens to drag out copies and leave the originals in place. A multi-token spawn is now a single undo step.
-- Publish and update collections like mods. Exporting your own collection releases a new version with an author name and release notes. People who imported an earlier version import the new file and see exactly what changes: new, updated and removed assets, and which of their own changes are kept. When they changed something the update changes too, they choose per item whether to keep theirs or take the update. Older versions are recognised and only installed on request, the same version is reported as up to date, and a changed copy of a collection can be restored to its original.
-- Publish a collection you installed as your own collection under a new name, with your changes and your name as author.
-- Redesigned collection export and import. Both show the collection the way people who install it see it: its cover, name, version, author and release notes, and what it holds by kind (scenes, maps, tokens, encounters, statblocks and notes), each expandable to list every item. When exporting, untick anything you want to leave out, and pick a cover from the collection's maps and scenes or upload your own image. Notes that the pins and characters on your scenes open now travel with the collection too.
-- See how far a token travels while you drag it. A line runs from where the token started to the cell it will land in, and the distance shows in the middle of that path in the collection's units or range bands. Press Space during the drag to add a waypoint; the distance adds up along the whole path. Players see the measurement in the player view, except while you drag a hidden token.
-- Choose how diagonals count on square grids in Collection Settings → Grid & Measure: every diagonal counts 1 (5e), diagonals alternate between 1 and 2 (5/10/5), or the exact distance. The measure tool and the drag distance both use it; hex grids always count hex steps.
+**New Feature: Map Switcher**
+
+- Hit 'g' to open a keyboard friendly map/tab switcher (hotkey adjustable in settings)
+
+**New Feature: Snapshots**
+
+- Save multiple save states of a map under a name. Restore it later, for example to run the same fight with another group. Open the command palette (spacebar) and choose Scene snapshots. Snapshots move with their scene and export with their collection.
+
+**General**
+
+- Copy, cut, paste and duplicate on maps. This works for tokens, drawings, texts and pins. Use Ctrl/Cmd+C, X, V and D. Paste puts the objects at the cursor, also on another open map.
+- Spawn many copies of a token at once. In the asset manager, hover a token, type a number and press Go. You can also right-click it and choose Spawn Multiple. On the map, hold Alt/Option while you drag to make copies.
+- Updated Collection Export to include more granular Settings and a thumbnail
+- See the drag distance when you drag tokens
+- Choose how diagonals count on square grids in the collection settings
 
 ## Improved
 
-- Relative dates in the linked-note picker follow the app language and no longer depend on the moment library.
-- An idle map no longer redraws on every display frame. Atlas now only draws when something on the map changes, so an open map costs almost no CPU or GPU while you are not interacting with it.
-- The player view only copies a new frame when the map actually changed, instead of redrawing the map two extra times per frame.
-- Map cards in the asset manager show small thumbnails instead of decoding the full map image.
-- Delete and Backspace on a map now also remove selected texts and pins, the same objects Cut removes.
-- Collection imports and exports keep their dialog open with the result until you close it, instead of disappearing before you could read it.
-- Switching between open maps is much faster and no longer flashes a loading screen. The previous map stays on screen until the next one is ready and then gently crossfades into it (in the player view too, when you send it another map), recently viewed map images stay decoded so switching back is instant, and the loading screen only appears for maps that take a moment to load.
-- Images shown on the player view fade in and settle into place, crossfade when you show another image, and fade out when closed, instead of popping in and out.
-- Token controls grow with the token, like in Owlbear Rodeo. Hit point and secondary resource bars, their +/- buttons, nameplates, condition markers and the resize and rotate handles now keep their proportions to the token: large and gargantuan creatures get controls to match their size instead of tiny ones, and they grow live while you resize a token.
-- The Create Token option in the asset manager's + menu shows a token pawn instead of a game controller, and all options in that menu line up on the left.
+- Improved Performance for Atlas Maps. They use much less CPU and GPU
+- The player view copies a new frame only when the map changes.
+- Switching maps is much faster now.
+- Improved animations throughout Atlas
+- Improved performance of Maps tab in Asset Manager
+- Token controls grow with the token. Large creatures get large bars, nameplates and handles.
+- Delete and Backspace also remove selected texts and pins.
+- Import and export dialogs stay open and show the result until you close them.
+- Dates in the note picker use your app language.
 
 ## Fixed
 
-- Memory no longer grows with every scene switch. Grids, tokens, pins, labels and their controls now release their drawing data when they are rebuilt or removed; before, a hex or dashed grid could leave tens of megabytes behind per switch.
-- Reloading Obsidian with the player view open no longer leaves the old player window running in the background. Each of those windows kept a full copy of the previous Obsidian session in memory.
-- Token artwork from scenes you left is released when another scene loads.
-- Closing the map shown in the player view no longer keeps that map in memory; players keep seeing the last frame.
-- The player view keeps the initiative tracker visibility of the map it shows. Opening another map where the tracker is open no longer reveals it to players.
-- Widgets in the player view always come from the map being shown. Opening another map no longer changes the counters players see, and presenting a new map now shows its widgets.
-- Pinned note previews are saved with their map. Switching to another scene and back, reopening the map or restarting Obsidian brings them back where you moved and resized them, scrolled to where you were reading, with the cursor where you left it and in the same reading or editing mode. Opening the asset manager only hides them for a moment, and only the close button closes them for good.
-- Importing a collection the vault already has no longer stops silently as already up to date.
-- Importing a collection whose name another collection already uses asks for a new name instead of creating two collections with the same name, and creating a collection with an existing name no longer replaces the other one.
-- Collection updates now also update the collection's token artwork in the shared assets folder.
-- Imports check every file against its checksum and refuse damaged files and files that would land outside Atlas's folder. An import that fails halfway undoes what it wrote, and every file it replaces or removes is backed up first.
-- Exporting a collection lists referenced files that no longer exist instead of leaving them out silently.
-- A token's own "Show Nameplate" setting now stays as you set it. Linking or unlinking a statblock no longer turns it on or off, so the nameplate still shows after reopening the map or importing its collection into another vault, even when the map hides nameplates. A newly linked token therefore shows its name only when the map shows all nameplates or you turn on "Show Nameplate" for it.
-- Ctrl/Cmd no longer reopens a note or statblock preview from a map you have left. After switching scenes, following a link or moving to another map or Obsidian tab, the hovered pin or token is forgotten.
-- Tokens that share an image show their number badges as soon as they are spawned. Before, the numbers only appeared after you moved a token.
-- Dice roll cards and the roll log show a token's portrait the way it looks on the map: with its ring and ring colour, and uncropped for tokens without a ring.
-- Encounters keep the ring setting of their tokens. Tokens with the ring turned off no longer get one when you spawn an encounter made from them in the asset manager, and the encounter card previews show each token with or without its ring.
-- Renaming a collection in the asset manager, including the default one, keeps its scenes, maps and tokens visible, also after reloading Obsidian.
-- Deleting a collection's folder in Obsidian's file explorer, or moving it out of the collections folder, removes the collection from the asset manager and dashboard.
-- Collections that an earlier import left with a duplicate name are numbered ("Default (2)"), so each one can be selected, renamed and deleted.
-- Renaming a collection's folder in Obsidian's file explorer renames the collection in the asset manager and dashboard, and its tokens, scenes and maps keep working.
-- Collections with a name of several words now show their assets in the asset manager.
-- "Delete selected" in Manage Tags & Collections deletes the selected tags and collections instead of only clearing the selection.
-- Renaming a tag in Manage Tags & Collections is saved; before, the new name was lost on the next reload.
-- Deleting from the right-click menu in Manage Tags & Collections deletes the row you clicked, not an earlier selection, and switching between Tags and Collections clears the selection.
-- Importing or updating a collection while the asset manager refreshes no longer adds duplicate tokens to it or drops tokens from it. Refreshes now wait until the import is finished.
-- Atlas no longer removes tokens from the asset manager at startup because Obsidian had not finished listing the vault's files; a token is only removed when its image is really gone.
-- When Atlas cannot read its asset index at startup, for example while a sync tool is still writing it, it reads it again. If it still can't, it keeps a copy of the file, says where, and rebuilds the index from your collection files, instead of silently replacing it with an empty one.
+- Fixed memory leak when map switching
+- Old player windows no longer stay open in the background after you reload Obsidian.
+- Atlas releases token art and the player view's old map when you leave them.
+- The player view shows the initiative tracker and widgets of its own map. Another open map no longer changes them.
+- Pinned note previews are saved with their map. They come back in the same place, with the same scroll position and mode.
+- Import of a collection you already have no longer stops without a message.
+- Import asks for a new name when the name is already in use.
+- A new collection no longer replaces a collection with the same name.
+- Collection updates also update token art.
+- Imports check each file. Atlas refuses damaged files and files that go outside its folder.
+- A failed import undoes its changes. Atlas backs up each file before it replaces or removes it.
+- Export tells you about missing files. It no longer skips them without a message.
+- Imports during an asset manager refresh no longer add duplicate tokens or remove tokens.
+- The Show Nameplate setting of a token stays as you set it when you link or unlink a statblock.
+- Ctrl/Cmd no longer opens a preview from a map you left.
+- Number badges show on new tokens at once. Before, you had to move a token first.
+- Dice cards and the roll log show a token's portrait as it looks on the map.
+- Encounters keep the ring setting of their tokens.
+- Renamed collections keep their scenes, maps and tokens. This includes the default collection.
+- When you rename, move or delete a collection folder in the file explorer, the asset manager and dashboard update.
+- Collections with the same name get a number, for example "Default (2)".
+- Collections with a name of more than one word show their assets.
+- Manage Tags & Collections: "Delete selected" deletes the items.
+- Manage Tags & Collections: tag names you change are saved.
+- Manage Tags & Collections: right-click → Delete removes the row you clicked.
+- Atlas no longer removes tokens at startup before Obsidian lists all files.
+- If Atlas cannot read its asset index at startup, it tries again. If it fails again, it keeps a copy and builds a new index from your collection files.

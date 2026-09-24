@@ -17,11 +17,13 @@ export class StatblockDialogService {
    * @param currentStatblockPath The currently linked statblock path (if any)
    * @param onLink Callback when a statblock is selected or unlinked
    * @param assetName The name of the asset/token being linked
+   * @param art The token's artwork, which the previewed statblock shows as its portrait
    */
   public showStatblockDialog(
     currentStatblockPath: string | null,
     onLink: (statblockPath: string | null) => void,
     assetName: string = 'Token',
+    art: { imagePath?: string | undefined; showRing?: boolean | undefined } = {},
   ): void {
     // Clean up any existing modal
     this.closeDialog();
@@ -31,6 +33,7 @@ export class StatblockDialogService {
 
     const asset = {
       name: assetName,
+      ...art,
       ...(currentStatblockPath ? { statblockPath: currentStatblockPath } : {}),
     };
 

@@ -4,8 +4,6 @@ export interface ItemSelection {
   selectedIds: ReadonlySet<string>;
   /** Toggles `id`; with `range`, adds (or removes) every id between the last selected one and `id`. */
   select: (id: string, range: boolean) => void;
-  /** Selects every id, or clears the selection when all of them are selected. */
-  toggleAll: () => void;
   replace: (ids: Iterable<string>) => void;
   clear: () => void;
 }
@@ -34,12 +32,8 @@ export function useItemSelection(orderedIds: readonly string[]): ItemSelection {
     });
   }, [orderedIds]);
 
-  const toggleAll = useCallback((): void => {
-    setSelectedIds((previous) => (previous.size === orderedIds.length ? new Set() : new Set(orderedIds)));
-  }, [orderedIds]);
-
   const replace = useCallback((ids: Iterable<string>): void => setSelectedIds(new Set(ids)), []);
   const clear = useCallback((): void => setSelectedIds(new Set()), []);
 
-  return { selectedIds, select, toggleAll, replace, clear };
+  return { selectedIds, select, replace, clear };
 }

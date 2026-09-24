@@ -1,0 +1,52 @@
+@use '../../../../../styles/tokens' as *;
+@use '../../../../../styles/mixins' as *;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Asset Manager – New collection dialog (name + game system)
+// ═══════════════════════════════════════════════════════════════════════════
+
+.atlas-create-collection-overlay {
+  @include atlas-modal-overlay($z-atlas-modal);
+}
+
+// One height for both steps, so going to the game system setup and back never
+// resizes the window; on short screens it fills the height the overlay leaves.
+.atlas-create-collection {
+  @include atlas-modal-window;
+  position: relative;
+  width: 560px;
+  height: 720px;
+}
+
+.atlas-create-collection__header {
+  @include atlas-modal-header;
+}
+
+.atlas-create-collection__back.btn--icon {
+  width: $button-height-s;
+  height: $button-height-s;
+  color: var(--text-muted);
+}
+
+.atlas-create-collection__body {
+  @include atlas-modal-body;
+  flex: 1;
+}
+
+// Fields keep the spacing they have in Collection Settings; a divider groups them.
+.atlas-create-collection__section {
+  @include atlas-flex-col($spacing-l);
+  padding-top: $spacing-l;
+  border-top: $border-width-s solid var(--background-modifier-border);
+}
+
+.atlas-create-collection__heading {
+  margin: 0;
+  font-size: $font-ui-small;
+  font-weight: $font-weight-semibold;
+  color: var(--text-normal);
+}
+
+.atlas-create-collection__footer {
+  @include atlas-modal-footer;
+}

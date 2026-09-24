@@ -1,26 +1,23 @@
-import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Search } from 'lucide-react';
 import { useStore } from 'zustand';
 import { cn } from '../../../../utils/cn';
-import { playerWindowStore } from '../../../stores/playerWindowStore';
 import { useMapHotkeys } from '../../../keyboard/useMapHotkeys';
 import { useDialogFocus } from '../../../onboarding/useDialogFocus';
 import { useSceneTabStore } from '../../hooks/useSceneTabStore';
-import { searchSceneTabs, splitByMatches, type SceneSwitcherResult } from './sceneSwitcherSearch';
+import { MAX_NUMBER_KEY, searchSceneTabs, splitByMatches, type SceneSwitcherResult } from './sceneSwitcherSearch';
+import { SceneSwitcherFooter } from './SceneSwitcherFooter';
 import './scene-switcher.scss';
 
 interface SceneSwitcherProps {
   onSwitchTab: (tabId: string) => void;
-  /** Switches to the tab and shows it in the player window. */
+  /** Switches to the tab and shows it in the player window, opening that window if needed. */
   onPresentTab: (tabId: string) => void;
 }
 
 interface SceneSwitcherPanelProps extends SceneSwitcherProps {
   onClose: () => void;
 }
-
-/** Highest tab number that has a digit key. */
-const MAX_NUMBER_KEY = 9;
 
 /** Opens the open-maps switcher on the scene switcher hotkey. */
 export function SceneSwitcher({ onSwitchTab, onPresentTab }: SceneSwitcherProps): React.ReactElement | null {
@@ -49,7 +46,6 @@ function SceneSwitcherPanel({ onSwitchTab, onPresentTab, onClose }: SceneSwitche
   const store = useSceneTabStore();
   const tabs = useStore(store, (s) => s.tabs);
   const activeTabId = useStore(store, (s) => s.activeTabId);
-  const isPlayerWindowOpen = useStore(playerWindowStore, (s) => s.isOpen);
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState(() => Math.max(0, tabs.findIndex((tab) => tab.id === activeTabId)));
   const results = useMemo(() => searchSceneTabs(tabs, query), [tabs, query]);
@@ -57,19 +53,27 @@ function SceneSwitcherPanel({ onSwitchTab, onPresentTab, onClose }: SceneSwitche
   const panelRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const [hasMapsBelow, setHasMapsBelow] = useState(false);
   const idPrefix = useId();
   const optionId = (tabId: string): string => `${idPrefix}-${tabId}`;
 
   useDialogFocus(panelRef, onClose);
 
+  const updateHasMapsBelow = useCallback((): void => {
+    const list = listRef.current;
+    setHasMapsBelow(!!list && list.scrollTop + list.clientHeight < list.scrollHeight - 1);
+  }, []);
+
+  useLayoutEffect(updateHasMapsBelow, [results, updateHasMapsBelow]);
+
   useEffect(() => {
     listRef.current?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' });
   }, [selectedIndex, results]);
 
-  /** With `showPlayers` an open player window follows; a closed one stays closed. */
+  /** With `showPlayers` the player view shows the map as well. */
   const choose = (tabId: string, showPlayers = false): void => {
     onClose();
-    if (showPlayers && isPlayerWindowOpen) onPresentTab(tabId);
+    if (showPlayers) onPresentTab(tabId);
     else if (tabId !== activeTabId) onSwitchTab(tabId);
   };
 
@@ -99,7 +103,6 @@ function SceneSwitcherPanel({ onSwitchTab, onPresentTab, onClose }: SceneSwitche
         className="atlas-scene-switcher__panel"
         role="dialog"
         aria-modal="true"
-        aria-label="Switch map"
         onMouseDown={(e) => {
           e.stopPropagation();
           // Clicks keep focus in the search field, so its blur means focus left the switcher
@@ -115,7 +118,7 @@ function SceneSwitcherPanel({ onSwitchTab, onPresentTab, onClose }: SceneSwitche
             aria-expanded
             aria-controls={`${idPrefix}-list`}
             aria-activedescendant={selectedResult ? optionId(selectedResult.tab.id) : undefined}
-            placeholder="Search open maps or press 1–9"
+            placeholder="Search open maps"
             spellCheck={false}
             autoComplete="off"
             value={query}
@@ -127,7 +130,7 @@ function SceneSwitcherPanel({ onSwitchTab, onPresentTab, onClose }: SceneSwitche
             onBlur={onClose}
           />
         </div>
-        <div ref={listRef} id={`${idPrefix}-list`} role="listbox" aria-label="Open maps" className="atlas-scene-switcher__list">
+        <div ref={listRef} id={`${idPrefix}-list`} role="listbox" className="atlas-scene-switcher__list" onScroll={updateHasMapsBelow}>
           {results.map((result, index) => (
             <div
               key={result.tab.id}
@@ -151,6 +154,7 @@ function SceneSwitcherPanel({ onSwitchTab, onPresentTab, onClose }: SceneSwitche
           ))}
           {!results.length && <div className="atlas-scene-switcher__empty">No open map matches “{query.trim()}”</div>}
         </div>
+        <SceneSwitcherFooter isRaised={hasMapsBelow} />
       </div>
     </div>
   );

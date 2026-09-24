@@ -5,12 +5,15 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // Asset Manager – Sidebar rail
 // ═══════════════════════════════════════════════════════════════════════════
-// A tinted rail like an Obsidian side dock: flat, no inner panel, one divider.
+// Docked: a tinted rail like an Obsidian side dock, flat with one divider.
+// Floating (hidden by the user, or a window too narrow to dock it): a card that
+// slides in over the content from the window's left edge.
+
+/// Distance from the window's outer edge to the floating sidebar.
+$float-edge-inset: calc(#{$border-width-m} + #{$sidebar-float-inset});
 
 .atlas-asset-manager-sidebar {
   width: $sidebar-width;
-  min-width: $sidebar-width;
-  max-width: $sidebar-width;
   background-color: var(--background-secondary);
   border-right: $border-width-s solid var(--divider-color);
   display: flex;
@@ -19,82 +22,57 @@
   flex-shrink: 0;
   overflow: hidden;
   z-index: 10;
-  transition: width $sidebar-hover-animation,
-              min-width $sidebar-hover-animation,
-              max-width $sidebar-hover-animation;
 
-  // ── Collapsed: thin grab strip ──
-  &.atlas-collapsed {
-    width: $sidebar-collapsed-width;
-    min-width: $sidebar-collapsed-width;
-    max-width: $sidebar-collapsed-width;
-    cursor: ew-resize;
-    border-right-color: transparent;
-    background-color: transparent;
-    overflow: visible;
+  &.atlas-floating {
+    position: absolute;
+    top: $sidebar-float-inset;
+    bottom: $sidebar-float-inset;
+    left: $sidebar-float-inset;
+    z-index: 20;
+    @include atlas-elevated-surface;
+    background-color: var(--background-secondary);
+    // Concentric with the window frame: same centre, radius reduced by the inset.
+    border-radius: max(#{$radius-xl}, calc(#{$window-radius} - #{$float-edge-inset}));
+    // Slides in and out on springs (sidebarMotion.ts).
+    will-change: transform;
 
-    .atlas-asset-manager-sidebar-content {
-      opacity: 0;
-      pointer-events: none;
-      transform: translateX(-8px);
-      transition: opacity $sidebar-content-fade, transform $sidebar-content-fade;
-    }
-
-    &::after {
-      content: '';
-      position: absolute;
-      inset: 0;
-      background: var(--divider-color);
-    }
-
-    &:hover::after {
-      background: color-mix(in oklch, var(--interactive-accent) 60%, transparent);
-    }
-
-    // ── Flyout while hovering the collapsed strip ──
-    &.atlas-expanded {
-      z-index: $z-atlas-modal !important;
-      cursor: default;
-
-      &::after {
-        opacity: 0;
-      }
-
-      .atlas-asset-manager-sidebar-content {
-        position: absolute;
-        left: 0;
-        top: 0;
-        bottom: 0;
-        width: $sidebar-width;
-        opacity: 1 !important;
-        pointer-events: auto !important;
-        transform: translateX(0) !important;
-        transition-delay: 100ms;
-        @include atlas-elevated-surface;
-        border-radius: 0 $radius-xl $radius-xl 0;
-        z-index: $z-atlas-modal;
-
-        * {
-          pointer-events: auto !important;
-        }
-      }
-
-      .atlas-collection-dropdown-content {
-        z-index: $z-atlas-modal + 1;
-        pointer-events: auto !important;
-      }
+    // The card has its own corners now, not the window's.
+    .atlas-asset-manager-manage-btn.btn {
+      border-bottom-left-radius: $radius-m;
     }
   }
 }
 
-.atlas-sidebar-hover-zone {
+// Hint on the window's left edge while the pointer rests near it and the
+// floating sidebar is about to open (useSidebarHover.ts decides; this only shows it).
+.atlas-sidebar-edge {
   position: absolute;
-  left: 0;
-  top: 60px;
+  top: 0;
   bottom: 0;
-  width: 40px;
-  z-index: $z-sticky + 2;
-  cursor: pointer;
+  left: 0;
+  width: $spacing-m;
+  z-index: 19;
+  pointer-events: none;
+
+  &::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: $spacing-xs;
+    width: $spacing-xs;
+    height: 48px;
+    margin-top: -24px;
+    border-radius: $radius-s;
+    background: var(--interactive-accent);
+    opacity: 0;
+    transform: scaleY(0.5);
+    transition: opacity 150ms $transition-ease-out, transform 200ms $transition-ease-out;
+  }
+
+  &.atlas-near::after {
+    opacity: 0.7;
+    transform: none;
+  }
 }
 
 .atlas-asset-manager-sidebar-content {
@@ -107,12 +85,6 @@
   gap: $spacing-l;
   position: relative;
   z-index: 1;
-  pointer-events: auto;
-  transition: opacity $transition-normal $transition-ease;
-
-  * {
-    pointer-events: auto;
-  }
 }
 
 .atlas-sidebar-spacer {

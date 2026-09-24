@@ -1,5 +1,6 @@
 @use '../../../../../styles/tokens' as *;
 @use '../../../../../styles/mixins' as *;
+@use 'variables' as *;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Asset Manager – Body, content area, section headers, empty state
@@ -30,23 +31,83 @@
   min-width: 0;
 }
 
+// ── Breadcrumb ──────────────────────────────────────────────────────────────
+
+// Its own row above the panes, so it stays put while they slide. The buttons'
+// inline padding lines their labels up with the content's edge.
+.atlas-asset-manager-breadcrumb {
+  @include atlas-flex-row($gap: 2px);
+  flex-shrink: 0;
+  padding: $spacing-s;
+  overflow: hidden;
+
+  .atlas-breadcrumb-separator {
+    color: var(--text-faint);
+    flex-shrink: 0;
+    width: $icon-xs;
+    height: $icon-xs;
+  }
+
+  .atlas-breadcrumb-btn {
+    appearance: none;
+    border: none !important;
+    box-shadow: none !important;
+    outline: none;
+    @include atlas-ghost-button;
+    display: flex;
+    align-items: center;
+    gap: $spacing-xs;
+    height: $control-height;
+    padding: 0 $spacing-s;
+    border-radius: $radius-m;
+    font-size: $font-ui-small;
+    cursor: pointer;
+    white-space: nowrap;
+    max-width: 180px;
+
+    span {
+      @include atlas-truncate;
+    }
+
+    svg {
+      width: $icon-xs;
+      height: $icon-xs;
+      flex-shrink: 0;
+      color: var(--text-faint);
+    }
+
+    &.atlas-current {
+      color: var(--text-normal);
+      pointer-events: none;
+    }
+  }
+}
+
+// One pane per open folder. Panes stack so the one leaving can fade out over
+// the one arriving without either pushing the other.
+.atlas-asset-manager-pane {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 .atlas-asset-manager-content {
-  // Offset parent of the virtualized grid, so its rows can be placed relative to the scroll origin.
+  // Offset parent of the virtualized grid, so its cards can be placed relative to the scroll origin.
   position: relative;
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: $spacing-l;
+  @include atlas-scroll-padding($spacing-l);
   display: flex;
   flex-direction: column;
   gap: $spacing-l;
   min-height: 0;
   pointer-events: auto;
+}
 
-  &.atlas-asset-manager-empty {
-    align-items: center;
-    justify-content: center;
-  }
+.atlas-content-sections {
+  @include atlas-flex-col($gap: $spacing-l);
 }
 
 .atlas-content-section {
@@ -102,6 +163,8 @@
 
 .atlas-empty-state {
   @include atlas-flex-col($gap: $spacing-s);
+  // Centred in the content area, which is a column flex container.
+  margin: auto;
   align-items: center;
   text-align: center;
   max-width: 320px;

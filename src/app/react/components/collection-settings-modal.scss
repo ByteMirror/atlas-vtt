@@ -19,13 +19,16 @@
 // ── Modal Card ─────────────────────────────────────────────────────────────
 .atlas-collection-settings-modal {
   @include atlas-elevated-surface;
+  @include atlas-panel-radius($radius-2xl);
   position: relative;
   display: flex;
   flex-direction: column;
-  width: 620px;
-  max-width: 90vw;
-  height: 500px;
-  max-height: 85vh;
+  // Tall rather than wide: condition and system lists grow downwards. On short
+  // screens the window takes the height the overlay leaves instead of scrolling early.
+  width: 660px;
+  max-width: 100%;
+  height: 760px;
+  max-height: 100%;
   overflow: hidden;
 }
 
@@ -137,6 +140,10 @@
   margin: 0;
 }
 
+.atlas-csm-hint--error {
+  color: var(--text-error);
+}
+
 .atlas-csm-dropdown.atlas-setting-dropdown {
   width: 100%;
   border-radius: $radius-l;
@@ -152,6 +159,10 @@
   color: var(--text-normal);
   font-size: $font-ui-small;
   @include atlas-input-focus;
+
+  &[aria-invalid] {
+    border-color: var(--text-error);
+  }
 }
 
 .atlas-csm-input--number {
@@ -283,19 +294,41 @@
   gap: $spacing-xs;
 }
 
+.atlas-csm-condition {
+  @include atlas-inset-surface;
+  @include atlas-flex-col($spacing-s);
+  padding: $spacing-s;
+}
+
 .atlas-csm-condition-row {
-  display: flex;
-  align-items: center;
-  gap: $spacing-s;
-  padding: $spacing-xs $spacing-s;
-  background: var(--background-secondary);
-  border: $border-width-s solid var(--background-modifier-border);
-  border-radius: $radius-l;
+  @include atlas-flex-row($spacing-s);
 
   .atlas-csm-input {
     flex: 1;
     height: $input-height-s;
   }
+}
+
+.atlas-csm-condition-badge-button {
+  @include atlas-focus-ring;
+  display: flex;
+  flex-shrink: 0;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 50%;
+  box-shadow: none;
+  cursor: pointer;
+  transition: transform $transition-fast $transition-ease;
+
+  &:hover,
+  &[aria-expanded="true"] {
+    transform: scale(1.1);
+  }
+}
+
+.atlas-csm-condition-initial {
+  font-weight: $font-weight-bold;
 }
 
 .atlas-csm-color-swatch {
@@ -317,6 +350,24 @@
     border: none;
     padding: 0;
     cursor: pointer;
+  }
+}
+
+.atlas-csm-condition-valued {
+  &.btn--icon {
+    width: $button-height-s;
+    height: $button-height-s;
+  }
+
+  color: var(--text-faint);
+
+  &:hover {
+    color: var(--text-normal);
+  }
+
+  &[aria-pressed='true'] {
+    color: var(--text-accent);
+    background: color-mix(in srgb, var(--interactive-accent) 16%, transparent) !important;
   }
 }
 

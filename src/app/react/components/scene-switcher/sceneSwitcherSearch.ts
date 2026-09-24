@@ -1,6 +1,9 @@
 import { prepareFuzzySearch, type SearchMatches } from 'obsidian';
 import type { SceneTab } from '../../../types/sceneTabTypes';
 
+/** Highest tab number that has a digit key. */
+export const MAX_NUMBER_KEY = 9;
+
 export interface SceneSwitcherResult {
   tab: SceneTab;
   /** 1-based position in the tab bar; stays the same while the list is filtered. */

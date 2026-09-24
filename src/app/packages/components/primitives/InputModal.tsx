@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { CloseButton } from './CloseButton';
 import { Button } from './button';
+import { dialogOverlayMotion, useDialogWindowVariants } from './dialogMotion';
 
 interface InputModalProps {
   isOpen: boolean;
@@ -24,6 +26,7 @@ const InputModal: React.FC<InputModalProps> = ({
   const [value, setValue] = useState(defaultValue);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const windowVariants = useDialogWindowVariants();
 
   useEffect(() => {
     if (isOpen) {
@@ -55,7 +58,6 @@ const InputModal: React.FC<InputModalProps> = ({
   }, [isOpen]);
 
   const handleCancel = () => {
-    setValue('');
     setError(null);
     onClose();
   };
@@ -77,7 +79,6 @@ const InputModal: React.FC<InputModalProps> = ({
     }
 
     onConfirm(trimmedValue);
-    setValue('');
     setError(null);
     onClose();
   };
@@ -89,38 +90,40 @@ const InputModal: React.FC<InputModalProps> = ({
     }
   };
 
-  if (!isOpen) return null;
-
   return (
-    <div className="atlas-modal-overlay" onClick={handleCancel}>
-      <div className="atlas-modal atlas-input-modal" onClick={(e) => e.stopPropagation()}>
-        <div className="atlas-modal-header">
-          <h3>{title}</h3>
-          <CloseButton onClick={handleCancel} />
-        </div>
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div {...dialogOverlayMotion} className="atlas-modal-overlay" onClick={handleCancel}>
+          <motion.div className="atlas-modal atlas-input-modal" variants={windowVariants} onClick={(e) => e.stopPropagation()}>
+            <div className="atlas-modal-header">
+              <h3>{title}</h3>
+              <CloseButton onClick={handleCancel} />
+            </div>
         
-        <div className="atlas-modal-body">
-          <input
-            ref={inputRef}
-            type="text"
-            value={value}
-            onChange={(e) => {
-              setValue(e.target.value);
-              setError(null);
-            }}
-            onKeyDown={handleKeyDown}
-            placeholder={placeholder}
-            className="atlas-input"
-          />
-          {error && <div className="atlas-input-error">{error}</div>}
-        </div>
+            <div className="atlas-modal-body">
+              <input
+                ref={inputRef}
+                type="text"
+                value={value}
+                onChange={(e) => {
+                  setValue(e.target.value);
+                  setError(null);
+                }}
+                onKeyDown={handleKeyDown}
+                placeholder={placeholder}
+                className="atlas-input"
+              />
+              {error && <div className="atlas-input-error">{error}</div>}
+            </div>
 
-        <div className="atlas-modal-footer">
-          <Button variant="outline" size="sm" onClick={handleCancel}>Cancel</Button>
-          <Button variant="default" size="sm" onClick={handleConfirm}>Confirm</Button>
-        </div>
-      </div>
-    </div>
+            <div className="atlas-modal-footer">
+              <Button variant="outline" size="sm" onClick={handleCancel}>Cancel</Button>
+              <Button variant="default" size="sm" onClick={handleConfirm}>Confirm</Button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 };
 

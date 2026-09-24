@@ -2,7 +2,7 @@
 @use '../../../../../styles/mixins' as *;
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Asset Manager – Modals (Move, Create Scene, Base, Statblock Link)
+// Asset Manager – Modals (Move, Create Scene, Base)
 // ═══════════════════════════════════════════════════════════════════════════
 
 // ── Move to Collection Modal ────────────────────────────────────────────────
@@ -163,101 +163,4 @@
 
 .atlas-modal-footer {
   @include atlas-modal-footer;
-}
-
-// ── Statblock Link Modal ────────────────────────────────────────────────────
-
-.atlas-statblock-link-modal {
-  width: 520px;
-  max-height: 640px;
-
-  .atlas-modal-body {
-    flex: 1;
-    overflow: hidden;
-  }
-
-  .atlas-current-link {
-    @include atlas-flex-row($gap: $spacing-s);
-    justify-content: space-between;
-    padding: $spacing-s $spacing-s $spacing-s $spacing-m;
-    background-color: color-mix(in oklch, var(--interactive-accent) 10%, transparent);
-    border-radius: $radius-m;
-
-    .atlas-current-link-info {
-      @include atlas-flex-row;
-      min-width: 0;
-      font-size: $font-ui-small;
-      color: var(--text-muted);
-
-      svg {
-        color: var(--text-accent);
-        flex-shrink: 0;
-      }
-
-      strong {
-        color: var(--text-normal);
-      }
-    }
-  }
-
-  .atlas-search-box .atlas-search-input {
-    @include atlas-text-input;
-  }
-
-  .atlas-statblock-list {
-    flex: 1;
-    overflow-y: auto;
-    border-radius: $radius-m;
-    background: var(--background-secondary);
-    padding: $spacing-xs;
-    @include atlas-flex-col($gap: 2px);
-    @include atlas-scrollbar;
-
-    .atlas-empty-state {
-      padding: $spacing-xl;
-      text-align: center;
-      color: var(--text-faint);
-      font-size: $font-ui-small;
-    }
-  }
-
-  .atlas-statblock-item {
-    @include atlas-flex-row($gap: $spacing-s);
-    height: var(--input-height);
-    padding: 0 $spacing-s;
-    border-radius: $radius-m;
-    cursor: pointer;
-
-    &:hover {
-      background-color: var(--background-modifier-hover);
-    }
-
-    &:active {
-      background-color: var(--background-modifier-active-hover);
-    }
-
-    &.atlas-current {
-      background-color: color-mix(in oklch, var(--interactive-accent) 14%, transparent);
-      color: var(--text-accent);
-    }
-
-    svg {
-      color: var(--text-accent);
-      flex-shrink: 0;
-    }
-
-    .atlas-statblock-name {
-      font-weight: $font-weight-medium;
-      color: var(--text-normal);
-      flex-shrink: 0;
-    }
-
-    .atlas-statblock-path {
-      font-size: $font-ui-smaller;
-      color: var(--text-faint);
-      flex: 1;
-      text-align: right;
-      @include atlas-truncate;
-    }
-  }
 }

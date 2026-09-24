@@ -309,7 +309,7 @@ export class ImageDisplayService {
 
     // Add close button
     const closeButton = this.imageContainer.createEl('button', { cls: 'atlas-image-display__close', text: '×' });
-    closeButton.title = 'Close (escape key)';
+    closeButton.setAttribute('aria-label', 'Close');
     
     closeButton.addEventListener('click', () => {
       this.closeImageDisplay();

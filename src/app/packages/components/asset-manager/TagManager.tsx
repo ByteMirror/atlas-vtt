@@ -1,25 +1,29 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Tag, FolderOpen, Search, Plus } from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { Search, Plus } from 'lucide-react';
 import { openContextMenuGlobal, type ContextMenuEntry } from '../../../react/root/ContextMenuContext';
+import type { TagGroup } from '../../../services/tagGroups';
 import { confirmAction } from '../../../ui/confirmDialog';
 import { isShortcutScopeActive } from '../../../utils/activeLeafGuard';
 import { CloseButton } from '../primitives/CloseButton';
 import { Button } from '../primitives/button';
+import { dialogOverlayMotion, useDialogWindowVariants } from '../primitives/dialogMotion';
 import { ManagedItemRow, type ManagedItem } from './components/ManagedItemRow';
+import { TagManagerTabs, type TagManagerTab } from './components/TagManagerTabs';
 import { useItemSelection } from './hooks/useItemSelection';
-
-type ManagerTab = 'atlas-tags' | 'atlas-collections';
 
 interface TagManagerProps {
   isOpen: boolean;
   onClose: () => void;
-  tags: readonly ManagedItem[];
+  tags: Readonly<Record<TagGroup, readonly ManagedItem[]>>;
+  /** The tab shown whenever the manager opens: the tag group of the asset tab in view. */
+  initialTab: TagGroup;
   collections: readonly ManagedItem[];
-  onCreateTag: (name: string) => void;
+  onCreateTag: (group: TagGroup, name: string) => void;
   onCreateCollection: (name: string) => void;
-  onUpdateTag: (tagId: string, name: string) => void | Promise<void>;
+  onUpdateTag: (group: TagGroup, tagId: string, name: string) => void | Promise<void>;
   onUpdateCollection: (collectionId: string, name: string) => void | Promise<void>;
-  onDeleteTag: (tagId: string) => Promise<void>;
+  onDeleteTag: (group: TagGroup, tagId: string) => Promise<void>;
   onDeleteCollection: (collectionId: string) => Promise<void>;
 }
 
@@ -27,6 +31,7 @@ const TagManager: React.FC<TagManagerProps> = ({
   isOpen,
   onClose,
   tags,
+  initialTab,
   collections,
   onCreateTag,
   onCreateCollection,
@@ -35,21 +40,24 @@ const TagManager: React.FC<TagManagerProps> = ({
   onDeleteTag,
   onDeleteCollection,
 }) => {
-  const [activeTab, setActiveTab] = useState<ManagerTab>('atlas-tags');
+  const [activeTab, setActiveTab] = useState<TagManagerTab>(initialTab);
+  const [wasOpen, setWasOpen] = useState(false);
   const [searchValue, setSearchValue] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
   const [error, setError] = useState('');
 
   const modalRef = useRef<HTMLDivElement>(null);
+  const windowVariants = useDialogWindowVariants();
 
-  const isTagsTab = activeTab === 'atlas-tags';
-  const items = isTagsTab ? tags : collections;
-  const createItem = isTagsTab ? onCreateTag : onCreateCollection;
-  const updateItem = isTagsTab ? onUpdateTag : onUpdateCollection;
-  const deleteItem = isTagsTab ? onDeleteTag : onDeleteCollection;
-  const itemLabel = isTagsTab ? 'tags' : 'collections';
-  const itemNoun = isTagsTab ? 'Tag' : 'Collection';
+  const tagGroup = activeTab === 'collections' ? null : activeTab;
+  const items = tagGroup ? tags[tagGroup] : collections;
+  const createItem = (name: string): void => tagGroup ? onCreateTag(tagGroup, name) : onCreateCollection(name);
+  const updateItem = (id: string, name: string): void | Promise<void> =>
+    tagGroup ? onUpdateTag(tagGroup, id, name) : onUpdateCollection(id, name);
+  const deleteItem = (id: string): Promise<void> => tagGroup ? onDeleteTag(tagGroup, id) : onDeleteCollection(id);
+  const itemLabel = tagGroup ? 'tags' : 'collections';
+  const itemNoun = tagGroup ? 'Tag' : 'Collection';
 
   const filteredItems = items.filter((item) => item.name.toLowerCase().includes(searchValue.toLowerCase()));
   const selection = useItemSelection(filteredItems.map((item) => item.id));
@@ -60,12 +68,21 @@ const TagManager: React.FC<TagManagerProps> = ({
   const showCreateOption = searchValue && !nameTaken(searchValue);
 
   // Selection and editing belong to one tab: ids of tags and collections must never mix.
-  const switchTab = (tab: ManagerTab): void => {
+  const switchTab = (tab: TagManagerTab): void => {
     setActiveTab(tab);
     selection.clear();
     setEditingId(null);
     setError('');
   };
+
+  // Each opening starts on the tags of the asset tab in view, with a fresh search.
+  if (isOpen !== wasOpen) {
+    setWasOpen(isOpen);
+    if (isOpen) {
+      switchTab(initialTab);
+      setSearchValue('');
+    }
+  }
 
   useEffect(() => {
     if (isOpen && !editingId) {
@@ -75,28 +92,17 @@ const TagManager: React.FC<TagManagerProps> = ({
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent): void => {
-      if (!isOpen) return;
-      if (!isShortcutScopeActive(modalRef.current)) return;
-
+      if (!isOpen || !isShortcutScopeActive(modalRef.current)) return;
       if (e.key === 'Escape' && !editingId) {
         e.preventDefault();
         e.stopPropagation();
         onClose();
-      } else if ((e.metaKey || e.ctrlKey) && e.key === '1') {
-        e.preventDefault();
-        switchTab('atlas-tags');
-      } else if ((e.metaKey || e.ctrlKey) && e.key === '2') {
-        e.preventDefault();
-        switchTab('atlas-collections');
-      } else if ((e.metaKey || e.ctrlKey) && e.key === 'a') {
-        e.preventDefault();
-        selection.toggleAll();
       }
     };
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  });
+  }, [isOpen, editingId, onClose]);
 
   const handleCreate = (): void => {
     if (!searchValue.trim()) return;
@@ -135,7 +141,7 @@ const TagManager: React.FC<TagManagerProps> = ({
   };
 
   const confirmDelete = async (targets: readonly ManagedItem[]): Promise<boolean> => {
-    if (isTagsTab) return true;
+    if (tagGroup) return true;
     return confirmAction({
       title: targets.length === 1 ? `Delete collection "${targets[0]!.name}"?` : `Delete ${targets.length} collections?`,
       message: ['Every scene, map, token and encounter in it moves to the trash.'],
@@ -172,124 +178,109 @@ const TagManager: React.FC<TagManagerProps> = ({
     openContextMenuGlobal(entries, { x: event.clientX, y: event.clientY });
   };
 
-  if (!isOpen) return null;
-
   return (
-    <div
-      className="atlas-vtt-plugin atlas-vtt-root atlas-tag-manager-modal"
-      onClick={(e) => {
-        e.stopPropagation();
-        // Only close if clicking the backdrop itself
-        if (e.target === e.currentTarget) {
-          onClose();
-        }
-      }}
-      onMouseDown={(e) => {
-        e.stopPropagation();
-      }}
-    >
-      <div
-        ref={modalRef}
-        className="atlas-tag-manager-content"
-        tabIndex={-1}
-        onClick={(e) => e.stopPropagation()}
-        onMouseDown={(e) => e.stopPropagation()}
-      >
-        <div className="atlas-tag-manager-header">
-          <h2>Manage Tags & Collections</h2>
-          <CloseButton onClick={onClose} />
-        </div>
-
-        <div className="atlas-tag-manager-tabs">
-          <div className="atlas-tab-switcher">
-            <button
-              className={`atlas-tab-button ${isTagsTab ? 'atlas-active' : ''}`}
-              onClick={() => switchTab('atlas-tags')}
-            >
-              <Tag size={16} />
-              Tags
-              <span className="atlas-tab-shortcut">⌘1</span>
-            </button>
-            <button
-              className={`atlas-tab-button ${!isTagsTab ? 'atlas-active' : ''}`}
-              onClick={() => switchTab('atlas-collections')}
-            >
-              <FolderOpen size={16} />
-              Collections
-              <span className="atlas-tab-shortcut">⌘2</span>
-            </button>
-          </div>
-        </div>
-
-        <div className="atlas-tag-manager-body">
-          <div className="atlas-search-section">
-            <div className="atlas-search-input-wrapper">
-              <Search size={16} className="atlas-search-icon" />
-              <input
-                type="text"
-                placeholder={`Search or create ${itemLabel}…`}
-                value={searchValue}
-                onChange={(e) => setSearchValue(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && showCreateOption) {
-                    handleCreate();
-                  }
-                }}
-                className="atlas-search-input"
-              />
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          {...dialogOverlayMotion}
+          className="atlas-vtt-plugin atlas-vtt-root atlas-tag-manager-modal"
+          onClick={(e) => {
+            e.stopPropagation();
+            // Only close if clicking the backdrop itself
+            if (e.target === e.currentTarget) {
+              onClose();
+            }
+          }}
+          onMouseDown={(e) => {
+            e.stopPropagation();
+          }}
+        >
+          <motion.div
+            ref={modalRef}
+            className="atlas-tag-manager-content"
+            variants={windowVariants}
+            tabIndex={-1}
+            onClick={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <div className="atlas-tag-manager-header">
+              <h2>Manage Tags & Collections</h2>
+              <CloseButton onClick={onClose} />
             </div>
-          </div>
 
-          {error && (
-            <div className="atlas-error-message">
-              {error}
+            <TagManagerTabs activeTab={activeTab} onSelect={switchTab} />
+
+            <div className="atlas-tag-manager-body">
+              <div className="atlas-search-section">
+                <div className="atlas-search-input-wrapper">
+                  <Search size={16} className="atlas-search-icon" />
+                  <input
+                    type="text"
+                    placeholder={`Search or create ${itemLabel}…`}
+                    value={searchValue}
+                    onChange={(e) => setSearchValue(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && showCreateOption) {
+                        handleCreate();
+                      }
+                    }}
+                    className="atlas-search-input"
+                  />
+                </div>
+              </div>
+
+              {error && (
+                <div className="atlas-error-message">
+                  {error}
+                </div>
+              )}
+
+              <div className="atlas-items-list">
+                {showCreateOption && (
+                  <div className="atlas-create-item" onClick={handleCreate}>
+                    <Plus size={16} />
+                    Create "{searchValue}"
+                  </div>
+                )}
+
+                {filteredItems.map((item) => (
+                  <ManagedItemRow
+                    key={item.id}
+                    item={item}
+                    kind={tagGroup ? 'tag' : 'collection'}
+                    isSelected={selectedIds.has(item.id)}
+                    editValue={editingId === item.id ? editValue : null}
+                    onEditValueChange={setEditValue}
+                    onSaveEdit={handleSaveEdit}
+                    onCancelEdit={handleCancelEdit}
+                    onSelect={(range) => selection.select(item.id, range)}
+                    onOpenMenu={(e) => handleItemContextMenu(item, e)}
+                  />
+                ))}
+
+                {filteredItems.length === 0 && !showCreateOption && (
+                  <div className="atlas-empty-state">
+                    No {itemLabel} found
+                  </div>
+                )}
+              </div>
             </div>
-          )}
 
-          <div className="atlas-items-list">
-            {showCreateOption && (
-              <div className="atlas-create-item" onClick={handleCreate}>
-                <Plus size={16} />
-                Create "{searchValue}"
-              </div>
-            )}
-
-            {filteredItems.map((item) => (
-              <ManagedItemRow
-                key={item.id}
-                item={item}
-                kind={isTagsTab ? 'tag' : 'collection'}
-                isSelected={selectedIds.has(item.id)}
-                editValue={editingId === item.id ? editValue : null}
-                onEditValueChange={setEditValue}
-                onSaveEdit={handleSaveEdit}
-                onCancelEdit={handleCancelEdit}
-                onSelect={(range) => selection.select(item.id, range)}
-                onOpenMenu={(e) => handleItemContextMenu(item, e)}
-              />
-            ))}
-
-            {filteredItems.length === 0 && !showCreateOption && (
-              <div className="atlas-empty-state">
-                No {itemLabel} found
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="atlas-tag-manager-footer">
-          {selectedIds.size > 0 && (
-            <>
-              <span className="atlas-selected-count">{selectedIds.size} selected</span>
-              <Button variant="destructive" size="sm" onClick={() => { void deleteItems(selectedItems()); }}>
-                Delete selected
-              </Button>
-            </>
-          )}
-          <Button variant="default" size="sm" onClick={onClose}>Done</Button>
-        </div>
-      </div>
-    </div>
+            <div className="atlas-tag-manager-footer">
+              {selectedIds.size > 0 && (
+                <>
+                  <span className="atlas-selected-count">{selectedIds.size} selected</span>
+                  <Button variant="destructive" size="sm" onClick={() => { void deleteItems(selectedItems()); }}>
+                    Delete selected
+                  </Button>
+                </>
+              )}
+              <Button variant="default" size="sm" onClick={onClose}>Done</Button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 };
 

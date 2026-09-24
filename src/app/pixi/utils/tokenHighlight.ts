@@ -1,8 +1,8 @@
 import { OutlineFilter } from 'pixi-filters';
-import type { Filter } from 'pixi.js';
 import { getObsidianAccentColor, cssColorToHexNumber } from './colorUtils';
 import type { AtlasView } from '../../atlas-view';
 import { requestRender } from '../RenderScheduler';
+import { addFilter, removeFilter } from './filterList';
 
 /**
  * Configuration options for the zoom-to-token functionality
@@ -11,11 +11,6 @@ interface ZoomToTokenOptions {
   zoomLevel?: number;
   highlightDuration?: number;
   glowThickness?: number;
-}
-
-/** PIXI types `filters` as a single filter or an array; normalise to an array. */
-function toFilterArray(filters: Filter | Filter[] | null | undefined): Filter[] {
-  return filters ? [filters].flat() : [];
 }
 
 /**
@@ -77,7 +72,7 @@ export function addTokenHighlight(
     const hexColor = cssColorToHexNumber(accentColor);
     const glowFilter = new OutlineFilter({ thickness: glowThickness, color: hexColor, quality: 1 });
 
-    tokenSprite.filters = [...toFilterArray(tokenSprite.filters), glowFilter];
+    addFilter(tokenSprite, glowFilter);
 
     let time = 0;
     const app = view?.renderer?.getAppInstance();
@@ -95,7 +90,7 @@ export function addTokenHighlight(
 
       window.setTimeout(() => {
         ticker.remove(animateGlow);
-        tokenSprite.filters = toFilterArray(tokenSprite.filters).filter((f) => f !== glowFilter);
+        removeFilter(tokenSprite, glowFilter);
         glowFilter.destroy();
       }, highlightDuration);
     }

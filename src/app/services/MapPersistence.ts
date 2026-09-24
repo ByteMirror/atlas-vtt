@@ -31,7 +31,7 @@ export interface GridState {
   opacity: number;
   scale?: number;
   mapScale?: number; // Scale factor used during grid alignment
-  unitType?: 'feet' | 'meters' | 'units';
+  unitType?: 'feet' | 'yards' | 'meters' | 'units';
   unitDistance?: number;
   lineType?: 'solid' | 'dashed' | 'dotted'; // Grid line style
   lineWidth?: number; // Grid line width in pixels

@@ -1,12 +1,15 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Notice, normalizePath } from 'obsidian';
+import { motion } from 'framer-motion';
 import { MapIcon } from 'lucide-react';
 import { AssetService } from '../../../services/AssetService';
+import { tokenBarsOf, withTokenBars } from '../../../services/collectionTokenBars';
 import { normalizeImagePath } from '../../../utils/pathUtils';
 import { ensureFolder } from '../../../plugin/vaultFolders';
 import { useAtlasUI } from '../../../react/root/AtlasUIContext';
 import { CloseButton } from '../primitives/CloseButton';
 import { Button } from '../primitives/button';
+import { dialogOverlayMotion, useDialogWindowVariants } from '../primitives/dialogMotion';
 import { TagPicker } from './token-creator/TagPicker';
 import { useAssetTags } from './token-creator/useAssetTags';
 
@@ -33,7 +36,7 @@ export default function CreateSceneModal({
   const [sceneName, setSceneName] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  const { tags, createTag, isCreatingTag } = useAssetTags(assetService, isOpen, selectedCollection || 'default');
+  const { tags, createTag, isCreatingTag } = useAssetTags(assetService, isOpen, selectedCollection || 'default', 'maps');
   const inputRef = useRef<HTMLInputElement>(null);
   const { app } = useAtlasUI();
   const [hasSetDefaultName, setHasSetDefaultName] = useState(false);
@@ -138,6 +141,8 @@ export default function CreateSceneModal({
             measurementType: gd.measurementMode === 'abstract' ? 'abstract' as const : 'units' as const,
           });
         }
+        // The collection's resource bars, e.g. Daggerheart's Stress
+        Object.assign(mapData.state, { tokenSettings: withTokenBars(undefined, tokenBarsOf(settings.defaultWidgets)) });
       }
 
       const scenePath = normalizePath(`atlas-vtt/collections/${collectionId}/scenes/${sceneName.trim()}.atlasmap`);
@@ -189,11 +194,14 @@ export default function CreateSceneModal({
     }
   };
 
+  const windowVariants = useDialogWindowVariants();
+
   if (!isOpen) return null;
 
   return (
-    <div 
-      className="atlas-vtt-root atlas-create-scene-modal" 
+    <motion.div
+      {...dialogOverlayMotion}
+      className="atlas-vtt-root atlas-create-scene-modal"
       onClick={(e) => {
         // Prevent propagation to asset manager
         e.stopPropagation();
@@ -213,8 +221,9 @@ export default function CreateSceneModal({
       tabIndex={-1}
       style={{ outline: 'none' }}
     >
-      <div 
-        className="atlas-create-scene-container" 
+      <motion.div
+        className="atlas-create-scene-container"
+        variants={windowVariants}
         onClick={(e) => {
           // Prevent any clicks inside the container from bubbling up
           e.stopPropagation();
@@ -265,7 +274,7 @@ export default function CreateSceneModal({
             {isCreating ? 'Creating…' : 'Create scene'}
           </Button>
         </div>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }

@@ -1,0 +1,201 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// Collection Settings: Game System tab
+// ═══════════════════════════════════════════════════════════════════════════
+
+@use '../../../../../styles/tokens' as *;
+@use '../../../../../styles/mixins' as *;
+
+.atlas-csm-preset-list {
+  @include atlas-flex-col($spacing-xs);
+}
+
+// ── Preset row ─────────────────────────────────────────────────────────────
+// The radio button stretches over the whole row; the actions sit above it.
+.atlas-csm-preset {
+  @include atlas-inset-surface;
+  @include atlas-flex-row($spacing-s);
+  position: relative;
+  min-height: 52px;
+  padding: $spacing-s;
+  transition:
+    background-color $transition-fast $transition-ease,
+    border-color $transition-fast $transition-ease;
+
+  &:has(.atlas-csm-preset__select:enabled:hover) {
+    background: var(--background-modifier-hover);
+  }
+
+  // Selected state lives here: this file is imported inside `.atlas-vtt-plugin`,
+  // so a trailing `.atlas-active &` elsewhere would compile to the wrong ancestor.
+  &.atlas-active {
+    border-color: var(--interactive-accent);
+
+    .atlas-csm-preset__indicator {
+      border-color: var(--interactive-accent);
+      background:
+        radial-gradient(circle, var(--text-on-accent) 0 2.5px, transparent 3px),
+        var(--interactive-accent);
+    }
+  }
+}
+
+.atlas-csm-preset__select {
+  @include atlas-flex-row($spacing-s);
+  flex: 1;
+  min-width: 0;
+  height: auto;
+  padding: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: $radius-l;
+  }
+
+  &:hover {
+    background: transparent;
+  }
+
+  &:focus-visible {
+    outline: none;
+
+    &::after {
+      outline: 2px solid var(--interactive-accent);
+      outline-offset: 2px;
+    }
+  }
+
+  &:disabled {
+    cursor: default;
+    opacity: 1;
+  }
+}
+
+.atlas-csm-preset__indicator {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1.5px solid var(--text-faint);
+  transition:
+    border-color $transition-fast $transition-ease,
+    background-color $transition-fast $transition-ease;
+}
+
+.atlas-csm-preset__text {
+  @include atlas-flex-col(2px);
+  flex: 1;
+  min-width: 0;
+}
+
+.atlas-csm-preset__title {
+  @include atlas-flex-row($spacing-xs);
+  min-width: 0;
+}
+
+.atlas-csm-preset__name {
+  @include atlas-truncate;
+  font-size: $font-ui-small;
+  font-weight: $font-weight-medium;
+  color: var(--text-normal);
+}
+
+.atlas-csm-preset__summary {
+  @include atlas-truncate;
+  font-size: $font-ui-smaller;
+  color: var(--text-muted);
+}
+
+.atlas-csm-preset__actions {
+  @include atlas-flex-row($spacing-xs);
+  position: relative;
+  z-index: 1;
+}
+
+.atlas-csm-preset-icon-btn.btn--icon {
+  width: $button-height-s;
+  height: $button-height-s;
+  color: var(--text-muted);
+
+  &:hover {
+    color: var(--text-normal);
+  }
+
+  svg {
+    width: $icon-s;
+    height: $icon-s;
+  }
+}
+
+// ── Tags ───────────────────────────────────────────────────────────────────
+.atlas-csm-tag {
+  flex-shrink: 0;
+  padding: 0 $spacing-xs;
+  border-radius: $radius-s;
+  background: var(--background-modifier-hover);
+  color: var(--text-muted);
+  font-size: $font-ui-smaller;
+  line-height: 18px;
+}
+
+.atlas-csm-tag--accent {
+  background: color-mix(in srgb, var(--interactive-accent) 16%, transparent);
+  color: var(--text-accent);
+}
+
+// ── Condition badges of a preset ───────────────────────────────────────────
+.atlas-csm-badge-stack {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+
+  .atlas-condition-badge + .atlas-condition-badge {
+    margin-left: -4px;
+  }
+}
+
+.atlas-csm-badge-stack__more {
+  margin-left: $spacing-xs;
+  color: var(--text-muted);
+  font-size: $font-ui-smaller;
+  font-variant-numeric: tabular-nums;
+}
+
+// ── Inline name field and delete confirmation ──────────────────────────────
+.atlas-csm-preset-name {
+  @include atlas-flex-col($spacing-xs);
+  flex: 1;
+  min-width: 0;
+}
+
+.atlas-csm-preset-name__row {
+  @include atlas-flex-row($spacing-s);
+
+  .atlas-csm-input {
+    flex: 1;
+    height: $input-height-s;
+  }
+}
+
+.atlas-csm-preset-confirm {
+  @include atlas-flex-col($spacing-s);
+  flex: 1;
+  min-width: 0;
+}
+
+.atlas-csm-preset-confirm__text {
+  font-size: $font-ui-small;
+  color: var(--text-normal);
+}
+
+.atlas-csm-preset-confirm__actions {
+  @include atlas-flex-row($spacing-s);
+  justify-content: flex-end;
+}

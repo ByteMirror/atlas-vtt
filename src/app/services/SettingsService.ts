@@ -21,6 +21,8 @@ export interface AtlasSettings {
   hotkeys: MapHotkeys;
   onboarding: { enabled: boolean; completed: Partial<Record<TutorialId, boolean>>; tokenImported: boolean };
   navigation: NavigationSettings;
+  /** Game system presets the user saved, as stored; `SystemPresetService` validates them. */
+  systemPresets: unknown[];
   localPlayerView: {
     // UI element visibility toggles
     showToolbar: boolean;
@@ -43,6 +45,7 @@ const DEFAULT_SETTINGS: AtlasSettings = {
   navigation: {
     inputMode: Platform.isMacOS ? 'trackpad' : 'mouse',
   },
+  systemPresets: [],
   localPlayerView: {
     // UI element visibility defaults
     showToolbar: false, // Hide toolbar by default in player view

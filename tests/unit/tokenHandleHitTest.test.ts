@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest';
-import { Container, EventBoundary, Rectangle, Texture, loadEnvironmentExtensions, updateRenderGroupTransforms } from 'pixi.js';
+import { Container, EventBoundary, type FederatedPointerEvent, Rectangle, Texture, loadEnvironmentExtensions, updateRenderGroupTransforms } from 'pixi.js';
 import type { Viewport } from 'pixi-viewport';
 import type { StoreApi } from 'zustand';
 import type { GridSystem } from '../../src/app/grid/GridSystem';
@@ -84,5 +84,58 @@ describe('token handles', () => {
     expect(handle).toBeDefined();
     expect(hitAt(stage, handle!)).toBe(handle);
     rotationUI.destroy();
+  });
+
+  it('keep their places around the ring when the token is rotated', async () => {
+    const { viewport, group } = await buildScene();
+    const rotated = { ...token, rotation: 135 };
+    const rotatedStore = {
+      getState: () => ({ ...store.getState(), objects: { tokens: { t1: rotated } } }),
+    } as unknown as StoreApi<ViewAtlasState>;
+    const resizeUI = new TokenResizeUI(viewport, rotatedStore);
+    const rotationUI = new TokenRotationUI(viewport, rotatedStore);
+    try {
+      resizeUI.showHandles(['t1'], { t1: group });
+      rotationUI.showHandles(['t1'], { t1: group });
+      const [left, right] = resizeUI.getHandles();
+      const [rotate] = rotationUI.getHandles();
+      const radius = right!.position.x;
+      expect(radius).toBeGreaterThan(0);
+      expect(left!.position.x).toBeCloseTo(-radius, 6);
+      expect(left!.position.y).toBeCloseTo(0, 6);
+      expect(right!.position.y).toBeCloseTo(0, 6);
+      expect(rotate!.position.x).toBeCloseTo(0, 6);
+      expect(rotate!.position.y).toBeCloseTo(-radius, 6);
+    } finally {
+      resizeUI.destroy();
+      rotationUI.destroy();
+    }
+  });
+
+  it('the rotation handle follows a rotation drag and returns to the top when it ends', async () => {
+    const { viewport, group } = await buildScene();
+    Object.assign(viewport, { toWorld: (p: { x: number; y: number }) => ({ x: p.x, y: p.y }) });
+    const rotatingStore = {
+      getState: () => ({ ...store.getState(), updateTokens: vi.fn() }),
+    } as unknown as StoreApi<ViewAtlasState>;
+    const rotationUI = new TokenRotationUI(viewport, rotatingStore);
+    try {
+      rotationUI.showHandles(['t1'], { t1: group });
+      const [handle] = rotationUI.getHandles();
+      const radius = -handle!.position.y;
+      const pointer = (x: number, y: number): FederatedPointerEvent =>
+        ({ global: { x, y }, shiftKey: false, stopPropagation: vi.fn() }) as unknown as FederatedPointerEvent;
+
+      handle!.emit('pointerdown', pointer(0, -50));
+      viewport.emit('pointermove', pointer(50, 0));
+      expect(handle!.position.x).toBeCloseTo(radius, 6);
+      expect(handle!.position.y).toBeCloseTo(0, 6);
+
+      viewport.emit('pointerup', pointer(50, 0));
+      expect(handle!.position.x).toBeCloseTo(0, 6);
+      expect(handle!.position.y).toBeCloseTo(-radius, 6);
+    } finally {
+      rotationUI.destroy();
+    }
   });
 });

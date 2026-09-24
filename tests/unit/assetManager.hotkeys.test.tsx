@@ -31,7 +31,7 @@ function setup({ subModalOpen = false } = {}) {
         isMoveModalOpen: false, settingsModalCollectionId: null, transfer: null,
         inputModalState: { isOpen: subModalOpen }, setEditingToken: vi.fn(),
       } as unknown as EffectDeps['crud'],
-      tags: { isTagManagerOpen: false, isEditTagsModalOpen: false } as EffectDeps['tags'],
+      tags: { isTagManagerOpen: false } as EffectDeps['tags'],
       statblock: { linkingStatblockAsset: null } as EffectDeps['statblock'],
     });
     return <div className="workspace-leaf mod-active"><div data-view-id="map">

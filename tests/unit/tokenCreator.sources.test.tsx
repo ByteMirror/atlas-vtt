@@ -39,7 +39,8 @@ it('stages statblocks beside uploads and applies ring and tag edits to the same 
   expect(container.querySelectorAll('.atlas-token-card__mask')).toHaveLength(0);
   fireEvent.click(screen.getByRole('switch', { name: 'Toggle token ring for Goblin' }));
   expect(container.querySelectorAll('.atlas-token-card__ring')).toHaveLength(1);
-  expect(screen.getByRole('switch', { name: 'Toggle token ring for all' }).getAttribute('title')).toBe('Mixed token ring settings');
+  const ringForAll = screen.getByRole('switch', { name: 'Toggle token ring for all' });
+  expect(document.getElementById(ringForAll.getAttribute('aria-describedby') ?? '')?.textContent).toBe('Mixed token ring settings');
   fireEvent.click(screen.getByRole('checkbox', { name: 'Select Wolf' }));
   fireEvent.click(screen.getByRole('button', { name: 'Enemy' }));
   fireEvent.click(screen.getByRole('button', { name: /Create.*↵/ }));

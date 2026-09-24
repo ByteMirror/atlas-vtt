@@ -9,6 +9,7 @@ import type { LightSource, LightStyle } from '../../types/wallTypes';
 import './light-config-panel.scss';
 import { CloseButton } from '../../packages/components/primitives/CloseButton';
 import { LabelTooltip } from '../../packages/components/primitives/tooltip';
+import { unitLabelFor } from '../../grid/measurementFormat';
 
 const LIGHT_STYLE_OPTIONS: Array<{ value: LightStyle; label: string; icon: LucideIcon }> = [
   { value: 'torch', label: 'Torch', icon: Flame },
@@ -52,7 +53,7 @@ function LightConfigPanelInner({ light, store, screenX, screenY, onClose }: Ligh
   const grid = store.getState().grid;
   const gridSize = grid?.size ?? 70;
   const unitDistance = grid?.unitDistance ?? 5;
-  const unitLabel = grid?.unitType === 'meters' ? 'm' : grid?.unitType === 'units' ? '' : 'ft';
+  const unitLabel = unitLabelFor(grid?.unitType);
 
   // Store values in game units for the UI
   const [innerUnits, setInnerUnits] = useState(

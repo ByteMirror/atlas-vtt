@@ -215,12 +215,11 @@ export class TokenRotationUI {
       const ringTokenSize = spriteSize * ringScale;
       const ringCenterRadius = getTokenRingCenterRadius(ringTokenSize, gridStrokeWidth, ringScale);
       
-      // Get current rotation - check for temporary rotation during drag
+      // The handle rests at the top of the ring whatever the token's rotation, so it never lands
+      // on the resource bars or the resize handles; during a drag it follows the pointer's turn.
       const tempRotation = this.temporaryRotations[tokenId];
-      const currentRotation = tempRotation !== undefined ? tempRotation : (token.rotation || 0);
-      
-      // Position handle centered on token ring (accounting for rotation)
-      const angleRad = (currentRotation - 90) * Math.PI / 180; // -90 to put at top
+      const dragDelta = tempRotation === undefined ? 0 : tempRotation - (this.initialRotations[tokenId] ?? 0);
+      const angleRad = (dragDelta - 90) * Math.PI / 180;
       const distance = ringCenterRadius;
       
       // Since handle is a child of token container, use relative position (0,0 is token center)
@@ -474,7 +473,9 @@ export class TokenRotationUI {
     this.startRotations = {};
     this.hasRotated = false;
     this.temporaryRotations = {};
-    
+    // Return the handle to its resting place at the top of the ring
+    this.updateHandlePositions();
+
     // Show other UI elements again after rotation completes
     window.dispatchEvent(new CustomEvent('atlas-token-rotation-ended', {
       detail: { tokenIds: rotatedTokenIds }

@@ -28,7 +28,7 @@ function useManager(initialCollection: string) {
   const data = useAssetData('tokens', selected, true);
   useFollowSelectedCollection(data.collections, selected, setSelected);
   const manage = useTagsAndCollections(
-    data.assetService, selected, data.availableTags, data.setAvailableTags, data.setAssets,
+    data.assetService, selected, data.tagsByGroup, data.setAssets,
     data.reloadCollections, data.reloadGlobalTags,
   );
   return { selected, setSelected, data, manage };

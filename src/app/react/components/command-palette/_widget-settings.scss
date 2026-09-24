@@ -85,41 +85,6 @@
   }
 }
 
-// The only scrolling region: settings panels themselves never scroll
-.atlas-widget-editor-icons {
-  @include atlas-scrollbar;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(var(--input-height), 1fr));
-  gap: $spacing-xs;
-  max-height: calc(var(--input-height) * 4 + #{$spacing-xs} * 3);
-  overflow-y: auto;
-}
-
-.atlas-widget-editor-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: var(--input-height);
-  padding: 0;
-  background: transparent;
-  border: none;
-  border-radius: $radius-m;
-  box-shadow: none;
-  color: var(--text-muted);
-  cursor: pointer;
-  transition: background-color $transition-fast $transition-ease,
-              color $transition-fast $transition-ease;
-
-  &:hover {
-    background: var(--background-modifier-hover);
-    color: var(--text-normal);
-  }
-
-  &.atlas-active {
-    background: var(--background-modifier-active-hover);
-  }
-}
-
 .atlas-widget-editor-actions {
   @include atlas-flex-row($spacing-s);
   justify-content: flex-end;

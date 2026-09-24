@@ -49,8 +49,9 @@ describe('resource fill geometry', () => {
     const ui = new TokenUIRenderer(setup());
     try {
       ui.update(hero, 70);
-      const fills = belowToken(ui).children.filter((c): c is Graphics => c instanceof Graphics && c.zIndex === 11);
-      const fill = fills[index]!;
+      // Each fill layer holds the loss/gain trail and then the fill itself
+      const fills = belowToken(ui).children.filter((c) => c.zIndex === 11).map((layer) => layer.children[1]);
+      const fill = fills[index] as Graphics;
       const x = -32 + 0.375 + 1;
       const y = 2 + index * 12 + 0.375 + 1;
       const height = 10 - 0.75 - 2;
@@ -85,7 +86,7 @@ describe('resource value popover editing', () => {
     const viewport = Object.assign(new Container(), { options: { events: { domElement: canvas } } }) as Viewport;
     const store = setup();
     const controls = new TokenControlsUI(viewport, store);
-    controls.show('hero', 0, 0, 70);
+    controls.show('hero', 0, 0, 70, 1);
     const bars = controls.getContainer().children.filter((c): c is ResourceBarHitArea => c instanceof ResourceBarHitArea);
     const click = (index: number, x = 0): void => {
       const target = bars[index]!;

@@ -2,6 +2,69 @@
 
 <!-- Generated from changelog/*.md. Run npm run changelog:generate. -->
 
+## 0.3.1 — Completes 0.3.0 with game systems, new pin icons and conditions
+
+2026-09-24
+
+### Important changes
+
+- This release completes 0.3.0. Several finished features were missing from the 0.3.0 build and are included now. Pins that show no icon in 0.3.0 get their icons back.
+
+### New
+
+**New Feature: Game System Presets**
+
+- Set a collection's measurement, conditions and token bars in one click in Collection Settings → Game System.
+- Built-in presets: Daggerheart, D&D 5e, Old-School Essentials, Shadowdark, Pathfinder 2e, Call of Cthulhu 7th Edition and Cyberpunk RED.
+- Save your own rules as a preset and use them in other collections.
+- Choose the game system when you create a collection.
+
+**New Feature: Place Pins**
+
+- 65 new place icons for pins, from a world map down to a single room. Hover the location marker in the pin picker to open them.
+
+**General**
+
+- Share a counter or timer with every scene of a collection ("Share across collection" in Widget Settings).
+- Tokens at 0 hit points turn grey and show a skull.
+- Tag assets right from their card in the asset manager.
+- Measure in yards.
+- Conditions can carry a number, like Frightened 2 or Exhaustion 3.
+- Apply a condition to several selected tokens at once.
+- Join the Atlas community on Discord. The changelog and settings now link to it.
+
+### Improved
+
+- New Atlas app icon.
+- New fantasy icons for map pins. Existing pins switch to the new icons on their own.
+- Change a pin's icon in one click with Edit Pin.
+- Conditions show as badges on the token, with a hover card that names them.
+- Resource bars stay at a normal size and grow when you select a token.
+- Resource bars animate when their value changes.
+- Rotate and resize handles stay in place on rotated tokens.
+- Smooth mouse-wheel zoom and a gentle stop after panning.
+- Widgets float on their own cards above the map.
+- Redesigned Link Statblock dialog with a statblock preview.
+- Search and tag filters in the asset manager find assets in every folder.
+- The asset manager sidebar floats over the library on narrow windows.
+- Smoother animations for the asset manager, its dialogs, the pin menu and the command palette.
+- Every panel closes with the same × button and shares the same rounded corners.
+- Atlas shows its own tooltips instead of plain grey browser tooltips.
+- Shift+Enter in the map switcher opens the map in both views.
+- The End Combat button shows a white flag.
+
+### Fixed
+
+- The asset manager fits narrow and tall windows.
+- Conditions show on the token at once.
+- Every resource bar can be edited and has working +/- buttons.
+- Tokens without a statblock no longer get a hit point bar of 100.
+- Range band fields in Grid & Measure can be cleared and retyped.
+- Sorting in the asset manager works.
+- Map tags and character tags are kept apart.
+- Tags created from an asset's right-click menu are saved.
+- Manage Tags & Collections no longer reacts to Ctrl/Cmd shortcuts.
+
 ## 0.3.0 — Map switcher, scene snapshots and copy and paste
 
 2026-09-24

@@ -114,7 +114,7 @@ interface TokenSpawnData extends Omit<StatblockOverrides, 'hp'> {
   imagePath: string;
   kind: 'character';
   name: string;
-  hp: number | { current: number; max: number };
+  hp?: number | { current: number; max: number };
   statblockPath?: string;
   stress?: number;
   maxStress?: number;
@@ -172,7 +172,6 @@ async function buildTokenData(
     imagePath,
     kind: 'character',
     name,
-    hp: 100,
   };
 
   if (size !== undefined) data.size = size;

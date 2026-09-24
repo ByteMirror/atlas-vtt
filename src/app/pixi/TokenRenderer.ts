@@ -25,6 +25,10 @@ import { mapMeasurementSettings } from '../services/mapMeasurementSettings';
 import { SyncService } from './token-renderer/SyncService';
 import { updateInstanceBadge } from './token-renderer/InstanceBadge';
 import { HiddenTokenIcon } from './token-renderer/HiddenTokenIcon';
+import { DownedTokenOverlay } from './token-renderer/DownedTokenOverlay';
+import { isTokenDowned } from './token-renderer/isTokenDowned';
+import { requestRender } from './RenderScheduler';
+import { prefersReducedMotion } from '../utils/motion';
 import { destroyTree } from './utils/destroyTree';
 import { buildStatblockLinkUpdates, readStatblockVitals, STATBLOCK_UNLINK_UPDATES } from './token-renderer/statblockFrontmatter';
 import type { TokenGroupContainer } from './token-renderer/types';
@@ -52,6 +56,12 @@ export class TokenRenderer {
   private spriteFactory: SpriteFactory;
   private textureCache: TextureCache;
   private readonly hiddenTokenIcon = new HiddenTokenIcon();
+  private readonly downedTokenOverlay = new DownedTokenOverlay(
+    () => {
+      if (this.pixiApp) requestRender(this.pixiApp);
+    },
+    () => this.pixiApp?.ticker ?? null,
+  );
   private uiManager: UIManager;
   private interactionController: InteractionController;
   private dragRuler: DragRuler;
@@ -169,6 +179,7 @@ export class TokenRenderer {
     this.interactionController.setHandlePositionUpdater(() => 
       this.uiManager.updateHandlePositions()
     );
+    this.interactionController.setTokensHeldCallback((tokenIds) => this.uiManager.setTokensHeld(tokenIds));
     this.interactionController.setSelectionUpdateCallback(() => {
       if (typeof this.selectionOverlayUpdater === 'function') {
         this.selectionOverlayUpdater();
@@ -388,6 +399,12 @@ export class TokenRenderer {
 
     window.addEventListener('atlas-tokens-resize-update', this._handleResizeUpdate);
     
+    // Condition badges follow edits to the map's collection conditions
+    const handleCollectionSettingsChange = this.obsApp.workspace.on('atlas-vtt:collection-settings-changed', (collectionId) => {
+      const mapPath = this.store.getState().mapPath;
+      if (mapPath && this.assetService.getCollectionForMap(mapPath) === collectionId) this.uiManager.refreshConditions();
+    });
+
     // Listen to statblock metadata changes
     const handleMetadataChange = this.obsApp.metadataCache.on('changed', async (file: TFile) => {
       // Check if this is a statblock file being edited
@@ -504,6 +521,7 @@ export class TokenRenderer {
       this.eventBus.off('map-loaded', handleMapLoaded);
       // Clean up metadata change listener
       this.obsApp.metadataCache.offref(handleMetadataChange);
+      this.obsApp.workspace.offref(handleCollectionSettingsChange);
       // Clean up link change listener
       if (this.tokenStatblockLinkService && typeof this.tokenStatblockLinkService.off === 'function') {
         this.tokenStatblockLinkService.off('link-changed', handleLinkChange);
@@ -591,6 +609,7 @@ export class TokenRenderer {
     // between initial create and subsequent updates (size/color changes).
     const ring = this.spriteFactory.createTokenRing(tokenGroup, resolvedRingColor, sizeWithMultiplier);
     syncTokenArtwork(tokenGroup, size);
+    this.downedTokenOverlay.refresh(tokenGroup);
     if (ring) {
       this.tokenRings[tokenId] = ring;
     } else {
@@ -669,6 +688,14 @@ export class TokenRenderer {
     if (!prevToken || (prevToken.isHidden ?? false) !== isHidden) {
       this.reestablishTokenInteractivity(tokenGroup);
     }
+  }
+
+  /** Greys out a token at 0 HP and marks it with a skull; killing and healing a loaded token animate. */
+  private applyDownedState(token: TokenEntity, tokenGroup: TokenGroupContainer, prevToken?: TokenEntity): void {
+    const downed = isTokenDowned(token);
+    const canvas = this.pixiApp?.canvas;
+    const animate = prevToken !== undefined && isTokenDowned(prevToken) !== downed && !!canvas && !prefersReducedMotion(canvas);
+    this.downedTokenOverlay.update(tokenGroup, downed, animate);
   }
 
   /**
@@ -838,6 +865,7 @@ export class TokenRenderer {
         }
         
         this.applyTokenVisibilityPolicy(token, existingTokenGroup, prevToken);
+        this.applyDownedState(token, existingTokenGroup, prevToken);
         
         // Update z-index if layer changed
         if (!prevToken || prevToken.layer !== token.layer) {
@@ -939,6 +967,7 @@ export class TokenRenderer {
           this.uiManager.createTokenUI(token.id, tokenGroup, character);
           
           this.applyTokenVisibilityPolicy(character, tokenGroup);
+          this.applyDownedState(character, tokenGroup);
           
           // Request sort for proper z-ordering
           this.requestSort();
@@ -1032,6 +1061,10 @@ export class TokenRenderer {
     // Nameplate changes
     if (token.showNameplate !== prevToken.showNameplate) return true;
 
+    // Conditions, compared by value
+    if ((token.conditions ?? []).join() !== (prevToken.conditions ?? []).join()) return true;
+    if (token.conditionValues !== prevToken.conditionValues) return true;
+
     // Character data: name, HP and stress (compared by value) and statblock link
     const character = token.kind === 'character' ? token : undefined;
     const prevCharacter = prevToken.kind === 'character' ? prevToken : undefined;
@@ -1091,8 +1124,9 @@ export class TokenRenderer {
   }
 
   /** Detaches a token group's pointer handlers and destroys it with all of its children. */
-  private destroyTokenGroup(id: string, tokenGroup: Container): void {
+  private destroyTokenGroup(id: string, tokenGroup: TokenGroupContainer): void {
     this.interactionController.removeInteractionHandlers(id, tokenGroup);
+    this.downedTokenOverlay.release(tokenGroup);
     this.spriteFactory.destroyTokenSprite(tokenGroup);
   }
 
@@ -1178,6 +1212,7 @@ export class TokenRenderer {
     // Destroy all cached textures using centralized method
     this.textureCache.destroyAll();
     this.hiddenTokenIcon.destroy();
+    this.downedTokenOverlay.destroy();
     
     // Clear all references
     this.tokenSprites = {};

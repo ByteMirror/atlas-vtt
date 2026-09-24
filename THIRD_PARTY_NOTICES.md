@@ -2,7 +2,7 @@
 
 ## Assets
 
-- Widget icons and the token icon come from [game-icons.net](https://game-icons.net) by Lorc, Delapouite, Skoll, sbed and Carl Olsen, licensed under [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/). The black background was removed and the glyphs recoloured.
+- Widget icons, map pin icons, the token icon and the end-combat icon come from [game-icons.net](https://game-icons.net) by Lorc, Delapouite, Skoll, sbed, Carl Olsen and Caro Asercion, licensed under [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/). The black background was removed and the glyphs recoloured.
 - Dice result sounds are built from the "Impact Sounds" and "Casino Audio" packs by [Kenney](https://kenney.nl), released under [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) and converted from OGG to MP3.
 - The dice toast knotwork corners are cropped from "Celtic knot border" by pitr on [ClipSafari](https://www.clipsafari.com/clips/o213700-celtic-knot-border), released under [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/).
 - Interface icons are [Lucide](https://lucide.dev) (ISC), provided by Obsidian and the bundled lucide-react package.

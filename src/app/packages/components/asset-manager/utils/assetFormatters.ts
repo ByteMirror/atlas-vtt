@@ -115,6 +115,7 @@ export function formatServiceAsset(
     name: asset.name,
     tags: asset.tags,
     folderId: folderIdFor(assetPath, tabBasePath),
+    modifiedAt: asset.modifiedAt,
     ...(asset.filePath !== undefined && { filePath: asset.filePath }),
   };
 

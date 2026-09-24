@@ -29,6 +29,7 @@ export interface AssetCrudActions extends CollectionTransferActions {
   moveFolderListOpen: boolean;
   targetFolderName: string;
   settingsModalCollectionId: string | null;
+  isCreateCollectionModalOpen: boolean;
   inputModalState: InputModalState;
   // Setters
   setIsTokenCreatorOpen: (open: boolean) => void;
@@ -43,6 +44,9 @@ export interface AssetCrudActions extends CollectionTransferActions {
   setMoveFolderListOpen: (open: boolean) => void;
   setTargetFolderName: (name: string) => void;
   setSettingsModalCollectionId: (id: string | null) => void;
+  setIsCreateCollectionModalOpen: (open: boolean) => void;
+  /** Shows a collection the create dialog just made. */
+  showCreatedCollection: (collectionId: string) => Promise<void>;
   setInputModalState: (state: InputModalState) => void;
   // Handlers
   handleCreateFolder: () => void;
@@ -89,6 +93,7 @@ export function useAssetCrud(
   const [moveFolderListOpen, setMoveFolderListOpen] = useState(false);
   const [targetFolderName, setTargetFolderName] = useState('');
   const [settingsModalCollectionId, setSettingsModalCollectionId] = useState<string | null>(null);
+  const [isCreateCollectionModalOpen, setIsCreateCollectionModalOpen] = useState(false);
   const [inputModalState, setInputModalState] = useState<InputModalState>({
     isOpen: false,
     title: '',
@@ -230,35 +235,14 @@ export function useAssetCrud(
     setDropTarget(null);
   };
 
-  const createCollection = async (name: string): Promise<void> => {
-    if (!assetService) return;
-    try {
-      const created = await assetService.createCollection(name);
-      await reloadCollections();
-      setSelectedCollection(created.id);
-      await loadFoldersForActiveTab();
-      await loadAssetsForActiveTab();
-      setSettingsModalCollectionId(created.id);
-    } catch (error) {
-      console.error('[useAssetCrud] Failed to create collection:', error);
-      showAtlasToast('Could not create the collection');
-    }
+  const showCreatedCollection = async (collectionId: string): Promise<void> => {
+    await reloadCollections();
+    setSelectedCollection(collectionId);
+    await loadFoldersForActiveTab();
+    await loadAssetsForActiveTab();
   };
 
-  const handleCreateCollection = (): void => {
-    setInputModalState({
-      isOpen: true,
-      title: 'Create New Collection',
-      placeholder: 'Enter collection name',
-      onConfirm: (name: string) => { void createCollection(name.trim()); },
-      validation: (value: string) => {
-        const trimmed = value.trim();
-        if (!trimmed) return 'Collection name cannot be empty';
-        if (collections.some((collection) => collection.name.toLowerCase() === trimmed.toLowerCase())) return `Collection "${trimmed}" already exists`;
-        return null;
-      },
-    });
-  };
+  const handleCreateCollection = (): void => setIsCreateCollectionModalOpen(true);
 
   const handleSaveAsEncounter = async (tokenAssets: AnyAsset[]): Promise<void> => {
     if (!assetService || !app) return;
@@ -293,12 +277,12 @@ export function useAssetCrud(
     isCreateSceneModalOpen, createScenePrefill,
     isCreateFolderModalOpen, isMoveModalOpen,
     moveTargetFolderId, moveFolderSearch, moveFolderListOpen,
-    targetFolderName, settingsModalCollectionId, inputModalState,
+    targetFolderName, settingsModalCollectionId, isCreateCollectionModalOpen, inputModalState,
     setIsTokenCreatorOpen, setIsMapCreatorOpen, setEditingToken,
     setIsCreateSceneModalOpen, openCreateSceneModalFromMap,
     setIsCreateFolderModalOpen, setIsMoveModalOpen,
     setMoveTargetFolderId, setMoveFolderSearch, setMoveFolderListOpen,
-    setTargetFolderName, setSettingsModalCollectionId, setInputModalState,
+    setTargetFolderName, setSettingsModalCollectionId, setIsCreateCollectionModalOpen, showCreatedCollection, setInputModalState,
     handleCreateFolder, handleCreateMap,
     handleCreateCollection, handleRefresh,
     createFolderInVault, deleteAssetFromVault, deleteFolderFromVault,

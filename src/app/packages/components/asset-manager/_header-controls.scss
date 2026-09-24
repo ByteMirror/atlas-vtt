@@ -1,0 +1,275 @@
+@use '../../../../../styles/tokens' as *;
+@use '../../../../../styles/mixins' as *;
+@use 'variables' as *;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Asset Manager – Header controls: asset type, search, sort, create
+// ═══════════════════════════════════════════════════════════════════════════
+// Each control has a wide and a compact form; the header's container queries
+// show one of them (see `_header.scss`).
+
+// ── Asset type ──────────────────────────────────────────────────────────────
+
+.atlas-asset-manager-tabs {
+  @include atlas-tab-switcher;
+
+  .atlas-tab-button {
+    @include atlas-tab-button;
+
+    .atlas-tab-count {
+      min-width: 2ch;
+      text-align: left;
+    }
+
+    &.atlas-active .atlas-tab-count {
+      color: var(--text-muted);
+    }
+  }
+}
+
+// The current type as a menu button, shaped like the tab switcher it replaces.
+.atlas-am-tab-menu {
+  display: none;
+}
+
+.atlas-am-tab-menu-trigger {
+  &.btn {
+    gap: $spacing-xs;
+    height: $control-height;
+    padding: 0 $spacing-s 0 $spacing-m;
+    border-radius: $radius-m;
+    background: var(--background-secondary);
+    box-shadow: none;
+    color: var(--text-normal);
+    font-size: $font-ui-small;
+    font-weight: $font-weight-medium;
+    transition: background-color $transition-fast $transition-ease,
+                transform $transition-press $transition-ease-out;
+  }
+
+  &:hover {
+    background: var(--background-modifier-hover);
+  }
+
+  &:active {
+    transform: scale(0.97);
+  }
+
+  .atlas-tab-label {
+    @include atlas-truncate;
+  }
+
+  .atlas-tab-count {
+    color: var(--text-faint);
+    font-size: $font-ui-smaller;
+    font-weight: $font-weight-normal;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .atlas-am-tab-menu-chevron {
+    width: $icon-xs;
+    height: $icon-xs;
+    color: var(--text-faint);
+    transition: transform $transition-normal $transition-ease-out;
+  }
+
+  &.atlas-active .atlas-am-tab-menu-chevron {
+    transform: rotate(180deg);
+  }
+}
+
+@container atlas-am-header (width < #{$header-tabs-inline-width}) {
+  .atlas-asset-manager-tabs {
+    display: none;
+  }
+
+  .atlas-am-tab-menu {
+    display: block;
+  }
+}
+
+// ── Search ──────────────────────────────────────────────────────────────────
+
+.atlas-am-search {
+  display: contents;
+}
+
+.atlas-am-search .atlas-am-search-toggle {
+  display: none;
+}
+
+.atlas-asset-manager-search {
+  @include atlas-flex-row($gap: $spacing-xs);
+  flex: 0 1 180px;
+  width: 180px;
+  min-width: 120px;
+  height: $control-height;
+  padding: 0 $spacing-xs 0 $spacing-s;
+  background: var(--background-modifier-form-field);
+  border: $border-width-s solid var(--background-modifier-border);
+  border-radius: $radius-m;
+  transition: border-color $transition-fast $transition-ease;
+
+  &:focus-within {
+    border-color: var(--background-modifier-border-focus);
+  }
+
+  > svg {
+    width: $icon-s;
+    height: $icon-s;
+    color: var(--text-faint);
+    flex-shrink: 0;
+  }
+
+  input {
+    flex: 1;
+    min-width: 0;
+    height: 100%;
+    background: transparent !important;
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+    padding: 0;
+    color: var(--text-normal);
+    font-size: $font-ui-small;
+
+    &::placeholder {
+      color: var(--text-faint);
+    }
+  }
+
+  .atlas-am-icon-btn {
+    &.btn,
+    &.btn--icon {
+      width: 20px;
+      height: 20px;
+      border-radius: $radius-s;
+    }
+
+    svg {
+      width: 12px;
+      height: 12px;
+    }
+  }
+}
+
+// Compact: a button; the field opens over the whole toolbar row while it has
+// focus. Kept rendered (not display: none) so it can take focus.
+@container atlas-am-header (width < #{$header-search-inline-width}) {
+  .atlas-am-search .atlas-am-search-toggle {
+    display: flex;
+
+    // A search is active: accent the button so the filter is not forgotten.
+    &.btn.atlas-active {
+      color: var(--text-accent);
+      background: color-mix(in oklch, var(--interactive-accent) 14%, transparent);
+    }
+  }
+
+  .atlas-asset-manager-search {
+    position: absolute;
+    top: $spacing-m;
+    left: $spacing-m;
+    right: $spacing-m;
+    z-index: 2;
+    width: auto;
+    // Covers the controls of the row around the field as well.
+    box-shadow: 0 0 0 $spacing-m var(--background-primary);
+    opacity: 0;
+    transform: scale(0.98);
+    pointer-events: none;
+    transition: opacity 150ms $transition-ease-out, transform 150ms $transition-ease-out,
+                border-color $transition-fast $transition-ease;
+
+    &:focus-within {
+      opacity: 1;
+      transform: none;
+      pointer-events: auto;
+    }
+  }
+}
+
+// ── Sort ────────────────────────────────────────────────────────────────────
+
+.atlas-am-sort-inline {
+  @include atlas-flex-row($gap: $spacing-xs);
+}
+
+.atlas-am-sort-menu {
+  display: none;
+}
+
+@container atlas-am-header (width < #{$header-sort-inline-width}) {
+  .atlas-am-sort-inline {
+    display: none;
+  }
+
+  .atlas-am-sort-menu {
+    display: block;
+  }
+}
+
+.atlas-am-sort {
+  &.btn {
+    height: $control-height;
+    padding: 0 $spacing-s;
+    border-radius: $radius-m;
+    font-size: $font-ui-small;
+    font-weight: $font-weight-normal;
+    color: var(--text-muted);
+    transition: transform $transition-press $transition-ease-out;
+  }
+
+  &:hover {
+    color: var(--text-normal);
+  }
+
+  &:active {
+    transform: scale(0.97);
+  }
+
+  // All labels stacked in one grid cell: width = longest label, no layout shift
+  .atlas-am-sort-stack {
+    display: grid;
+
+    > span {
+      grid-area: 1 / 1;
+      text-align: left;
+      white-space: nowrap;
+      visibility: hidden;
+
+      &.atlas-current {
+        visibility: visible;
+      }
+    }
+  }
+}
+
+// ── Create ──────────────────────────────────────────────────────────────────
+
+.atlas-asset-manager-create-btn {
+  &.btn,
+  &.btn--icon {
+    width: $control-height;
+    height: $control-height;
+    border-radius: $radius-m;
+    @include atlas-concentric-corner(top-right, $window-radius, $window-corner-inset);
+    flex-shrink: 0;
+  }
+
+  transition: transform $transition-press $transition-ease-out;
+
+  svg {
+    width: $icon-s;
+    height: $icon-s;
+    transition: transform $transition-normal $transition-ease-in-out;
+  }
+
+  &:active {
+    transform: scale(0.95);
+  }
+
+  &.atlas-active svg {
+    transform: rotate(45deg);
+  }
+}

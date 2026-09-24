@@ -55,3 +55,24 @@ const TOKEN_UI_REFERENCE_SIZE = computeTokenPixelSize(REFERENCE_CELL_SIZE, 1);
 export function tokenUIScale(spriteSize: number): number {
   return spriteSize / TOKEN_UI_REFERENCE_SIZE;
 }
+
+/**
+ * Scale of a token's bars, nameplate and condition markers while it is not selected or
+ * is being dragged: a medium token's on a `gridSize` grid, whatever the token's size,
+ * so the bars of huge tokens do not cover the map around them.
+ */
+export function restingTokenUIScale(gridSize: number): number {
+  return tokenUIScale(computeTokenPixelSize(gridSize, 1));
+}
+
+/** Screen pixels per UI unit of a selected token's bars, whatever the zoom or token size. */
+const SELECTED_TOKEN_UI_SCREEN_SCALE = 2.25;
+
+/**
+ * World scale of a selected token's bars at viewport `zoom`: a constant size on screen,
+ * like map pins, so they are easy to read and click at any zoom, but never smaller than
+ * the resting size (when zoomed far in).
+ */
+export function selectedTokenUIScale(restingScale: number, zoom: number): number {
+  return Math.max(restingScale, SELECTED_TOKEN_UI_SCREEN_SCALE / zoom);
+}

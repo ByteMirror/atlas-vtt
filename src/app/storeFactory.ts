@@ -20,12 +20,14 @@ import { createInitiativeActions } from './stores/initiativeSlice';
 import { createInitialUIState, createUIActions, type UISlice } from './stores/uiSlice';
 import { createPinnedNotePreviewActions, type PinnedNotePreviewSlice } from './stores/pinnedNotePreviewSlice';
 import { createHistoryOptions } from './stores/history';
+import { withoutCollectionWidgets } from './utils/collectionWidgets';
 import { createMapObjectsActions, type MapObjectsSlice } from './stores/mapObjectsSlice';
 import { computeNextInstanceNumber } from './stores/tokenInstanceNumbers';
 import type { DiceRollResult } from './tools/DiceTool';
 import { isAtlasToolAvailable } from './tools/toolAvailability';
 import { isPinLabelKind, nextPinLabel } from './tools/pinLabels';
 import { rewriteMapReferences } from './services/renamedPaths';
+import { conditionValue, removeCondition, setConditionValue } from './utils/conditionValues';
 
 // Individual store state interface (same as AtlasState but isolated)
 export interface ViewAtlasState {
@@ -56,7 +58,7 @@ export interface ViewAtlasState {
   // Grid configuration
   grid: GridState | null;
   setGrid: (grid: GridState) => void;
-  setGridUnits: (units: { unitType: 'feet' | 'meters' | 'units'; unitDistance: number }) => void;
+  setGridUnits: (units: { unitType: 'feet' | 'yards' | 'meters' | 'units'; unitDistance: number }) => void;
   setGridVisible: (visible: boolean) => void;
   setSnapToGrid: (snap: boolean) => void;
   
@@ -108,8 +110,13 @@ export interface ViewAtlasState {
   deleteToken: (id: string) => void;
   setTokens: (map: Record<string, TokenEntity>) => void;
   setTokenRing: (id: string, color: string | null) => void;
-  addTokenCondition: (tokenId: string, conditionId: string) => void;
-  removeTokenCondition: (tokenId: string, conditionId: string) => void;
+  /** Adds (`active`) or removes a condition on every token in one store write, so it is a single undo step. */
+  setTokensCondition: (tokenIds: string[], conditionId: string, active: boolean) => void;
+  /**
+   * Raises or lowers a valued condition by `delta` on every token in one store write:
+   * a token without it gains it at `delta`, one that falls to 0 loses it.
+   */
+  changeTokensConditionValue: (tokenIds: string[], conditionId: string, delta: number) => void;
   clearTokenConditions: (id: string) => void;
   killTokens: (ids: string[]) => void;
   resetTokens: (ids: string[]) => void;
@@ -297,6 +304,15 @@ const createDefaultWidgets = (): WidgetSettings => ({
 });
 
 // Initial state for each store instance
+/** Token display settings of a map that never set its own. */
+export const DEFAULT_TOKEN_SETTINGS: Readonly<ViewAtlasState['tokenSettings']> = {
+  showNameplates: false,
+  showHPBars: true,
+  showStressBars: false,
+  showInstanceBadges: true,
+  tokenRingSize: 1,
+};
+
 const createInitialState = (): Pick<ViewAtlasState, 'schema' | 'version' | 'mapPath' | 'background' | 'grid' | 'objects' | 'camera' | 'persistenceEnabled' | 'widgetSettings' | 'widgetValues' | 'dmNotePath' | 'tokenSettings' | 'initiative' | 'diceLog' | 'pinnedNotePreviews'> => ({
   schema: ATLAS_SCHEMA,
   version: ATLAS_VERSION,
@@ -477,13 +493,7 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
           dmNotePath: null,
           
           // Token settings
-          tokenSettings: {
-            showNameplates: false,
-            showHPBars: true,
-            showStressBars: false,
-            showInstanceBadges: true,
-            tokenRingSize: 1
-          },
+          tokenSettings: { ...DEFAULT_TOKEN_SETTINGS },
           
           // Per-store persistence control (not persisted)
           persistenceEnabled: true,
@@ -625,8 +635,8 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
                 y: data.y,
                 imagePath: normalizedImagePath,
                 name: extra.name,
-                hp: extra.hp,
                 instanceNumber,
+                ...(extra.hp !== undefined && { hp: extra.hp }),
                 ...(extra.notePath && { notePath: extra.notePath }),
                 ...(data.snapped !== undefined && { snapped: data.snapped }),
               };
@@ -1253,31 +1263,21 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
           }),
           
           // Token condition actions
-          addTokenCondition: (tokenId, conditionId) => set((draft) => {
-            const token = draft.objects.tokens[tokenId];
-            if (!token) {
-              console.warn(`[ViewStore-${viewId}] addTokenCondition: token not found`, tokenId);
-              return;
-            }
-
-            const current = token.conditions ?? [];
-            if (!current.includes(conditionId)) {
-              token.conditions = [...current, conditionId];
+          setTokensCondition: (tokenIds, conditionId, active) => set((draft) => {
+            for (const tokenId of tokenIds) {
+              const token = draft.objects.tokens[tokenId];
+              if (!token || (token.conditions ?? []).includes(conditionId) === active) continue;
+              if (active) token.conditions = [...(token.conditions ?? []), conditionId];
+              else removeCondition(token, conditionId);
             }
           }),
 
-          removeTokenCondition: (tokenId, conditionId) => set((draft) => {
-            const token = draft.objects.tokens[tokenId];
-            if (!token) {
-              console.warn(`[ViewStore-${viewId}] removeTokenCondition: token not found`, tokenId);
-              return;
-            }
-
-            const current = (token.conditions ?? []).filter((c: string) => c !== conditionId);
-            if (current.length > 0) {
-              token.conditions = current;
-            } else {
-              delete token.conditions;
+          changeTokensConditionValue: (tokenIds, conditionId, delta) => set((draft) => {
+            for (const tokenId of tokenIds) {
+              const token = draft.objects.tokens[tokenId];
+              if (!token) continue;
+              const current = (token.conditions ?? []).includes(conditionId) ? conditionValue(token, conditionId) : 0;
+              setConditionValue(token, conditionId, current + delta, true);
             }
           }),
 
@@ -1289,6 +1289,7 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
             }
 
             delete token.conditions;
+            delete token.conditionValues;
           }),
 
           // Kill tokens - set HP to 0
@@ -1338,6 +1339,7 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
 
                 // Clear all conditions
                 delete updated.conditions;
+                delete updated.conditionValues;
 
                 updatedTokens[id] = updated;
               }
@@ -1390,6 +1392,12 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
             if (!state.persistenceEnabled) {
               return {};
             }
+
+            // Collection-wide widgets are saved in the collection settings, not in the scene
+            const sceneWidgets = withoutCollectionWidgets({
+              widgets: state.widgetSettings.widgets,
+              widgetValues: state.widgetValues,
+            });
             
             return {
               schema: state.schema,
@@ -1399,8 +1407,8 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
               grid: state.grid,
               objects: state.objects,
               camera: state.camera,
-              widgetValues: state.widgetValues, // Only persist widget values, not definitions
-              widgetSettings: state.widgetSettings, // Keep for backward compatibility
+              widgetValues: sceneWidgets.widgetValues,
+              widgetSettings: { ...state.widgetSettings, widgets: sceneWidgets.widgets },
               dmNotePath: state.dmNotePath, // DM note linking
               tokenSettings: state.tokenSettings, // Token display settings
               initiative: state.initiative, // Initiative tracker state

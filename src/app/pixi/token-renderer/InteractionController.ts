@@ -31,6 +31,7 @@ import { copyDragSelection } from './dragCopy';
 import type { DragRuler } from './DragRuler';
 import { runInBackground } from '../../utils/backgroundTask';
 import { tokenSizeSubmenu } from '../../react/components/context-menu/tokenSizeMenu';
+import { conditionsSubmenu } from '../../react/components/context-menu/conditionsMenu';
 
 interface DragState {
   isDragging: boolean;
@@ -79,6 +80,7 @@ export class InteractionController implements ITokenInteractionController {
   private getTokenSprite?: (tokenId: string) => TokenGroupContainer | null;
   private updateUIPosition?: (tokenId: string, x: number, y: number) => void;
   private updateControlsPosition?: (x: number, y: number, tokenSize: number) => void;
+  private onTokensHeldChange?: (tokenIds: string[]) => void;
   private updateHandlePositions?: () => void;
   private dragRuler?: DragRuler;
 
@@ -262,6 +264,8 @@ export class InteractionController implements ITokenInteractionController {
     }
     
     this.dragState.isDragging = true;
+    // Tokens this press selects stay at rest until release, so a drag never grows their UI first
+    this.onTokensHeldChange?.(this.dragState.dragIds.filter((id) => !selectedIds.includes(id)));
     
     // Don't set isDragging in store yet - wait for actual movement
     
@@ -284,6 +288,7 @@ export class InteractionController implements ITokenInteractionController {
     if (!this.dragState.hasMoved && moveDistance > 5) {
       this.dragState.hasMoved = true;
       this.store.getState().setIsDragging(true);
+      this.onTokensHeldChange?.(this.dragState.dragIds);
       // The whole drag becomes one undo step; closed in onPointerUp.
       beginHistoryTransaction(this.store);
       const grabbedIndex = Math.max(0, this.dragState.dragIds.indexOf(this.dragState.clickToken?.id ?? ''));
@@ -495,6 +500,7 @@ export class InteractionController implements ITokenInteractionController {
       this.dragState.hasMoved = false;
       this.lastDragStreamSentAt = 0;
       delete this.dragState.clickToken;
+      this.onTokensHeldChange?.([]);
     }
   };
 
@@ -502,31 +508,20 @@ export class InteractionController implements ITokenInteractionController {
     return this.conditionDefsProvider?.() ?? [];
   }
 
+  /** The selected tokens when the right-clicked token is one of them, otherwise that token alone. */
+  private contextMenuTargets(tokenId: string): string[] {
+    const { selectedIds, objects } = this.store.getState();
+    if (!selectedIds.includes(tokenId)) return [tokenId];
+    return selectedIds.filter((id) => objects.tokens[id] !== undefined);
+  }
+
   private showContextMenu(token: TokenEntity, e: FederatedPointerEvent): void {
     const character = token.kind === 'character' ? token : undefined;
     const entries: ContextMenuEntry[] = [];
 
-    // Condition toggles
     const conditionDefs = this.getConditionDefs();
     if (conditionDefs.length > 0) {
-      const tokenConditions = token.conditions ?? [];
-      entries.push({
-        type: 'submenu',
-        label: 'Conditions',
-        icon: 'palette',
-        children: conditionDefs.map(cond => ({
-          type: 'item' as const,
-          label: cond.name,
-          checked: tokenConditions.includes(cond.id),
-          onClick: () => {
-            if (tokenConditions.includes(cond.id)) {
-              this.store.getState().removeTokenCondition(token.id, cond.id);
-            } else {
-              this.store.getState().addTokenCondition(token.id, cond.id);
-            }
-          },
-        })),
-      });
+      entries.push(conditionsSubmenu(this.store, conditionDefs, this.contextMenuTargets(token.id)));
       entries.push({ type: 'separator' });
     }
 
@@ -652,6 +647,7 @@ export class InteractionController implements ITokenInteractionController {
                 );
               },
               character?.name || 'Token',
+              { imagePath: token.imagePath, showRing: token.showRing },
             );
           }
         },
@@ -744,6 +740,14 @@ export class InteractionController implements ITokenInteractionController {
 
   setHandlePositionUpdater(updater: () => void): void {
     this.updateHandlePositions = updater;
+  }
+
+  /**
+   * Receives the tokens whose UI stays at rest while the pointer is down: the ones a press
+   * newly selects, every dragged token once a drag starts, and none on release.
+   */
+  setTokensHeldCallback(callback: (tokenIds: string[]) => void): void {
+    this.onTokensHeldChange = callback;
   }
 
   setDragRuler(ruler: DragRuler): void {

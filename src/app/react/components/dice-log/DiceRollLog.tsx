@@ -1,10 +1,11 @@
 import React, { useRef, useEffect, useCallback, useMemo, useState } from 'react';
-import { Dices, Pin, PinOff, Trash2, X } from 'lucide-react';
+import { Dices, Pin, PinOff, Trash2 } from 'lucide-react';
 import { useAtlasUI } from '../../root/AtlasUIContext';
 import { useAtlasStore } from '../../ViewStoreContext';
 import { useDiceHistory } from './useDiceHistory';
 import { DiceRollEntry } from './DiceRollEntry';
 import { LabelTooltip } from '../../../packages/components/primitives/tooltip';
+import { CloseButton } from '../../../packages/components/primitives/CloseButton';
 import type { DiceTool } from '../../../tools/DiceTool';
 
 interface DiceRollLogProps {
@@ -113,14 +114,7 @@ export function DiceRollLog({ isOpen, onClose }: DiceRollLogProps): React.ReactE
               {isPinned ? <PinOff /> : <Pin />}
             </button>
           </LabelTooltip>
-          <LabelTooltip label="Close (Enter or Esc)">
-            <button
-              className="btn btn--ghost btn--icon dice-roll-log__action-btn"
-              onClick={handleClose}
-            >
-              <X />
-            </button>
-          </LabelTooltip>
+          <CloseButton onClick={handleClose} title="Close (Enter or Esc)" />
         </div>
       </div>
 

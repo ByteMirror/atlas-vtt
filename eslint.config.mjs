@@ -26,6 +26,26 @@ export default defineConfig([
         "ts-nocheck": true,
         "ts-expect-error": true,
       }],
+      // A `title` attribute shows the browser's tooltip. Atlas shows its own
+      // (`LabelTooltip`) where one is wanted and names controls with `aria-label`.
+      "no-restricted-syntax": ["error",
+        {
+          selector: "JSXOpeningElement[name.name=/^[a-z]/] > JSXAttribute[name.name='title']",
+          message: "`title` shows the browser tooltip. Use `aria-label`, or `LabelTooltip` for a visible tooltip.",
+        },
+        {
+          selector: "CallExpression[callee.property.name=/^(setAttribute|setAttr)$/][arguments.0.value='title']",
+          message: "`title` shows the browser tooltip. Use `aria-label`, or `LabelTooltip` for a visible tooltip.",
+        },
+        {
+          selector: "Property[key.name='attr'] > ObjectExpression > Property[key.name='title']",
+          message: "`title` shows the browser tooltip. Use `aria-label`, or `LabelTooltip` for a visible tooltip.",
+        },
+        {
+          selector: "AssignmentExpression > MemberExpression.left[property.name='title'][object.type!='ThisExpression']:not([object.name=/^(doc|document)$/])",
+          message: "`title` shows the browser tooltip. Use `aria-label`, or `LabelTooltip` for a visible tooltip.",
+        },
+      ],
     },
   },
   {

@@ -5,6 +5,8 @@ import type { AnyAsset, CollectionOption, Folder, Tag, Tab } from '../types';
 import { ATLAS_VTT_DIR } from '../types';
 import { AssetService } from '../../../../services/AssetService';
 import { AssetThumbnailService } from '../../../../services/AssetThumbnailService';
+import { tagGroupOfTab, type TagsByGroup } from '../utils/assetTags';
+import type { TagGroup } from '../../../../services/tagGroups';
 import { formatServiceAsset, partitionByTab, tokenPreviewSources, type TabServiceAsset } from '../utils/assetFormatters';
 import { useAtlasUI } from '../../../../react/root/AtlasUIContext';
 import { useOptionalAtlasStore } from '../../../../react/ViewStoreContext';
@@ -15,14 +17,17 @@ import type { ViewAtlasState } from '../../../../storeFactory';
 export interface AssetData {
   folders: Folder[];
   assets: AnyAsset[];
+  /** The tab `assets` were loaded for; lags `activeTab` while a tab switch loads. */
+  assetsTab: Tab | null;
+  /** Tags of the active tab's tag group. */
   availableTags: Tag[];
+  tagsByGroup: TagsByGroup;
   collections: CollectionOption[];
   assetCounts: Record<Tab, number>;
   assetService: AssetService | null;
   // Setters (exposed so context menus can mutate state)
   setFolders: React.Dispatch<React.SetStateAction<Folder[]>>;
   setAssets: React.Dispatch<React.SetStateAction<AnyAsset[]>>;
-  setAvailableTags: React.Dispatch<React.SetStateAction<Tag[]>>;
   // Actions
   loadFoldersForActiveTab: () => Promise<void>;
   loadAssetsForActiveTab: () => Promise<void>;
@@ -52,7 +57,9 @@ export function useAssetData(
 
   const [folders, setFolders] = useState<Folder[]>([]);
   const [assets, setAssets] = useState<AnyAsset[]>([]);
-  const [availableTags, setAvailableTags] = useState<Tag[]>([]);
+  const [assetsTab, setAssetsTab] = useState<Tab | null>(null);
+  const [tagsByGroup, setTagsByGroup] = useState<TagsByGroup>({ tokens: [], maps: [] });
+  const availableTags = tagsByGroup[tagGroupOfTab(activeTab)];
   const [collections, setCollections] = useState<CollectionOption[]>([]);
   const [assetService, setAssetService] = useState<AssetService | null>(null);
   const [assetCounts, setAssetCounts] = useState<Record<Tab, number>>({
@@ -111,6 +118,7 @@ export function useAssetData(
       const tabBase = `${ATLAS_VTT_DIR}/collections/${col}/${activeTab}`;
       const tabAssets: TabServiceAsset[] = byTab[activeTab];
       setAssets(tabAssets.map((a) => formatServiceAsset(a, tabBase, app, previewSources)));
+      setAssetsTab(activeTab);
       // Counts cover every tab so the tab bar never reflows when switching
       setAssetCounts({
         scenes: byTab.scenes.length,
@@ -121,6 +129,7 @@ export function useAssetData(
       thumbnails?.ensureThumbnails([...byTab.tokens, ...byTab.maps]);
     } catch (error) {
       console.error('[useAssetData] Error loading assets:', error);
+      setAssetsTab(activeTab);
     }
   }, [assetService, app, activeTab, selectedCollection, thumbnails]);
 
@@ -135,8 +144,9 @@ export function useAssetData(
     if (!assetService) return;
     try {
       const col = selectedCollection || 'default';
-      const tags = await assetService.getCollectionTags(col);
-      setAvailableTags(tags.map((t) => ({ id: t.id, name: t.name })));
+      const load = async (group: TagGroup): Promise<Tag[]> =>
+        (await assetService.getCollectionTags(col, group)).map((t) => ({ id: t.id, name: t.name }));
+      setTagsByGroup({ tokens: await load('tokens'), maps: await load('maps') });
     } catch (error) {
       console.error('[useAssetData] Error reloading tags:', error);
     }
@@ -156,11 +166,6 @@ export function useAssetData(
     const initialize = async (): Promise<void> => {
       await svc.initialize();
       setAssetService(svc);
-      try {
-        const col = selectedCollection || 'default';
-        const tags = await svc.getCollectionTags(col);
-        setAvailableTags(tags.map((t) => ({ id: t.id, name: t.name })));
-      } catch { /* ignore */ }
     };
     runInBackground(initialize(), 'Initializing asset service');
   }, [app]);
@@ -172,7 +177,7 @@ export function useAssetData(
   // ── Reload tags on collection change ──────────────────────────
   useEffect(() => {
     if (assetService && isOpen) void reloadGlobalTags();
-  }, [selectedCollection, assetService, reloadGlobalTags, isOpen]);
+  }, [assetService, reloadGlobalTags, isOpen]);
 
   // ── Refresh from disk on open and on refresh events ───────────
   // Reading the index from disk takes a while, and the selection may change
@@ -209,8 +214,8 @@ export function useAssetData(
   }, [assetService, activeTab, app, selectedCollection, loadAssetsForActiveTab, loadFoldersForActiveTab]);
 
   return {
-    folders, assets, availableTags, collections, assetCounts, assetService,
-    setFolders, setAssets, setAvailableTags,
+    folders, assets, assetsTab, availableTags, tagsByGroup, collections, assetCounts, assetService,
+    setFolders, setAssets,
     loadFoldersForActiveTab, loadAssetsForActiveTab, reloadGlobalTags, reloadCollections,
     app, view, addTokens, setSelection, mapPath,
   };

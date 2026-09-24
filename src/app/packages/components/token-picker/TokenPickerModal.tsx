@@ -6,6 +6,7 @@ import { TokenStatblockLinkService } from '../../../services/TokenStatblockLinkS
 import { LabelTooltip } from '../primitives/tooltip';
 import { resourceUrl } from '../asset-manager/utils/assetFormatters';
 import './token-picker.scss';
+import { ATLAS_NATIVE_MODAL_CLASSES } from '../../../ui/nativeModal';
 
 /** A token asset whose image exists in the vault, with its resolved resource URL. */
 interface PickableToken extends TokenAsset {
@@ -39,7 +40,7 @@ export class TokenPickerModal extends Modal {
     contentEl.empty();
     
     // Add our custom class
-    this.modalEl.addClass('token-picker-modal-wrapper');
+    this.modalEl.addClass(...ATLAS_NATIVE_MODAL_CLASSES, 'token-picker-modal-wrapper');
     
     // Set modal title
     this.titleEl.setText(`Select Token for ${this.statblockFile.basename}`);

@@ -1,6 +1,7 @@
 import { AssetRegistrationUncertainError } from '../../../services/assetRegistrationRecovery';
 import { StatblockImportContent } from './statblock-import/StatblockImportContent';
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { motion } from 'framer-motion';
 import { ImageIcon, Loader2, Save, Upload } from 'lucide-react';
 import { Platform } from 'obsidian';
 import { cn } from '../../../../utils/cn';
@@ -8,6 +9,7 @@ import { useAtlasUI } from '../../../react/root/AtlasUIContext';
 import { isShortcutScopeActive } from '../../../utils/activeLeafGuard';
 import { CloseButton } from '../primitives/CloseButton';
 import { Button } from '../primitives/button';
+import { dialogOverlayMotion, useDialogWindowVariants } from '../primitives/dialogMotion';
 import { TokenCreatorRail } from './token-creator/TokenCreatorRail';
 import { TokenPreviewCard } from './token-creator/TokenPreviewCard';
 import { saveTokenPreviews } from './token-creator/saveTokenPreviews';
@@ -41,7 +43,7 @@ export function TokenCreator({ isOpen, onClose, mode = 'token', selectedCollecti
   const usingStatblocks = mode === 'token' && !editToken && source === 'statblocks';
 
   const [collection, setCollection] = useState(selectedCollection);
-  const { tags: availableTags, createTag, isCreatingTag } = useAssetTags(assetService, isOpen, collection);
+  const { tags: availableTags, createTag, isCreatingTag } = useAssetTags(assetService, isOpen, collection, mode === 'map' ? 'maps' : 'tokens');
   const selectedPreviews = previews.previews.filter(p => p.isSelected);
   const selectedTags = selectedPreviews[0]?.tags?.filter(tag => selectedPreviews.every(p => p.tags?.includes(tag))) ?? [];
   const queuedPaths = useMemo(() => previews.previews.flatMap(p => p.statblockPath ? [p.statblockPath] : []), [previews.previews]);
@@ -52,6 +54,7 @@ export function TokenCreator({ isOpen, onClose, mode = 'token', selectedCollecti
   const dragDepthRef = useRef(0);
   const titleId = useId();
   const windowRef = useRef<HTMLDivElement>(null);
+  const windowVariants = useDialogWindowVariants();
 
   const { reset } = previews;
   const editTokenRef = useRef(editToken);
@@ -170,10 +173,11 @@ export function TokenCreator({ isOpen, onClose, mode = 'token', selectedCollecti
   const submitLabel = editToken ? 'Update' : 'Create';
 
   return (
-    <div className="atlas-vtt-plugin atlas-vtt-root atlas-token-creator" data-token-creator="true" onClick={() => { if (!isSubmitting) onClose(); }}>
-      <div
+    <motion.div {...dialogOverlayMotion} className="atlas-vtt-plugin atlas-vtt-root atlas-token-creator" data-token-creator="true" onClick={() => { if (!isSubmitting) onClose(); }}>
+      <motion.div
         ref={windowRef}
         className={cn('atlas-token-creator__window', isDragging && 'atlas-dragging')}
+        variants={windowVariants}
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
@@ -258,7 +262,7 @@ export function TokenCreator({ isOpen, onClose, mode = 'token', selectedCollecti
             <span>Drop to add {modeNoun(mode, 2)}</span>
           </div>
         )}
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }

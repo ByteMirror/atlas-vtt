@@ -1,3 +1,6 @@
+@use '../../../../styles/tokens' as *;
+@use '../../../../styles/mixins' as *;
+
 .atlas-light-config {
   position: fixed;
   z-index: 10000;
@@ -5,7 +8,7 @@
   max-width: 90vw;
   background: var(--background-primary);
   border: 1px solid var(--background-modifier-border);
-  border-radius: 12px;
+  @include atlas-panel-radius($radius-2xl, 1px);
   box-shadow:
     0 8px 24px rgba(0, 0, 0, 0.35),
     0 2px 8px rgba(0, 0, 0, 0.2);
@@ -17,7 +20,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 8px 8px 10px;
+  @include atlas-close-header(10px);
   background: var(--background-secondary);
   border-bottom: 1px solid var(--background-modifier-border);
   cursor: grab;

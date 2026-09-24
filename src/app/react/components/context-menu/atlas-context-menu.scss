@@ -5,10 +5,12 @@
 
 .atlas-ctx-menu {
   @include atlas-elevated-surface;
+  @include atlas-panel-radius($radius-2xl);
   box-shadow: $shadow-md;
   display: flex;
   flex-direction: column;
-  padding: $spacing-xs;
+  // The same gap to the border as every other surface's corner controls.
+  padding: $spacing-s;
   gap: $spacing-xs;
   min-width: 180px;
   max-width: 280px;
@@ -16,6 +18,20 @@
   overflow-y: auto;
   z-index: $z-atlas-dropdown;
   @include atlas-scrollbar;
+
+  // Rows in the menu's corners run concentric with it; the rest keep $radius-l.
+  > .atlas-ctx-item:first-child {
+    @include atlas-panel-inset-radius($spacing-s, top-left, top-right);
+  }
+
+  > .atlas-ctx-item:last-child {
+    @include atlas-panel-inset-radius($spacing-s, bottom-left, bottom-right);
+  }
+
+  > .atlas-ctx-custom:last-child .atlas-ctx-destructive-btn {
+    &:first-child { @include atlas-panel-inset-radius($spacing-s, bottom-left); }
+    &:last-child { @include atlas-panel-inset-radius($spacing-s, bottom-right); }
+  }
 }
 
 .atlas-ctx-menu--dropdown {
@@ -31,6 +47,7 @@
   gap: $spacing-xs;
   padding: $spacing-xs $spacing-s;
   border-radius: $radius-l;
+  @include atlas-corner-shape;
   background: transparent;
   color: var(--text-normal);
   font-size: var(--font-ui-small);
@@ -95,6 +112,64 @@
   }
 }
 
+// ── Check mark and value stepper (checkable and valued items) ────────────────
+
+.atlas-ctx-item__check {
+  display: flex;
+
+  // Always mounted, so a stepper before it keeps its place when the item is ticked
+  &[data-state='unchecked'] {
+    visibility: hidden;
+  }
+}
+
+.atlas-ctx-stepper {
+  display: flex;
+  align-items: center;
+  gap: $spacing-xs;
+}
+
+// Obsidian styles every button; the menu scope outweighs it
+.atlas-ctx-menu .atlas-ctx-stepper__button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  // No taller than a row's badge, so valued rows keep the height of the others
+  width: $icon-xs + $spacing-xs * 2;
+  height: $icon-s;
+  padding: 0;
+  border: none;
+  border-radius: $radius-s;
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-muted);
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    background: var(--background-modifier-hover);
+    color: var(--text-normal);
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+
+  .atlas-ctx-icon,
+  .atlas-ctx-icon svg {
+    width: $icon-xs;
+    height: $icon-xs;
+  }
+}
+
+.atlas-ctx-stepper__value {
+  min-width: 2ch;
+  color: var(--text-normal);
+  font-size: var(--font-ui-smaller);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
 // ── Icon slots ──────────────────────────────────────────────────────────────
 
 .atlas-ctx-icon {
@@ -143,6 +218,7 @@
   padding: $spacing-xs $spacing-s;
   border: none;
   border-radius: $radius-l;
+  @include atlas-corner-shape;
   background: transparent;
   color: var(--text-error);
   font-size: var(--font-ui-small);

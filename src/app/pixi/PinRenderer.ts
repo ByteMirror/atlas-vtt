@@ -1,9 +1,8 @@
 import { Container, Graphics, FederatedPointerEvent, Circle, Text, Sprite, Texture, TextStyle } from "pixi.js";
 import { Viewport } from "pixi-viewport";
-import { App as ObsidianApp, TFile } from 'obsidian';
 import { EventEmitter } from 'events';
 import type { NotePin } from "../types";
-import { createLucideIconTexture } from "./utils/lucideIconTexture";
+import { createPinIconTexture } from "./utils/pinIconTexture";
 import { destroyTree } from "./utils/destroyTree";
 import { isHandled } from "./utils/handledEvents";
 import type { ViewAtlasState, ViewAtlasStore } from '../storeFactory';
@@ -11,6 +10,7 @@ import { beginHistoryTransaction, endHistoryTransaction } from '../stores/histor
 import { openContextMenuGlobal } from '../react/root/ContextMenuContext';
 import { pinSize } from '../styles/designTokens';
 import { isPinLabelKind, nextPinLabel } from '../tools/pinLabels';
+import { getPinIconDefinition, resolvePinIcon, type PinIconId } from '../types/pinIcons';
 
 /** True when anything other than the position changed, which means the pin's graphics must be rebuilt. */
 function differsBeyondPosition(pin: NotePin, prev: NotePin | undefined): boolean {
@@ -23,7 +23,6 @@ function differsBeyondPosition(pin: NotePin, prev: NotePin | undefined): boolean
 }
 
 export class PinRenderer {
-  private obsApp: ObsidianApp;
   private viewport: Viewport;
   private eventBus: EventEmitter;
   private pinContainer: Container;
@@ -33,7 +32,7 @@ export class PinRenderer {
   private _viewportPinClickListener: ((e: FederatedPointerEvent) => void) | null = null;
   private isPlayerView: boolean;
   private store: ViewAtlasStore;
-  private iconTextureCache: Map<string, Texture> = new Map();
+  private iconTextureCache: Map<PinIconId, Texture | null> = new Map();
   private themeObserver: MutationObserver | null = null;
   private _viewportZoomHandler?: () => void;
   private previewPin: Container | null = null;
@@ -44,73 +43,12 @@ export class PinRenderer {
   private pinPreviewUpdateHandler: ((data: { x: number; y: number; icon: string }) => void) | null = null;
   private pinPreviewUpdateIconHandler: ((data: { icon: string }) => void) | null = null;
   
-  // Lucide icon SVG data (stroke-based, matching the modal icons)
-  private iconData: Record<string, { svg: string; color: { light: string; dark: string } }> = {
-    'pin': {
-      svg: '<path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 0-1-1h-1a3 3 0 0 0 0-6H11a3 3 0 0 0 0 6h-1a1 1 0 0 0-1 1z"/>',
-      color: { light: '#dc2626', dark: '#ef4444' }
-    },
-    'scroll': {
-      svg: '<path d="M8 21h12a2 2 0 0 0 2-2v-2H10v2a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v3h4"/><path d="M19 17V5a2 2 0 0 0-2-2H4"/><path d="M9 3v18"/>',
-      color: { light: '#2563eb', dark: '#3b82f6' }
-    },
-    'coins': {
-      svg: '<circle cx="8" cy="8" r="6"/><path d="M18.09 10.37A6 6 0 1 1 10.34 18"/><path d="M7 6h1v4"/><path d="m16.71 13.88.7.71-2.82 2.82"/>',
-      color: { light: '#ca8a04', dark: '#eab308' }
-    },
-    'swords': {
-      svg: '<polyline points="14.5 17.5 3 6 3 3 6 3 17.5 14.5"/><line x1="13" x2="19" y1="19" y2="13"/><line x1="16" x2="20" y1="16" y2="20"/><line x1="19" x2="21" y1="21" y2="19"/><polyline points="14.5 6.5 18 3 21 3 21 6 17.5 9.5"/><line x1="5" x2="9" y1="14" y2="18"/><line x1="7" x2="4" y1="17" y2="20"/><line x1="3" x2="5" y1="19" y2="21"/>',
-      color: { light: '#dc2626', dark: '#ef4444' }
-    },
-    'skull': {
-      svg: '<circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><path d="M8 20v2h8v-2"/><path d="m12.5 17-.5-1-.5 1h1z"/><path d="M16 20a2 2 0 0 0 1.56-3.25 8 8 0 1 0-11.12 0A2 2 0 0 0 8 20"/>',
-      color: { light: '#7c3aed', dark: '#a78bfa' }
-    },
-    'info': {
-      svg: '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>',
-      color: { light: '#0891b2', dark: '#06b6d4' }
-    },
-    'alert-triangle': {
-      svg: '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
-      color: { light: '#ea580c', dark: '#f97316' }
-    },
-    'map-pin': {
-      svg: '<path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/>',
-      color: { light: '#059669', dark: '#10b981' }
-    },
-    'flag': {
-      svg: '<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" x2="4" y1="22" y2="15"/>',
-      color: { light: '#4f46e5', dark: '#6366f1' }
-    },
-    'star': {
-      svg: '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>',
-      color: { light: '#d97706', dark: '#f59e0b' }
-    },
-    'heart': {
-      svg: '<path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7z"/>',
-      color: { light: '#db2777', dark: '#ec4899' }
-    },
-    'eye': {
-      svg: '<path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/>',
-      color: { light: '#4b5563', dark: '#6b7280' }
-    }
-  };
-
-  constructor(obsApp: ObsidianApp, viewport: Viewport, eventBus: EventEmitter, store: ViewAtlasStore, isPlayerView: boolean = false) {
-    this.obsApp = obsApp;
+  constructor(viewport: Viewport, eventBus: EventEmitter, store: ViewAtlasStore, isPlayerView: boolean = false) {
     this.viewport = viewport;
     this.eventBus = eventBus;
     this.store = store;
     this.isPlayerView = isPlayerView;
     
-    // Initialize icon textures
-    // Pins drawn before the icons finished loading show a fallback dot until redrawn
-    this.initializeIconTextures().then(() => {
-      if (!this.pinContainer.destroyed) this.redrawAllPins();
-    }).catch(err => {
-      console.error('[PinRenderer] Failed to initialize icon textures:', err);
-    });
-
     this.pinContainer = new Container();
     this.pinContainer.label = 'pins';
     this.pinContainer.sortableChildren = true;
@@ -161,25 +99,12 @@ export class PinRenderer {
     this.setupPreviewPinListeners();
   }
   
-  private async initializeIconTextures(): Promise<void> {
-    const svgSize = 48; // Higher resolution for better quality
-    const icons = Object.keys(this.iconData);
-
-    for (const iconType of icons) {
-      const iconInfo = this.iconData[iconType];
-      if (!iconInfo) continue;
-      for (const theme of ['light', 'dark'] as const) {
-        const key = `${iconType}-${theme}`;
-        try {
-          const texture = await createLucideIconTexture(iconInfo.svg, iconInfo.color[theme], svgSize);
-          this.iconTextureCache.set(key, texture);
-        } catch (err) {
-          console.error(`[PinRenderer] Failed to create texture for ${key}:`, err);
-        }
-      }
-    }
+  /** The icon's white glyph texture, rasterised once per renderer; null where no 2D canvas exists. */
+  private getIconTexture(icon: PinIconId): Texture | null {
+    if (!this.iconTextureCache.has(icon)) this.iconTextureCache.set(icon, createPinIconTexture(icon));
+    return this.iconTextureCache.get(icon) ?? null;
   }
-  
+
   private setupThemeObserver(): void {
     this.themeObserver = new MutationObserver((mutations) => {
       for (const mutation of mutations) {
@@ -395,24 +320,11 @@ export class PinRenderer {
     }
   }
   
-  private getThemeColors(): { background: number; stroke: number; status: { success: number } } {
-    // Check if we're in dark mode
-    const isDarkMode = document.body.classList.contains('theme-dark');
-    
-    // Use appropriate colors based on theme - matching token UI badge style
-    if (isDarkMode) {
-      return {
-        background: 0x2a2a2a, // Same as token HP bar background
-        stroke: 0xffffff, // White stroke
-        status: { success: 0x10b981 }
-      };
-    } else {
-      return {
-        background: 0xe3e3e3, // Same as token HP bar background
-        stroke: 0x000000, // Black stroke
-        status: { success: 0x059669 }
-      };
-    }
+  private getThemeColors(): { background: number; stroke: number } {
+    // Matches the token UI badges (HP bar background)
+    return document.body.classList.contains('theme-dark')
+      ? { background: 0x2a2a2a, stroke: 0xffffff }
+      : { background: 0xe3e3e3, stroke: 0x000000 };
   }
   
   /** Removes and destroys a pin's graphics; cached icon textures survive (no `texture` flag). */
@@ -449,28 +361,10 @@ export class PinRenderer {
     // Add subtle border
     bgGraphics.circle(0, 0, badgeRadius);
     bgGraphics.stroke({ width: 0.5, color: colors.stroke, alpha: isDarkMode ? 0.4 : 0.3 });
-    
-    // Check if this pin links to a map file and add a green border
-    let isMapLink = false;
-    if (pin.notePath) {
-      const file = this.obsApp.vault.getAbstractFileByPath(pin.notePath);
-      isMapLink = file instanceof TFile && file.extension === 'atlasmap';
-    }
-    
-    if (isMapLink) {
-      // Add green border for map links
-      bgGraphics.circle(0, 0, badgeRadius);
-      bgGraphics.stroke({ width: 2, color: colors.status.success, alpha: 1 });
-    }
-    
     container.addChild(bgGraphics);
     
-    // Get icon texture
-    const theme = isDarkMode ? 'dark' : 'light';
-    const textureKey = `${iconType}-${theme}`;
-    const iconTexture = this.iconTextureCache.get(textureKey);
-    
-    if (isPinLabelKind(iconType)) {
+    const icon = resolvePinIcon(iconType);
+    if (isPinLabelKind(icon)) {
       const labelText = new Text({
         text: pin.label ?? '',
         style: new TextStyle({
@@ -485,57 +379,17 @@ export class PinRenderer {
       // Longer labels ("12", "AB") shrink to stay inside the badge
       labelText.scale.set(Math.min(1, (badgeRadius * 1.5) / labelText.width));
       container.addChild(labelText);
-    } else if (iconTexture) {
-      // Create icon sprite centered in badge using design tokens
-      const iconSprite = new Sprite(iconTexture);
-      iconSprite.anchor.set(0.5);
-      iconSprite.scale.set(pinSize.iconScale);
-      iconSprite.position.set(0, 0);
-      container.addChild(iconSprite);
     } else {
-      // Fallback: create a simple colored dot if texture not loaded
-      const iconDataEntry = this.iconData[iconType];
-      if (iconDataEntry) {
-        const iconColor = isDarkMode ? iconDataEntry.color.dark : iconDataEntry.color.light;
-        const fallbackIcon = new Graphics();
-        fallbackIcon.circle(0, 0, badgeRadius * 0.3);
-        fallbackIcon.fill({ color: parseInt(iconColor.replace('#', '0x'), 16), alpha: 1 });
-        container.addChild(fallbackIcon);
+      const iconTexture = this.getIconTexture(icon);
+      if (iconTexture) {
+        const iconSprite = new Sprite(iconTexture);
+        iconSprite.anchor.set(0.5);
+        iconSprite.setSize(pinSize.iconSize);
+        iconSprite.tint = getPinIconDefinition(icon).tone[isDarkMode ? 'dark' : 'light'];
+        container.addChild(iconSprite);
       }
     }
-    
-    // Add map indicator badge if this is a map link
-    if (isMapLink) {
-      const mapIndicator = new Container();
-      
-      // Position at bottom-right of main badge using design tokens
-      const indicatorRadius = pinSize.indicatorRadius;
-      const indicatorX = badgeRadius * 0.7;
-      const indicatorY = badgeRadius * 0.7;
-      mapIndicator.position.set(indicatorX, indicatorY);
-      
-      // Create small circular badge
-      const indicatorBg = new Graphics();
-      indicatorBg.circle(0, 0, indicatorRadius);
-      indicatorBg.fill({ color: colors.status.success, alpha: 1 });
-      
-      // Add white border
-      indicatorBg.circle(0, 0, indicatorRadius);
-      indicatorBg.stroke({ width: 2, color: isDarkMode ? 0x1f2937 : 0xffffff, alpha: 1 });
-      
-      mapIndicator.addChild(indicatorBg);
-      
-      // Add small map icon (simplified)
-      const mapIcon = new Graphics();
-      mapIcon.fill({ color: 0xffffff, alpha: 1 });
-      // Draw a simple rectangle to represent a map
-      mapIcon.rect(-4, -3, 8, 6);
-      mapIcon.fill();
-      mapIndicator.addChild(mapIcon);
-      
-      container.addChild(mapIndicator);
-    }
-    
+
     return container;
   }
   

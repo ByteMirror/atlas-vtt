@@ -27,6 +27,7 @@ $tracker-width: 96px;
 
   // Panel background — matches toolbar
   @include atlas-elevated-surface;
+  @include atlas-panel-radius($radius-2xl);
 
   overflow: hidden;
 }
@@ -50,6 +51,18 @@ $tracker-width: 96px;
   letter-spacing: 0.04em;
   text-align: center;
   min-width: 0;
+}
+
+// The first and last rows sit 8px inside the border: their outer buttons'
+// outer corners run concentric with the panel's.
+.atlas-initiative-tracker__controls > .atlas-initiative-tracker__btn {
+  &:first-child { @include atlas-panel-inset-radius($spacing-s, top-left); }
+  &:last-child { @include atlas-panel-inset-radius($spacing-s, top-right); }
+}
+
+.atlas-initiative-tracker__turn-controls > .atlas-initiative-tracker__btn {
+  &:first-child { @include atlas-panel-inset-radius($spacing-s, bottom-left); }
+  &:last-child { @include atlas-panel-inset-radius($spacing-s, bottom-right); }
 }
 
 .atlas-initiative-tracker__btn {

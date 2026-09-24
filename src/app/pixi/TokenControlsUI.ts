@@ -1,7 +1,7 @@
 import { Container, Graphics, Texture, Sprite } from 'pixi.js';
 import { Viewport } from 'pixi-viewport';
 import type { Character } from '../types';
-import type { ViewAtlasState } from '../storeFactory';
+import type { TokenUpdates, ViewAtlasState } from '../storeFactory';
 import type { StoreApi } from 'zustand';
 import { colors, barDimensions } from '../styles/designTokens';
 import { toError } from '../utils/errors';
@@ -9,7 +9,7 @@ import type { TokenGestureEventDetail } from '../types/atlasWindowEvents';
 import { openResourceEditor, type BarAnchor, type ResourceEditor, type ResourceValue } from './tokenValueEditor';
 import { ResourceBarHitArea } from './ResourceBarHitArea';
 import { destroyTree } from './utils/destroyTree';
-import { tokenUIScale } from './token-renderer/tokenSizing';
+import { resourceUpdates, visibleResourceBars } from './token-renderer/tokenResources';
 
 type ControlIconType = 'plus' | 'minus';
 
@@ -297,17 +297,19 @@ export class TokenControlsUI {
     }
   }
   
-  public show(tokenId: string, worldX: number, worldY: number, tokenSize: number): void {
+  /** Shows the controls under a token whose bars are drawn at `uiScale`. */
+  public show(tokenId: string, worldX: number, worldY: number, tokenSize: number, uiScale: number): void {
     const state = this.store.getState();
     const token = state.objects.tokens[tokenId] as Character | undefined;
     
-    if (token?.hp === undefined && token?.stress === undefined) {
+    if (!token || visibleResourceBars(token, this.barSettings()).length === 0) {
       this.hide();
       return;
     }
     
     this.currentTokenId = tokenId;
     this.placeBelowToken(worldX, worldY, tokenSize);
+    this.container.scale.set(uiScale);
 
     // Update button visibility and handlers
     this.updateButtons(token);
@@ -337,14 +339,27 @@ export class TokenControlsUI {
     this.followEditor?.();
   }
 
+  /** Lays the controls out for `tokenId`'s new size, also while a resize gesture hides them. */
+  public followTokenSize(tokenId: string, worldX: number, worldY: number, tokenSize: number): void {
+    if (tokenId !== this.currentTokenId) return;
+    this.placeBelowToken(worldX, worldY, tokenSize);
+    this.followEditor?.();
+  }
+
+  /** Matches the controls to the scale of `tokenId`'s bars as it changes. */
+  public setScaleFor(tokenId: string, uiScale: number): void {
+    if (tokenId !== this.currentTokenId) return;
+    this.container.scale.set(uiScale);
+    this.followEditor?.();
+  }
+
   private get isVisible(): boolean {
     return this.container.visible;
   }
 
-  /** Anchors the controls at the bottom edge of the token centred at (`worldX`, `worldY`) and scales them with it. */
+  /** Anchors the controls at the bottom edge of the token centred at (`worldX`, `worldY`), like its bars. */
   private placeBelowToken(worldX: number, worldY: number, tokenSize: number): void {
     this.container.position.set(worldX, worldY + tokenSize / 2);
-    this.container.scale.set(tokenUIScale(tokenSize));
   }
   
   private updateButtons(token: Character): void {
@@ -355,41 +370,27 @@ export class TokenControlsUI {
     this.stressPlusBtn.removeAllListeners('pointerdown');
     this.hpHit.removeAllListeners('pointerdown');
     this.stressHit.removeAllListeners('pointerdown');
-    
-    const barHeight = this.barHeight;
-    const gap = barDimensions.token.gap;
-    const baseGap = 2;
+    this.hideResourceBar(this.hpHit, this.hpMinusBtn, this.hpPlusBtn);
+    this.hideResourceBar(this.stressHit, this.stressMinusBtn, this.stressPlusBtn);
 
-    // Match TokenUIRenderer positioning - currentY is top of bar, not center
-    let currentY = baseGap; // Top of first bar
-    
-    if (token.hp && typeof token.hp === 'object' && typeof token.hp.max === 'number') {
-      const hp = token.hp;
-      this.bindResourceBar(this.hpHit, this.hpMinusBtn, this.hpPlusBtn, currentY, hp, 'HP',
-        (delta) => this.updateTokenHP(token, delta),
-        (next) => this.setTokenValue({
-          hp: { ...hp, ...next },
-          ...(next.max !== hp.max ? { maxHpOverridden: true } : {}),
-        }));
-      currentY += barHeight + gap;
-    } else {
-      this.hideResourceBar(this.hpHit, this.hpMinusBtn, this.hpPlusBtn);
+    // Same bars, order and offsets as TokenUIRenderer, so each overlay sits on its bar
+    let barTop = 2;
+    for (const { kind, value } of visibleResourceBars(token, this.barSettings())) {
+      const apply = (next: ResourceValue): TokenUpdates => resourceUpdates(token, kind, value, next);
+      const setCurrent = (delta: number): void =>
+        this.setTokenValue(apply({ ...value, current: Math.max(0, Math.min(value.max, value.current + delta)) }));
+      if (kind === 'hp') {
+        this.bindResourceBar(this.hpHit, this.hpMinusBtn, this.hpPlusBtn, barTop, value, 'HP', setCurrent, (next) => this.setTokenValue(apply(next)));
+      } else {
+        this.bindResourceBar(this.stressHit, this.stressMinusBtn, this.stressPlusBtn, barTop, value, 'secondary resource', setCurrent, (next) => this.setTokenValue(apply(next)));
+      }
+      barTop += this.barHeight + barDimensions.token.gap;
     }
+  }
 
-    // Mirror TokenUIRenderer's hasStress logic
-    const tokenSettings = this.store.getState().tokenSettings || { showStressBars: true };
-    const hasStress = token.stress !== undefined && tokenSettings.showStressBars;
-    if (hasStress && typeof token.stress === 'number' && typeof token.maxStress === 'number') {
-      const stress = { current: token.stress, max: token.maxStress };
-      this.bindResourceBar(this.stressHit, this.stressMinusBtn, this.stressPlusBtn, currentY, stress, 'secondary resource',
-        (delta) => this.updateTokenStress(token, delta),
-        (next) => this.setTokenValue({
-          stress: next.current, maxStress: next.max,
-          ...(next.max !== stress.max ? { maxStressOverridden: true } : {}),
-        }));
-    } else {
-      this.hideResourceBar(this.stressHit, this.stressMinusBtn, this.stressPlusBtn);
-    }
+  private barSettings(): { showHPBars: boolean; showStressBars: boolean } {
+    const { showHPBars = true, showStressBars = true } = this.store.getState().tokenSettings ?? {};
+    return { showHPBars, showStressBars };
   }
 
   /** Shows one bar's +/- buttons beside it and its click-to-edit overlay on top of it. */
@@ -418,28 +419,8 @@ export class TokenControlsUI {
     hit.hide();
   }
 
-  private updateTokenHP(token: Character, delta: number): void {
-    if (!this.currentTokenId || !token.hp || typeof token.hp !== 'object') return;
-    
-    const currentHP = token.hp.current;
-    const maxHP = token.hp.max;
-    const newHP = Math.max(0, Math.min(maxHP, currentHP + delta));
-    
-    this.setTokenValue({ hp: { ...token.hp, current: newHP } });
-  }
-  
-  private updateTokenStress(token: Character, delta: number): void {
-    if (!this.currentTokenId || typeof token.stress !== 'number' || typeof token.maxStress !== 'number') return;
-    
-    const currentStress = token.stress;
-    const maxStress = token.maxStress;
-    const newStress = Math.max(0, Math.min(maxStress, currentStress + delta));
-    
-    this.setTokenValue({ stress: newStress });
-  }
-
   /** Writes the update to the store and re-lays out controls from the fresh token. */
-  private setTokenValue(updates: Parameters<ViewAtlasState['updateToken']>[1]): void {
+  private setTokenValue(updates: TokenUpdates): void {
     if (!this.currentTokenId) return;
     this.store.getState().updateToken(this.currentTokenId, updates);
     const updatedToken = this.store.getState().objects.tokens[this.currentTokenId] as Character | undefined;

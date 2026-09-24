@@ -5,41 +5,38 @@ import { getTabDisplayName } from '../types';
 
 export interface BreadcrumbProps {
   activeTab: Tab;
-  selectedFolderId: string;
-  getFolderPath: (folderId: string) => FolderType[];
+  /** Folders from the tab root down to the open folder; empty at the root. */
+  path: FolderType[];
   onNavigateToFolder: (folderId: string | null) => void;
 }
 
 /** Path from the tab root to the open folder. The last segment is the current location. */
-export function Breadcrumb({
-  activeTab, selectedFolderId, getFolderPath, onNavigateToFolder,
-}: BreadcrumbProps): React.JSX.Element {
-  const path = getFolderPath(selectedFolderId);
+export function Breadcrumb({ activeTab, path, onNavigateToFolder }: BreadcrumbProps): React.JSX.Element {
   const labelId = useId();
+
+  const segment = (key: string, label: string, folderId: string | null, isCurrent: boolean): React.JSX.Element => (
+    <button
+      key={key}
+      type="button"
+      className={`atlas-breadcrumb-btn ${isCurrent ? 'atlas-current' : ''}`}
+      onClick={() => onNavigateToFolder(folderId)}
+      aria-current={isCurrent ? 'location' : undefined}
+    >
+      {folderId && <Folder />}
+      <span>{label}</span>
+    </button>
+  );
 
   return (
     <nav className="atlas-asset-manager-breadcrumb" aria-labelledby={labelId}>
       <span id={labelId} hidden>Folder path</span>
-      <button type="button" className="atlas-breadcrumb-btn" onClick={() => onNavigateToFolder(null)}>
-        <span>{getTabDisplayName(activeTab)}</span>
-      </button>
-      {path.map((segment, index) => {
-        const isCurrent = index === path.length - 1;
-        return (
-          <React.Fragment key={segment.id}>
-            <ChevronRight className="atlas-breadcrumb-separator" />
-            <button
-              type="button"
-              className={`atlas-breadcrumb-btn ${isCurrent ? 'atlas-current' : ''}`}
-              onClick={() => onNavigateToFolder(segment.id)}
-              aria-current={isCurrent ? 'location' : undefined}
-            >
-              <Folder />
-              <span>{segment.name}</span>
-            </button>
-          </React.Fragment>
-        );
-      })}
+      {segment('root', getTabDisplayName(activeTab), null, path.length === 0)}
+      {path.map((folder, index) => (
+        <React.Fragment key={folder.id}>
+          <ChevronRight className="atlas-breadcrumb-separator" />
+          {segment(folder.id, folder.name, folder.id, index === path.length - 1)}
+        </React.Fragment>
+      ))}
     </nav>
   );
 }

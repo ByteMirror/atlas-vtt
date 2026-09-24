@@ -2,8 +2,9 @@ import { App, WorkspaceLeaf, TFile, ItemView, MarkdownRenderer, Component, setIc
 import { getActiveWorkspaceLeaf, suppressActiveLeaf } from '../utils/embeddedLeafFocus';
 import { runInBackground } from '../utils/backgroundTask';
 import type { NotePreviewUIManager, PreviewAnchorRef } from './NotePreviewUIManager';
-import type { PinnedNotePreview, PreviewWindowLayout } from '../stores/pinnedNotePreviewSlice';
+import type { NoteViewState, PinnedNotePreview } from '../stores/pinnedNotePreviewSlice';
 import { applyPreviewWindowLayout, readPreviewWindowLayout } from './previewWindowLayout';
+import { applyNoteScroll, readNoteViewState, toOpenViewState } from './noteViewState';
 
 // Styles imported via styles/main.scss → note-preview-window.scss
 
@@ -11,6 +12,8 @@ const HEADING_SCROLL_MARGIN = 20;
 const HEADING_FLASH_DURATION_MS = 1500;
 /** Hides an embedded note view until it has been scrolled to its heading. */
 const PENDING_SCROLL_CLASS = 'atlas-embedded-leaf-view--pending-scroll';
+/** Scrolling and typing are saved with the map once they pause this long. */
+const STATE_SAVE_DELAY_MS = 500;
 
 export class NotePreviewWindow {
   private app: App;
@@ -36,6 +39,9 @@ export class NotePreviewWindow {
   private wrapperEl: HTMLDivElement | null = null;
   private preferredActiveLeaf: WorkspaceLeaf | null = null;
   private mountRootEl: HTMLElement | null = null;
+  /** How a reopened note was left, kept until its view is mounted and has taken it over. */
+  private savedViewState: NoteViewState | null = null;
+  private stateSaveTimer: number | null = null;
 
   // Resize properties
   private isResizing: boolean = false;
@@ -55,7 +61,7 @@ export class NotePreviewWindow {
     initialPos?: { x: number, y: number },
     preferredActiveLeaf?: WorkspaceLeaf | null,
     /** Reopens a preview pinned earlier, where it was left. */
-    pinnedLayout?: PreviewWindowLayout,
+    pinned?: PinnedNotePreview,
   ) {
     this.app = app;
     this.originalNotePath = notePath; // Store the original path
@@ -83,9 +89,10 @@ export class NotePreviewWindow {
       existingWindow._forceHide();
     }
     
+    this.savedViewState = pinned?.view ?? null;
     this.render();
-    if (this.element && pinnedLayout) {
-      applyPreviewWindowLayout(this.element, pinnedLayout);
+    if (this.element && pinned) {
+      applyPreviewWindowLayout(this.element, pinned);
       this.isPinned = true;
       this.updatePinButtonState();
     } else if (this.element && initialPos) {
@@ -135,6 +142,14 @@ export class NotePreviewWindow {
     // Content area for the leaf
     const contentArea = this.element.createDiv({ cls: 'atlas-note-preview-content' });
     contentArea.id = 'atlas-note-preview-leaf-container';
+
+    // Scrolling, typing and clicking change where the note is left
+    const saveStateSoon = (): void => this.scheduleStateSave();
+    contentArea.addEventListener('scroll', saveStateSoon, { capture: true, passive: true });
+    contentArea.addEventListener('keyup', saveStateSoon);
+    contentArea.addEventListener('mouseup', saveStateSoon);
+    // Leaving the window (to switch scenes, for example) saves right away
+    this.element.addEventListener('mouseleave', () => this.saveStateNow());
 
     // When content area is clicked, manage focus intelligently.
     contentArea.addEventListener('mousedown', (e) => {
@@ -258,24 +273,14 @@ export class NotePreviewWindow {
         this.leaf = ws.getLeafPopover() ?? null;
 
         if (this.leaf) {
-          await this.leaf.openFile(file, { active: false });
+          await this.leaf.openFile(file, toOpenViewState(this.savedViewState));
 
           // Restore before openPopover so it can set up properly
           restoreActiveLeaf();
 
           contentContainer.empty();
           ws.openPopover(this.leaf, contentContainer, { focus: false });
-
-          // Scroll to header if specified
-          if (this.headerToScrollTo) {
-            window.requestAnimationFrame(() => {
-              this.waitForViewReady().then(() => {
-                this.scrollToHeader(this.headerToScrollTo!);
-              }).catch(err => {
-                console.error('[NotePreviewWindow] Error in waitForViewReady:', err);
-              });
-            });
-          }
+          this.positionMountedNote();
 
           // Mark that we used the pop-over pathway so _forceHide()
           // doesn't try to manually yank the containerEl later on.
@@ -323,7 +328,7 @@ export class NotePreviewWindow {
       }
     } else {
       try {
-        await this.leaf.openFile(file, { active: false });
+        await this.leaf.openFile(file, toOpenViewState(this.savedViewState));
 
         // Restore setActiveLeaf now that async workspace ops are done
         restoreActiveLeaf();
@@ -344,20 +349,7 @@ export class NotePreviewWindow {
           contentContainer.classList.add('atlas-note-preview-content--scrollable');
           contentContainer.appendChild(this.leaf.view.containerEl);
           this.leaf.view.containerEl.classList.add('atlas-embedded-leaf-view');
-
-          // Scroll to header if specified
-          if (this.headerToScrollTo) {
-            // Ensure content is rendered before scrolling
-            window.requestAnimationFrame(() => {
-              this.waitForViewReady().then(() => {
-                if (this.leaf?.view) {
-                  this.scrollToHeader(this.headerToScrollTo!);
-                }
-              }).catch(err => {
-                console.error('[NotePreviewWindow] Error waiting for view ready:', err);
-              });
-            });
-          }
+          this.positionMountedNote();
 
           // Intercept link clicks to prevent navigation away from map view
           this.interceptLinkClicks(contentContainer);
@@ -385,6 +377,29 @@ export class NotePreviewWindow {
     if (!this.leaf && contentContainer) {
       await this.renderMarkdownPreview(file, contentContainer);
     }
+  }
+
+  /**
+   * Once the note has rendered: a reopened note returns to the scroll it was
+   * left at, a new one scrolls to the heading its link points to.
+   */
+  private positionMountedNote(): void {
+    const saved = this.savedViewState;
+    if (!saved && !this.headerToScrollTo) return;
+    window.requestAnimationFrame(() => {
+      this.waitForViewReady().then(() => {
+        const view = this.leaf?.view;
+        if (!view) return;
+        if (saved) {
+          applyNoteScroll(view, saved);
+          this.savedViewState = null;
+        } else if (this.headerToScrollTo) {
+          this.scrollToHeader(this.headerToScrollTo);
+        }
+      }).catch(err => {
+        console.error('[NotePreviewWindow] Error waiting for view ready:', err);
+      });
+    });
   }
 
   private async renderMarkdownPreview(file: TFile, contentContainer: HTMLElement): Promise<void> {
@@ -545,7 +560,7 @@ export class NotePreviewWindow {
     this.element?.classList.remove('is-dragging');
     document.removeEventListener('mousemove', this.onDragMove);
     document.removeEventListener('mouseup', this.onDragEnd);
-    if (this.isPinned) this.manager.handlePreviewLayoutChanged(this);
+    this.saveStateNow();
   }
 
   // Placeholder for resize methods
@@ -641,7 +656,7 @@ export class NotePreviewWindow {
 
     document.removeEventListener('mousemove', this.onResizeMove);
     document.removeEventListener('mouseup', this.onResizeEnd);
-    if (this.isPinned) this.manager.handlePreviewLayoutChanged(this);
+    this.saveStateNow();
   }
 
   private togglePin() {
@@ -651,16 +666,43 @@ export class NotePreviewWindow {
   private setPinned(pinned: boolean): void {
     this.isPinned = pinned;
     this.updatePinButtonState();
-    this.manager.handlePreviewLayoutChanged(this);
+    this.manager.handlePreviewStateChanged(this);
+  }
+
+  private scheduleStateSave(): void {
+    if (!this.isPinned) return;
+    this.cancelStateSave();
+    this.stateSaveTimer = window.setTimeout(() => this.saveStateNow(), STATE_SAVE_DELAY_MS);
+  }
+
+  /** Saves a pinned preview's layout and note state with the map. */
+  public saveStateNow(): void {
+    this.cancelStateSave();
+    if (this.isPinned) this.manager.handlePreviewStateChanged(this);
+  }
+
+  private cancelStateSave(): void {
+    if (this.stateSaveTimer === null) return;
+    window.clearTimeout(this.stateSaveTimer);
+    this.stateSaveTimer = null;
+  }
+
+  /** The saved state until a reopened note has taken it over, then the live one. */
+  private getNoteViewState(): NoteViewState | null {
+    if (this.savedViewState) return this.savedViewState;
+    const view = this.leaf?.view;
+    return view ? readNoteViewState(view) : null;
   }
 
   /** What the map saves for this preview, or null while it is not pinned. */
   public toPinnedNotePreview(): PinnedNotePreview | null {
     if (!this.isPinned || !this.element || !this.originatingPin) return null;
+    const view = this.getNoteViewState();
     return {
       anchorId: this.originatingPin.id,
       notePath: this.originalNotePath,
       ...readPreviewWindowLayout(this.element),
+      ...(view ? { view } : {}),
     };
   }
   
@@ -703,6 +745,7 @@ export class NotePreviewWindow {
     this._forceHide();
   }
   private _forceHide() {
+    this.cancelStateSave();
     if (this.element) {
       document.removeEventListener('mousemove', this.onDragMove);
       document.removeEventListener('mouseup', this.onDragEnd);

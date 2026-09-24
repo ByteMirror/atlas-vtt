@@ -47,6 +47,40 @@ export class FileView extends ItemView {
   }
 }
 
+/**
+ * A markdown note view with the state pinned previews save: mode, ephemeral
+ * state (cursor) and scroll. Like Obsidian, it only takes a scroll over once mounted.
+ */
+export class MarkdownView extends FileView {
+  private mode: 'source' | 'preview' = 'source';
+  private eState: Record<string, unknown> = {};
+  private scrollLine = 0;
+  currentMode = {
+    getScroll: (): number => this.scrollLine,
+    applyScroll: (scroll: number): void => {
+      this.scrollLine = scroll;
+    },
+  };
+
+  getMode(): 'source' | 'preview' {
+    return this.mode;
+  }
+
+  setMode(mode: 'source' | 'preview'): void {
+    this.mode = mode;
+  }
+
+  getEphemeralState(): Record<string, unknown> {
+    return { ...this.eState };
+  }
+
+  setEphemeralState(state: Record<string, unknown>): void {
+    const rest = { ...state };
+    delete rest.scroll;
+    this.eState = rest;
+  }
+}
+
 export class TAbstractFile {
   path: string;
   name: string;

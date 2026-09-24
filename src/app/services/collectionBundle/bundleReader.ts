@@ -58,3 +58,9 @@ export async function openBundle(data: Blob, onProgress: BundleProgressListener)
   }
   return { zip, manifest, sourceHashes };
 }
+
+/** The collection's cover image packed in the bundle, if it has one. */
+export async function bundleCover({ zip, manifest }: OpenedBundle): Promise<Blob | undefined> {
+  const { coverPath } = manifest.collection;
+  return coverPath ? zip.file(zipPathFor(coverPath))?.async('blob') : undefined;
+}

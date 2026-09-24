@@ -1,6 +1,7 @@
 import { TFile, normalizePath, type App } from 'obsidian';
 import { AssetService, ATLAS_VTT_DIR, COLLECTIONS_DIR, GLOBAL_ASSETS_DIR, type Asset, type CollectionMetadata } from '../AssetService';
 import { isSafeBundlePath, zipPathFor, type BundleFile } from './bundleFormat';
+import { linkedFilePath } from './collectionReferences';
 import type { OpenedBundle } from './bundleReader';
 import { mayRewrite, rewriteContent } from './bundleContent';
 import { assetFingerprint, fieldFingerprint } from './fingerprints';
@@ -71,10 +72,10 @@ function unsafeAssets(assets: readonly Asset[], targets: ImportTargets, ownedPat
   });
 }
 
-/** Every string anywhere in `values`: the paths records and maps refer to, among other text. */
+/** Every string anywhere in `values`: the paths records and maps refer to (note links also by the file they open), among other text. */
 export function referencedStrings(values: readonly unknown[], into: Set<string> = new Set()): Set<string> {
   const visit = (value: unknown): void => {
-    if (typeof value === 'string') into.add(value);
+    if (typeof value === 'string') into.add(value).add(linkedFilePath(value));
     else if (Array.isArray(value)) value.forEach(visit);
     else if (value && typeof value === 'object') Object.values(value).forEach(visit);
   };

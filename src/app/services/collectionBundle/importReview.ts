@@ -1,5 +1,6 @@
 import type { Asset, CollectionMetadata } from '../AssetService';
 import type { BundleKind, CollectionBundleManifest } from './bundleFormat';
+import { groupContents, type ContentGroup } from './bundleContents';
 import type { CollectionField, InstallRecord } from './installRecord';
 import { planHasChanges, type ChangeStatus, type ConflictReason, type ImportPlan } from './importPlan';
 import { baseName } from '../../utils/pathUtils';
@@ -18,6 +19,9 @@ export interface ReviewUnit {
 /** Everything the import dialog shows before the user decides. */
 export interface ImportReview {
   collectionName: string;
+  description?: string | undefined;
+  /** The collection's cover image, when the bundle carries one. */
+  cover?: Blob | undefined;
   /** Name of the vault's copy, when it has one. */
   localName?: string | undefined;
   author?: string | undefined;
@@ -44,7 +48,8 @@ export interface ImportReview {
   upToDate: boolean;
   /** Whether "restore original" would change anything the normal import keeps. */
   canRestore: boolean;
-  assetCount: number;
+  /** What the bundle holds, without the assets it leaves out. */
+  contents: ContentGroup[];
   fileCount: number;
 }
 
@@ -93,15 +98,17 @@ export function buildReview(
   restorePlan: ImportPlan,
   unitAssets: ReadonlyMap<string, Asset>,
   suggestedName: string | undefined,
-  skipped: ReadonlyArray<{ name: string; path: string }>,
+  skipped: ReadonlyArray<{ bundleId: string; name: string; path: string }>,
 ): ImportReview {
   const { collection } = manifest;
   const installedVersion = existing ? record?.version ?? existing.version : undefined;
   const conflicts = plan.units.flatMap((unit): ReviewUnit[] =>
     unit.conflict ? [{ key: unit.key, ...describeUnit(unit.key, unitAssets), reason: unit.conflict }] : []);
   const relation = relationOf(collection.version, installedVersion);
+  const skippedIds = new Set(skipped.map((asset) => asset.bundleId));
   return {
     collectionName: collection.name,
+    description: collection.description,
     localName: existing?.name,
     author: collection.author,
     version: collection.version,
@@ -118,7 +125,7 @@ export function buildReview(
     conflicts,
     upToDate: relation === 'same' && conflicts.length === 0 && !planHasChanges(plan),
     canRestore: existing !== null && restorePlan.counts.restored > 0,
-    assetCount: manifest.assets.length,
+    contents: groupContents(manifest.assets.filter((asset) => !skippedIds.has(asset.id)), manifest.files),
     fileCount: manifest.files.length,
   };
 }

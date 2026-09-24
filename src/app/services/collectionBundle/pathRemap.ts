@@ -9,13 +9,21 @@ const GLOBAL_ASSETS_PREFIX = `${GLOBAL_ASSETS_DIR}/`;
 
 export type PathMap = ReadonlyMap<string, string>;
 
+/** A note link keeps its heading or block: `Notes/Cave.md#Entrance` follows `Notes/Cave.md`. */
+function remapLink(text: string, map: PathMap): string {
+  const hash = text.indexOf('#');
+  const target = hash > 0 ? map.get(text.slice(0, hash)) : undefined;
+  return target ? `${target}${text.slice(hash)}` : text;
+}
+
 /**
  * Returns `value` with every string that exactly equals a known vault path
- * replaced by its new path. Works on asset records, scene JSON and whole
- * `.atlasmap` files alike, since all of them store paths as plain strings.
+ * replaced by its new path, and every note link into such a path following it.
+ * Works on asset records, scene JSON and whole `.atlasmap` files alike, since
+ * all of them store paths as plain strings.
  */
 export function remapPaths<T>(value: T, map: PathMap): T {
-  return mapStrings(value, (text) => map.get(text) ?? text);
+  return mapStrings(value, (text) => map.get(text) ?? remapLink(text, map));
 }
 
 /** Where a file without a place of its own in the target collection is copied to, by what it is. */

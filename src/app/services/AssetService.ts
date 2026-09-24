@@ -172,6 +172,8 @@ export interface CollectionMetadata {
   author?: string;
   /** When the installed or last exported release was made. */
   releasedAt?: number;
+  /** Vault path of the cover image shown when the collection is exported or imported. */
+  coverPath?: string;
   name: string;
   description?: string;
   tags: Record<string, TagMetadata>; // Collection-specific tags
@@ -1468,7 +1470,10 @@ export class AssetService {
   }
 
   /** Stores the release a publisher just exported, once the export has been written. */
-  async recordCollectionRelease(collectionId: string, release: { version: number; releasedAt: number; author?: string | undefined }): Promise<void> {
+  async recordCollectionRelease(
+    collectionId: string,
+    release: { version: number; releasedAt: number; author?: string | undefined; coverPath?: string | undefined },
+  ): Promise<void> {
     await this.ensureLoaded();
     const collection = this.metadata!.collections[collectionId];
     if (!collection) throw new Error(`Collection ${collectionId} not found`);
@@ -1476,6 +1481,8 @@ export class AssetService {
     collection.releasedAt = release.releasedAt;
     if (release.author === undefined) delete collection.author;
     else collection.author = release.author;
+    if (release.coverPath === undefined) delete collection.coverPath;
+    else collection.coverPath = release.coverPath;
     collection.publisherId = this.metadata!.vaultId!;
     await this.saveMetadata();
   }

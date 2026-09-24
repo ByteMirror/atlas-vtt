@@ -9,6 +9,9 @@ import type { BundleFile, BundleFileRole, StatblockImageKey } from './bundleForm
 /** The scene thumbnail lives next to its map file. */
 export const sceneThumbnailPath = (mapPath: string): string => mapPath.replace(/\.atlasmap$/, '.thumb.jpg');
 
+/** The file a note link opens: `Notes/Cave.md#Entrance` opens `Notes/Cave.md`. */
+export const linkedFilePath = (link: string): string => link.split('#', 1)[0]!;
+
 /** A file the collection refers to that is no longer in the vault. */
 export interface MissingReference {
   path: string;
@@ -28,8 +31,9 @@ const OPTIONAL_ROLES = new Set<BundleFileRole>(['thumbnail', 'scene-thumbnail'])
 /**
  * Lists every vault file a collection depends on, so a bundle can carry the
  * whole collection: asset records and images, scene maps and their snapshots
- * with the backgrounds and artwork of tokens placed on them, and the statblock
- * notes tokens link to together with their artwork. Every file lists the
+ * with the backgrounds and artwork of tokens placed on them, the notes their
+ * pins and characters open, and the statblock notes tokens link to together
+ * with their artwork. Every file lists the
  * assets that use it; the first role claimed for a path wins. Referenced
  * files that are gone are reported instead of packed.
  */
@@ -115,14 +119,21 @@ export class CollectionReferenceCollector {
     }
   }
 
-  /** The background, token artwork and character statblocks a saved map state shows. */
+  /** The background, token artwork, character statblocks and linked notes a saved map state shows. */
   private collectMapState({ state }: PersistedMapEnvelope): void {
     if (!state) return;
     this.add(state.background ?? undefined, 'background');
     for (const token of Object.values(state.objects?.tokens ?? {})) {
       this.add(token.imagePath, 'token-image');
-      if (token.kind === 'character') this.addStatblockNote(token.statblockPath);
+      if (token.kind !== 'character') continue;
+      this.addStatblockNote(token.statblockPath);
+      this.addLinkedNote(token.notePath);
     }
+    for (const pin of Object.values(state.objects?.pins ?? {})) this.addLinkedNote(pin.notePath);
+  }
+
+  private addLinkedNote(link: string | undefined): void {
+    if (link) this.add(linkedFilePath(link), 'linked-note');
   }
 
   private addStatblockNote(path: string | undefined): void {

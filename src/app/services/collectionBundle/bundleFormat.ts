@@ -3,16 +3,20 @@ import { isRecord } from '../assetMetadataGuards';
 import { SNAPSHOTS_DIR } from '../../snapshots/snapshotPaths';
 
 /** Bumped when the zip layout or manifest shape changes. */
-export const BUNDLE_FORMAT = 3;
+export const BUNDLE_FORMAT = 4;
 /** Oldest format this version still imports. */
 const OLDEST_BUNDLE_FORMAT = 2;
 export const BUNDLE_MANIFEST = 'manifest.json';
 /** Vault files are stored under this folder with their vault path, so nothing is lost or renamed. */
 export const BUNDLE_FILES_DIR = 'files';
 
-/** `asset-file` is the file that backs an asset record: token image, map JSON, scene, encounter or player JSON. */
+/**
+ * `asset-file` is the file that backs an asset record: token image, map JSON, scene, encounter or player JSON.
+ * `linked-note` is a note a scene's pins or characters open; `cover` is the collection's cover image (format 4).
+ */
 const BUNDLE_FILE_ROLES = [
   'asset-file', 'thumbnail', 'scene-map', 'scene-thumbnail', 'scene-snapshot', 'scene-snapshot-thumbnail', 'background', 'token-image', 'statblock-note', 'statblock-image',
+  'linked-note', 'cover',
 ] as const;
 export type BundleFileRole = typeof BUNDLE_FILE_ROLES[number];
 
@@ -46,7 +50,7 @@ interface BundleRelease {
 export interface CollectionBundleManifest {
   format: number;
   exportedAt: number;
-  /** Carries `version`, `publisherId` and `author` of the exported release. */
+  /** Carries `version`, `publisherId`, `author` and `coverPath` (a bundled `cover` file) of the exported release. */
   collection: CollectionMetadata;
   /** Missing in format 2 bundles, which are treated as releases without notes. */
   release?: BundleRelease;
@@ -118,6 +122,8 @@ export function manifestProblem(value: unknown): string | null {
     && Array.isArray(files)
     && files.every(isBundleFile);
   if (!isSound) return 'This collection export is damaged.';
+  const { coverPath } = collection;
+  if (coverPath !== undefined && !files.some((file) => file.role === 'cover' && file.vaultPath === coverPath)) return 'This collection export is damaged.';
   const unsafe = files.find((file) => !isSafeBundlePath(file.vaultPath, file.role) || (file.statblockImage && !isSafeBundlePath(file.statblockImage.path)));
   if (unsafe) return `This collection export contains a file Atlas will not write: ${unsafe.vaultPath}`;
   return null;

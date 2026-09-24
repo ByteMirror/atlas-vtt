@@ -3,7 +3,7 @@ import type { Asset, AssetService, CollectionMetadata } from '../AssetService';
 import { zipPathFor } from './bundleFormat';
 import { rewriteContent } from './bundleContent';
 import { reportFileStep, type BundleProgressListener } from './bundleProgress';
-import { openBundle, type OpenedBundle } from './bundleReader';
+import { bundleCover, openBundle, type OpenedBundle } from './bundleReader';
 import { assetFingerprint, fieldFingerprint } from './fingerprints';
 import { gatherImportInputs, installedAsset, ownAsset, planTargets, referencedStrings, vaultFileHash, type ImportTargets } from './importInputs';
 import { ImportJournal, saveOpenMaps } from './importJournal';
@@ -76,7 +76,10 @@ export async function openCollectionImport(
   onProgress({ message: 'Ready', fraction: 1 });
 
   return {
-    review: buildReview(manifest, await assets.getVaultId(), existing, record, plan, restorePlan, unitAssets, suggestedName, targets.skipped),
+    review: {
+      ...buildReview(manifest, await assets.getVaultId(), existing, record, plan, restorePlan, unitAssets, suggestedName, targets.skipped),
+      cover: await bundleCover(bundle),
+    },
     apply: (decision, progress = () => undefined) =>
       applyImport(app, assets, { bundle, existing, record, targets, plan: decision.restore ? restorePlan : plan }, decision, progress),
   };
@@ -230,10 +233,16 @@ async function mergedCollection(assets: AssetService, { bundle, existing, target
   const publisherId = existing?.publisherId ?? theirs.publisherId;
   if (publisherId === undefined) delete merged.publisherId;
   else merged.publisherId = publisherId;
-  // Only a release speaks for the author; a shared copy keeps what the vault had.
-  if (bundle.manifest.release?.kind !== 'share') {
+  // Only a release speaks for the author and cover; a shared copy keeps what the vault had.
+  const isRelease = bundle.manifest.release?.kind !== 'share';
+  if (isRelease) {
     if (theirs.author === undefined) delete merged.author;
     else merged.author = theirs.author;
+  }
+  if (isRelease || !existing) {
+    const coverPath = theirs.coverPath && targets.targetOf(theirs.coverPath);
+    if (coverPath) merged.coverPath = coverPath;
+    else delete merged.coverPath;
   }
   if (!existing) return { ...merged, name };
   for (const field of COLLECTION_FIELDS) {

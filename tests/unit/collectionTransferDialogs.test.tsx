@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ExportCollectionDialog } from '../../src/app/packages/components/asset-manager/collection-transfer/ExportCollectionDialog';
 import { ImportReviewDialog } from '../../src/app/packages/components/asset-manager/collection-transfer/ImportReviewDialog';
+import type { Asset } from '../../src/app/services/AssetService';
 import type { ExportPreview } from '../../src/app/services/collectionBundle/collectionExport';
 import type { ImportReview } from '../../src/app/services/collectionBundle/importReview';
 
@@ -15,7 +16,7 @@ function review(overrides: Partial<ImportReview> = {}): ImportReview {
     collectionName: 'Dragon Pack', localName: 'Dragon Pack', author: 'Dungeon Tube', version: 3, installedVersion: 2,
     relation: 'newer', kind: 'release', exportedAt: Date.now(), hasInstallRecord: true, skippedAssets: [],
     counts: { ...counts, added: 2, updated: 1, kept: 1 }, conflicts: [], upToDate: false, canRestore: false,
-    assetCount: 12, fileCount: 30, ...overrides,
+    contents: [], fileCount: 30, ...overrides,
   };
 }
 
@@ -36,8 +37,10 @@ describe('import review', () => {
         onCancel={vi.fn()}
       />,
     );
-    expect(screen.getByRole('heading', { name: 'Update “Dragon Pack”' })).toBeTruthy();
-    expect(screen.getByText(/^v2 → v3 by Dungeon Tube · exported/)).toBeTruthy();
+    expect(screen.getByRole('dialog', { name: 'Update “Dragon Pack”' })).toBeTruthy();
+    expect(screen.getByText('Update', { selector: '.atlas-transfer-eyebrow' })).toBeTruthy();
+    expect(screen.getByText('v2 → v3')).toBeTruthy();
+    expect(screen.getByText('by Dungeon Tube')).toBeTruthy();
     expect(screen.getByText('New lair map')).toBeTruthy();
     expect(screen.getByText('2 new · 1 updated · 1 of your changes kept')).toBeTruthy();
     expect(screen.getByText('The update removes it, but you changed it.')).toBeTruthy();
@@ -63,7 +66,8 @@ describe('import review', () => {
   it('says a copy is up to date and offers restoring the original only when the user changed something', () => {
     const onCancel = vi.fn();
     const { rerender } = render(<ImportReviewDialog review={review({ relation: 'same', installedVersion: 3, upToDate: true, counts })} onConfirm={vi.fn()} onCancel={onCancel} />);
-    expect(screen.getByRole('heading', { name: '“Dragon Pack” is up to date' })).toBeTruthy();
+    expect(screen.getByRole('dialog', { name: '“Dragon Pack” is up to date' })).toBeTruthy();
+    expect(screen.getByText('Up to date')).toBeTruthy();
     expect(screen.queryByRole('checkbox')).toBeNull();
     fireEvent.click(screen.getAllByRole('button', { name: 'Close' }).at(-1)!);
     expect(onCancel).toHaveBeenCalled();
@@ -83,6 +87,40 @@ describe('import review', () => {
     expect(screen.getByRole('button', { name: 'Install older version' })).toBeTruthy();
   });
 
+  it('shows a new collection with its cover, notes and contents before importing it', () => {
+    vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: vi.fn(() => 'blob:cover'), revokeObjectURL: vi.fn() }));
+    const onConfirm = vi.fn();
+    const { container } = render(
+      <ImportReviewDialog
+        review={review({
+          relation: 'new', localName: undefined, installedVersion: undefined, releaseNotes: 'First release', cover: new Blob(['COVER']),
+          contents: [
+            { category: 'scenes', label: 'Scenes', items: [{ key: 'asset:cave', name: 'Cave' }] },
+            { category: 'notes', label: 'Notes', items: [] },
+          ],
+        })}
+        onConfirm={onConfirm}
+        onCancel={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole('dialog', { name: 'Import “Dragon Pack”' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Dragon Pack' })).toBeTruthy();
+    expect(screen.getByText('Import collection')).toBeTruthy();
+    expect(container.querySelector('.atlas-transfer-hero__art img')?.getAttribute('src')).toBe('blob:cover');
+    expect(screen.getByRole('heading', { name: 'Release notes' })).toBeTruthy();
+    expect(screen.queryByRole('checkbox')).toBeNull();
+    const scenes = screen.getByRole('button', { name: /Scenes/ });
+    expect(scenes.getAttribute('aria-expanded')).toBe('false');
+    fireEvent.click(scenes);
+    expect(scenes.getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByText('Cave')).toBeTruthy();
+    expect((screen.getByRole('button', { name: /Notes/ }) as HTMLButtonElement).disabled).toBe(true);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Import' }));
+    expect(onConfirm).toHaveBeenCalledOnce();
+    vi.unstubAllGlobals();
+  });
+
   it('cancels on Escape', () => {
     const onCancel = vi.fn();
     render(<ImportReviewDialog review={review()} onConfirm={vi.fn()} onCancel={onCancel} />);
@@ -92,10 +130,20 @@ describe('import review', () => {
 });
 
 describe('export options', () => {
+  const scene = { id: 'cave', type: 'scene', name: 'Cave', tags: [], collection: 'dragons', createdAt: 0, modifiedAt: 0 } as Asset;
+  const token = { id: 'goblin', type: 'token', name: 'Goblin', imagePath: 'atlas-vtt/assets/goblin.webp', tags: [], collection: 'dragons', createdAt: 0, modifiedAt: 0 } as Asset;
+
   function preview(overrides: Partial<ExportPreview> = {}): ExportPreview {
     return {
       collection: { id: 'dragons', uid: 'uid-1', name: 'Dragon Pack', version: 2, releasedAt: 1, author: 'Dungeon Tube', tags: {}, settings: { conditions: [] }, createdAt: 0, modifiedAt: 0 },
-      assets: [], files: [], missing: [], totalBytes: 2048, publisher: 'self', minimumVersion: 2, suggestedVersion: 3, ...overrides,
+      assets: [scene, token],
+      files: [
+        { vaultPath: 'atlas-vtt/assets/goblin.webp', role: 'token-image', owners: ['goblin'] },
+        { vaultPath: 'Bestiary/Goblin.md', role: 'statblock-note', owners: ['goblin'] },
+        { vaultPath: 'Lore/Cave.md', role: 'linked-note', owners: ['cave'] },
+      ],
+      missing: [], fileSizes: new Map([['atlas-vtt/assets/goblin.webp', 2048]]), coverCandidates: [],
+      publisher: 'self', minimumVersion: 2, suggestedVersion: 3, ...overrides,
     };
   }
 
@@ -103,6 +151,7 @@ describe('export options', () => {
     const onExport = vi.fn(async () => null);
     render(<ExportCollectionDialog preview={preview({ missing: [{ path: 'atlas-vtt/assets/orc.webp', role: 'token-image', assetName: 'Orc' }] })} onExport={onExport} onCancel={vi.fn()} />);
     expect(screen.getByText('orc.webp (Orc)')).toBeTruthy();
+    expect(screen.getByText('4 items · 3 files · 2 KB')).toBeTruthy();
     const version = screen.getByDisplayValue('3');
     fireEvent.change(version, { target: { value: '1' } });
     fireEvent.click(screen.getByRole('button', { name: 'Export v1' }));
@@ -112,19 +161,66 @@ describe('export options', () => {
     fireEvent.change(version, { target: { value: '3' } });
     fireEvent.change(screen.getByPlaceholderText('What is new in this version'), { target: { value: 'Lair map' } });
     fireEvent.click(screen.getByRole('button', { name: 'Export v3' }));
-    await vi.waitFor(() => expect(onExport).toHaveBeenCalledWith({ kind: 'release', version: 3, author: 'Dungeon Tube', notes: 'Lair map' }));
+    await vi.waitFor(() => expect(onExport).toHaveBeenCalledWith({
+      kind: 'release', version: 3, author: 'Dungeon Tube', notes: 'Lair map', excluded: new Set(), cover: { kind: 'none' },
+    }));
   });
 
-  it('lets someone who installed the collection share their copy or publish it as their own', async () => {
+  it('publishes a collection installed from someone else as the user\'s own, without offering to share it', async () => {
     const onExport = vi.fn(async () => null);
     render(<ExportCollectionDialog preview={preview({ publisher: 'other' })} onExport={onExport} onCancel={vi.fn()} />);
+    expect(screen.getByRole('dialog', { name: 'Publish Dragon Pack as your own' })).toBeTruthy();
+    expect(screen.getByText('Publish as your own')).toBeTruthy();
+    expect(screen.queryByText(/share/i)).toBeNull();
     expect(screen.queryByDisplayValue('3')).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'Share copy' }));
-    await vi.waitFor(() => expect(onExport).toHaveBeenCalledWith({ kind: 'share' }));
+    expect(screen.getByText(/You installed this collection from Dungeon Tube/)).toBeTruthy();
+    expect((screen.getByPlaceholderText('Shown to people who install it') as HTMLInputElement).value).toBe('');
 
-    fireEvent.click(screen.getByRole('radio', { name: 'Publish as my own' }));
     fireEvent.change(screen.getByDisplayValue('Dragon Pack (my edition)'), { target: { value: 'Fan Dragons' } });
+    fireEvent.change(screen.getByPlaceholderText('Shown to people who install it'), { target: { value: 'Fan' } });
     fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
-    await vi.waitFor(() => expect(onExport).toHaveBeenLastCalledWith(expect.objectContaining({ kind: 'fork', name: 'Fan Dragons' })));
+    await vi.waitFor(() => expect(onExport).toHaveBeenCalledWith(expect.objectContaining({ kind: 'fork', name: 'Fan Dragons', author: 'Fan' })));
+  });
+
+  it('leaves out what the user unticks, along with the notes only that content uses', async () => {
+    const onExport = vi.fn(async () => null);
+    render(<ExportCollectionDialog preview={preview()} onExport={onExport} onCancel={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: /Scenes/ }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Cave' }));
+    expect(screen.getByRole('button', { name: /Notes/ }).textContent).toContain('0 of 1');
+    expect(screen.getByText('Only used by content you left out')).toBeTruthy();
+    expect((screen.getByRole('checkbox', { name: /^Cave/ }) as HTMLInputElement).checked).toBe(false);
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Include all statblocks' }));
+    expect(screen.getByText('1 item · 1 file · 2 KB')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Export v3' }));
+    await vi.waitFor(() => expect(onExport).toHaveBeenCalledWith(expect.objectContaining({ excluded: new Set(['asset:cave', 'file:Bestiary/Goblin.md']) })));
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Include all tokens' }));
+    expect((screen.getByRole('button', { name: 'Export v3' }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('starts from the first map as cover and exports the one the user picks', async () => {
+    const onExport = vi.fn(async () => null);
+    const { container } = render(
+      <ExportCollectionDialog
+        preview={preview({ coverCandidates: [
+          { key: 'lair', name: 'Lair', sourcePath: 'maps/lair.webp', imageUrl: 'app://lair', previewUrl: 'app://lair-small' },
+          { key: 'cave', name: 'Cave', sourcePath: 'maps/cave.webp', imageUrl: 'app://cave', previewUrl: 'app://cave-small' },
+        ] })}
+        onExport={onExport}
+        onCancel={vi.fn()}
+      />,
+    );
+    const hero = (): string | null | undefined => container.querySelector('.atlas-transfer-hero__art img')?.getAttribute('src');
+    expect(hero()).toBe('app://lair');
+    expect(screen.getByRole('radio', { name: 'Lair' }).getAttribute('aria-checked')).toBe('true');
+    fireEvent.click(screen.getByRole('radio', { name: 'Cave' }));
+    expect(hero()).toBe('app://cave');
+    fireEvent.click(screen.getByRole('button', { name: 'Export v3' }));
+    await vi.waitFor(() => expect(onExport).toHaveBeenCalledWith(expect.objectContaining({ cover: { kind: 'artwork', path: 'maps/cave.webp' } })));
+
+    fireEvent.click(screen.getByRole('radio', { name: 'No cover' }));
+    expect(hero()).toBeUndefined();
   });
 });

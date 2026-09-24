@@ -16,6 +16,12 @@ vi.mock('../../src/app/atlas-view', () => ({
   AtlasView: class { async saveMap(): Promise<void> {} },
 }));
 
+// Covers are drawn on a canvas, which Node lacks.
+vi.mock('../../src/app/utils/imageOptimizer', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../../src/app/utils/imageOptimizer')>(),
+  optimizeImage: vi.fn(async (file: File) => ({ blob: new Blob([`COVER:${await file.text()}`]), width: 1, height: 1, originalSize: 1, optimizedSize: 1, compressionRatio: 0 })),
+}));
+
 const MAP_PATH = 'atlas-vtt/collections/source/scenes/Cave.atlasmap';
 const NOTE_PATH = 'Bestiary/Goblin.md';
 const NOTE_IMAGE = 'Bestiary/goblin.png';
@@ -88,6 +94,26 @@ async function exportFrom({ vault, assets }: Vault, choice?: ExportChoice, colle
   return bundle.blob;
 }
 
+/** Pins `notePath` on the creator's scene and creates the note. */
+async function pinNote({ vault }: Vault, notePath: string, content: string): Promise<void> {
+  const map = JSON.parse(vault.files.get(MAP_PATH)!) as { state: { objects: { pins: Record<string, unknown> } } };
+  map.state.objects.pins = { p1: { id: 'p1', kind: 'pin', x: 0, y: 0, notePath } };
+  vault.files.set(MAP_PATH, JSON.stringify(map));
+  await vault.app.vault.create(notePath.split('#')[0]!, content);
+}
+
+interface PackedManifest {
+  collection: Record<string, unknown>;
+  assets: Array<{ id: string; name: string }>;
+  files: Array<{ vaultPath: string; role: string; owners?: string[] }>;
+}
+
+async function manifestOf(blob: Blob): Promise<PackedManifest> {
+  const { default: JSZip } = await import('jszip');
+  const zip = await JSZip.loadAsync(await blob.arrayBuffer());
+  return JSON.parse(await zip.file('manifest.json')!.async('string')) as PackedManifest;
+}
+
 async function reviewImport({ vault, assets }: Vault, blob: Blob): Promise<{ review: ImportReview; apply: (decision?: ImportDecision) => ReturnType<Awaited<ReturnType<typeof openCollectionImport>>['apply']> }> {
   const session = await openCollectionImport(vault.app, assets, blob);
   return { review: session.review, apply: (decision = {}) => session.apply(decision) };
@@ -120,12 +146,73 @@ describe('exporting', () => {
     const manifest = JSON.parse(await zip.file('manifest.json')!.async('string')) as {
       format: number; release: unknown; collection: Record<string, unknown>; files: Array<{ vaultPath: string; sha256: string; owners: string[] }>;
     };
-    expect(manifest).toMatchObject({ format: 3, release: { kind: 'release', notes: 'First release' }, collection: { version: 1, author: 'Dungeon Tube' } });
+    expect(manifest).toMatchObject({ format: 4, release: { kind: 'release', notes: 'First release' }, collection: { version: 1, author: 'Dungeon Tube' } });
     const image = manifest.files.find((file) => file.vaultPath === TOKEN_IMAGE)!;
     expect(image.sha256).toMatch(/^[0-9a-f]{64}$/);
     expect(image.owners).toHaveLength(3);
     expect(Object.keys(zip.files)).toEqual(expect.arrayContaining([`files/${MAP_PATH}`, `files/${NOTE_PATH}`, `files/${NOTE_IMAGE}`]));
     expect(await creator.assets.getCollection('source')).toMatchObject({ version: 1, author: 'Dungeon Tube', releasedAt: expect.any(Number) });
+  });
+
+  it('leaves out the content the user excluded and every file only it uses', async () => {
+    const creator = await creatorVault();
+    const [scene] = await creator.assets.getAssets('source', 'scene');
+    const preview = await prepareCollectionExport(creator.vault.app, creator.assets, 'source');
+    const bundle = await exportCollectionBundle(creator.vault.app, creator.assets, preview, {
+      kind: 'release', version: 1, excluded: new Set([`asset:${scene!.id}`, `file:${NOTE_PATH}`]),
+    });
+    const manifest = await manifestOf(bundle.blob);
+    expect(manifest.assets.map((asset) => asset.name).sort()).toEqual(['Ambush', 'Goblin']);
+    const paths = manifest.files.map((file) => file.vaultPath);
+    for (const path of [MAP_PATH, BACKGROUND, NOTE_PATH, NOTE_IMAGE]) expect(paths).not.toContain(path);
+    expect(manifest.files.find((file) => file.vaultPath === TOKEN_IMAGE)?.owners).toHaveLength(2);
+    expect(bundle.assetCount).toBe(2);
+  });
+
+  it('leaves records of removed features, such as player groups, out of the export', async () => {
+    const creator = await creatorVault();
+    await creator.assets.addAsset({ type: 'player', name: 'Party', collection: 'source', tags: [], tokens: [] });
+    const preview = await prepareCollectionExport(creator.vault.app, creator.assets, 'source');
+    expect(preview.assets.map((asset) => asset.type).sort()).toEqual(['encounter', 'scene', 'token']);
+  });
+
+  it('carries the notes pins open and keeps every pin pointing at its heading', async () => {
+    const creator = await creatorVault();
+    await pinNote(creator, 'Lore/Cave.md#Door', '# Door\nLocked.');
+    const preview = await prepareCollectionExport(creator.vault.app, creator.assets, 'source');
+    expect(preview.files).toContainEqual(expect.objectContaining({ vaultPath: 'Lore/Cave.md', role: 'linked-note' }));
+
+    const fan = await emptyVault();
+    const review = await importInto(fan, await exportFrom(creator));
+    expect(review.contents.find((group) => group.category === 'notes')?.items).toEqual([{ key: 'file:Lore/Cave.md', name: 'Cave' }]);
+    const notes = 'atlas-vtt/collections/source/notes';
+    expect(fan.vault.files.get(`${notes}/Cave.md`)).toBe('# Door\nLocked.');
+    expect(JSON.parse(fan.vault.files.get(MAP_PATH)!).state.objects.pins.p1.notePath).toBe(`${notes}/Cave.md#Door`);
+  });
+
+  it('packs the chosen cover, keeps it with the collection and installs it with the collection', async () => {
+    const creator = await creatorVault();
+    const [scene] = await creator.assets.getAssets('source', 'scene');
+    const thumbnail = 'atlas-vtt/collections/source/scenes/Cave.thumb.jpg';
+    const preview = await prepareCollectionExport(creator.vault.app, creator.assets, 'source');
+    expect(preview.cover).toBeUndefined();
+    // A scene offers its full background as cover art, previewed through its thumbnail.
+    expect(preview.coverCandidates).toEqual([{
+      key: scene!.id, name: 'Cave', sourcePath: BACKGROUND, imageUrl: `app://vault/${BACKGROUND}`, previewUrl: `app://vault/${thumbnail}`,
+    }]);
+
+    const bundle = await exportCollectionBundle(creator.vault.app, creator.assets, preview, { kind: 'release', version: 1, cover: { kind: 'artwork', path: BACKGROUND } });
+    await bundle.commit();
+    const cover = 'atlas-vtt/collections/source/cover.webp';
+    expect((await manifestOf(bundle.blob)).collection.coverPath).toBe(cover);
+    expect(creator.vault.files.get(cover)).toBe('COVER:BG');
+    expect((await prepareCollectionExport(creator.vault.app, creator.assets, 'source')).cover).toEqual({ path: cover, url: `app://vault/${cover}` });
+
+    const fan = await emptyVault();
+    const review = await importInto(fan, bundle.blob);
+    expect(await review.cover?.text()).toBe('COVER:BG');
+    expect(await fan.assets.getCollection('source')).toMatchObject({ coverPath: cover });
+    expect(fan.vault.files.get(cover)).toBe('COVER:BG');
   });
 
   it('suggests the next version after a release and refuses releases by anyone but the publisher', async () => {
@@ -145,7 +232,10 @@ describe('installing', () => {
   it('installs a collection with working scenes, statblock links and settings, and records the install', async () => {
     const fan = await emptyVault();
     const review = await importInto(fan, await exportFrom(await creatorVault()));
-    expect(review).toMatchObject({ relation: 'new', version: 1, assetCount: 3, conflicts: [] });
+    expect(review).toMatchObject({ relation: 'new', version: 1, conflicts: [] });
+    expect(review.contents.map((group) => [group.label, group.items.map((item) => item.name)])).toEqual([
+      ['Scenes', ['Cave']], ['Maps', []], ['Tokens', ['Goblin']], ['Encounters', ['Ambush']], ['Statblocks', ['Goblin']], ['Notes', []],
+    ]);
 
     const collection = await fan.assets.getCollection('source');
     expect(collection).toMatchObject({ name: 'Source', version: 1, tags: { dragon: { id: 'dragon', name: 'Dragon' } } });
@@ -575,14 +665,12 @@ describe('second review findings', () => {
     expect(fan.vault.files.get(scene!.data!.mapPath)).toBe('{"creator":true}');
   });
 
-  it('copies note assets into the collection, and matches them when a share comes back', async () => {
+  it('copies pinned notes into the collection, and matches them when a share comes back', async () => {
     const creator = await creatorVault();
-    await creator.vault.app.vault.create('Lore/Castle.md', '# Castle');
-    await creator.assets.addAsset({ type: 'note', name: 'Castle', collection: 'source', tags: [], notePath: 'Lore/Castle.md' } as never);
+    await pinNote(creator, 'Lore/Castle.md', '# Castle');
     const fan = await emptyVault();
     await importInto(fan, await exportFrom(creator));
-    const note = (await fan.assets.getAssets('source')).find((asset) => asset.name === 'Castle') as { notePath?: string } | undefined;
-    expect(note?.notePath).toBe('atlas-vtt/collections/source/notes/Castle.md');
+    expect(fan.vault.files.get('atlas-vtt/collections/source/notes/Castle.md')).toBe('# Castle');
 
     const shared = await exportFrom(fan, { kind: 'share' });
     AssetService.resetInstance();
@@ -625,8 +713,7 @@ describe('third review findings', () => {
 
   it('matches a shared copy\'s notes every time the publisher imports one', async () => {
     const creator = await creatorVault();
-    await creator.vault.app.vault.create('Lore/Castle.md', '# Castle');
-    await creator.assets.addAsset({ type: 'note', name: 'Castle', collection: 'source', tags: [], notePath: 'Lore/Castle.md' } as never);
+    await pinNote(creator, 'Lore/Castle.md', '# Castle');
     const fan = await emptyVault();
     await importInto(fan, await exportFrom(creator));
     const shared = await exportFrom(fan, { kind: 'share' });

@@ -98,4 +98,22 @@ describe('NotePreviewUIManager hover replay', () => {
 
     expect(harness.showPreview).not.toHaveBeenCalled();
   });
+
+  it('does not replay the hover after switching to another map\'s tab', () => {
+    hoverPin(harness.eventBus);
+
+    harness.activateLeaf(createLeaf('atlas-vtt', 'other-view'));
+    pressModifier();
+
+    expect(harness.showPreview).not.toHaveBeenCalled();
+  });
+
+  it('keeps the hover when its own map becomes active again', () => {
+    hoverPin(harness.eventBus);
+
+    harness.activateLeaf(harness.ownLeaf);
+    pressModifier();
+
+    expect(harness.showPreview).toHaveBeenCalledTimes(1);
+  });
 });

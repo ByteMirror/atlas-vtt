@@ -162,9 +162,12 @@ export class NotePreviewUIManager {
     // Leaving the map closes hover previews; pinned ones live in the map's leaf and hide with it
     this.activeLeafChangeRef = this.app.workspace.on('active-leaf-change', (leaf: WorkspaceLeaf | null) => {
       if (!leaf) return;
+      // Every map view listens to CMD/Ctrl on the whole document, another map's leaf included
+      if (leaf !== findAtlasLeafByViewId(this.app.workspace, this.viewId)) {
+        this.forgetHover();
+      }
       const viewType = leaf.view?.getViewType?.();
       if (viewType !== 'atlas-vtt' && viewType !== 'atlas-vtt-player') {
-        this.forgetHover();
         this.hideAllUnpinnedPreviews();
       }
     });

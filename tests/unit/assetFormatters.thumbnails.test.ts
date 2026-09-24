@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { TFile } from 'obsidian';
 
-import { formatServiceAsset, partitionByTab, tokenThumbnailPaths } from '../../src/app/packages/components/asset-manager/utils/assetFormatters';
+import { formatServiceAsset, partitionByTab, tokenPreviewSources } from '../../src/app/packages/components/asset-manager/utils/assetFormatters';
 import type { Asset, EncounterAsset, TokenAsset } from '../../src/app/services/AssetService';
 
 function createAppWithFiles(paths: string[]): any {
@@ -47,12 +47,34 @@ describe('formatServiceAsset thumbnails', () => {
       tokens: ['goblin', 'wolf', 'boss', 'shaman'].map((name) => ({ id: name, name, imagePath: `atlas-vtt/assets/${name}.png` })),
     };
 
-    const formatted = formatServiceAsset(encounter, 'atlas-vtt/collections/default/encounters', app, tokenThumbnailPaths(tokens));
+    const formatted = formatServiceAsset(encounter, 'atlas-vtt/collections/default/encounters', app, tokenPreviewSources(tokens));
 
-    expect(formatted.type === 'encounters' && formatted.tokenPreviewUrls).toEqual([
+    expect(formatted.type === 'encounters' && formatted.tokenPreviews.map((preview) => preview.url)).toEqual([
       'resource://atlas-vtt/assets/thumbnails/goblin-1.webp',
       'resource://atlas-vtt/assets/wolf.png',
       'resource://atlas-vtt/assets/boss.png',
+    ]);
+  });
+
+  it('frames encounter previews like the tokens they spawn', () => {
+    const app = createAppWithFiles(['atlas-vtt/assets/goblin.png', 'atlas-vtt/assets/wolf.png']);
+    const tokens = [{ ...token('goblin', 'atlas-vtt/assets/goblin.png'), showRing: false }, token('wolf', 'atlas-vtt/assets/wolf.png')];
+    const encounter: EncounterAsset = {
+      id: 'enc', type: 'encounter', name: 'Ambush', tags: [], collection: 'default', createdAt: 1, modifiedAt: 1,
+      tokens: [
+        { id: 'goblin', name: 'goblin', imagePath: 'atlas-vtt/assets/goblin.png' },
+        {
+          id: 'map-wolf', name: 'wolf', imagePath: 'atlas-vtt/assets/wolf.png',
+          state: { kind: 'token', imagePath: 'atlas-vtt/assets/wolf.png', ringColor: '#ff0000' },
+        },
+      ],
+    };
+
+    const formatted = formatServiceAsset(encounter, 'atlas-vtt/collections/default/encounters', app, tokenPreviewSources(tokens));
+
+    expect(formatted.type === 'encounters' && formatted.tokenPreviews).toEqual([
+      { url: 'resource://atlas-vtt/assets/goblin.png', showRing: false },
+      { url: 'resource://atlas-vtt/assets/wolf.png', ringColor: '#ff0000' },
     ]);
   });
 });

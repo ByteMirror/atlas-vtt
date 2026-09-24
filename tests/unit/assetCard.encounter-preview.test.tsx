@@ -34,7 +34,7 @@ describe('AssetCard encounter previews', () => {
       type: 'encounters',
       tags: [],
       tokens: ['Goblin', 'Wolf', 'Boss', 'Shaman'].map((name, index) => ({ id: String(index), name, imagePath: tokenPath(name) })),
-      tokenPreviewUrls: ['goblin', 'wolf', 'boss'].map((name) => `resource://${tokenPath(name)}`),
+      tokenPreviews: ['goblin', 'wolf', 'boss'].map((name) => ({ url: `resource://${tokenPath(name)}` })),
     };
 
     renderEncounterCard(encounter);

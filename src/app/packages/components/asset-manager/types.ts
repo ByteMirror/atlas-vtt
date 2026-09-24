@@ -56,12 +56,18 @@ export interface SceneAsset extends Asset {
   type: 'scenes';
 }
 
+export interface EncounterTokenPreview {
+  url: string;
+  showRing?: boolean;
+  ringColor?: string;
+}
+
 export interface EncounterAsset extends Asset {
   type: 'encounters';
   description?: string;
   tokens: StoredEncounterAsset['tokens'];
-  /** Resolved preview images of the first tokens, thumbnails where they exist. */
-  tokenPreviewUrls: string[];
+  /** Previews of the first tokens: thumbnails where they exist, framed like the spawned token. */
+  tokenPreviews: EncounterTokenPreview[];
   /** Grid the token layout was captured on. Absent for encounters saved without positions. */
   formation?: StoredEncounterAsset['formation'];
   difficulty?: StoredEncounterAsset['difficulty'];

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { spawnSelectedTokens, spawnTokenAsset, type SpawnContext } from '../../src/app/packages/components/asset-manager/utils/tokenSpawnService';
-import type { TokenAsset } from '../../src/app/packages/components/asset-manager/types';
+import { spawnEncounterTokens, spawnSelectedTokens, spawnTokenAsset, type SpawnContext } from '../../src/app/packages/components/asset-manager/utils/tokenSpawnService';
+import type { EncounterAsset, TokenAsset } from '../../src/app/packages/components/asset-manager/types';
 import type { AtlasView } from '../../src/app/atlas-view';
 import type { AssetService } from '../../src/app/services/AssetService';
 import { createInMemoryApp } from '../mocks/inMemoryVault';
@@ -9,7 +9,7 @@ const unframed: TokenAsset = { id: 'goblin', name: 'Goblin', type: 'tokens', ima
 const framed: TokenAsset = { id: 'knight', name: 'Knight', type: 'tokens', imageUrl: 'app://knight.png', imagePath: 'tokens/knight.png', showRing: true };
 
 function setup(records: Record<string, Partial<TokenAsset>> = {}) {
-  const { app } = createInMemoryApp({ files: {} });
+  const { app } = createInMemoryApp({ files: { 'tokens/goblin.png': '', 'tokens/knight.png': '' } });
   const viewport = { screenWidth: 800, screenHeight: 600, toWorld: (p: { x: number; y: number }) => p, scale: { x: 1 } };
   const view = { serviceManager: { getRendererService: () => ({ getViewport: () => viewport, getGridSystem: () => null }) } } as unknown as AtlasView;
   const spawned: Array<Record<string, unknown>> = [];
@@ -61,5 +61,28 @@ describe('token spawning keeps asset defaults', () => {
     const ids = await spawnSelectedTokens(ctx, [{ ...framed, imagePath: undefined, imageUrl: '' }, unframed]);
     expect(ids).toHaveLength(1);
     expect(spawned[0]?.name).toBe('Goblin');
+  });
+});
+
+describe('encounter spawning', () => {
+  const encounter = (tokens: EncounterAsset['tokens']): EncounterAsset => ({
+    id: 'ambush', name: 'Ambush', type: 'encounters', tags: [], tokens, tokenPreviews: [],
+  });
+
+  it('frames tokens added from the asset manager like their token asset', async () => {
+    const { ctx, spawned } = setup({ goblin: { showRing: false }, knight: { showRing: true } });
+    await spawnEncounterTokens(ctx, encounter([
+      { id: 'goblin', name: 'Goblin', imagePath: 'tokens/goblin.png', size: 1 },
+      { id: 'knight', name: 'Knight', imagePath: 'tokens/knight.png', size: 1 },
+    ]));
+    expect(spawned.map(t => [t.name, t.showRing])).toEqual([['Goblin', false], ['Knight', true]]);
+  });
+
+  it('restores the ring saved with a token captured from a map', async () => {
+    const { ctx, spawned } = setup({ goblin: { showRing: true } });
+    await spawnEncounterTokens(ctx, encounter([
+      { id: 'map-token', name: 'Goblin', imagePath: 'tokens/goblin.png', state: { kind: 'token', imagePath: 'tokens/goblin.png', showRing: false } },
+    ]));
+    expect(spawned[0]).toMatchObject({ imagePath: 'tokens/goblin.png', showRing: false });
   });
 });

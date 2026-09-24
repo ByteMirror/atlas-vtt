@@ -37,3 +37,4 @@
 - Ctrl/Cmd no longer reopens a note or statblock preview from a map you have left. After switching scenes, following a link or moving to another map or Obsidian tab, the hovered pin or token is forgotten.
 - Tokens that share an image show their number badges as soon as they are spawned. Before, the numbers only appeared after you moved a token.
 - Dice roll cards and the roll log show a token's portrait the way it looks on the map: with its ring and ring colour, and uncropped for tokens without a ring.
+- Encounters keep the ring setting of their tokens. Tokens with the ring turned off no longer get one when you spawn an encounter made from them in the asset manager, and the encounter card previews show each token with or without its ring.

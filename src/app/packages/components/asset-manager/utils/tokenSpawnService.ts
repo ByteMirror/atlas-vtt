@@ -187,6 +187,12 @@ async function buildTokenData(
   return data;
 }
 
+function imageExists(app: ObsidianApp, imagePath: string): boolean {
+  if (app.vault.getAbstractFileByPath(imagePath)) return true;
+  console.error(`[tokenSpawnService] Token image not found: ${imagePath}`);
+  return false;
+}
+
 /** Adds the tokens in one store write (a single undo step) and selects them. */
 function addSpawnedTokens(ctx: SpawnContext, tokens: TokenInput[]): string[] {
   const ids = ctx.addTokens(tokens);
@@ -269,23 +275,18 @@ export async function spawnEncounterTokens(
       pos = gridPosition(i, tokensToSpawn.length, center.x, center.y, pitch, gridSystem);
     }
 
-    // Validate image exists
-    const imageFile = ctx.app.vault.getAbstractFileByPath(token.imagePath);
-    if (!imageFile) {
-      console.error(`[tokenSpawnService] Token image not found: ${token.imagePath}`);
+    // A saved state snapshot is restored verbatim. Encounters built from token
+    // assets rebuild from the asset, so they follow its current image, size and ring.
+    if (token.state) {
+      if (imageExists(ctx.app, token.imagePath)) {
+        tokens.push({ ...token.state, imagePath: token.imagePath, x: pos.x, y: pos.y });
+      }
       continue;
     }
-
-    // A saved state snapshot is restored verbatim; older encounters rebuild from the statblock.
-    const tokenData = token.state
-      ? { ...token.state, imagePath: token.imagePath, x: pos.x, y: pos.y }
-      : await buildTokenData(ctx.app, pos, {
-          imagePath: token.imagePath,
-          name: token.name || `Token ${i + 1}`,
-          statblockPath: token.statblockPath || null,
-          size: token.size,
-        });
-    tokens.push(tokenData);
+    const source = await resolveTokenSource(ctx, token);
+    if (source && imageExists(ctx.app, source.imagePath)) {
+      tokens.push(await buildTokenData(ctx.app, pos, source));
+    }
   }
 
   return addSpawnedTokens(ctx, tokens);

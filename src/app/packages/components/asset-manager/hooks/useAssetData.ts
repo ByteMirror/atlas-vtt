@@ -5,7 +5,7 @@ import type { AnyAsset, Folder, Tag, Tab } from '../types';
 import { ATLAS_VTT_DIR } from '../types';
 import { AssetService, CollectionMetadata } from '../../../../services/AssetService';
 import { AssetThumbnailService } from '../../../../services/AssetThumbnailService';
-import { formatServiceAsset, partitionByTab, tokenThumbnailPaths, type TabServiceAsset } from '../utils/assetFormatters';
+import { formatServiceAsset, partitionByTab, tokenPreviewSources, type TabServiceAsset } from '../utils/assetFormatters';
 import { useAtlasUI } from '../../../../react/root/AtlasUIContext';
 import { useOptionalAtlasStore } from '../../../../react/ViewStoreContext';
 import { runInBackground } from '../../../../utils/backgroundTask';
@@ -107,10 +107,10 @@ export function useAssetData(
     try {
       const col = selectedCollection || 'default';
       const byTab = partitionByTab(await assetService.getAssets(col));
-      const thumbnailPaths = tokenThumbnailPaths(byTab.tokens);
+      const previewSources = tokenPreviewSources(byTab.tokens);
       const tabBase = `${ATLAS_VTT_DIR}/collections/${col.toLowerCase()}/${activeTab}`;
       const tabAssets: TabServiceAsset[] = byTab[activeTab];
-      setAssets(tabAssets.map((a) => formatServiceAsset(a, tabBase, app, thumbnailPaths)));
+      setAssets(tabAssets.map((a) => formatServiceAsset(a, tabBase, app, previewSources)));
       // Counts cover every tab so the tab bar never reflows when switching
       setAssetCounts({
         scenes: byTab.scenes.length,

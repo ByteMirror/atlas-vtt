@@ -1,6 +1,11 @@
 import { TFile, App as ObsidianApp } from 'obsidian';
-import type { AnyAsset, Asset } from '../types';
-import type { Asset as ServiceAsset, AssetOfType, TokenAsset as ServiceTokenAsset } from '../../../../services/AssetService';
+import type { AnyAsset, Asset, EncounterTokenPreview } from '../types';
+import type {
+  Asset as ServiceAsset,
+  AssetOfType,
+  EncounterTokenRef,
+  TokenAsset as ServiceTokenAsset,
+} from '../../../../services/AssetService';
 
 /** The stored asset types the asset manager shows, one per tab. */
 export type TabServiceAsset = AssetOfType<'token' | 'map' | 'scene' | 'encounter'>;
@@ -13,10 +18,16 @@ export interface AssetsByTab {
   encounters: AssetOfType<'encounter'>[];
 }
 
-/** Thumbnail vault path per token image path, for tokens that have one. */
-export type TokenThumbnailPaths = ReadonlyMap<string, string>;
+/** What an encounter preview needs from the token asset that shares its image. */
+interface TokenPreviewSource {
+  thumbnailPath?: string | undefined;
+  showRing?: boolean | undefined;
+}
 
-const NO_THUMBNAILS: TokenThumbnailPaths = new Map();
+/** Token asset preview data keyed by image path. */
+export type TokenPreviewSources = ReadonlyMap<string, TokenPreviewSource>;
+
+const NO_PREVIEW_SOURCES: TokenPreviewSources = new Map();
 const ENCOUNTER_PREVIEW_COUNT = 3;
 
 export function resourceUrl(app: ObsidianApp, path: string | undefined): string {
@@ -62,18 +73,30 @@ export function partitionByTab(assets: readonly ServiceAsset[]): AssetsByTab {
   return byTab;
 }
 
-export function tokenThumbnailPaths(tokens: readonly ServiceTokenAsset[]): TokenThumbnailPaths {
-  const paths = new Map<string, string>();
-  for (const token of tokens) {
-    if (token.thumbnailPath) paths.set(token.imagePath, token.thumbnailPath);
-  }
-  return paths;
+export function tokenPreviewSources(tokens: readonly ServiceTokenAsset[]): TokenPreviewSources {
+  return new Map(tokens.map((token) => [token.imagePath, { thumbnailPath: token.thumbnailPath, showRing: token.showRing }]));
 }
 
-/** Preview image per token reference, using the token's thumbnail where one exists. */
-function tokenPreviewUrl(app: ObsidianApp, imagePath: string | undefined, thumbnails: TokenThumbnailPaths): string {
-  if (!imagePath) return '';
-  return resourceUrl(app, thumbnails.get(imagePath)) || resourceUrl(app, imagePath);
+/**
+ * Preview of one encounter token, using the token's thumbnail where one exists.
+ * Tokens saved from a map keep their own ring; tokens added from the asset
+ * manager are framed like their token asset, as they are when spawned.
+ */
+function encounterTokenPreview(
+  app: ObsidianApp,
+  ref: EncounterTokenRef,
+  sources: TokenPreviewSources,
+): EncounterTokenPreview | null {
+  const source = sources.get(ref.imagePath);
+  const url = resourceUrl(app, source?.thumbnailPath) || resourceUrl(app, ref.imagePath);
+  if (!url) return null;
+  const showRing = ref.state ? ref.state.showRing : source?.showRing;
+  const ringColor = ref.state?.ringColor;
+  return {
+    url,
+    ...(showRing !== undefined && { showRing }),
+    ...(ringColor !== undefined && { ringColor }),
+  };
 }
 
 /**
@@ -84,7 +107,7 @@ export function formatServiceAsset(
   asset: TabServiceAsset,
   tabBasePath: string,
   app: ObsidianApp,
-  thumbnails: TokenThumbnailPaths = NO_THUMBNAILS,
+  previewSources: TokenPreviewSources = NO_PREVIEW_SOURCES,
 ): AnyAsset {
   const assetPath = asset.type === 'token' ? asset.imagePath : asset.filePath;
   const base: Omit<Asset, 'type' | 'thumbnailUrl'> = {
@@ -127,16 +150,16 @@ export function formatServiceAsset(
       const difficulty = asset.difficulty || asset.data?.difficulty;
       const formation = asset.formation || asset.data?.formation;
       const tokens = asset.tokens || asset.data?.tokens || [];
-      const tokenPreviewUrls = tokens
-        .map((token) => tokenPreviewUrl(app, token.imagePath, thumbnails))
-        .filter((url) => url !== '')
+      const tokenPreviews = tokens
+        .map((token) => encounterTokenPreview(app, token, previewSources))
+        .filter((preview): preview is EncounterTokenPreview => preview !== null)
         .slice(0, ENCOUNTER_PREVIEW_COUNT);
       return {
         ...base,
         type: 'encounters',
         thumbnailUrl: asset.thumbnailUrl ?? '',
         tokens,
-        tokenPreviewUrls,
+        tokenPreviews,
         ...(description !== undefined && { description }),
         ...(difficulty !== undefined && { difficulty }),
         ...(formation !== undefined && { formation }),

@@ -130,4 +130,27 @@ describe('AssetService metadata loading', () => {
 
     expect((await service.getAssets()).map((asset) => asset.id)).toEqual(['token-1']);
   });
+
+  it('keeps a copy of an unreadable index before rebuilding it from the collection files', async () => {
+    const { app, files } = seededApp();
+    files.set(METADATA_PATH, '{"collections": {');
+    files.set('atlas-vtt/collections/default/tokens/wolf.webp', 'WEBP');
+    const service = AssetService.getInstance(app as any);
+    await service.initialize();
+
+    const copies = [...files.keys()].filter((path) => path.includes('assets-metadata.unreadable-'));
+    expect(copies).toHaveLength(1);
+    expect(files.get(copies[0]!)).toBe('{"collections": {');
+    expect((await service.getAssets()).map((asset) => asset.name)).toEqual(['Wolf']);
+  });
+
+  it('leaves an unreadable index untouched when it cannot keep a copy', async () => {
+    const { app, files } = seededApp();
+    files.set(METADATA_PATH, '{"collections": {');
+    app.vault.adapter.copy = vi.fn(async () => { throw new Error('Disk full'); });
+    const service = AssetService.getInstance(app as any);
+
+    await expect(service.initialize()).rejects.toThrow('Disk full');
+    expect(files.get(METADATA_PATH)).toBe('{"collections": {');
+  });
 });

@@ -1,17 +1,16 @@
 import { wasTokenRegistrationSaved } from './assetRegistrationRecovery';
 import { SettingsService } from './SettingsService';
-import { App, TFile, TFolder } from 'obsidian';
+import { App, Notice, TFile, TFolder } from 'obsidian';
 import { ensureAdapterFolder } from '../plugin/vaultFolders';
 import type { TokenStateSnapshot } from '../types';
 import type { CellCoord, EncounterFormation } from '../encounters/encounterFormation';
 import { getDataFilePath } from '../utils/dataFileMigration';
 import { mapStrings } from '../utils/mapStrings';
 import { SerialLock } from '../utils/serialLock';
+import { preserveUnreadableMetadata, readStoredMetadata, type StoredMetadata } from './assetMetadataFile';
 import { collectionNameKey, freeCollectionId, uniqueCollectionName } from './collectionNaming';
 import type { CollectionSettings } from '../types/collectionSettingsTypes';
 import {
-  isAssetMetadata,
-  isLegacyAssetMetadata,
   isLegacyTokenRecord,
   isRecord,
   parseGroupTokenRefs,
@@ -205,6 +204,8 @@ export const COLLECTIONS_DIR = `${ATLAS_VTT_DIR}/collections`;
 export const GLOBAL_ASSETS_DIR = `${ATLAS_VTT_DIR}/assets`;
 const ASSETS_METADATA_PATH = getDataFilePath(`${ATLAS_VTT_DIR}/assets-metadata.json`);
 const LEGACY_ASSETS_METADATA_PATH = `${ATLAS_VTT_DIR}/assets-metadata.json`;
+/** A sync tool may be rewriting the index; a few more reads ride that out. */
+const METADATA_READ_OPTIONS = { retries: 3, retryDelayMs: 200 };
 
 /** Tags are keyed by their lower-case, hyphenated name. */
 const tagIdOf = (name: string): string => name.trim().toLowerCase().replace(/\s+/g, '-');
@@ -359,38 +360,27 @@ export class AssetService {
     }
   }
 
-  private async readMetadataFile(): Promise<string | null> {
-    if (await this.app.vault.adapter.exists(ASSETS_METADATA_PATH)) return this.app.vault.adapter.read(ASSETS_METADATA_PATH);
-    if (await this.app.vault.adapter.exists(LEGACY_ASSETS_METADATA_PATH)) return this.app.vault.adapter.read(LEGACY_ASSETS_METADATA_PATH);
-    return null;
+  private readStoredMetadata(): Promise<StoredMetadata> {
+    return readStoredMetadata(this.app.vault.adapter, [ASSETS_METADATA_PATH, LEGACY_ASSETS_METADATA_PATH], METADATA_READ_OPTIONS);
   }
 
   private async loadMetadata(): Promise<void> {
-    try {
-      const content = await this.readMetadataFile();
-
-      if (!content) {
-        // Create default metadata
+    const stored = await this.readStoredMetadata();
+    switch (stored.kind) {
+      case 'missing':
         this.metadata = await this.createDefaultMetadata();
         await this.saveMetadata();
-      } else {
-        const parsed: unknown = JSON.parse(content);
-
-        if (isLegacyAssetMetadata(parsed)) {
-          await this.migrateFromOldFormat(parsed);
-        } else if (isAssetMetadata(parsed)) {
-          this.metadata = parsed;
-          // Migrate tags to collection-based system if needed
-          await this.migrateTagsToCollections();
-        } else {
-          // Invalid metadata structure, create default
-          this.metadata = await this.createDefaultMetadata();
-          await this.saveMetadata();
-        }
-      }
-    } catch (error) {
-      console.error('[AssetService] Error loading metadata:', error);
-      this.metadata = await this.createDefaultMetadata();
+        break;
+      case 'legacy':
+        await this.migrateFromOldFormat(stored.metadata);
+        break;
+      case 'current':
+        this.metadata = stored.metadata;
+        await this.migrateTagsToCollections();
+        break;
+      case 'unreadable':
+        await this.startOverFromUnreadableMetadata(stored);
+        break;
     }
 
     // Ensure all collections have uid, version, and settings fields
@@ -398,28 +388,39 @@ export class AssetService {
   }
 
   /**
+   * Keeps a copy of an index that cannot be read, then starts from an empty one
+   * that the startup check against the vault fills from the collection files.
+   * Without a copy the file is left alone and nothing is saved over it.
+   */
+  private async startOverFromUnreadableMetadata(stored: Extract<StoredMetadata, { kind: 'unreadable' }>): Promise<void> {
+    console.error('[AssetService] The asset index could not be read:', stored.error);
+    let copyPath: string;
+    try {
+      copyPath = await preserveUnreadableMetadata(this.app.vault.adapter, stored.path);
+    } catch (error) {
+      new Notice(`Atlas VTT could not read its asset index (${stored.path}) and left it untouched. Restart Obsidian to try again.`, 0);
+      throw error;
+    }
+    new Notice(`Atlas VTT could not read its asset index and is rebuilding it from your collection files. The unreadable file was kept as ${copyPath}.`, 0);
+    this.metadata = await this.createDefaultMetadata();
+  }
+
+  /**
    * Replaces the in-memory index with the one on disk. Waits for pending saves
    * and reads again when a save lands meanwhile, so it never goes back to an
-   * older index; an unreadable file leaves the index in memory as it is.
+   * older index; a file that cannot be read leaves the index in memory as it is.
    */
   private async rereadMetadata(): Promise<void> {
     for (;;) {
       await this.writes.idle();
       const savesBefore = this.saveCount;
-      let parsed: unknown;
-      try {
-        const content = await this.readMetadataFile();
-        parsed = content ? JSON.parse(content) : null;
-      } catch (error) {
-        console.error('[AssetService] Could not re-read the index; keeping the loaded one:', error);
-        return;
-      }
+      const stored = await this.readStoredMetadata();
       if (this.saveCount !== savesBefore) continue;
-      if (!isAssetMetadata(parsed)) {
-        console.error('[AssetService] The index on disk is not valid; keeping the loaded one.');
+      if (stored.kind !== 'current') {
+        console.error('[AssetService] Could not re-read the asset index; keeping the loaded one.', stored);
         return;
       }
-      this.metadata = parsed;
+      this.metadata = stored.metadata;
       await this.migrateTagsToCollections();
       await this.migrateCollectionFields();
       return;

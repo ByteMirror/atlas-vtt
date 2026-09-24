@@ -53,7 +53,7 @@ $hero-height: 288px;
     height: 130%;
     object-fit: cover;
     filter: blur(64px) saturate(1.4);
-    opacity: 0.45;
+    opacity: 0.5;
     pointer-events: none;
   }
 
@@ -69,7 +69,7 @@ $hero-height: 288px;
 
   // Mostly opaque panes: the cover's colours only glow through faintly.
   &__main {
-    background: color-mix(in oklch, var(--background-primary) 88%, transparent);
+    background: color-mix(in oklch, var(--background-primary) 80%, transparent);
     display: flex;
     flex-direction: column;
     min-height: 0;
@@ -98,13 +98,13 @@ $hero-height: 288px;
     min-height: 0;
     padding: $spacing-l;
     border-left: $border-width-s solid var(--background-modifier-border);
-    background: color-mix(in oklch, var(--background-secondary) 90%, transparent);
+    background: color-mix(in oklch, var(--background-secondary) 84%, transparent);
   }
 
   &__footer {
     @include atlas-modal-footer;
     grid-column: 1 / -1;
-    background: color-mix(in oklch, var(--background-primary) 94%, transparent);
+    background: color-mix(in oklch, var(--background-primary) 88%, transparent);
     backdrop-filter: blur(12px);
   }
 }

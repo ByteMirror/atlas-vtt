@@ -25,6 +25,23 @@ export function drawMeasurePath(graphics: Graphics, color: number, points: reado
   }
 }
 
+/** The point halfway along the path's length, where its distance label goes. */
+export function pathMidpoint(points: readonly Point[]): Point | null {
+  const segments = points.slice(1).map((end, i) => {
+    const start = points[i]!;
+    return { start, end, length: Math.hypot(end.x - start.x, end.y - start.y) };
+  });
+  let remaining = segments.reduce((sum, segment) => sum + segment.length, 0) / 2;
+  for (const { start, end, length } of segments) {
+    if (length > 0 && remaining <= length) {
+      const t = remaining / length;
+      return { x: start.x + (end.x - start.x) * t, y: start.y + (end.y - start.y) * t };
+    }
+    remaining -= length;
+  }
+  return points[0] ?? null;
+}
+
 /** Accent dot marking where a measurement starts, turns or ends. */
 export function drawMeasurePoint(graphics: Graphics, color: number, point: Point): void {
   graphics.circle(point.x, point.y, POINT_RADIUS + 3).fill({ color: 0x000000, alpha: 0.3 });

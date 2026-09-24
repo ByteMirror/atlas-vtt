@@ -36,7 +36,7 @@ describe('DragRuler', () => {
     const { ruler, view } = makeRuler();
     ruler.begin('t1', { x: 40, y: 30 });
     ruler.update({ x: 3 * CELL + 50, y: 20 });
-    expect(view.draw).toHaveBeenLastCalledWith([center(0, 0), center(3, 0)], '15ft', expect.any(Number));
+    expect(view.draw).toHaveBeenLastCalledWith([center(0, 0), center(3, 0)], '15ft');
     ruler.end();
   });
 
@@ -61,7 +61,7 @@ describe('DragRuler', () => {
 
     expect(event.defaultPrevented).toBe(true);
     expect(hotkeyListener).not.toHaveBeenCalled();
-    expect(view.draw).toHaveBeenLastCalledWith([center(0, 0), center(2, 0), center(2, 3)], '25ft', expect.any(Number));
+    expect(view.draw).toHaveBeenLastCalledWith([center(0, 0), center(2, 0), center(2, 3)], '25ft');
     window.removeEventListener('keydown', hotkeyListener);
     ruler.end();
   });
@@ -74,7 +74,7 @@ describe('DragRuler', () => {
     pressSpace();
     pressSpace({ repeat: true });
     ruler.update(center(2, 0));
-    expect(view.draw).toHaveBeenLastCalledWith([center(0, 0), center(1, 0), center(2, 0)], '10ft', expect.any(Number));
+    expect(view.draw).toHaveBeenLastCalledWith([center(0, 0), center(1, 0), center(2, 0)], '10ft');
     ruler.end();
   });
 

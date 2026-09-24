@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { Container, Graphics } from 'pixi.js';
 import type { Viewport } from 'pixi-viewport';
 import { DragRulerView } from '../../src/app/pixi/token-renderer/DragRulerView';
+import { pathMidpoint } from '../../src/app/pixi/utils/measureDrawing';
 
 function makeScene(): { viewport: Container; background: Graphics; tokens: Container; view: DragRulerView } {
   const viewport = new Container();
@@ -27,5 +28,21 @@ describe('DragRulerView', () => {
   it('stays hidden until a drag draws it', () => {
     const { view } = makeScene();
     expect(view.layers.every(layer => !layer.visible)).toBe(true);
+  });
+});
+
+describe('pathMidpoint', () => {
+  it('is the middle of a straight line', () => {
+    expect(pathMidpoint([{ x: 0, y: 0 }, { x: 200, y: 100 }])).toEqual({ x: 100, y: 50 });
+  });
+
+  it('is halfway along the whole path, not between its ends', () => {
+    // 300 px along x, then 100 px down: the middle is 200 px in, on the first segment.
+    expect(pathMidpoint([{ x: 0, y: 0 }, { x: 300, y: 0 }, { x: 300, y: 100 }])).toEqual({ x: 200, y: 0 });
+  });
+
+  it('falls back to the start of a path without length', () => {
+    expect(pathMidpoint([{ x: 5, y: 5 }, { x: 5, y: 5 }])).toEqual({ x: 5, y: 5 });
+    expect(pathMidpoint([])).toBeNull();
   });
 });

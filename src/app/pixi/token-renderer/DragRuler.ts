@@ -1,6 +1,6 @@
 /**
  * Token drag ruler: while a token is dragged, measures the path from where it
- * started to the cell it would land in and labels the distance above it.
+ * started to the cell it would land in and labels the distance at the path's middle.
  * Space adds a waypoint at the current landing cell; the distance adds up
  * across waypoints. The token still drops where the pointer is released.
  */
@@ -13,7 +13,6 @@ import { formatDistance, type MeasurementSettings } from '../../grid/measurement
 import type { ViewAtlasState } from '../../storeFactory';
 import type { LayerVisibility } from '../playerSafeFrame';
 import type { DragRulerView } from './DragRulerView';
-import { computeTokenPixelSize } from './tokenSizing';
 
 export class DragRuler {
   private tokenId: string | null = null;
@@ -77,9 +76,8 @@ export class DragRuler {
   };
 
   private redraw(): void {
-    const token = this.tokenId ? this.store.getState().objects.tokens[this.tokenId] : undefined;
     const landing = this.landing;
-    if (!token || !landing) return;
+    if (!landing) return;
     const points = [...this.waypoints, landing];
     if (points.every(point => samePoint(point, landing))) {
       this.view.clear();
@@ -88,7 +86,7 @@ export class DragRuler {
     const grid = this.gridSystem.getOptions();
     const settings = this.settingsProvider();
     const distance = formatDistance(pathLengthInCells(grid, points, settings.diagonalRule), settings);
-    this.view.draw(points, distance, computeTokenPixelSize(grid.size, token.size ?? 1) / 2);
+    this.view.draw(points, distance);
   }
 
   private snap(point: Point): Point {

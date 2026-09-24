@@ -4,12 +4,23 @@ import { App as ObsidianApp, TFile } from 'obsidian';
 import { EventEmitter } from 'events';
 import type { NotePin } from "../types";
 import { createLucideIconTexture } from "./utils/lucideIconTexture";
+import { destroyTree } from "./utils/destroyTree";
 import { isHandled } from "./utils/handledEvents";
 import type { ViewAtlasState, ViewAtlasStore } from '../storeFactory';
 import { beginHistoryTransaction, endHistoryTransaction } from '../stores/history';
 import { openContextMenuGlobal } from '../react/root/ContextMenuContext';
 import { pinSize } from '../styles/designTokens';
 import { isPinLabelKind, nextPinLabel } from '../tools/pinLabels';
+
+/** True when anything other than the position changed, which means the pin's graphics must be rebuilt. */
+function differsBeyondPosition(pin: NotePin, prev: NotePin | undefined): boolean {
+  if (!prev) return true;
+  const keys = new Set([...Object.keys(pin), ...Object.keys(prev)]) as Set<keyof NotePin>;
+  for (const key of keys) {
+    if (key !== 'x' && key !== 'y' && pin[key] !== prev[key]) return true;
+  }
+  return false;
+}
 
 export class PinRenderer {
   private obsApp: ObsidianApp;
@@ -93,7 +104,10 @@ export class PinRenderer {
     this.isPlayerView = isPlayerView;
     
     // Initialize icon textures
-    this.initializeIconTextures().catch(err => {
+    // Pins drawn before the icons finished loading show a fallback dot until redrawn
+    this.initializeIconTextures().then(() => {
+      if (!this.pinContainer.destroyed) this.redrawAllPins();
+    }).catch(err => {
       console.error('[PinRenderer] Failed to initialize icon textures:', err);
     });
 
@@ -404,7 +418,7 @@ export class PinRenderer {
   /** Removes and destroys a pin's graphics; cached icon textures survive (no `texture` flag). */
   private clearPinGraphics(pinGroup: Container): void {
     for (const child of pinGroup.removeChildren()) {
-      child.destroy({ children: true });
+      destroyTree(child);
     }
   }
 
@@ -532,7 +546,7 @@ export class PinRenderer {
         { type: 'item', label: 'Open Note', icon: 'file-text', onClick: () => this.dispatchPinAction('open', pin) },
         { type: 'item', label: 'Edit Pin', icon: 'edit', onClick: () => this.dispatchPinAction('edit', pin) },
         { type: 'separator' },
-        { type: 'item', label: 'Duplicate', icon: 'files', onClick: () => this.store.getState().duplicatePins([pin.id]) },
+        { type: 'item', label: 'Duplicate', icon: 'files', onClick: () => this.store.getState().duplicateMapObjects([pin.id]) },
         { type: 'separator' },
         { type: 'item', label: 'Delete', icon: 'trash', destructive: true, onClick: () => this.store.getState().deleteMapObject('pin', pin.id) },
       ],
@@ -568,8 +582,7 @@ export class PinRenderer {
       if (!newIds.has(id)) {
         const pinGroup = this.pinSprites[id];
         if (pinGroup) {
-          container.removeChild(pinGroup);
-          pinGroup.destroy({children: true});
+          destroyTree(pinGroup);
           delete this.pinSprites[id];
         }
       }
@@ -581,20 +594,16 @@ export class PinRenderer {
       
       let pinGroup = this.pinSprites[id];
       if (pinGroup) {
+        const prevPin = prevPinsRecord?.[id];
+        if (pin === prevPin) continue;
         pinGroup.position.set(pin.x, pin.y);
-        pinGroup.visible = true; 
-        
-        // Update icon if it changed
-        const iconType = pin.icon || 'pin';
-        
+        pinGroup.visible = true;
+        // Dragging only moves the pin; its graphics are rebuilt when what they show changes
+        if (!differsBeyondPosition(pin, prevPin)) continue;
+
         this.clearPinGraphics(pinGroup);
-        
-        // Create new pin graphics
-        const iconContainer = this.createPinGraphics(iconType, pin);
-        pinGroup.addChild(iconContainer);
-        
+        pinGroup.addChild(this.createPinGraphics(pin.icon || 'pin', pin));
         pinGroup.scale.set(this.getPinScale());
-        
         continue;
       }
 
@@ -645,8 +654,7 @@ export class PinRenderer {
   
   private hidePreviewPin(): void {
     if (this.previewPin) {
-      this.pinContainer.removeChild(this.previewPin);
-      this.previewPin.destroy({ children: true });
+      destroyTree(this.previewPin);
       this.previewPin = null;
     }
   }
@@ -735,7 +743,7 @@ export class PinRenderer {
     this.iconTextureCache.clear();
     
     if (this.pinContainer) {
-        this.pinContainer.destroy({ children: true, texture: true });
+        destroyTree(this.pinContainer, { textures: true });
     }
     this.pinSprites = {};
   }

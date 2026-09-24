@@ -1,11 +1,11 @@
 import type * as React from 'react';
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { TFolder, App as ObsidianApp } from 'obsidian';
-import type { AnyAsset, Folder, Tag, Tab } from '../types';
+import type { AnyAsset, CollectionOption, Folder, Tag, Tab } from '../types';
 import { ATLAS_VTT_DIR } from '../types';
-import { AssetService, CollectionMetadata } from '../../../../services/AssetService';
-import { TokenThumbnailService } from '../../../../services/TokenThumbnailService';
-import { formatServiceAsset, partitionByTab, tokenThumbnailPaths, type TabServiceAsset } from '../utils/assetFormatters';
+import { AssetService } from '../../../../services/AssetService';
+import { AssetThumbnailService } from '../../../../services/AssetThumbnailService';
+import { formatServiceAsset, partitionByTab, tokenPreviewSources, type TabServiceAsset } from '../utils/assetFormatters';
 import { useAtlasUI } from '../../../../react/root/AtlasUIContext';
 import { useOptionalAtlasStore } from '../../../../react/ViewStoreContext';
 import { runInBackground } from '../../../../utils/backgroundTask';
@@ -16,28 +16,28 @@ export interface AssetData {
   folders: Folder[];
   assets: AnyAsset[];
   availableTags: Tag[];
-  collections: string[];
+  collections: CollectionOption[];
   assetCounts: Record<Tab, number>;
   assetService: AssetService | null;
   // Setters (exposed so context menus can mutate state)
   setFolders: React.Dispatch<React.SetStateAction<Folder[]>>;
   setAssets: React.Dispatch<React.SetStateAction<AnyAsset[]>>;
   setAvailableTags: React.Dispatch<React.SetStateAction<Tag[]>>;
-  setCollections: React.Dispatch<React.SetStateAction<string[]>>;
   // Actions
   loadFoldersForActiveTab: () => Promise<void>;
   loadAssetsForActiveTab: () => Promise<void>;
   reloadGlobalTags: () => Promise<void>;
+  reloadCollections: () => Promise<void>;
   // Store-provided
   app: ObsidianApp;
   view: AtlasView | null;
-  addToken: ViewAtlasState['addToken'];
+  addTokens: ViewAtlasState['addTokens'];
   setSelection: (ids: string[]) => void;
   mapPath: string | null;
 }
 
 // The global asset manager opens without a map view, so there is no store to spawn tokens into.
-const addTokenWithoutMap = (): string => '';
+const addTokensWithoutMap = (): string[] => [];
 const setSelectionWithoutMap = (): void => {};
 
 export function useAssetData(
@@ -46,14 +46,14 @@ export function useAssetData(
   isOpen: boolean
 ): AssetData {
   const { app, view } = useAtlasUI();
-  const addToken = useOptionalAtlasStore((s) => s.addToken, addTokenWithoutMap);
+  const addTokens = useOptionalAtlasStore((s) => s.addTokens, addTokensWithoutMap);
   const setSelection = useOptionalAtlasStore((s) => s.setSelection, setSelectionWithoutMap);
   const mapPath = useOptionalAtlasStore((s) => s.mapPath, null);
 
   const [folders, setFolders] = useState<Folder[]>([]);
   const [assets, setAssets] = useState<AnyAsset[]>([]);
   const [availableTags, setAvailableTags] = useState<Tag[]>([]);
-  const [collections, setCollections] = useState<string[]>(['Default']);
+  const [collections, setCollections] = useState<CollectionOption[]>([]);
   const [assetService, setAssetService] = useState<AssetService | null>(null);
   const [assetCounts, setAssetCounts] = useState<Record<Tab, number>>({
     scenes: 0,
@@ -62,7 +62,7 @@ export function useAssetData(
     tokens: 0,
   });
   const thumbnails = useMemo(
-    () => (assetService ? TokenThumbnailService.getInstance(app, assetService) : null),
+    () => (assetService ? AssetThumbnailService.getInstance(app, assetService) : null),
     [app, assetService],
   );
 
@@ -71,7 +71,7 @@ export function useAssetData(
     if (!app) return;
     const col = selectedCollection || 'default';
     try {
-      const basePath = `${ATLAS_VTT_DIR}/collections/${col.toLowerCase()}/${activeTab}`;
+      const basePath = `${ATLAS_VTT_DIR}/collections/${col}/${activeTab}`;
       const baseFolder = app.vault.getAbstractFileByPath(basePath);
       if (baseFolder instanceof TFolder) {
         const loaded: Folder[] = [];
@@ -107,10 +107,10 @@ export function useAssetData(
     try {
       const col = selectedCollection || 'default';
       const byTab = partitionByTab(await assetService.getAssets(col));
-      const thumbnailPaths = tokenThumbnailPaths(byTab.tokens);
-      const tabBase = `${ATLAS_VTT_DIR}/collections/${col.toLowerCase()}/${activeTab}`;
+      const previewSources = tokenPreviewSources(byTab.tokens);
+      const tabBase = `${ATLAS_VTT_DIR}/collections/${col}/${activeTab}`;
       const tabAssets: TabServiceAsset[] = byTab[activeTab];
-      setAssets(tabAssets.map((a) => formatServiceAsset(a, tabBase, app, thumbnailPaths)));
+      setAssets(tabAssets.map((a) => formatServiceAsset(a, tabBase, app, previewSources)));
       // Counts cover every tab so the tab bar never reflows when switching
       setAssetCounts({
         scenes: byTab.scenes.length,
@@ -118,7 +118,7 @@ export function useAssetData(
         encounters: byTab.encounters.length,
         tokens: byTab.tokens.length,
       });
-      thumbnails?.ensureThumbnails(byTab.tokens);
+      thumbnails?.ensureThumbnails([...byTab.tokens, ...byTab.maps]);
     } catch (error) {
       console.error('[useAssetData] Error loading assets:', error);
     }
@@ -142,6 +142,13 @@ export function useAssetData(
     }
   }, [assetService, selectedCollection]);
 
+  // ── Collections ───────────────────────────────────────────────
+  const reloadCollections = useCallback(async (): Promise<void> => {
+    if (!assetService) return;
+    const loaded = await assetService.getCollections();
+    setCollections(loaded.map(({ id, uid, name }) => ({ id, uid, name })));
+  }, [assetService]);
+
   // ── Initialize service ────────────────────────────────────────
   useEffect(() => {
     if (!app) return;
@@ -154,36 +161,45 @@ export function useAssetData(
         const tags = await svc.getCollectionTags(col);
         setAvailableTags(tags.map((t) => ({ id: t.id, name: t.name })));
       } catch { /* ignore */ }
-      try {
-        const cols = await svc.getCollections();
-        setCollections(cols.map((c: CollectionMetadata) => c.name));
-      } catch { /* ignore */ }
     };
     runInBackground(initialize(), 'Initializing asset service');
   }, [app]);
+
+  useEffect(() => {
+    runInBackground(reloadCollections(), 'Loading collections');
+  }, [reloadCollections]);
 
   // ── Reload tags on collection change ──────────────────────────
   useEffect(() => {
     if (assetService && isOpen) void reloadGlobalTags();
   }, [selectedCollection, assetService, reloadGlobalTags, isOpen]);
 
-  // ── Refresh on open ───────────────────────────────────────────
-  useEffect(() => {
-    if (isOpen && assetService) {
-      runInBackground(assetService.refreshMetadata().then(() => loadAssetsForActiveTab()), 'Refreshing asset metadata');
-    }
-  }, [isOpen, assetService, loadAssetsForActiveTab]);
+  // ── Refresh from disk on open and on refresh events ───────────
+  // Reading the index from disk takes a while, and the selection may change
+  // meanwhile (an import selects its collection, then announces it). The
+  // reload afterwards therefore always uses the current selection.
+  const showLoaded = useCallback(async (): Promise<void> => {
+    await reloadCollections();
+    await loadAssetsForActiveTab();
+  }, [reloadCollections, loadAssetsForActiveTab]);
+  const latestShowLoaded = useRef(showLoaded);
+  useEffect(() => { latestShowLoaded.current = showLoaded; }, [showLoaded]);
 
-  // ── Listen for refresh events ─────────────────────────────────
+  const refreshFromDisk = useCallback(async (): Promise<void> => {
+    if (!assetService) return;
+    await assetService.refreshMetadata();
+    await latestShowLoaded.current();
+  }, [assetService]);
+
   useEffect(() => {
-    if (!app || !assetService) return;
-    const handler = async (): Promise<void> => {
-      await assetService.refreshMetadata();
-      await loadAssetsForActiveTab();
-    };
-    const refreshRef = app.workspace.on('atlas-vtt:refresh-assets', handler);
+    if (isOpen) runInBackground(refreshFromDisk(), 'Refreshing asset metadata');
+  }, [isOpen, refreshFromDisk]);
+
+  useEffect(() => {
+    if (!app) return;
+    const refreshRef = app.workspace.on('atlas-vtt:refresh-assets', () => runInBackground(refreshFromDisk(), 'Refreshing asset metadata'));
     return () => { app.workspace.offref(refreshRef); };
-  }, [app, assetService, loadAssetsForActiveTab]);
+  }, [app, refreshFromDisk]);
 
   // ── Load on tab / collection change ───────────────────────────
   useEffect(() => {
@@ -194,8 +210,8 @@ export function useAssetData(
 
   return {
     folders, assets, availableTags, collections, assetCounts, assetService,
-    setFolders, setAssets, setAvailableTags, setCollections,
-    loadFoldersForActiveTab, loadAssetsForActiveTab, reloadGlobalTags,
-    app, view, addToken, setSelection, mapPath,
+    setFolders, setAssets, setAvailableTags,
+    loadFoldersForActiveTab, loadAssetsForActiveTab, reloadGlobalTags, reloadCollections,
+    app, view, addTokens, setSelection, mapPath,
   };
 }

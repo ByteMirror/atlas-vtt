@@ -53,8 +53,40 @@ export function createInMemoryApp(seed: InMemoryVaultSeed = {}): InMemoryApp {
     addParentFolders(path);
     files.set(path, content);
   };
+  const moveFile = async (file: TAbstractFile, newPath: string): Promise<void> => move(file.path, newPath);
 
   for (const path of files.keys()) addParentFolders(path);
+  /** A folder handle whose `children` list what lies directly inside it, as Obsidian's does. */
+  const folderAt = (path: string): TFolder => {
+    const folder = new TFolder(path);
+    const inside = (candidate: string): boolean => parentOf(candidate) === path;
+    folder.children = [
+      ...[...folders].filter(inside).map((child) => new TFolder(child)),
+      ...[...files.keys()].filter(inside).map((child) => new TFile(child)),
+    ];
+    return folder;
+  };
+  /** Deletes a file, or a folder with everything inside it. */
+  const removeWithin = (target: string): void => {
+    const within = (path: string): boolean => path === target || path.startsWith(`${target}/`);
+    for (const path of [...files.keys()].filter(within)) files.delete(path);
+    for (const path of [...folders].filter(within)) folders.delete(path);
+  };
+  /** Moves a file, or a folder with everything inside it. */
+  const move = (from: string, to: string): void => {
+    assertFree(to);
+    const moved = (path: string): string => to + path.slice(from.length);
+    const within = (path: string): boolean => path === from || path.startsWith(`${from}/`);
+    for (const path of [...files.keys()].filter(within)) {
+      writeFile(moved(path), files.get(path) ?? '');
+      files.delete(path);
+    }
+    for (const path of [...folders].filter(within)) {
+      folders.delete(path);
+      folders.add(moved(path));
+    }
+    addParentFolders(to);
+  };
 
   const app = new App();
 
@@ -68,15 +100,34 @@ export function createInMemoryApp(seed: InMemoryVaultSeed = {}): InMemoryApp {
       }),
       write: vi.fn(async (path: string, content: string) => writeFile(path, content)),
       read: vi.fn(async (path: string) => files.get(path) ?? ''),
+      writeBinary: vi.fn(async (path: string, content: ArrayBuffer) => writeFile(path, new TextDecoder().decode(content))),
+      readBinary: vi.fn(async (path: string) => new TextEncoder().encode(files.get(path) ?? '').buffer),
+      remove: vi.fn(async (path: string) => { files.delete(path); }),
+      list: vi.fn(async (path: string) => ({
+        files: [...files.keys()].filter((candidate) => parentOf(candidate) === path),
+        folders: [...folders].filter((candidate) => parentOf(candidate) === path),
+      })),
+      rename: vi.fn(async (from: string, to: string) => move(from, to)),
+      copy: vi.fn(async (from: string, to: string) => writeFile(to, files.get(from) ?? '')),
+      rmdir: vi.fn(async (path: string) => { folders.delete(path); }),
+      trashSystem: vi.fn(async (path: string) => { removeWithin(path); return true; }),
+      trashLocal: vi.fn(async (path: string) => removeWithin(path)),
+      getResourcePath: vi.fn((path: string) => `app://local/${path}`),
+      stat: vi.fn(async (path: string) => {
+        if (files.has(path)) return { type: 'file', size: (files.get(path) ?? '').length, ctime: 0, mtime: 0 };
+        return folders.has(path) ? { type: 'folder', size: 0, ctime: 0, mtime: 0 } : null;
+      }),
     },
-    getFiles: vi.fn(() => Array.from(files.keys(), (path) => new TFile(path))),
+    getFiles: vi.fn(() => Array.from(files.keys()).filter((path) => !isHiddenPath(path)).map((path) => new TFile(path))),
     getAbstractFileByPath: vi.fn((path: string): TAbstractFile | null => {
       if (isHiddenPath(path)) return null;
       if (files.has(path)) return new TFile(path);
-      if (folders.has(path)) return new TFolder(path);
+      if (folders.has(path)) return folderAt(path);
       return null;
     }),
-    getFolderByPath: vi.fn((path: string): TFolder | null => (folders.has(path) && !isHiddenPath(path) ? new TFolder(path) : null)),
+    getFileByPath: vi.fn((path: string): TFile | null => (files.has(path) && !isHiddenPath(path) ? new TFile(path) : null)),
+    getFolderByPath: vi.fn((path: string): TFolder | null => (folders.has(path) && !isHiddenPath(path) ? folderAt(path) : null)),
+    rename: vi.fn(moveFile),
     createFolder: vi.fn(async (path: string) => {
       assertFree(path);
       folders.add(path);
@@ -89,6 +140,8 @@ export function createInMemoryApp(seed: InMemoryVaultSeed = {}): InMemoryApp {
       files.set(file.path, fn(files.get(file.path) ?? ''));
     }),
     read: vi.fn(async (file: TFile) => files.get(file.path) ?? ''),
+    cachedRead: vi.fn(async (file: TFile) => files.get(file.path) ?? ''),
+    getResourcePath: vi.fn((file: TFile) => `app://vault/${file.path}`),
     readBinary: vi.fn(async (file: TFile) => new TextEncoder().encode(files.get(file.path) ?? '').buffer),
     createBinary: vi.fn(async (path: string, content: ArrayBuffer) => {
       assertFree(path);
@@ -101,10 +154,8 @@ export function createInMemoryApp(seed: InMemoryVaultSeed = {}): InMemoryApp {
   };
 
   app.fileManager = {
-    trashFile: vi.fn(async (file: TAbstractFile) => {
-      files.delete(file.path);
-      folders.delete(file.path);
-    }),
+    renameFile: vi.fn(moveFile),
+    trashFile: vi.fn(async (file: TAbstractFile) => removeWithin(file.path)),
     processFrontMatter: vi.fn(async (file: TFile, fn: (frontmatter: Record<string, unknown>) => void) => {
       const content = files.get(file.path) ?? '';
       const frontmatter = parseFrontmatter(content) ?? {};
@@ -116,6 +167,8 @@ export function createInMemoryApp(seed: InMemoryVaultSeed = {}): InMemoryApp {
   };
 
   app.workspace = {
+    layoutReady: true,
+    onLayoutReady: vi.fn((callback: () => void) => callback()),
     getLeavesOfType: vi.fn(() => []),
     on: vi.fn(() => ({})),
     offref: vi.fn(),

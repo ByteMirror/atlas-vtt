@@ -25,6 +25,9 @@ function setup() {
 
 afterEach(() => { vi.restoreAllMocks(); document.body.replaceChildren(); });
 
+/** The UI drawn below the token, laid out from the token's bottom edge. */
+const belowToken = (ui: TokenUIRenderer): Container => ui.getContainer().children[0] as Container;
+
 describe('resource fill geometry', () => {
   it('refreshes the secondary bar when only its maximum changes', () => {
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
@@ -32,9 +35,9 @@ describe('resource fill geometry', () => {
     } as CanvasRenderingContext2D);
     const ui = new TokenUIRenderer(setup());
     try {
-      ui.update(hero, 70, 1, 70);
-      ui.update({ ...hero, maxStress: 100 }, 70, 1, 70);
-      const labels = ui.getContainer().children.flatMap(c => c.children).filter((c): c is Text => c instanceof Text && c.label === 'resource-max').map(c => c.text);
+      ui.update(hero, 70);
+      ui.update({ ...hero, maxStress: 100 }, 70);
+      const labels = belowToken(ui).children.flatMap(c => c.children).filter((c): c is Text => c instanceof Text && c.label === 'resource-max').map(c => c.text);
       expect(labels).toContain('100');
     } finally { ui.destroy(); }
   });
@@ -45,11 +48,11 @@ describe('resource fill geometry', () => {
     } as CanvasRenderingContext2D);
     const ui = new TokenUIRenderer(setup());
     try {
-      ui.update(hero, 70, 1, 70);
-      const fills = ui.getContainer().children.filter((c): c is Graphics => c instanceof Graphics && c.zIndex === 11);
+      ui.update(hero, 70);
+      const fills = belowToken(ui).children.filter((c): c is Graphics => c instanceof Graphics && c.zIndex === 11);
       const fill = fills[index]!;
       const x = -32 + 0.375 + 1;
-      const y = 35 + 2 + index * 12 + 0.375 + 1;
+      const y = 2 + index * 12 + 0.375 + 1;
       const height = 10 - 0.75 - 2;
       const width = (64 - 0.75 - 2) / 50;
       expect(fill.containsPoint(new Point(x + width / 2, y + height / 2))).toBe(true);
@@ -88,7 +91,7 @@ describe('resource value popover editing', () => {
       const target = bars[index]!;
       const event = new FederatedPointerEvent(new EventBoundary(viewport));
       event.nativeEvent = new MouseEvent('pointerdown', { cancelable: true });
-      event.global.copyFrom(target.toGlobal({ x, y: 42 + index * 12 }));
+      event.global.copyFrom(target.toGlobal({ x, y: 7 + index * 12 }));
       target.emit('pointerdown', event);
       // Model the browser's default canvas focus after pointerdown listeners finish.
       if (!event.nativeEvent.defaultPrevented) canvas.focus();
@@ -106,9 +109,9 @@ describe('resource value popover editing', () => {
     try {
       const [hpBar] = bars;
       expect(hpBar!.cursor).toBe('pointer');
-      expect(hpBar!.containsPoint(new Point(-30, 42))).toBe(true);
-      expect(hpBar!.containsPoint(new Point(30, 42))).toBe(true);
-      expect(hpBar!.containsPoint(new Point(0, 36))).toBe(false);
+      expect(hpBar!.containsPoint(new Point(-30, 7))).toBe(true);
+      expect(hpBar!.containsPoint(new Point(30, 7))).toBe(true);
+      expect(hpBar!.containsPoint(new Point(0, 1))).toBe(false);
       // Idle draws only the transparent target; hover adds a ring around the bar.
       expect(hpBar!.context.instructions).toHaveLength(1);
       hpBar!.emit('pointerover');
@@ -128,7 +131,7 @@ describe('resource value popover editing', () => {
       expect(current!.value).toBe('1');
       expect(max!.value).toBe('50');
       expect(document.activeElement).toBe(current);
-      const barBottom = bars[index]!.toGlobal({ x: 0, y: 47 + index * 12 }).y;
+      const barBottom = bars[index]!.toGlobal({ x: 0, y: 12 + index * 12 }).y;
       expect(parseFloat(popover.style.top)).toBeGreaterThan(barBottom);
       expect(parseFloat(popover.style.left)).toBeGreaterThanOrEqual(8);
     } finally { controls.destroy(); viewport.destroy(); }

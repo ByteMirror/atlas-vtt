@@ -6,7 +6,7 @@
 
 $tracker-width: 96px;
 
-.initiative-tracker {
+.atlas-initiative-tracker {
   position: fixed;
   top: 50%;
   right: 12px;
@@ -32,8 +32,8 @@ $tracker-width: 96px;
 }
 
 // Controls — fills panel width, buttons sized to fit
-.initiative-tracker__controls,
-.initiative-tracker__turn-controls {
+.atlas-initiative-tracker__controls,
+.atlas-initiative-tracker__turn-controls {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -41,7 +41,7 @@ $tracker-width: 96px;
   width: 100%;
 }
 
-.initiative-tracker__round {
+.atlas-initiative-tracker__round {
   flex: 1;
   font-size: 11px;
   color: var(--text-muted);
@@ -52,7 +52,7 @@ $tracker-width: 96px;
   min-width: 0;
 }
 
-.initiative-tracker__btn {
+.atlas-initiative-tracker__btn {
   flex: 1;
   height: 36px;
   padding: 0;
@@ -82,7 +82,7 @@ $tracker-width: 96px;
 }
 
 // Content area — scrollable, hidden scrollbar
-.initiative-tracker__content {
+.atlas-initiative-tracker__content {
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -98,7 +98,7 @@ $tracker-width: 96px;
 }
 
 // Initiative Card — inner element on panel background
-.initiative-card {
+.atlas-initiative-card {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -131,7 +131,7 @@ $tracker-width: 96px;
     box-shadow:
       inset 0 0 0 1px var(--interactive-accent),
       inset 0 0 12px color-mix(in oklch, var(--interactive-accent) 25%, transparent);
-    animation: initiative-pulse 2s ease-in-out infinite;
+    animation: atlas-initiative-pulse 2s ease-in-out infinite;
   }
 
   // Defeated state
@@ -168,7 +168,7 @@ $tracker-width: 96px;
   }
 }
 
-@keyframes initiative-pulse {
+@keyframes atlas-initiative-pulse {
   50% {
     box-shadow:
       inset 0 0 0 1px var(--interactive-accent),
@@ -177,23 +177,23 @@ $tracker-width: 96px;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .initiative-card--active {
+  .atlas-initiative-card--active {
     animation: none;
   }
 }
 
 // Hide drag handle
-.initiative-card__drag-handle {
+.atlas-initiative-card__drag-handle {
   display: none;
 }
 
 // Avatar wrapper (allows instance badge to overflow the circular clip)
-.initiative-card__avatar-wrapper {
+.atlas-initiative-card__avatar-wrapper {
   position: relative;
   flex-shrink: 0;
 }
 
-.initiative-card__instance-badge {
+.atlas-initiative-card__instance-badge {
   position: absolute;
   bottom: -2px;
   left: -4px;
@@ -216,7 +216,7 @@ $tracker-width: 96px;
 }
 
 // Avatar
-.initiative-card__avatar {
+.atlas-initiative-card__avatar {
   position: relative;
   width: 48px;
   height: 48px;
@@ -243,7 +243,7 @@ $tracker-width: 96px;
   }
 }
 
-.initiative-card__defeated-overlay {
+.atlas-initiative-card__defeated-overlay {
   position: absolute;
   inset: 0;
   display: flex;
@@ -259,7 +259,7 @@ $tracker-width: 96px;
 }
 
 // Initiative number
-.initiative-card__initiative {
+.atlas-initiative-card__initiative {
   font-size: 14px;
   font-weight: 600;
   color: var(--text-normal);
@@ -267,7 +267,7 @@ $tracker-width: 96px;
 }
 
 // HP Bar — full width
-.initiative-card__hp-bar {
+.atlas-initiative-card__hp-bar {
   width: 100%;
   height: 4px;
   background: color-mix(in oklch, var(--mono-100) 10%, transparent);
@@ -275,7 +275,7 @@ $tracker-width: 96px;
   overflow: hidden;
 }
 
-.initiative-card__hp-fill {
+.atlas-initiative-card__hp-fill {
   height: 100%;
   border-radius: 2px;
   transition: width 0.3s ease;
@@ -296,19 +296,19 @@ $tracker-width: 96px;
 // Note: Statblock preview styles are in statblock-hover-preview.scss (shared component)
 
 // Edit Initiative Popup — minimal floating input
-.initiative-edit-backdrop {
+.atlas-initiative-edit-backdrop {
   position: fixed;
   inset: 0;
   z-index: 999;
 }
 
-.initiative-edit-popup {
+.atlas-initiative-edit-popup {
   z-index: 1000;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 8px;
-  animation: initiative-popup-slide-in 0.15s ease-out;
+  animation: atlas-initiative-popup-slide-in 0.15s ease-out;
 
   &__input {
     width: 80px;
@@ -351,7 +351,7 @@ $tracker-width: 96px;
   }
 }
 
-@keyframes initiative-popup-slide-in {
+@keyframes atlas-initiative-popup-slide-in {
   from {
     opacity: 0;
     transform: translateX(10px) scale(0.9);

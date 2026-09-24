@@ -1,0 +1,26 @@
+@use '../../../../../styles/tokens' as *;
+
+.atlas-segmented {
+  display: flex;
+  gap: $spacing-xs;
+  padding: $spacing-xs;
+  background: var(--background-modifier-border);
+  border-radius: $radius-l;
+}
+
+.atlas-segmented__option {
+  // Override Button component defaults for segmented control
+  flex: 1;
+  height: auto;
+  padding: $spacing-xs $spacing-s;
+  border-radius: $radius-m;
+  color: var(--text-muted);
+  font-size: $font-ui-small;
+  font-weight: $font-weight-medium;
+
+  &.atlas-active {
+    background: var(--background-primary) !important;
+    color: var(--text-normal);
+    box-shadow: $shadow-sm;
+  }
+}

@@ -15,6 +15,7 @@ import { TokenRenderer } from "./pixi/token-renderer"; // Import TokenRenderer
 // Import color utils
 import { PinRenderer } from "./pixi/PinRenderer"; // Import PinRenderer
 import { captureWithLayerVisibility, type LayerVisibility } from "./pixi/playerSafeFrame";
+import type { PlayerCameraState } from "./local-player-view";
 import { SelectionManager } from "./pixi/SelectionManager"; // Import SelectionManager
 import { FogOfWarRenderer } from "./pixi/fog/FogOfWarRenderer";
 import { MeasureRenderer } from "./pixi/MeasureRenderer"; // Import MeasureRenderer
@@ -38,7 +39,10 @@ import { SoundRegistry } from './audio/SoundRegistry';
 import { AudioBufferCache } from './audio/AudioBufferCache';
 import { SpatialAudioEngine } from './audio/SpatialAudioEngine';
 import { AssetService } from './services/AssetService';
+import { mapMeasurementSettings } from './services/mapMeasurementSettings';
 import { findAtlasLeafByViewId } from './utils/atlasLeafLookup';
+import { destroyTree } from './pixi/utils/destroyTree';
+import { requestRender } from './pixi/RenderScheduler';
 
 export class PixiRendererOrchestrator { // Renamed class
   private _isDestroyed: boolean = false;
@@ -315,6 +319,7 @@ export class PixiRendererOrchestrator { // Renamed class
   private setupRenderersAndManagers(viewport: Viewport): void {
     // The map sprite draws the background; the canvas around it stays black
     this.pixiAppManager.app.renderer.background.color = 0x000000;
+    requestRender(this.pixiAppManager.app);
     
     // Initialize TokenRenderer first if GridSystem is ready
     // This also means tokenContainer will be added to viewport earlier
@@ -595,7 +600,7 @@ export class PixiRendererOrchestrator { // Renamed class
         currentViewport.removeChild(this.backgroundSprite);
       }
       // Destroy the old sprite; its texture is unloaded by whoever loaded it
-      this.backgroundSprite.destroy({ children: true, texture: false });
+      destroyTree(this.backgroundSprite);
     }
     this.backgroundSprite = sprite;
 
@@ -667,8 +672,11 @@ export class PixiRendererOrchestrator { // Renamed class
 
   getAppInstance(): Application { return this.pixiAppManager.getApp(); }
 
-  /** Capture player settings without changing the DM's scene or preferences. */
-  public withPlayerSafeFrame(capture: () => void, settings: AtlasSettings['localPlayerView']): void {
+  /**
+   * Capture player settings without changing the DM's scene or preferences.
+   * With `camera`, the frame is rendered from that camera instead of the DM's.
+   */
+  public withPlayerSafeFrame(capture: () => void, settings: AtlasSettings['localPlayerView'], camera?: PlayerCameraState): void {
     const app = this.pixiAppManager.getApp();
     if (!app?.renderer) return;
     const layers: LayerVisibility[] = [];
@@ -678,7 +686,9 @@ export class PixiRendererOrchestrator { // Renamed class
     layers.push(...(this.tokenRenderer?.getPlayerViewLayers(settings) ?? []));
     layers.push(...(this.fogRenderer?.getPlayerViewLayers() ?? []));
     layers.push(...(this.selectionManager?.getPlayerViewLayers() ?? []));
-    captureWithLayerVisibility(layers, () => app.renderer.render(app.stage), capture);
+    const viewport = this.pixiAppManager.getViewport();
+    const playerCamera = camera && viewport ? { target: viewport, camera } : undefined;
+    captureWithLayerVisibility(layers, () => app.renderer.render(app.stage), capture, playerCamera);
   }
 
   getViewportInstance(): Viewport | null { return this.pixiAppManager.getViewport(); }
@@ -864,25 +874,11 @@ export class PixiRendererOrchestrator { // Renamed class
     }
   }
 
-  /** Wires the rangeBandsProvider closure on MeasureRenderer so it reads
-   *  abstract range bands from the current map's collection settings. */
+  /** Lets MeasureRenderer read the current map's measurement settings. */
   private wireMeasureRendererProvider(): void {
     if (!this.measureRenderer) return;
     const assetService = AssetService.getInstance(this.obsApp);
-    this.measureRenderer.rangeBandsProvider = () => {
-      const mapPath = this.store.getState().mapPath;
-      if (!mapPath) return [];
-      const collectionId = assetService.getCollectionForMap(mapPath);
-      if (!collectionId) return [];
-      return assetService.getCollectionSettings(collectionId).gridDefaults?.abstractRangeBands ?? [];
-    };
-    this.measureRenderer.gridDefaultsProvider = () => {
-      const mapPath = this.store.getState().mapPath;
-      if (!mapPath) return undefined;
-      const collectionId = assetService.getCollectionForMap(mapPath);
-      if (!collectionId) return undefined;
-      return assetService.getCollectionSettings(collectionId).gridDefaults;
-    };
+    this.measureRenderer.measurementSettingsProvider = () => mapMeasurementSettings(assetService, this.store.getState());
   }
 
   // ─── Wall tool viewport handlers ─────────────────────────────────────
@@ -1367,7 +1363,7 @@ export class PixiRendererOrchestrator { // Renamed class
       }
       
       // Destroy the sprite
-      this.backgroundSprite.destroy({ children: true, texture: false });
+      destroyTree(this.backgroundSprite);
       this.backgroundSprite = null;
       this.eventBus.emit('background-sprite-updated', undefined);
     }

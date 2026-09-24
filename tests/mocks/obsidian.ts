@@ -47,6 +47,40 @@ export class FileView extends ItemView {
   }
 }
 
+/**
+ * A markdown note view with the state pinned previews save: mode, ephemeral
+ * state (cursor) and scroll. Like Obsidian, it only takes a scroll over once mounted.
+ */
+export class MarkdownView extends FileView {
+  private mode: 'source' | 'preview' = 'source';
+  private eState: Record<string, unknown> = {};
+  private scrollLine = 0;
+  currentMode = {
+    getScroll: (): number => this.scrollLine,
+    applyScroll: (scroll: number): void => {
+      this.scrollLine = scroll;
+    },
+  };
+
+  getMode(): 'source' | 'preview' {
+    return this.mode;
+  }
+
+  setMode(mode: 'source' | 'preview'): void {
+    this.mode = mode;
+  }
+
+  getEphemeralState(): Record<string, unknown> {
+    return { ...this.eState };
+  }
+
+  setEphemeralState(state: Record<string, unknown>): void {
+    const rest = { ...state };
+    delete rest.scroll;
+    this.eState = rest;
+  }
+}
+
 export class TAbstractFile {
   path: string;
   name: string;
@@ -62,6 +96,7 @@ export class TAbstractFile {
 export class TFile extends TAbstractFile {
   extension: string;
   basename: string;
+  stat = { ctime: 0, mtime: 0, size: 0 };
 
   constructor(path = '') {
     super(path);
@@ -268,3 +303,22 @@ export class Setting {
 }
 
 export function setIcon(_parent: HTMLElement, _iconId: string): void {}
+
+/** Case-insensitive subsequence match; Obsidian's real scoring is richer. */
+export function prepareFuzzySearch(query: string): (text: string) => { score: number; matches: [number, number][] } | null {
+  const needle = query.toLowerCase().replace(/\s+/g, '');
+  return (text: string) => {
+    const haystack = text.toLowerCase();
+    const matches: [number, number][] = [];
+    let from = 0;
+    for (const char of needle) {
+      const index = haystack.indexOf(char, from);
+      if (index === -1) return null;
+      const last = matches[matches.length - 1];
+      if (last && last[1] === index) last[1] = index + 1;
+      else matches.push([index, index + 1]);
+      from = index + 1;
+    }
+    return { score: -matches.length - (matches[0]?.[0] ?? 0) / 100, matches };
+  };
+}

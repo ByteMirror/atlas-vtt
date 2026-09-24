@@ -19,7 +19,7 @@ export function useAssetTags(assetService: AssetService | null, isOpen: boolean,
     if (!assetService) throw new Error('Asset service is not ready');
     setIsCreatingTag(true);
     try {
-      const tag = await assetService.createTag(collection.toLowerCase(), name.trim());
+      const tag = await assetService.createTag(collection, name.trim());
       setTags((previous) => Array.from(new Set([...previous, tag.name])).sort());
       return tag.name;
     } finally {

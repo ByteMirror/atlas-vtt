@@ -16,6 +16,7 @@ import { StatblockMarkdown } from './StatblockText';
 import { EditableValue } from './EditableValue';
 import { useStatblockEdit } from './statblockEditContext';
 import { LabelTooltip } from '../../../packages/components/primitives/tooltip';
+import { isHitPointsKey } from '../../../services/statblockResources';
 
 /** Values that map cleanly onto a single editable frontmatter entry. */
 function isEditableScalar(value: unknown): boolean {
@@ -110,9 +111,10 @@ export function PropertyBlock({
 
   const label = trimLabel(item.display ?? item.properties?.[0] ?? '');
   const hook = item.doNotAddClass ? undefined : slugify(item.properties?.[0] ?? '') || undefined;
+  const hitPoints = isHitPointsKey(item.properties?.[0] ?? '') || isHitPointsKey(label);
 
   return (
-    <div className="atlas-sb-property" data-prop={hook}>
+    <div className="atlas-sb-property" data-prop={hook} data-hit-points={hitPoints ? '' : undefined}>
       <span className="atlas-sb-property-name">{label}</span>
       <EditableField
         path={[item.properties?.[0] ?? '']}
@@ -346,7 +348,7 @@ export function TraitLine({
   const canEdit = !item.callback && index != null && property.length > 0;
 
   return (
-    <div className="atlas-sb-trait">
+    <div className="atlas-sb-trait" data-hit-points={isHitPointsKey(name) ? '' : undefined}>
       {name && (
         <span className="atlas-sb-trait-name">
           <EditableField

@@ -7,6 +7,7 @@ import type { GridBounds, GridLineType } from './gridLineStyle';
 import { createHexLayout, hexCellExtent, isHexGridType, nearestHexCenter } from './hexGeometry';
 import type { HexLayout } from './hexGeometry';
 import { contrastColorForSprite } from './gridContrastColor';
+import { destroyTree } from '../pixi/utils/destroyTree';
 
 export type GridType = 'square' | 'hex-horizontal' | 'hex-vertical';
 
@@ -263,7 +264,7 @@ export class GridSystem {
     window.requestAnimationFrame(() => {
       try {
         if (!spriteToDestroy.destroyed) {
-          spriteToDestroy.destroy({ children: true, texture: false });
+          destroyTree(spriteToDestroy);
         }
       } catch {
         // Silently ignore destruction errors
@@ -345,10 +346,10 @@ export class GridSystem {
 
     // Wait for the sprite's texture to load before building the grid
     const checkSpriteReady = (): void => {
+      // Stop polling once the grid or this sprite is gone
+      if (this.isDestroying || this.bgSprite !== newBgSprite || newBgSprite.destroyed) return;
       if (newBgSprite.width > 0 && newBgSprite.height > 0) {
-        if (!this.isDestroying) {
-          this.createGrid();
-        }
+        this.createGrid();
       } else {
         window.setTimeout(checkSpriteReady, 50);
       }

@@ -1,5 +1,6 @@
 // layer-manager.ts
 import { Container } from 'pixi.js';
+import { destroyTree } from './pixi/utils/destroyTree';
 
 export class LayerManager {
     private layers = new Map<string, Container>();
@@ -24,7 +25,7 @@ export class LayerManager {
     all() { return Array.from(this.layers.values()); }
   
     destroy() {                   // called from React unmount
-      this.layers.forEach(l => l.destroy({ children: true }));
+      this.layers.forEach(l => destroyTree(l));
       this.layers.clear();
     }
   }

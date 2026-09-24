@@ -178,18 +178,18 @@ $toast-reveal-delay: 300ms;
   @include atlas-flex-row($spacing-m);
 }
 
+// Token art uses the shared TokenPortrait, so it keeps the canvas ring and crop.
 .atlas-dice-toast__avatar {
   width: $toast-avatar;
   height: $toast-avatar;
-  border-radius: $radius-full;
-  object-fit: cover;
   flex-shrink: 0;
-  box-shadow:
-    0 0 0 $border-width-m color-mix(in oklch, var(--atlas-dice-accent) 60%, transparent),
-    0 2px 6px color-mix(in oklch, var(--mono-0) 45%, transparent);
   animation: atlas-dice-toast-rise 0.3s $transition-ease-out 80ms both;
 
   &--fallback {
+    border-radius: $radius-full;
+    box-shadow:
+      0 0 0 $border-width-m color-mix(in oklch, var(--atlas-dice-accent) 60%, transparent),
+      0 2px 6px color-mix(in oklch, var(--mono-0) 45%, transparent);
     display: flex;
     align-items: center;
     justify-content: center;

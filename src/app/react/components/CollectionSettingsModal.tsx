@@ -56,6 +56,7 @@ const DEFAULT_GRID: CollectionGridDefaults = {
   unitDistance: 5,
   measurementMode: 'metric',
   abstractRangeBands: [],
+  diagonalRule: 'equidistant',
 };
 
 // ── Component ──────────────────────────────────────────────────────────────
@@ -70,6 +71,7 @@ export function CollectionSettingsModal({
 
   const [activeTab, setActiveTab] = useState<TabId>('grid');
   const [collectionName, setCollectionName] = useState('');
+  const [releaseLine, setReleaseLine] = useState('');
 
   // Local draft of settings — only persisted on Save
   const [gridDefaults, setGridDefaults] = useState<CollectionGridDefaults>(DEFAULT_GRID);
@@ -93,6 +95,7 @@ export function CollectionSettingsModal({
       if (cancelled) return;
       const match = cols.find((c) => c.id === collectionId);
       setCollectionName(match?.name ?? collectionId);
+      setReleaseLine(match ? `v${match.version}${match.author ? ` · by ${match.author}` : ''}` : '');
     }).catch((err) => {
       console.error('[CollectionSettingsModal] Failed to load collections:', err);
     });
@@ -149,7 +152,10 @@ export function CollectionSettingsModal({
       >
         {/* Header */}
         <div className="atlas-collection-settings-header">
-          <h3 id="atlas-csm-title">{collectionName} Settings</h3>
+          <h3 id="atlas-csm-title">
+            {collectionName} Settings
+            {releaseLine && <span className="atlas-collection-settings-release">{releaseLine}</span>}
+          </h3>
           <CloseButton onClick={onClose} aria-label="Close settings" />
         </div>
 

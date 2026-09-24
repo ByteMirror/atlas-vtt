@@ -83,12 +83,12 @@ function EditInitiativePopup({
     <>
       {/* Backdrop to close on click outside */}
       <div
-        className="initiative-edit-backdrop"
+        className="atlas-initiative-edit-backdrop"
         onClick={onCancel}
       />
       <div
         ref={popupRef}
-        className="initiative-edit-popup"
+        className="atlas-initiative-edit-popup"
         style={{
           position: 'fixed',
           top,
@@ -99,12 +99,12 @@ function EditInitiativePopup({
         <input
           ref={inputRef}
           type="number"
-          className="initiative-edit-popup__input"
+          className="atlas-initiative-edit-popup__input"
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder="0"
         />
-        <span className="initiative-edit-popup__hint">Enter to save · Esc to cancel</span>
+        <span className="atlas-initiative-edit-popup__hint">Enter to save · Esc to cancel</span>
       </div>
     </>
   );
@@ -339,12 +339,12 @@ export const InitiativeTracker: React.FC = () => {
   if (!isOpen) return null;
 
   return (
-    <div className="initiative-tracker">
+    <div className="atlas-initiative-tracker">
       {/* Controls row: Roll + Combat + Close */}
-      <div className="initiative-tracker__controls">
+      <div className="atlas-initiative-tracker__controls">
         {/* Roll All button */}
         <button
-          className="clickable-icon initiative-tracker__btn"
+          className="clickable-icon atlas-initiative-tracker__btn"
           onClick={rollAllInitiative}
           disabled={sortedEntries.length === 0}
         >
@@ -354,7 +354,7 @@ export const InitiativeTracker: React.FC = () => {
         {/* Start/End Combat button */}
         {!initiative.isActive ? (
           <button
-            className="clickable-icon initiative-tracker__btn"
+            className="clickable-icon atlas-initiative-tracker__btn"
             onClick={startCombat}
             disabled={sortedEntries.length === 0}
           >
@@ -362,7 +362,7 @@ export const InitiativeTracker: React.FC = () => {
           </button>
         ) : (
           <button
-            className="clickable-icon initiative-tracker__btn initiative-tracker__btn--end"
+            className="clickable-icon atlas-initiative-tracker__btn atlas-initiative-tracker__btn--end"
             onClick={endCombat}
           >
             <Square />
@@ -371,7 +371,7 @@ export const InitiativeTracker: React.FC = () => {
       </div>
 
       {/* Content - Cards for each token */}
-      <div className="initiative-tracker__content">
+      <div className="atlas-initiative-tracker__content">
         {sortedEntries.map((entry, index) => (
           <InitiativeCard
             key={entry.id}
@@ -396,6 +396,8 @@ export const InitiativeTracker: React.FC = () => {
         vitals={
           previewState.hoveredEntry && {
             ...previewState.hoveredEntry,
+            // Rolls from the preview act on the token, not on the initiative entry.
+            id: previewState.hoveredEntry.tokenId,
             ringColor: tokens[previewState.hoveredEntry.tokenId]?.ringColor,
             showRing: tokens[previewState.hoveredEntry.tokenId]?.showRing,
           }
@@ -408,21 +410,21 @@ export const InitiativeTracker: React.FC = () => {
       />
 
       {/* Turn navigation — always visible, disabled when combat inactive */}
-      <div className="initiative-tracker__turn-controls">
+      <div className="atlas-initiative-tracker__turn-controls">
         <button
           ref={prevBtnRef}
-          className={`clickable-icon initiative-tracker__btn ${hotkeyPressed === 'prev' ? 'initiative-tracker__btn--pressed' : ''}`}
+          className={`clickable-icon atlas-initiative-tracker__btn ${hotkeyPressed === 'prev' ? 'atlas-initiative-tracker__btn--pressed' : ''}`}
           onClick={previousTurn}
           disabled={!initiative.isActive}
         >
           <ChevronUp />
         </button>
-        <span className="initiative-tracker__round">
+        <span className="atlas-initiative-tracker__round">
           {initiative.isActive ? `R${initiative.round}` : '—'}
         </span>
         <button
           ref={nextBtnRef}
-          className={`clickable-icon initiative-tracker__btn ${hotkeyPressed === 'next' ? 'initiative-tracker__btn--pressed' : ''}`}
+          className={`clickable-icon atlas-initiative-tracker__btn ${hotkeyPressed === 'next' ? 'atlas-initiative-tracker__btn--pressed' : ''}`}
           onClick={nextTurn}
           disabled={!initiative.isActive}
         >

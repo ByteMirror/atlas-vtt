@@ -1,12 +1,32 @@
 import { App, TFile } from 'obsidian';
 import { Application, Container, Rectangle, type Texture } from 'pixi.js';
-import { getDataFilePath } from '../utils/dataFileMigration';
+import { mapThumbnailPath } from '../utils/dataFileMigration';
+import { requestRender } from '../pixi/RenderScheduler';
+
+/** The bytes of a base64 data URL, such as the JPEG `renderThumbnail` returns. */
+export function dataUrlToBytes(dataUrl: string): ArrayBuffer | null {
+  const base64Data = dataUrl.split(',')[1];
+  if (!base64Data) return null;
+  const binaryData = atob(base64Data);
+  const bytes = new Uint8Array(binaryData.length);
+  for (let i = 0; i < binaryData.length; i++) {
+    bytes[i] = binaryData.charCodeAt(i);
+  }
+  return bytes.buffer;
+}
+
+/** Pixel size of a rendered thumbnail. */
+export interface ThumbnailSize {
+  width: number;
+  height: number;
+}
+
+/** Map cards in the asset manager and dashboard. */
+const MAP_THUMBNAIL_SIZE: ThumbnailSize = { width: 400, height: 300 };
 
 export class MapThumbnailService {
   private app: App;
   private thumbnailCache: Map<string, string> = new Map(); // Map path -> data URL
-  private static readonly THUMBNAIL_WIDTH = 400;
-  private static readonly THUMBNAIL_HEIGHT = 300;
   private static readonly MAX_CACHE_ENTRIES = 8;
   
   constructor(app: App) {
@@ -28,36 +48,11 @@ export class MapThumbnailService {
     background?: Container | null
   ): Promise<string | null> {
     try {
-      const contentBounds = this.calculateContentBounds(viewport, background);
-      if (!contentBounds) return null;
+      const dataUrl = this.renderThumbnail(pixiApp, viewport, background);
+      if (!dataUrl) return null;
 
-      // Keep render texture bounded so large scenes do not spike memory.
-      const renderResolution = Math.min(
-        1,
-        MapThumbnailService.THUMBNAIL_WIDTH / contentBounds.width,
-        MapThumbnailService.THUMBNAIL_HEIGHT / contentBounds.height
-      );
-
-      const renderTexture: Texture = pixiApp.renderer.generateTexture({
-        target: viewport,
-        frame: contentBounds,
-        resolution: renderResolution,
-      });
-      let dataUrl = '';
-      try {
-        const sourceCanvas = this.extractRenderCanvas(pixiApp, renderTexture);
-        const thumbnailCanvas = this.fitIntoThumbnailCanvas(sourceCanvas);
-        dataUrl = thumbnailCanvas.toDataURL('image/jpeg', 0.8); // JPEG for smaller size
-      } finally {
-        renderTexture.destroy(true);
-      }
-      
-      // Cache the thumbnail
       this.rememberThumbnail(mapPath, dataUrl);
-      
-      // Save thumbnail to vault
       await this.saveThumbnailToVault(mapPath, dataUrl);
-      
       return dataUrl;
     } catch (error) {
       console.error('[MapThumbnailService] Error generating thumbnail:', error);
@@ -65,7 +60,38 @@ export class MapThumbnailService {
     }
   }
 
-  private extractRenderCanvas(pixiApp: Application, renderTexture: Texture): HTMLCanvasElement {
+  /**
+   * Renders the map as it looks now into a JPEG data URL of `size` (400×300 by
+   * default), framed on the map image. Returns null when there is nothing to frame.
+   */
+  renderThumbnail(pixiApp: Application, viewport: Container, background?: Container | null, size: ThumbnailSize = MAP_THUMBNAIL_SIZE): string | null {
+    const contentBounds = this.calculateContentBounds(viewport, size, background);
+    if (!contentBounds) return null;
+
+    // Keep render texture bounded so large scenes do not spike memory.
+    const renderResolution = Math.min(
+      1,
+      size.width / contentBounds.width,
+      size.height / contentBounds.height
+    );
+
+    const renderTexture: Texture = pixiApp.renderer.generateTexture({
+      target: viewport,
+      frame: contentBounds,
+      resolution: renderResolution,
+    });
+    // The off-screen render consumed pending stage updates; the canvas still needs them
+    requestRender(pixiApp);
+    try {
+      const sourceCanvas = this.extractRenderCanvas(pixiApp, renderTexture, size);
+      const thumbnailCanvas = this.fitIntoThumbnailCanvas(sourceCanvas, size);
+      return thumbnailCanvas.toDataURL('image/jpeg', 0.8); // JPEG for smaller size
+    } finally {
+      renderTexture.destroy(true);
+    }
+  }
+
+  private extractRenderCanvas(pixiApp: Application, renderTexture: Texture, size: ThumbnailSize): HTMLCanvasElement {
     if (pixiApp.renderer.extract && typeof pixiApp.renderer.extract.canvas === 'function') {
       return pixiApp.renderer.extract.canvas(renderTexture) as HTMLCanvasElement;
     }
@@ -73,8 +99,8 @@ export class MapThumbnailService {
     const canvas = createEl('canvas');
     const pixelData = pixiApp.renderer.extract?.pixels(renderTexture);
     if (!pixelData) {
-      canvas.width = MapThumbnailService.THUMBNAIL_WIDTH;
-      canvas.height = MapThumbnailService.THUMBNAIL_HEIGHT;
+      canvas.width = size.width;
+      canvas.height = size.height;
       return canvas;
     }
 
@@ -89,10 +115,10 @@ export class MapThumbnailService {
     return canvas;
   }
 
-  private fitIntoThumbnailCanvas(sourceCanvas: HTMLCanvasElement): HTMLCanvasElement {
+  private fitIntoThumbnailCanvas(sourceCanvas: HTMLCanvasElement, size: ThumbnailSize): HTMLCanvasElement {
     const canvas = createEl('canvas');
-    canvas.width = MapThumbnailService.THUMBNAIL_WIDTH;
-    canvas.height = MapThumbnailService.THUMBNAIL_HEIGHT;
+    canvas.width = size.width;
+    canvas.height = size.height;
 
     const ctx = canvas.getContext('2d');
     if (!ctx) return canvas;
@@ -100,13 +126,13 @@ export class MapThumbnailService {
     const sourceWidth = Math.max(1, sourceCanvas.width);
     const sourceHeight = Math.max(1, sourceCanvas.height);
     const scale = Math.max(
-      MapThumbnailService.THUMBNAIL_WIDTH / sourceWidth,
-      MapThumbnailService.THUMBNAIL_HEIGHT / sourceHeight
+      size.width / sourceWidth,
+      size.height / sourceHeight
     );
     const drawWidth = sourceWidth * scale;
     const drawHeight = sourceHeight * scale;
-    const drawX = (MapThumbnailService.THUMBNAIL_WIDTH - drawWidth) / 2;
-    const drawY = (MapThumbnailService.THUMBNAIL_HEIGHT - drawHeight) / 2;
+    const drawX = (size.width - drawWidth) / 2;
+    const drawY = (size.height - drawHeight) / 2;
 
     ctx.drawImage(sourceCanvas, drawX, drawY, drawWidth, drawHeight);
     return canvas;
@@ -117,7 +143,7 @@ export class MapThumbnailService {
    * ignores the target's transform, so screen-space bounds include an unwanted
    * camera offset and zoom. Prefer the map image over grids and editor overlays.
    */
-  private calculateContentBounds(viewport: Container, background?: Container | null): Rectangle | null {
+  private calculateContentBounds(viewport: Container, size: ThumbnailSize, background?: Container | null): Rectangle | null {
     let bounds = viewport.getLocalBounds();
     if (background?.parent === viewport) {
       background.updateLocalTransform();
@@ -128,7 +154,7 @@ export class MapThumbnailService {
     const { x, y, width, height } = bounds;
     if (![x, y, width, height].every(Number.isFinite) || width <= 0 || height <= 0) return null;
 
-    const aspect = MapThumbnailService.THUMBNAIL_WIDTH / MapThumbnailService.THUMBNAIL_HEIGHT;
+    const aspect = size.width / size.height;
     const cropWidth = Math.min(width, height * aspect);
     const cropHeight = Math.min(height, width / aspect);
     return new Rectangle(
@@ -144,20 +170,14 @@ export class MapThumbnailService {
    */
   private async saveThumbnailToVault(mapPath: string, dataUrl: string): Promise<void> {
     try {
-      // Convert data URL to binary
-      const base64Data = dataUrl.split(',')[1];
-      if (!base64Data) return;
-      const binaryData = atob(base64Data);
-      const bytes = new Uint8Array(binaryData.length);
-      for (let i = 0; i < binaryData.length; i++) {
-        bytes[i] = binaryData.charCodeAt(i);
-      }
-      
+      const bytes = dataUrlToBytes(dataUrl);
+      if (!bytes) return;
+
       // Create thumbnail path (same directory as map, with .thumb.jpg extension)
       const mapFile = this.app.vault.getAbstractFileByPath(mapPath);
       if (!mapFile || !(mapFile instanceof TFile)) return;
       
-      const thumbnailPath = getDataFilePath(mapPath.replace('.atlasmap', '.thumb.jpg'));
+      const thumbnailPath = mapThumbnailPath(mapPath);
       
       // Ensure directory exists for the thumbnail
       const dir = thumbnailPath.substring(0, thumbnailPath.lastIndexOf('/'));
@@ -168,9 +188,9 @@ export class MapThumbnailService {
       // Save thumbnail file
       const existingThumb = this.app.vault.getAbstractFileByPath(thumbnailPath);
       if (existingThumb instanceof TFile) {
-        await this.app.vault.modifyBinary(existingThumb, bytes.buffer);
+        await this.app.vault.modifyBinary(existingThumb, bytes);
       } else {
-        await this.app.vault.createBinary(thumbnailPath, bytes.buffer);
+        await this.app.vault.createBinary(thumbnailPath, bytes);
       }
       
     } catch (error) {
@@ -190,7 +210,7 @@ export class MapThumbnailService {
     }
     
     // Try to load from vault - new location first
-    const thumbnailPath = getDataFilePath(mapPath.replace('.atlasmap', '.thumb.jpg'));
+    const thumbnailPath = mapThumbnailPath(mapPath);
     let thumbFile = this.app.vault.getAbstractFileByPath(thumbnailPath);
     
     // If not found in new location, try old location

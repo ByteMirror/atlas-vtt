@@ -13,7 +13,13 @@ export interface StatblockResource extends TokenResourceValue {
 export type StatblockResourceUpdate = Partial<Pick<Character, 'hp' | 'stress' | 'maxStress' | 'hope' | 'statblockResources'>>;
 
 const normalized = (key: string): string => key.toLowerCase().replace(/[\s_-]/g, '');
-const canonical = (key: string): string => ['hp', 'health', 'hitpoints'].includes(normalized(key)) ? 'hp' : normalized(key);
+
+/** Whether a statblock key or label ("hp", "Hit Points:", "Health") names hit points. */
+export function isHitPointsKey(key: string): boolean {
+  return ['hp', 'health', 'hitpoints'].includes(normalized(key.replace(/:\s*$/, '')));
+}
+
+const canonical = (key: string): string => isHitPointsKey(key) ? 'hp' : normalized(key);
 const resourceNames = new Set(['hp', 'stress', 'hope', 'mana', 'mp', 'stamina', 'energy', 'shield', 'shields', 'resolve', 'luck', 'focus', 'strain', 'wounds', 'ammo', 'charges']);
 const clamp = (current: number, max: number): number => Math.max(0, Math.min(max, current));
 

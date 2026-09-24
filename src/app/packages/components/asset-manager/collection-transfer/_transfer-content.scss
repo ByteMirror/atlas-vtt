@@ -1,0 +1,332 @@
+@use '../../../../../../styles/tokens' as *;
+@use '../../../../../../styles/mixins' as *;
+
+// The main pane below the hero: release fields, contents, notes, warnings and conflicts.
+
+.atlas-transfer-text {
+  margin: 0;
+
+  &--muted {
+    color: var(--text-muted);
+  }
+}
+
+.atlas-transfer-hint {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: $font-ui-smaller;
+}
+
+.atlas-transfer-fields {
+  display: flex;
+  gap: $spacing-l;
+}
+
+.atlas-transfer-field {
+  @include atlas-flex-col($gap: $spacing-s);
+
+  > span:first-child {
+    @include atlas-field-label;
+  }
+
+  &--version {
+    flex: 0 0 104px;
+  }
+
+  &--grow {
+    flex: 1;
+    min-width: 0;
+  }
+
+  // The shared text input has a fixed height; release notes need several lines.
+  .atlas-input.atlas-transfer-notes {
+    height: auto;
+    min-height: 88px;
+    padding: $spacing-m;
+    resize: vertical;
+  }
+}
+
+.atlas-transfer-checkbox {
+  @include atlas-flex-row($gap: $spacing-s);
+  cursor: pointer;
+}
+
+.atlas-transfer-section {
+  @include atlas-flex-col($gap: $spacing-m);
+
+  &__title {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: $font-ui-smaller;
+    font-weight: $font-weight-semibold;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+}
+
+.atlas-transfer-notes-view {
+  margin: 0;
+  padding: $spacing-l;
+  border-radius: $radius-l;
+  background: color-mix(in oklch, var(--background-secondary) 80%, transparent);
+  line-height: var(--line-height-normal);
+  white-space: pre-wrap;
+}
+
+// ── Contents: one row per kind, expandable to its items ─────────────────────
+
+.atlas-transfer-groups {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: $border-width-s solid var(--background-modifier-border);
+}
+
+.atlas-transfer-group {
+  border-bottom: $border-width-s solid var(--background-modifier-border);
+
+  // Obsidian's checkbox draws only the checked state; a partly included group shows a dash.
+  input[type='checkbox']:indeterminate {
+    background-color: var(--interactive-accent);
+    border-color: var(--interactive-accent);
+
+    &::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      margin: auto;
+      width: 50%;
+      height: $border-width-l;
+      border-radius: $radius-full;
+      background: var(--text-on-accent);
+    }
+  }
+
+  &__header {
+    @include atlas-flex-row($gap: $spacing-m);
+
+    input {
+      flex-shrink: 0;
+      margin: 0;
+    }
+  }
+
+  &__trigger {
+    @include atlas-flex-row($gap: $spacing-m);
+    flex: 1;
+    min-width: 0;
+    height: auto;
+    padding: $spacing-m 0;
+    background: none;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    color: var(--text-normal);
+    font-size: $font-ui-small;
+    cursor: pointer;
+
+    &:hover:not(:disabled) {
+      background: none;
+
+      .atlas-transfer-group__chevron {
+        color: var(--text-normal);
+      }
+    }
+
+    &:disabled {
+      cursor: default;
+      opacity: 1;
+      color: var(--text-faint);
+    }
+
+    @include atlas-focus-ring;
+  }
+
+  &__icon {
+    width: $icon-s;
+    height: $icon-s;
+    flex-shrink: 0;
+    color: var(--text-muted);
+  }
+
+  &__label {
+    font-weight: $font-weight-medium;
+  }
+
+  &__count {
+    margin-left: auto;
+    color: var(--text-normal);
+    font-size: $font-ui-medium;
+    font-weight: $font-weight-semibold;
+    font-variant-numeric: tabular-nums;
+  }
+
+  &[data-empty] &__count {
+    color: var(--text-faint);
+    font-size: $font-ui-small;
+    font-weight: $font-weight-normal;
+  }
+
+  &__chevron {
+    width: $icon-s;
+    height: $icon-s;
+    flex-shrink: 0;
+    color: var(--text-faint);
+    transition: transform $transition-normal $transition-ease-out;
+  }
+
+  &__trigger[aria-expanded='true'] &__chevron {
+    transform: rotate(180deg);
+  }
+
+  &[data-empty] &__chevron {
+    visibility: hidden;
+  }
+
+  // Height animates through the grid track; closing is quicker than opening.
+  &__panel {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows $transition-press $transition-ease-out;
+
+    &[data-expanded='true'] {
+      grid-template-rows: 1fr;
+      transition-duration: $transition-normal;
+    }
+  }
+
+  &__clip {
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  // Indented under the group's label: checkbox (or icon) column plus its gap.
+  &__items {
+    padding: 0 0 $spacing-m calc(#{$icon-s} + #{$spacing-m});
+  }
+}
+
+.atlas-transfer-item {
+  @include atlas-flex-row($gap: $spacing-s);
+  min-width: 0;
+
+  &__label {
+    @include atlas-flex-row($gap: $spacing-s);
+    flex: 1;
+    min-width: 0;
+    cursor: pointer;
+
+    input {
+      flex-shrink: 0;
+      margin: 0;
+    }
+  }
+
+  &__name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__hint {
+    flex-shrink: 0;
+    color: var(--text-faint);
+    font-size: $font-ui-smaller;
+  }
+
+  &[data-orphaned] {
+    color: var(--text-faint);
+
+    .atlas-transfer-item__label {
+      cursor: default;
+    }
+  }
+}
+
+// Rows of a virtual grid, placed by the scroll position of the dialog's pane.
+.atlas-transfer-vgrid {
+  position: relative;
+
+  &__row {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    display: grid;
+    align-items: center;
+  }
+}
+
+// ── Callouts and conflicts ──────────────────────────────────────────────────
+
+.atlas-transfer-callout {
+  @include atlas-flex-col($gap: $spacing-s);
+  @include atlas-inset-surface;
+  padding: $spacing-m;
+
+  &--warning {
+    border-color: var(--text-warning);
+  }
+
+  ul {
+    margin: 0;
+    padding-left: $spacing-l;
+  }
+}
+
+.atlas-transfer-conflicts {
+  @include atlas-flex-col($gap: $spacing-s);
+
+  &__header {
+    @include atlas-flex-row($gap: $spacing-s);
+    justify-content: space-between;
+    flex-wrap: wrap;
+  }
+
+  &__bulk {
+    @include atlas-flex-row($gap: $spacing-s);
+  }
+
+  &__list {
+    @include atlas-flex-col($gap: $spacing-s);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+}
+
+.atlas-transfer-conflict {
+  @include atlas-flex-row($gap: $spacing-m);
+  justify-content: space-between;
+  padding: $spacing-m;
+  border-radius: $radius-l;
+  background: var(--background-secondary);
+
+  &__label {
+    @include atlas-flex-col($gap: $spacing-xs);
+    min-width: 0;
+  }
+
+  &__name {
+    font-weight: $font-weight-medium;
+    overflow-wrap: anywhere;
+  }
+
+  &__reason {
+    color: var(--text-muted);
+    font-size: $font-ui-smaller;
+  }
+
+  &__choice {
+    flex-shrink: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .atlas-transfer-group__chevron,
+  .atlas-transfer-group__panel {
+    transition: none;
+  }
+}

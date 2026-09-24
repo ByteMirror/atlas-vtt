@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import type { Folder, Tab, SortOption, SortOrder, SelectionEvent } from '../types';
 import { NavigationHistory } from '../NavigationHistory';
 import { applyClickSelection, resolveSelectAll } from '../utils/clickSelection';
+import { clampSpawnCount } from '../utils/spawnCount';
 
 /** IDs currently rendered, in display order, so Shift-click can span them. */
 export interface VisibleIds {
@@ -37,7 +38,8 @@ export interface SelectionState {
   handleNavigateToFolder: (folderId: string | null) => void;
   handleTagSelect: (tagId: string) => void;
   handleClearSelection: () => void;
-  handleSpawnCountChange: (assetId: string, delta: number) => void;
+  /** Sets how many copies spawning the asset places; 1 clears the counter. */
+  handleSpawnCountChange: (assetId: string, count: number) => void;
   getFolderPath: (folderId: string) => Folder[];
 }
 
@@ -146,9 +148,9 @@ export function useSelectionHandlers(
     setSpawnCounts({});
   };
 
-  const handleSpawnCountChange = (assetId: string, delta: number): void => {
+  const handleSpawnCountChange = (assetId: string, count: number): void => {
     setSpawnCounts((prev) => {
-      const next = Math.max(1, (prev[assetId] || 1) + delta);
+      const next = clampSpawnCount(count);
       if (next === 1) {
         const { [assetId]: _, ...rest } = prev;
         return rest;

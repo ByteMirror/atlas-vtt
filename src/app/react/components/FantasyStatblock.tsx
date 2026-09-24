@@ -8,9 +8,10 @@ import {
   resolveLayout,
   type FantasyStatblocksCreature,
 } from '../../services/FantasyStatblocksService';
-import { resolveStatblockNote } from '../../services/statblockNoteSource';
+import { resolveStatblockNote, statblockSourceFromText } from '../../services/statblockNoteSource';
 import { syncStatblockVitals, type TokenVitals } from '../../services/statblockVitalsSync';
 import { attachDiceRolling } from '../../services/statblockDiceLinks';
+import { rollHitPoints } from '../../services/statblockHitPoints';
 import { StatblockRenderer, type StatblockPortrait } from './statblock/StatblockRenderer';
 import { TokenPickerModal } from '../../packages/components/token-picker/TokenPickerModal';
 import { TokenStatblockLinkService } from '../../services/TokenStatblockLinkService';
@@ -21,6 +22,8 @@ import { isEditableNote, writeStatblockValue } from '../../services/statblockEdi
 interface FantasyStatblockProps {
   /** Vault path of the note backing the Fantasy Statblocks creature */
   notePath: string;
+  /** The note's text when it is not in the vault, e.g. inside a collection being imported; `notePath` then names it. */
+  noteContent?: string | undefined;
   /** Obsidian app — used for markdown, images and click-to-roll dice */
   app: App;
   /** Tokens whose HP/stress drive the statblock's vitals — one block per token */
@@ -41,6 +44,7 @@ function vitalsKey(tokens: TokenVitals[]): string {
  */
 export function FantasyStatblock({
   notePath,
+  noteContent,
   app,
   tokens = [],
   editable = false,
@@ -75,24 +79,35 @@ export function FantasyStatblock({
     return () => refs.forEach((ref) => app.workspace.offref(ref));
   }, [app]);
 
+  // A note outside the vault is read from its own text; the bestiary knows only vault notes.
   const bestiaryCreature = useMemo(
-    () => findCreatureForNotePath(notePath),
+    () => (noteContent === undefined ? findCreatureForNotePath(notePath) : null),
     // `revision` is not read by the lookup; it re-runs it when the bestiary changes.
-    [notePath, revision],
+    [notePath, noteContent, revision],
   );
 
   // Notes that define their statblock in a ```statblock fence never enter the
   // bestiary, so resolve those from the fence itself.
-  const [fenceCreature, setFenceCreature] = useState<FantasyStatblocksCreature | null>(null);
+  const [noteCreature, setNoteCreature] = useState<FantasyStatblocksCreature | null>(null);
 
   useEffect(() => {
     if (bestiaryCreature) {
-      setFenceCreature(null);
+      setNoteCreature(null);
       return;
     }
 
     let cancelled = false;
     void (async () => {
+      if (noteContent !== undefined) {
+        const source = statblockSourceFromText(noteContent);
+        const basename = notePath.split('/').pop()?.replace(/\.md$/, '') ?? '';
+        const resolved = source?.kind === 'frontmatter'
+          ? { name: basename, ...source.frontmatter } as FantasyStatblocksCreature
+          : source ? await resolveCreatureFromFence(app, source.params, notePath) : null;
+        if (!cancelled) setNoteCreature(resolved);
+        return;
+      }
+
       const file = app.vault.getAbstractFileByPath(notePath);
       if (!(file instanceof TFile)) return;
 
@@ -100,15 +115,15 @@ export function FantasyStatblock({
       if (cancelled || source?.kind !== 'codeblock') return;
 
       const resolved = await resolveCreatureFromFence(app, source.params, notePath);
-      if (!cancelled) setFenceCreature(resolved);
+      if (!cancelled) setNoteCreature(resolved);
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [app, notePath, bestiaryCreature, revision]);
+  }, [app, notePath, noteContent, bestiaryCreature, revision]);
 
-  const creature = bestiaryCreature ?? fenceCreature;
+  const creature = bestiaryCreature ?? noteCreature;
   const layout = useMemo(
     () => (creature ? layoutForCreature(app, creature) : null),
     [app, creature],
@@ -175,15 +190,20 @@ export function FantasyStatblock({
     const el = ref.current;
     if (!el || !monster) return;
 
-    return attachDiceRolling(el, app, () => {
-      const [token] = tokensRef.current;
-      return {
-        tokenId: token?.id,
-        statblockPath: notePath,
-        tokenName: token?.name ?? (monster.name),
-        tokenImagePath: token?.imagePath,
-      };
-    });
+    return attachDiceRolling(
+      el,
+      app,
+      () => {
+        const [token] = tokensRef.current;
+        return {
+          tokenId: token?.id,
+          statblockPath: notePath,
+          tokenName: token?.name ?? (monster.name),
+          tokenImagePath: token?.imagePath,
+        };
+      },
+      (formula, abilityName) => rollHitPoints(app, formula, notePath, tokensRef.current, abilityName),
+    );
   }, [app, monster, notePath]);
 
   // Mirror token HP/stress into any vitals track the layout renders.

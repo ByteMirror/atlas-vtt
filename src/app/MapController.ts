@@ -6,6 +6,12 @@ import { PixiRendererOrchestrator } from './PixiRendererOrchestrator';
 import type { GridOptions } from './grid/GridSystem';
 import { parseGridColor } from './grid/gridContrastColor';
 
+export interface DisplayedMap {
+  mapData: MapFile;
+  /** Background texture reference held for this map; release it through `backgroundTextureCache`. */
+  backgroundUrl: string | null;
+}
+
 /**
  * Load the given map file, create background sprite, initialise grid and
  * return the parsed mapData.
@@ -15,8 +21,8 @@ async function loadAndDisplay(
   renderer: PixiRendererOrchestrator,
   filePath: string,
   restoreCamera: boolean = true,
-): Promise<MapFile> {
-  const { mapData, texture } = await MapLoader.load(app, filePath);
+): Promise<DisplayedMap> {
+  const { mapData, texture, backgroundUrl } = await MapLoader.load(app, filePath);
 
   // Set background texture (will be placeholder if no real background)
   const sprite = Sprite.from(texture);
@@ -88,7 +94,7 @@ async function loadAndDisplay(
     };
   }
 
-  return mapData;
+  return { mapData, backgroundUrl };
 }
 
 /**

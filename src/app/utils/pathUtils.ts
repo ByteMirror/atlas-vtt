@@ -89,3 +89,9 @@ export function isAbsolutePath(path: string): boolean {
 export function needsPathNormalization(path: string): boolean {
   return isAppUrl(path) || isAbsolutePath(path);
 }
+
+/** The last segment of a vault path: `a/b/goblin.webp` → `goblin.webp`. */
+export const baseName = (path: string): string => path.slice(path.lastIndexOf('/') + 1);
+
+/** The folder of a vault path: `a/b/goblin.webp` → `a/b`; empty at the vault root. */
+export const parentPath = (path: string): string => path.slice(0, Math.max(0, path.lastIndexOf('/')));

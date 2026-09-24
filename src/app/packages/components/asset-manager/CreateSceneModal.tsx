@@ -13,7 +13,6 @@ import { useAssetTags } from './token-creator/useAssetTags';
 interface CreateSceneModalProps {
   isOpen: boolean;
   onClose: () => void;
-  collections: string[];
   selectedCollection: string | null;
   assetService: AssetService | null;
   onSceneCreated: () => void;
@@ -25,7 +24,6 @@ interface CreateSceneModalProps {
 export default function CreateSceneModal({
   isOpen,
   onClose,
-  collections,
   selectedCollection,
   assetService,
   onSceneCreated,
@@ -85,12 +83,8 @@ export default function CreateSceneModal({
 
     setIsCreating(true);
     try {
-      // The picker stores display names; vault paths and metadata use IDs.
-      // Resolve the stored ID instead of guessing from the name (which may change).
       const selection = selectedCollection || 'default';
-      const collectionList = await assetService.getCollections();
-      const collection = collectionList.find((item) => item.id === selection)
-        ?? collectionList.find((item) => item.name === selection);
+      const collection = await assetService.getCollection(selection);
       if (!collection) {
         throw new Error(`Collection "${selection}" no longer exists. Select another collection and try again.`);
       }

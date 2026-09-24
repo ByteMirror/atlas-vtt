@@ -1,7 +1,7 @@
 import { FileView, WorkspaceLeaf, TFile, normalizePath, ViewStateResult, Notice } from "obsidian";
 import { ServiceManager } from './services/ServiceManager';
 import { createViewAtlasStore, ViewAtlasStore } from './storeFactory';
-import { getHistoryStore, type HistoryState } from './stores/history';
+import { getHistoryStore, runUntracked, type HistoryState } from './stores/history';
 import { createTabMetaStore, type TabMetaStore } from './stores/tabMetaStore';
 import type { SceneTab } from './types/sceneTabTypes';
 import type AtlasVTTPlugin from '../../main';
@@ -300,6 +300,9 @@ export class AtlasView extends FileView {
       this.pendingViewportRestoreRaf = null;
     }
 
+    // Pinned note previews keep their scroll and cursor with the map
+    this._serviceManager.getNotePreviewUIManager().savePinnedPreviewStates();
+
     // Flush all pending saves before destroying
     await this.flushPendingSaves();
 
@@ -363,21 +366,14 @@ export class AtlasView extends FileView {
       // Update FileView's internal file reference
       this.file = abstractFile;
 
-      // Pre-set currentMapFilePath so performSceneLoad does NOT recreate the renderer.
-      // The single store stays subscribed — PIXI renderers react to state changes naturally.
-      this.currentMapFilePath = abstractFile.path;
-
       // Set active tab in meta store
       this.tabMetaStore.getState().setActiveTab(tabId);
 
       // Load the map from disk (clears state, rehydrates, emits map-loaded)
       await this.performSceneLoad(abstractFile);
 
-      // Explicitly ensure history is paused before restoring it
-      // (loadMap pauses it, but an explicit pause() is idempotent and safe)
-      getHistoryStore(this.store)?.getState().pause();
-
-      // Restore the target tab's undo/redo history and viewport position
+      // Restore the target tab's undo/redo history and viewport position.
+      // Writing past/future states directly never records a step, so tracking can stay as the load left it.
       this.restoreTemporalState(tabId);
       this.restoreViewportState(tabId);
 
@@ -482,16 +478,57 @@ export class AtlasView extends FileView {
    * Update a tab's file path after a vault rename/move.
    * Also updates the internal file reference if the renamed file is the active scene.
    */
-  public updateTabFilePath(oldPath: string, newPath: string, newName: string): void {
+  /**
+   * Follows a vault rename: the open map's tokens and pins, its save target and
+   * its tab. Without the new save target, the next autosave would recreate the
+   * map under its old name.
+   */
+  public handleFileRenamed(oldPath: string, newPath: string, newName: string): void {
+    const state = this.store.getState();
+    if (state.mapPath === oldPath) state.setMapPath(newPath);
+    this._serviceManager.getMapService().handleFileRenamed(oldPath, newPath);
+    // A rename is not an edit: undo must never point tokens back at a path that no longer exists.
+    runUntracked(this.store, () => this.store.getState().retargetRenamedFile(oldPath, newPath));
+
     const tabState = this.tabMetaStore.getState();
-    const tab = tabState.getTabByFilePath(oldPath);
-    if (!tab) return;
+    if (!tabState.getTabByFilePath(oldPath)) return;
 
     tabState.updateTabFilePath(oldPath, newPath, newName);
 
     if (this.currentMapFilePath === oldPath) {
       this.currentMapFilePath = newPath;
       this.file = this.app.vault.getFileByPath(newPath);
+    }
+  }
+
+  /**
+   * Lets `rewrite` replace the active scene's file, then loads the scene again
+   * from it, keeping the camera where it is. Pending changes are saved first
+   * and nothing the store holds can be saved over the rewritten file. The
+   * reload clears the scene's undo history, like opening a map does.
+   */
+  public async reloadActiveScene(rewrite: (file: TFile) => Promise<void>): Promise<void> {
+    const file = this.file;
+    const tabId = this.tabMetaStore.getState().activeTabId;
+    if (!(file instanceof TFile) || this.isSwitching) return;
+
+    this.isSwitching = true;
+    try {
+      await this.flushPendingSaves();
+      if (tabId) this.saveViewportState(tabId);
+
+      this.store.getState().setPersistenceEnabled(false);
+      try {
+        await rewrite(file);
+      } catch (error) {
+        this.store.getState().setPersistenceEnabled(true);
+        throw error;
+      }
+
+      await this.performSceneLoad(file);
+      if (tabId) this.restoreViewportState(tabId);
+    } finally {
+      this.isSwitching = false;
     }
   }
 
@@ -542,14 +579,11 @@ export class AtlasView extends FileView {
   }
 
   /**
-   * Core scene-loading logic extracted from the original onLoadFile.
-   * Handles loading state, renderer recreation on map switch, and map data loading.
+   * Loads a scene into the existing renderer and UI. Every renderer follows the
+   * store, so switching maps never rebuilds the PIXI application.
    */
   private async performSceneLoad(file: TFile): Promise<void> {
-    // Immediately set loading state when file changes
     this.store.getState().setMapLoading(true, 0, 'Preparing...');
-
-    const previousMapPath = this.currentMapFilePath;
     this.currentMapFilePath = file.path;
 
     const rendererService = this._serviceManager.getRendererService();
@@ -557,29 +591,6 @@ export class AtlasView extends FileView {
       console.error('[AtlasView] performSceneLoad called before renderer initialised');
       this.store.getState().setMapLoading(false);
       return;
-    }
-
-    // Check if this is a map switch (not the initial load).
-    // For tab switches, currentMapFilePath is pre-set so this is false — no recreation needed.
-    const isMapSwitch = previousMapPath !== null && previousMapPath !== file.path;
-
-    if (isMapSwitch) {
-      const uiOverlay = this._serviceManager.getUIOverlay();
-
-      // Unmount UI
-      uiOverlay.unmount();
-
-      // Recreate the entire renderer
-      await rendererService.recreate(this.containerEl);
-
-      // Get the new PIXI app instance
-      const pixiApp = rendererService.getApp();
-
-      // Remount UI with the new renderer
-      uiOverlay.mount(this.containerEl, this, pixiApp);
-
-      // Small delay to ensure everything is ready
-      await new Promise(resolve => window.setTimeout(resolve, 100));
     }
 
     const mapService = this._serviceManager.getMapService();

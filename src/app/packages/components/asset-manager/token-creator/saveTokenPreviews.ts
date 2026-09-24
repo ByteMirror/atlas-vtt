@@ -3,7 +3,7 @@ import { AssetRegistrationUncertainError } from '../../../../services/assetRegis
 import { withStatblockImportLock } from '../../../../services/statblockImportLock';
 import { requireResolvedBestiary, statblockImportCandidate } from '../../../../services/statblockImportCandidates';
 import { AssetService } from '../../../../services/AssetService';
-import { TokenThumbnailService } from '../../../../services/TokenThumbnailService';
+import { AssetThumbnailService } from '../../../../services/AssetThumbnailService';
 import { optimizeImage, OPTIMIZATION_PRESETS } from '../../../../utils/imageOptimizer';
 import { bakeTokenCrop } from './bakeTokenCrop';
 import type { CreatorMode, EditTokenInput, TokenPreview } from './types';
@@ -63,7 +63,7 @@ async function savePreviews(options: SaveTokenPreviewsOptions): Promise<number> 
   const destination = destinations.find(c => c.id === collection) ?? destinations.find(c => c.name === collection);
   if (!destination) throw new Error('The destination collection no longer exists. Choose another collection.');
   const meta = { collection: destination.id };
-  const thumbnails = TokenThumbnailService.getInstance(app, assetService);
+  const thumbnails = AssetThumbnailService.getInstance(app, assetService);
   if (previews.some(p => p.statblockPath)) await assetService.refreshMetadata();
   await ensureAssetsDir(app);
   let saved = 0;

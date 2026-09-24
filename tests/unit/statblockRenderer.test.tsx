@@ -312,3 +312,19 @@ it('preserves custom JavaScript gauges when replacing Daggerheart trackers', () 
   const { container } = render(<StatblockRenderer monster={{}} layout={layout} replaceVitals />);
   expect(container.querySelector('progress')?.value).toBe(4);
 });
+
+describe('hit points marker', () => {
+  it('marks the hit points property and a statline named HP, and nothing else', () => {
+    const { container } = render(<StatblockRenderer
+      layout={layoutOf(
+        { type: 'property', id: 'hp', properties: ['hp'], display: 'Hit Points' },
+        { type: 'property', id: 'ac', properties: ['ac'], display: 'Armor Class' },
+        { type: 'traits', id: 't', properties: ['statlines'] },
+      )}
+      monster={{ hp: '7 (2d6)', ac: 15, statlines: [{ name: 'HP', desc: '4d8 (18)' }, { name: 'Attacks', desc: 'Claw (+3, 1d6)' }] }}
+    />);
+
+    const marked = [...container.querySelectorAll('[data-hit-points]')].map((el) => el.textContent);
+    expect(marked).toEqual([expect.stringContaining('2d6'), expect.stringContaining('4d8')]);
+  });
+});

@@ -15,12 +15,12 @@ export interface TagsAndCollectionsState {
   closeEditTagsModal: () => void;
   // Tag CRUD
   handleCreateTag: (tag: string) => Promise<void>;
-  handleUpdateTag: (oldTag: string, newTag: string) => void;
+  handleUpdateTag: (tagId: string, name: string) => Promise<void>;
   handleDeleteTag: (tagId: string) => Promise<void>;
   handleSaveAssetTags: (tags: string[]) => Promise<void>;
   // Collection CRUD
-  handleUpdateCollection: (oldCollection: string, newCollection: string) => Promise<void>;
-  handleDeleteCollection: (collection: string) => Promise<void>;
+  handleUpdateCollection: (collectionId: string, name: string) => Promise<void>;
+  handleDeleteCollection: (collectionId: string) => Promise<void>;
 }
 
 export function useTagsAndCollections(
@@ -29,9 +29,7 @@ export function useTagsAndCollections(
   availableTags: Tag[],
   setAvailableTags: React.Dispatch<React.SetStateAction<Tag[]>>,
   setAssets: React.Dispatch<React.SetStateAction<AnyAsset[]>>,
-  collections: string[],
-  setCollections: React.Dispatch<React.SetStateAction<string[]>>,
-  setSelectedCollection: (c: string | null) => void,
+  reloadCollections: () => Promise<void>,
   reloadGlobalTags: () => Promise<void>
 ): TagsAndCollectionsState {
   const [isTagManagerOpen, setIsTagManagerOpen] = useState(false);
@@ -61,34 +59,39 @@ export function useTagsAndCollections(
     }
   }, [assetService, selectedCollection, availableTags, setAvailableTags]);
 
-  const handleUpdateTag = useCallback((oldTag: string, newTag: string): void => {
-    setAvailableTags(prev =>
-      prev.map(t => t.id === oldTag ? { id: newTag, name: newTag } : t)
-    );
-    setAssets(prev =>
-      prev.map(asset => ({
-        ...asset,
-        tags: asset.tags?.map(t => t === oldTag ? newTag : t) ?? [],
-      }))
-    );
-  }, [setAvailableTags, setAssets]);
+  const handleUpdateTag = useCallback(async (tagId: string, name: string): Promise<void> => {
+    if (!assetService) return;
+    const previous = availableTags.find(t => t.id === tagId);
+    try {
+      const renamed = await assetService.renameTag(selectedCollection || 'default', tagId, name);
+      const retag = (value: string): string =>
+        value === tagId ? renamed.id : value === previous?.name ? renamed.name : value;
+      setAssets(prev => prev.map(asset => ({ ...asset, tags: asset.tags?.map(retag) ?? [] })));
+      await reloadGlobalTags();
+    } catch (error) {
+      console.error('[AssetManager] Failed to rename tag:', error);
+      showAtlasToast('Could not rename the tag');
+    }
+  }, [assetService, selectedCollection, availableTags, setAssets, reloadGlobalTags]);
 
   const handleDeleteTag = useCallback(async (tagId: string): Promise<void> => {
     if (!assetService) return;
     const col = selectedCollection || 'default';
     try {
       await assetService.deleteTag(col, tagId);
+      const name = availableTags.find(t => t.id === tagId)?.name;
       setAvailableTags(prev => prev.filter(t => t.id !== tagId));
       setAssets(prev =>
         prev.map(asset => ({
           ...asset,
-          tags: asset.tags?.filter(t => t !== tagId) ?? [],
+          tags: asset.tags?.filter(t => t !== tagId && t !== name) ?? [],
         }))
       );
     } catch (error) {
       console.error('[AssetManager] Failed to delete tag:', error);
+      showAtlasToast('Could not delete the tag');
     }
-  }, [assetService, selectedCollection, setAvailableTags, setAssets]);
+  }, [assetService, selectedCollection, availableTags, setAvailableTags, setAssets]);
 
   const handleSaveAssetTags = useCallback(async (tags: string[]): Promise<void> => {
     if (!editingAssetForTags || !assetService) return;
@@ -105,40 +108,31 @@ export function useTagsAndCollections(
     }
   }, [editingAssetForTags, assetService, setAssets, reloadGlobalTags]);
 
-  const handleUpdateCollection = useCallback(async (oldCollection: string, newCollection: string): Promise<void> => {
+  const handleUpdateCollection = useCallback(async (collectionId: string, name: string): Promise<void> => {
     if (!assetService) return;
     try {
-      const id = await assetService.resolveCollectionId(oldCollection);
-      if (!id) return;
-      await assetService.renameCollection(id, newCollection);
-      setCollections(prev => prev.map(c => c === oldCollection ? newCollection : c));
-      if (selectedCollection === oldCollection) {
-        setSelectedCollection(newCollection);
-      }
+      await assetService.renameCollection(collectionId, name);
+      await reloadCollections();
     } catch (error) {
       console.error('[AssetManager] Failed to rename collection:', error);
       showAtlasToast('Could not rename the collection');
     }
-  }, [assetService, setCollections, selectedCollection, setSelectedCollection]);
+  }, [assetService, reloadCollections]);
 
-  const handleDeleteCollection = useCallback(async (collection: string): Promise<void> => {
+  const handleDeleteCollection = useCallback(async (collectionId: string): Promise<void> => {
     if (!assetService) return;
     try {
-      const id = await assetService.resolveCollectionId(collection);
-      if (id === 'default') {
+      if (collectionId === 'default') {
         showAtlasToast('The default collection cannot be deleted');
         return;
       }
-      if (id) await assetService.deleteCollection(id);
-      setCollections(prev => prev.filter(c => c !== collection));
-      if (selectedCollection === collection) {
-        setSelectedCollection(null);
-      }
+      await assetService.deleteCollection(collectionId);
+      await reloadCollections();
     } catch (error) {
       console.error('[AssetManager] Failed to delete collection:', error);
       showAtlasToast('Could not delete the collection');
     }
-  }, [assetService, setCollections, selectedCollection, setSelectedCollection]);
+  }, [assetService, reloadCollections]);
 
   return {
     isTagManagerOpen, setIsTagManagerOpen,

@@ -1,8 +1,8 @@
 // Full-window image overlay shown in the player popout (ImageDisplayService.ts).
 // The player display is always dark, so the scrim and controls use fixed
-// black/white tints rather than theme variables. Rooted at the container id so
-// the button rules outrank Obsidian's generic `button` styling.
-#atlas-image-display-container {
+// black/white tints rather than theme variables. Enter/exit motion lives in
+// imageDisplayMotion.ts; a replaced overlay briefly fades out above the new one.
+.atlas-image-display {
   position: fixed;
   top: 0;
   left: 0;
@@ -19,6 +19,19 @@
 
   &.is-dragging {
     cursor: grabbing;
+  }
+
+  &.is-leaving {
+    pointer-events: none;
+  }
+
+  // Animated by the entrance; the image inside keeps its own pan/zoom transform
+  .atlas-image-display__stage {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .atlas-image-display__image {

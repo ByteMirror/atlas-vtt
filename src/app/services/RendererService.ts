@@ -8,6 +8,7 @@ import { EventEmitter } from 'events';
 import type { ViewAtlasStore } from '../storeFactory';
 import type { SettingsService } from './SettingsService';
 import { bindViewportNavigation } from '../pixi/viewportNavigation';
+import { bindMapLoadingFrameHold } from '../pixi/mapLoadingFrameHold';
 
 export class RendererService {
   // private renderer: PixiRenderer | null = null; // Old type
@@ -18,6 +19,7 @@ export class RendererService {
   private viewId: string;
   private settingsService: SettingsService;
   private unbindNavigation: (() => void) | null = null;
+  private unbindFrameHold: (() => void) | null = null;
 
   constructor(
     private app: App,
@@ -57,6 +59,7 @@ export class RendererService {
         if (viewport) {
           this.unbindNavigation = bindViewportNavigation(viewport, this.settingsService);
         }
+        this.unbindFrameHold = bindMapLoadingFrameHold(this.store, this.renderer.getAppInstance());
         this.eventBus.emit('renderer-ready', this.renderer);
         
         return this.getApp(); // This should call getAppInstance on orchestrator
@@ -122,6 +125,8 @@ export class RendererService {
   public destroy(): void {
     this.unbindNavigation?.();
     this.unbindNavigation = null;
+    this.unbindFrameHold?.();
+    this.unbindFrameHold = null;
     if (this.renderer) {
       this.renderer.destroy();
       this.renderer = null;
@@ -129,22 +134,6 @@ export class RendererService {
     if (this.pixiAppManager) {
       this.pixiAppManager = null;
     }
-  }
-  
-  /**
-   * Completely recreate the renderer (for map switching)
-   * @param containerEl The HTML element to attach the renderer to
-   * @returns The new PixiJS application instance
-   */
-  public async recreate(containerEl: HTMLElement): Promise<Application | null> {
-    // Destroy the old renderer completely
-    this.destroy();
-    
-    // Wait a bit to ensure cleanup is complete
-    await new Promise(resolve => window.setTimeout(resolve, 100));
-    
-    // Create everything fresh
-    return this.init(containerEl);
   }
   
   /**

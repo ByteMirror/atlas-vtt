@@ -1,71 +1,45 @@
 import type { App } from 'obsidian';
-import type { StoreApi } from 'zustand';
 import type { ViewAtlasState } from '../storeFactory';
 import type { InitiativeEntry } from '../types/initiativeTypes';
-import type { AtlasSettings, SettingsService } from './SettingsService';
+import { PlayerSceneOverlay, type PlayerSettings } from './PlayerSceneOverlay';
+import type { SettingsService } from './SettingsService';
 import './player-initiative.scss';
 
-type PlayerSettings = AtlasSettings['localPlayerView'];
+/** Separates token ids in `InitiativeScene.visibleTokenIds`. */
+const TOKEN_ID_SEPARATOR = '\n';
+
+interface InitiativeScene {
+  initiative: ViewAtlasState['initiative'];
+  initiativeTrackerOpen: boolean;
+  /** Initiative tokens players may see, joined into a key so edits to other tokens compare equal. */
+  visibleTokenIds: string;
+}
 
 /** Read-only initiative projection; never mounts the DM tracker or its controls. */
-export class PlayerInitiativePanel {
-  private readonly container: HTMLElement;
-  private state: ViewAtlasState | undefined;
-  private isHeld = false;
-  private unsubscribeStore: (() => void) | undefined;
-  private readonly unsubscribeSettings: () => void;
-
-  constructor(parent: HTMLElement, private app: App, private settings: SettingsService) {
-    this.container = parent.createDiv({ cls: 'atlas-player-initiative-container' });
-    this.unsubscribeSettings = settings.onChange(() => this.render());
+export class PlayerInitiativePanel extends PlayerSceneOverlay<InitiativeScene> {
+  constructor(private readonly app: App, settings: SettingsService) {
+    super({ cls: 'atlas-player-initiative-container' }, settings);
   }
 
-  /** Bind to the presented view, including when it belongs to a different Atlas leaf. */
-  present(store: StoreApi<ViewAtlasState>): void {
-    this.unsubscribeStore?.();
-    this.isHeld = false;
-    this.state = store.getState();
-    this.render();
-    this.unsubscribeStore = store.subscribe((state, previous) => {
-      const visibilityChanged = state.initiativeTrackerOpen !== previous.initiativeTrackerOpen;
-      if (this.isHeld && this.state) {
-        if (visibilityChanged) {
-          this.state = { ...this.state, initiativeTrackerOpen: state.initiativeTrackerOpen };
-          this.render();
-        }
-        return;
-      }
-      this.state = state;
-      if (visibilityChanged || state.initiative !== previous.initiative || state.objects?.tokens !== previous.objects?.tokens) {
-        this.render();
-      }
-    });
+  protected select({ initiative, initiativeTrackerOpen, objects }: ViewAtlasState): InitiativeScene {
+    const tokens = objects?.tokens;
+    const visibleTokenIds = (initiative?.entries ?? [])
+      .filter((entry) => tokens?.[entry.tokenId] && !tokens[entry.tokenId]?.isHidden)
+      .map((entry) => entry.tokenId)
+      .join(TOKEN_ID_SEPARATOR);
+    return { initiative, initiativeTrackerOpen, visibleTokenIds };
   }
 
-  /** Preserve this scene while browsing other tabs, but keep following DM visibility. */
-  hold(): void {
-    this.isHeld = true;
-  }
-
-  destroy(): void {
-    this.unsubscribeStore?.();
-    this.unsubscribeStore = undefined;
-    this.unsubscribeSettings();
-    this.state = undefined;
-  }
-
-  private render(): void {
-    this.container.empty();
-    const settings = this.settings.getLocalPlayerViewSettings();
-    const initiative = this.state?.initiative;
-    if (!settings.showInitiative || !this.state?.initiativeTrackerOpen || !initiative) return;
-    const tokens = this.state?.objects?.tokens;
+  protected render(container: HTMLElement, scene: InitiativeScene, settings: PlayerSettings): void {
+    const { initiative, initiativeTrackerOpen } = scene;
+    if (!settings.showInitiative || !initiativeTrackerOpen || !initiative) return;
+    const visibleTokenIds = new Set(scene.visibleTokenIds.split(TOKEN_ID_SEPARATOR));
     const entries = initiative.entries
-      .filter(entry => tokens?.[entry.tokenId] && !tokens[entry.tokenId]?.isHidden)
+      .filter(entry => visibleTokenIds.has(entry.tokenId))
       .sort((a, b) => a.order - b.order);
     if (!entries.length) return;
 
-    const panel = this.container.createDiv({
+    const panel = container.createDiv({
       cls: 'atlas-player-initiative',
       attr: { role: 'region', 'aria-label': 'Initiative order' },
     });

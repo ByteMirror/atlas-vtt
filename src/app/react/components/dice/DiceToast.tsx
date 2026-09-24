@@ -3,7 +3,8 @@ import { ChevronDown } from 'lucide-react';
 import { cn } from '../../../../utils/cn';
 import type { DiceRollResult } from '../../../tools/DiceTool';
 import { getDiceCrit } from '../../../tools/diceCrit';
-import { useDiceAvatarUrl } from './useDiceAvatarUrl';
+import { TokenPortrait } from '../../../packages/components/shared/TokenPortrait';
+import { useDiceAvatar } from './useDiceAvatar';
 import { DICE_TOAST_KNOT_SYMBOL_ID } from './diceToastOrnament';
 
 export type ToastPhase = 'entering' | 'visible' | 'exiting';
@@ -22,7 +23,7 @@ export function DiceToast({ result, phase, onDismiss }: DiceToastProps): React.R
   const crit = getDiceCrit(result);
   const source = result.source;
   const sourceTokenName = source?.tokenName ?? 'Unknown';
-  const avatarUrl = useDiceAvatarUrl(source);
+  const avatar = useDiceAvatar(source);
   const hasSource = source?.type === 'statblock' && Boolean(source.tokenName);
 
   const handleToggleDetails = (e: React.MouseEvent): void => {
@@ -54,8 +55,14 @@ export function DiceToast({ result, phase, onDismiss }: DiceToastProps): React.R
       <div className="atlas-dice-toast__body">
         <div className="atlas-dice-toast__main">
           {hasSource &&
-          (avatarUrl ? (
-            <img className="atlas-dice-toast__avatar" src={avatarUrl} alt={sourceTokenName} />
+          (avatar ? (
+            <TokenPortrait
+              className="atlas-dice-toast__avatar"
+              src={avatar.src}
+              alt={sourceTokenName}
+              showRing={avatar.showRing}
+              ringColor={avatar.ringColor}
+            />
           ) : (
             <div className="atlas-dice-toast__avatar atlas-dice-toast__avatar--fallback">
               {sourceTokenName.charAt(0).toUpperCase()}

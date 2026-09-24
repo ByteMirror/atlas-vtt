@@ -1,7 +1,7 @@
 import { syncTokenArtwork } from './token-renderer/tokenArtwork';
 import type { AtlasSettings } from '../services/SettingsService';
 import { hiddenTokenLayers, type LayerVisibility } from './playerSafeFrame';
-import { Sprite, Container, Graphics, Texture, Application, FederatedPointerEvent } from "pixi.js";
+import { Sprite, Container, Graphics, Application, FederatedPointerEvent } from "pixi.js";
 import { Viewport } from "pixi-viewport";
 import { App as ObsidianApp, TFile, parseYaml } from 'obsidian';
 import type { TokenEntity } from "../types";
@@ -19,8 +19,13 @@ import { computeTokenPixelSize } from './token-renderer/tokenSizing';
 import { TextureCache } from './token-renderer/TextureCache';
 import { UIManager } from './token-renderer/UIManager';
 import { InteractionController } from './token-renderer/InteractionController';
+import { DragRuler } from './token-renderer/DragRuler';
+import { DragRulerView } from './token-renderer/DragRulerView';
+import { mapMeasurementSettings } from '../services/mapMeasurementSettings';
 import { SyncService } from './token-renderer/SyncService';
 import { updateInstanceBadge } from './token-renderer/InstanceBadge';
+import { HiddenTokenIcon } from './token-renderer/HiddenTokenIcon';
+import { destroyTree } from './utils/destroyTree';
 import { buildStatblockLinkUpdates, readStatblockVitals, STATBLOCK_UNLINK_UPDATES } from './token-renderer/statblockFrontmatter';
 import type { TokenGroupContainer } from './token-renderer/types';
 import type { ConditionDefinition } from '../types/collectionSettingsTypes';
@@ -46,8 +51,10 @@ export class TokenRenderer {
   private tokenStatblockLinkService: TokenStatblockLinkService;
   private spriteFactory: SpriteFactory;
   private textureCache: TextureCache;
+  private readonly hiddenTokenIcon = new HiddenTokenIcon();
   private uiManager: UIManager;
   private interactionController: InteractionController;
+  private dragRuler: DragRuler;
   private syncService: SyncService;
   
   
@@ -60,7 +67,7 @@ export class TokenRenderer {
   
   // Track loading tokens
   private tokensLoading: Set<string> = new Set();
-  private allTokensLoadedCallback?: () => void;
+  private allTokensLoadedCallbacks: Array<() => void> = [];
   private viewId: string;
   private themeObserver: MutationObserver | null = null;
   private isLocalPlayerMode: boolean = false;
@@ -208,6 +215,14 @@ export class TokenRenderer {
     this.tokenContainer.zIndex = 0;
     this.viewport.addChild(this.tokenContainer);
 
+    this.dragRuler = new DragRuler(
+      new DragRulerView(this.viewport, this.tokenContainer),
+      this.gridSystem,
+      this.store,
+      () => mapMeasurementSettings(this.assetService, this.store.getState()),
+    );
+    this.interactionController.setDragRuler(this.dragRuler);
+
     // Initialize sync service
     this.syncService.initialize();
 
@@ -270,10 +285,8 @@ export class TokenRenderer {
     // Listen for map load events to properly sync tokens
     const handleMapLoaded = () => {
       // First, clear all existing token sprites (tokenSprites is an object, not a Map)
-      for (const [, sprite] of Object.entries(this.tokenSprites)) {
-        if (sprite) {
-          sprite.destroy();
-        }
+      for (const [id, tokenGroup] of Object.entries(this.tokenSprites)) {
+        if (tokenGroup) this.destroyTokenGroup(id, tokenGroup);
       }
       this.tokenSprites = {};
       
@@ -287,8 +300,9 @@ export class TokenRenderer {
       // Clear selection to ensure controls are hidden
       this.store.getState().clearSelection();
       
-      // Then sync with the new map's tokens
+      // Then sync with the new map's tokens, keeping only their art decoded
       const currentTokens = this.store.getState().objects.tokens;
+      this.textureCache.releaseUnusedImages(Object.values(currentTokens).map((token) => token.imagePath ?? ''));
       runInBackground(this.syncTokens(currentTokens, {}), 'Token sync after map change');
       this.onWhenAllTokensLoaded(() => this.updateAllTokenSizes());
     };
@@ -497,13 +511,13 @@ export class TokenRenderer {
     };
   }
   
+  /** Runs `callback` once every token sprite being created has loaded (immediately if none is). */
   public onWhenAllTokensLoaded(callback: () => void): void {
-    this.allTokensLoadedCallback = callback;
-    
-    // If no tokens are loading, call immediately
     if (this.tokensLoading.size === 0) {
       callback();
+      return;
     }
+    this.allTokensLoadedCallbacks.push(callback);
   }
 
   // Backward-compatible alias used by older call sites during renderer initialization.
@@ -512,10 +526,10 @@ export class TokenRenderer {
   }
   
   private checkAllTokensLoaded(): void {
-    if (this.tokensLoading.size === 0 && this.allTokensLoadedCallback) {
-      this.allTokensLoadedCallback();
-      delete this.allTokensLoadedCallback; // Clear after calling
-    }
+    if (this.tokensLoading.size > 0) return;
+    const callbacks = this.allTokensLoadedCallbacks;
+    this.allTokensLoadedCallbacks = [];
+    for (const callback of callbacks) callback();
   }
   
   private requestSort(): void {
@@ -584,43 +598,46 @@ export class TokenRenderer {
     }
 
     // Update instance badge position/size for ring size changes
-    const token = this.store.getState().objects.tokens[tokenId];
-    if (token) {
-      const allTokens = this.store.getState().objects.tokens;
-      const sameCount = Object.values(allTokens).filter(t => t.imagePath === token.imagePath).length;
-      const showBadge = sameCount >= 2 && (this.store.getState().tokenSettings?.showInstanceBadges ?? true);
-      updateInstanceBadge(tokenGroup, token.instanceNumber ?? 1, sizeWithMultiplier, showBadge);
-    }
+    if (current) this.drawInstanceBadge(current, tokenGroup, this.countTokensWithImage(current.imagePath), sizeWithMultiplier);
   }
 
   /**
    * Re-evaluates instance badges for every token on the map.
-   * Called when the showInstanceBadges setting changes.
+   * Tokens whose sprite is still loading get their badge from `refreshInstanceBadge` once loaded.
    */
   private refreshInstanceBadges(): void {
-    const tokens = this.store.getState().objects.tokens;
-    const tokenSettings = this.store.getState().tokenSettings;
-    const showBadges = tokenSettings?.showInstanceBadges ?? true;
-
-    // Group tokens by imagePath
-    const tokensByImage = new Map<string, TokenEntity[]>();
-    for (const token of Object.values(tokens)) {
-      const group = tokensByImage.get(token.imagePath) || [];
-      group.push(token);
-      tokensByImage.set(token.imagePath, group);
+    const tokens = Object.values(this.store.getState().objects.tokens);
+    const countByImage = new Map<string, number>();
+    for (const token of tokens) {
+      countByImage.set(token.imagePath, (countByImage.get(token.imagePath) ?? 0) + 1);
     }
 
-    // Update all badges
-    for (const [, groupTokens] of tokensByImage) {
-      const shouldShow = showBadges && groupTokens.length >= 2;
-      for (const token of groupTokens) {
-        const tokenGroup = this.tokenSprites[token.id];
-        if (tokenGroup) {
-          const tokenSize = tokenGroup.tokenSize || 70;
-          updateInstanceBadge(tokenGroup, token.instanceNumber ?? 1, tokenSize, shouldShow);
-        }
-      }
+    for (const token of tokens) {
+      const tokenGroup = this.tokenSprites[token.id];
+      if (tokenGroup) this.drawInstanceBadge(token, tokenGroup, countByImage.get(token.imagePath) ?? 0);
     }
+  }
+
+  /** Draws the badge of a single token, e.g. one whose sprite finished loading after the last sync. */
+  private refreshInstanceBadge(tokenId: string): void {
+    const token = this.store.getState().objects.tokens[tokenId];
+    const tokenGroup = this.tokenSprites[tokenId];
+    if (token && tokenGroup) this.drawInstanceBadge(token, tokenGroup, this.countTokensWithImage(token.imagePath));
+  }
+
+  private countTokensWithImage(imagePath: string): number {
+    const tokens = Object.values(this.store.getState().objects.tokens);
+    return tokens.filter((token) => token.imagePath === imagePath).length;
+  }
+
+  private drawInstanceBadge(
+    token: TokenEntity,
+    tokenGroup: TokenGroupContainer,
+    sameImageCount: number,
+    size: number = tokenGroup.tokenSize || 70
+  ): void {
+    const showBadges = this.store.getState().tokenSettings?.showInstanceBadges ?? true;
+    updateInstanceBadge(tokenGroup, token.instanceNumber ?? 1, size, showBadges && sameImageCount >= 2);
   }
 
   private isInPlayerMode(): boolean {
@@ -647,9 +664,7 @@ export class TokenRenderer {
     this.uiManager.setTokenUIVisibility(token.id, true);
     tokenGroup.alpha = isHidden ? 0.5 : 1.0;
 
-    this.updateHiddenIcon(token.id, tokenGroup, isHidden).catch(err => {
-      console.error('[TokenRenderer] Failed to update hidden icon:', err);
-    });
+    this.hiddenTokenIcon.update(tokenGroup, isHidden);
 
     if (!prevToken || (prevToken.isHidden ?? false) !== isHidden) {
       this.reestablishTokenInteractivity(tokenGroup);
@@ -718,9 +733,6 @@ export class TokenRenderer {
       const prevToken = prevTokensRecord?.[id];
 
       if (tokenGroup) {
-        // Clean up interaction handlers
-        this.interactionController.removeInteractionHandlers(id, tokenGroup);
-
         // Clean up texture from cache if we have the imagePath
         const imagePath = prevToken?.imagePath;
         if (imagePath) {
@@ -732,8 +744,7 @@ export class TokenRenderer {
           }
         }
 
-        container.removeChild(tokenGroup);
-        tokenGroup.destroy({children: true, texture: false});
+        this.destroyTokenGroup(id, tokenGroup);
         delete this.tokenSprites[id];
         // Clean up ring tracking (ring is destroyed with tokenGroup)
         delete this.tokenRings[id];
@@ -891,7 +902,18 @@ export class TokenRenderer {
           const tokenGroup = await this.spriteFactory.createTokenSprite(character, texture);
 
           if (this.isDestroyed) {
-            tokenGroup.destroy({ children: true, texture: false });
+            this.spriteFactory.destroyTokenSprite(tokenGroup);
+            return;
+          }
+
+          // Syncs skip tokens whose sprite is still loading, so check what happened meanwhile.
+          const latest = this.store.getState().objects.tokens[token.id];
+          if (!latest) {
+            // Removed while loading, e.g. a paste undone straight away: never show it.
+            this.spriteFactory.destroyTokenSprite(tokenGroup);
+            delete this.tokenSprites[token.id];
+            this.tokensLoading.delete(token.id);
+            this.checkAllTokensLoaded();
             return;
           }
 
@@ -903,7 +925,10 @@ export class TokenRenderer {
           
           // Store sprite reference
           this.tokenSprites[token.id] = tokenGroup;
-          
+
+          // The sync that added this token refreshed badges before its sprite existed
+          this.refreshInstanceBadge(token.id);
+
           // Remove from loading set
           this.tokensLoading.delete(token.id);
           
@@ -920,6 +945,13 @@ export class TokenRenderer {
           
           // Also ensure viewport sorts its children to maintain UI above tokens
           this.viewport.sortChildren();
+
+          // Changes made while loading (an Alt-drag copy moving, a pasted token rotated) go
+          // through the regular update path, diffed against the state the sprite was built from.
+          if (latest !== token) {
+            const current = this.store.getState().objects.tokens;
+            runInBackground(this.syncTokens(current, { ...current, [token.id]: token }), 'Token sync after sprite load');
+          }
         } catch (error) {
           console.error(`[TokenRenderer] Failed to create sprite for token ${token.id}:`, error);
           // Clean up on error
@@ -1015,110 +1047,6 @@ export class TokenRenderer {
     return false;
   }
 
-  private async updateHiddenIcon(tokenId: string, tokenGroup: Container, isHidden: boolean): Promise<void> {
-    let hiddenIconContainer = tokenGroup.getChildByLabel('hiddenIcon') as Container;
-    
-    if (isHidden && !hiddenIconContainer) {
-      // Create container for the icon
-      hiddenIconContainer = new Container();
-      hiddenIconContainer.label = 'hiddenIcon';
-      
-      // Get token size from the sprite
-      const sprite = tokenGroup.getChildByLabel('tokenSprite') as Sprite;
-      if (!sprite) return;
-      
-      const tokenSize = sprite.width;
-      const iconSize = Math.min(40, tokenSize * 0.5);
-      
-      // Create background circle using Graphics
-      const bgCircle = new Graphics();
-      bgCircle.circle(0, 0, iconSize / 2);
-      bgCircle.fill({ color: 0x000000, alpha: 0.8 });
-      bgCircle.stroke({ width: 2, color: 0xffffff, alpha: 0.9 });
-      bgCircle.eventMode = 'none'; // Ensure background doesn't block events
-      hiddenIconContainer.addChild(bgCircle);
-      
-      // Create high-resolution SVG
-      const svgSize = 96; // 4x the original 24px for better quality
-      const strokeWidth = 8; // Scale stroke width proportionally
-      
-      // Lucide eye-off icon SVG at higher resolution
-      const eyeOffSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${svgSize}" height="${svgSize}" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="${strokeWidth/svgSize * 24}" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49"/>
-        <path d="M14.084 14.158a3 3 0 0 1-4.242-4.242"/>
-        <path d="M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143"/>
-        <path d="m2 2 20 20"/>
-      </svg>`;
-      
-      // Convert SVG to texture with higher resolution
-      // Create canvas to avoid PIXI warning about Image elements
-      const canvas = createEl('canvas');
-      canvas.width = svgSize * 2; // 2x resolution
-      canvas.height = svgSize * 2;
-      const ctx = canvas.getContext('2d');
-      
-      if (ctx) {
-        const img = new Image();
-        img.width = svgSize;
-        img.height = svgSize;
-        img.src = `data:image/svg+xml,${encodeURIComponent(eyeOffSvg)}`;
-        
-        try {
-          await img.decode();
-          // Scale up for higher resolution
-          ctx.scale(2, 2);
-          ctx.drawImage(img, 0, 0, svgSize, svgSize);
-          
-          const iconTexture = Texture.from(canvas);
-          iconTexture.source.resolution = 2; // Double resolution for sharper rendering
-          const iconSprite = new Sprite(iconTexture);
-          
-          // Scale and position the icon
-          iconSprite.anchor.set(0.5);
-          const scale = (iconSize * 0.7) / svgSize; // Scale based on actual SVG size
-          iconSprite.scale.set(scale);
-          iconSprite.eventMode = 'none'; // Ensure icon doesn't block events
-          
-          hiddenIconContainer.addChild(iconSprite);
-        } catch (error) {
-          console.error('[TokenRenderer] Failed to load eye-off icon:', error);
-          // Fallback to simple X if icon fails to load
-          const fallback = new Graphics();
-          fallback.moveTo(-iconSize * 0.3, -iconSize * 0.3);
-          fallback.lineTo(iconSize * 0.3, iconSize * 0.3);
-          fallback.moveTo(-iconSize * 0.3, iconSize * 0.3);
-          fallback.lineTo(iconSize * 0.3, -iconSize * 0.3);
-          fallback.stroke({ width: 3, color: 0xffffff, alpha: 1 });
-          fallback.eventMode = 'none'; // Ensure fallback doesn't block events
-          hiddenIconContainer.addChild(fallback);
-        }
-      } else {
-        // Canvas context failed, use fallback
-        const fallback = new Graphics();
-        fallback.moveTo(-iconSize * 0.3, -iconSize * 0.3);
-        fallback.lineTo(iconSize * 0.3, iconSize * 0.3);
-        fallback.moveTo(-iconSize * 0.3, iconSize * 0.3);
-        fallback.lineTo(iconSize * 0.3, -iconSize * 0.3);
-        fallback.stroke({ width: 3, color: 0xffffff, alpha: 1 });
-        fallback.eventMode = 'none'; // Ensure fallback doesn't block events
-        hiddenIconContainer.addChild(fallback);
-      }
-      
-      // Position at center of token
-      hiddenIconContainer.position.set(0, 0);
-      hiddenIconContainer.zIndex = 10; // Above token but below UI
-      hiddenIconContainer.eventMode = 'none'; // Icon should not block interactions
-      hiddenIconContainer.interactiveChildren = false;
-      
-      tokenGroup.addChild(hiddenIconContainer);
-      tokenGroup.sortChildren();
-    } else if (!isHidden && hiddenIconContainer) {
-      // Remove hidden icon
-      tokenGroup.removeChild(hiddenIconContainer);
-      hiddenIconContainer.destroy({ children: true });
-    }
-  }
-
   /**
    * Enhance character object with statblock name for nameplate display
    */
@@ -1162,6 +1090,12 @@ export class TokenRenderer {
     }
   }
 
+  /** Detaches a token group's pointer handlers and destroys it with all of its children. */
+  private destroyTokenGroup(id: string, tokenGroup: Container): void {
+    this.interactionController.removeInteractionHandlers(id, tokenGroup);
+    this.spriteFactory.destroyTokenSprite(tokenGroup);
+  }
+
   public destroy(): void {
     this.isDestroyed = true;
 
@@ -1201,6 +1135,7 @@ export class TokenRenderer {
     
     // Destroy interaction controller
     this.interactionController.destroyAll();
+    this.dragRuler.destroy();
     
     // Clean up theme observer
     if (this.themeObserver) {
@@ -1238,10 +1173,11 @@ export class TokenRenderer {
     // Now destroy the container and its children. 
     // Textures associated with sprites in tokenContainer should be handled by PixiAppManager.destroy
     // if they were not individually destroyed from the cache.
-    this.tokenContainer.destroy({ children: true, texture: false });
+    destroyTree(this.tokenContainer);
     
     // Destroy all cached textures using centralized method
     this.textureCache.destroyAll();
+    this.hiddenTokenIcon.destroy();
     
     // Clear all references
     this.tokenSprites = {};
@@ -1369,6 +1305,7 @@ export class TokenRenderer {
     return [
       ...hiddenTokenLayers(this.store.getState().objects.tokens, this.tokenSprites),
       ...this.uiManager.getPlayerViewLayers(settings),
+      ...this.dragRuler.getPlayerViewLayers(),
     ];
   }
 

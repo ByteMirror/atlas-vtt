@@ -12,6 +12,14 @@
 @use '../src/app/changelog/changelog';
 @use '../src/app/support/issue-report';
 
+// Registered so `atlas-scrollbar-while-scrolling` can fade the thumb. At-rules
+// must stay at the root: inside the scope block below they would be invalid.
+@property --atlas-scrollbar-thumb {
+  syntax: '<color>';
+  inherits: false;
+  initial-value: transparent;
+}
+
 // Root namespace for all Atlas VTT styles
 .atlas-vtt-plugin {
   // Export design tokens as CSS custom properties
@@ -47,6 +55,7 @@
   @import '../src/app/packages/components/primitives/input-modal.scss';
   @import '../src/app/packages/components/primitives/select.scss';
   @import '../src/app/packages/components/primitives/progress-modal.scss';
+  @import '../src/app/packages/components/primitives/segmented-control.scss';
   @import '../src/app/packages/components/primitives/close-button.scss';
   @import '../src/app/react/components/dice/dice-dropdown.scss';
   @import '../src/app/react/components/dice/dice-toast.scss';

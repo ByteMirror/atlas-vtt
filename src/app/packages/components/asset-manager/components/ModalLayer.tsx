@@ -5,7 +5,7 @@ import EditAssetTagsModal from '../EditAssetTagsModal';
 import CreateSceneModal from '../CreateSceneModal';
 import StatblockLinkModal from '../StatblockLinkModal';
 import InputModal from '../../primitives/InputModal';
-import { ProgressModal } from '../../primitives/ProgressModal';
+import { CollectionTransferLayer } from '../collection-transfer/CollectionTransferLayer';
 import { CollectionSettingsModal } from '../../../../react/components/CollectionSettingsModal';
 import { MoveModal } from './MoveModal';
 import { CreateFolderModal } from './CreateFolderModal';
@@ -17,7 +17,6 @@ import type { TagsAndCollectionsState } from '../hooks/useTagsAndCollections';
 import type { StatblockLinkState } from '../hooks/useStatblockLink';
 
 export interface ModalLayerProps {
-  tokenCreatorSource?: 'images' | 'statblocks';
   isOpen: boolean;
   activeTab: Tab;
   selectedCollection: string | null;
@@ -30,7 +29,7 @@ export interface ModalLayerProps {
 }
 
 export function ModalLayer({
-  tokenCreatorSource = 'images', isOpen, activeTab, selectedCollection, onClose, data, sel, crud, tags, statblock,
+  isOpen, activeTab, selectedCollection, onClose, data, sel, crud, tags, statblock,
 }: ModalLayerProps): React.JSX.Element {
   const collectionOrDefault = selectedCollection || 'default';
 
@@ -56,18 +55,16 @@ export function ModalLayer({
 
   return (
     <>
-      {crud.transfer && (
-        <ProgressModal
-          title={crud.transfer.kind === 'export' ? 'Exporting collection' : 'Importing collection'}
-          message={crud.transfer.progress.message}
-          fraction={crud.transfer.progress.fraction}
-        />
-      )}
+      <CollectionTransferLayer
+        transfer={crud.transfer}
+        confirmExport={crud.confirmExport}
+        confirmImport={crud.confirmImport}
+        closeTransfer={crud.closeTransfer}
+      />
 
       {/* Token Creator */}
       {isOpen && crud.isTokenCreatorOpen && (
         <TokenCreator
-          initialSource={crud.editingToken ? 'images' : tokenCreatorSource}
           isOpen={crud.isTokenCreatorOpen}
           selectedCollection={collectionOrDefault}
           onClose={() => {
@@ -133,7 +130,7 @@ export function ModalLayer({
       <TagManager
         isOpen={tags.isTagManagerOpen}
         onClose={() => tags.setIsTagManagerOpen(false)}
-        tags={data.availableTags.map(t => t.name)}
+        tags={data.availableTags}
         collections={data.collections}
         onCreateTag={(tag) => { void tags.handleCreateTag(tag); }}
         onCreateCollection={crud.handleCreateCollection}
@@ -183,7 +180,6 @@ export function ModalLayer({
         <CreateSceneModal
           isOpen={crud.isCreateSceneModalOpen}
           onClose={() => crud.setIsCreateSceneModalOpen(false)}
-          collections={data.collections}
           selectedCollection={collectionOrDefault}
           assetService={data.assetService}
           backgroundPath={crud.createScenePrefill?.backgroundPath ?? null}

@@ -10,7 +10,7 @@ import { GridManager } from './GridManager';
 import { NotePreviewUIManager } from './NotePreviewUIManager';
 import { AssetService } from './AssetService';
 import { SettingsService } from './SettingsService';
-import { MapThumbnailService } from './MapThumbnailService';
+import { MapThumbnailService, dataUrlToBytes } from './MapThumbnailService';
 import { WidgetSyncService } from './WidgetSyncService';
 import { SoundEffectService } from './SoundEffectService';
 import { DiceToastObserver } from './DiceToastObserver';
@@ -63,7 +63,7 @@ export class ServiceManager {
 
     this.gridManager = new GridManager(this.eventBus);
 
-    this.notePreviewUIManager = new NotePreviewUIManager(app, this.eventBus);
+    this.notePreviewUIManager = new NotePreviewUIManager(app, this.eventBus, store, this.viewId);
 
     this.assetService = AssetService.getInstance(app);
     this.mapThumbnailService = new MapThumbnailService(app);
@@ -211,6 +211,17 @@ export class ServiceManager {
     }
   }
   
+  /** The map as it looks now, as 16:9 JPEG bytes sharp enough for a scene snapshot card. */
+  public renderMapThumbnail(): ArrayBuffer | null {
+    const renderer = this.rendererService.getRenderer();
+    const pixiApp = renderer?.getAppInstance();
+    const viewport = renderer?.getViewportInstance();
+    if (!renderer || !pixiApp || !viewport) return null;
+
+    const dataUrl = this.mapThumbnailService.renderThumbnail(pixiApp, viewport, renderer.getBackgroundSprite(), { width: 640, height: 360 });
+    return dataUrl ? dataUrlToBytes(dataUrl) : null;
+  }
+
   /**
    * Set up automatic thumbnail generation when map state changes
    */
@@ -281,6 +292,7 @@ export class ServiceManager {
     this.rendererService.destroy();
     this.layerGraph.destroy();
     this.uiOverlay.unmount();
+    this.mapService.destroy();
     this.notePreviewUIManager.destroy();
 
     // Clean up thumbnail generation subscription

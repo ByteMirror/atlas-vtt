@@ -9,7 +9,7 @@ const note = 'Bestiary/Goblin.md';
 const image = 'Artwork/goblin.webp';
 function setup() {
   const state = createInMemoryApp({ files: { [note]: 'Original note', [image]: 'image-bytes' } });
-  state.app.workspace = { trigger: vi.fn() };
+  state.app.workspace = { ...state.app.workspace, trigger: vi.fn() };
   const frontmatter: Record<string, Record<string, unknown>> = { [note]: { statblock: true, name: 'Goblin', image } };
   state.app.vault.cachedRead = state.app.vault.read;
   state.app.vault.getMarkdownFiles = () => [...state.files.keys()].filter(p => p.endsWith('.md')).map(p => new TFile(p));
@@ -61,6 +61,17 @@ describe('bulk importing recognized statblock notes', () => {
     expect(rows.find(r => r.path === 'Other/Goblin.md')).toBeUndefined();
     expect(rows.find(r => r.path === note)).toMatchObject({ imagePath: image, size: 1.5 });
     expect(rows.find(r => r.path === 'Inline.md')?.size).toBeUndefined();
+  });
+
+  it('decodes the link encoding Fantasy Statblocks applies to bestiary images', async () => {
+    const { files, frontmatter, app, assets } = setup();
+    frontmatter[note]!.image = `<STATBLOCK-WIKI-LINK>${image}|portrait<STATBLOCK-WIKI-LINK>`;
+    files.set('Artwork/big goblin.webp', 'image-bytes');
+    files.set('Markdown.md', 'markdown');
+    frontmatter['Markdown.md'] = { statblock: true, name: 'Big Goblin', image: '<STATBLOCK-MARKDOWN-LINK>Artwork/big%20goblin.webp|Big<STATBLOCK-MARKDOWN-LINK>' };
+    const rows = await new StatblockTokenImportService(app, assets).scan();
+    expect(rows.find(r => r.path === note)).toMatchObject({ status: 'ready', imagePath: image });
+    expect(rows.find(r => r.path === 'Markdown.md')).toMatchObject({ status: 'ready', imagePath: 'Artwork/big goblin.webp' });
   });
 
   it('creates distinct owned images for equal names/artwork, preserves source notes and skips reruns', async () => {

@@ -23,12 +23,19 @@ export interface ConditionDefinition {
 
 export type MeasurementMode = 'metric' | 'abstract';
 export type GridUnitType = 'feet' | 'meters' | 'units' | 'custom';
+/**
+ * How diagonal steps count on square grids: `equidistant` counts each as 1 (D&D 5e),
+ * `alternating` counts them 1, 2, 1, 2 (5-10-5), `euclidean` measures the straight line.
+ */
+export type DiagonalRule = 'equidistant' | 'alternating' | 'euclidean';
 
 export interface CollectionGridDefaults {
   unitType: GridUnitType;
   unitDistance: number;
   measurementMode: MeasurementMode;
   abstractRangeBands?: RangeBand[];
+  /** Unset means `equidistant`. */
+  diagonalRule?: DiagonalRule;
 }
 
 export interface CollectionSettings {

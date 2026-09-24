@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { ChevronDown, RotateCw } from 'lucide-react';
 import { cn } from '../../../../utils/cn';
 import type { DiceRollResult } from '../../../tools/DiceTool';
-import { useDiceAvatarUrl } from '../dice/useDiceAvatarUrl';
+import { TokenPortrait } from '../../../packages/components/shared/TokenPortrait';
+import { useDiceAvatar } from '../dice/useDiceAvatar';
 import { LabelTooltip } from '../../../packages/components/primitives/tooltip';
 
 interface DiceRollEntryProps {
@@ -39,7 +40,7 @@ export function DiceRollEntry({ result, isNew, onRepeat }: DiceRollEntryProps): 
 
   const source = result.source;
   const sourceTokenName = source?.tokenName ?? 'Unknown';
-  const avatarUrl = useDiceAvatarUrl(source);
+  const avatar = useDiceAvatar(source);
 
   const hasSource = source?.type === 'statblock' && source.tokenName;
 
@@ -56,11 +57,13 @@ export function DiceRollEntry({ result, isNew, onRepeat }: DiceRollEntryProps): 
     >
       {/* Chat-style avatar */}
       {hasSource && (
-        avatarUrl ? (
-          <img
+        avatar ? (
+          <TokenPortrait
             className="dice-log-entry__avatar"
-            src={avatarUrl}
+            src={avatar.src}
             alt={sourceTokenName}
+            showRing={avatar.showRing}
+            ringColor={avatar.ringColor}
           />
         ) : (
           <div className="dice-log-entry__avatar dice-log-entry__avatar--fallback">

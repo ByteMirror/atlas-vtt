@@ -21,6 +21,13 @@ export class ResourceBarLabel extends Container {
     this.maximumText.text = String(value.max);
   }
 
+  /** Rasterisation resolution of the numbers; set only when it changes, since each change re-rasterises. */
+  setResolution(resolution: number): void {
+    for (const text of this.children) {
+      if (text instanceof Text && text.resolution !== resolution) text.resolution = resolution;
+    }
+  }
+
   private createNumber(label: string, anchorX: number, x: number): Text {
     const text = new Text({
       label,

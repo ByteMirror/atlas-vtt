@@ -18,10 +18,14 @@ import type { AtlasPersistStorage } from './services/MapPersistence';
 import { normalizeImagePath } from './utils/pathUtils';
 import { createInitiativeActions } from './stores/initiativeSlice';
 import { createInitialUIState, createUIActions, type UISlice } from './stores/uiSlice';
+import { createPinnedNotePreviewActions, type PinnedNotePreviewSlice } from './stores/pinnedNotePreviewSlice';
 import { createHistoryOptions } from './stores/history';
+import { createMapObjectsActions, type MapObjectsSlice } from './stores/mapObjectsSlice';
+import { computeNextInstanceNumber } from './stores/tokenInstanceNumbers';
 import type { DiceRollResult } from './tools/DiceTool';
 import { isAtlasToolAvailable } from './tools/toolAvailability';
 import { isPinLabelKind, nextPinLabel } from './tools/pinLabels';
+import { rewriteMapReferences } from './services/renamedPaths';
 
 // Individual store state interface (same as AtlasState but isolated)
 export interface ViewAtlasState {
@@ -73,9 +77,9 @@ export interface ViewAtlasState {
   setCamera: (partial: Partial<CameraState>) => void;
 
   // Token actions
-  addToken: (
-    data: Omit<TokenEntity, 'id' | 'kind'> & { kind?: 'token' | 'character'; id?: string }
-  ) => string;
+  addToken: (data: TokenInput) => string;
+  /** Adds several tokens in one store write, so spawning a group is a single undo step. */
+  addTokens: (data: TokenInput[]) => string[];
 
   addCharacter: (data: {
     x: number;
@@ -99,6 +103,8 @@ export interface ViewAtlasState {
   updateToken: (id: string, updates: TokenUpdates) => void;
   /** Applies several token updates in one store write, so they form a single undo step. */
   updateTokens: (entries: Array<{ id: string; changes: TokenUpdates }>) => void;
+  /** Points tokens and pins that name a vault file at the path it was renamed to. */
+  retargetRenamedFile: (oldPath: string, newPath: string) => void;
   deleteToken: (id: string) => void;
   setTokens: (map: Record<string, TokenEntity>) => void;
   setTokenRing: (id: string, color: string | null) => void;
@@ -125,8 +131,6 @@ export interface ViewAtlasState {
   addDrawing: (data: Omit<DrawingStroke, 'id' | 'kind' | 'timestamp'>) => string;
   moveDrawings: (ids: string[], dx: number, dy: number) => void;
   updateDrawings: (ids: string[], updates: Partial<Pick<DrawingStroke, 'color' | 'icon'>>) => void;
-  /** Copies the drawings with a small offset and selects the copies. */
-  duplicateDrawings: (ids: string[]) => void;
   deleteDrawing: (id: string) => void;
   clearDrawings: () => void;
   setDrawings: (drawings: Record<string, DrawingStroke>) => void;
@@ -177,7 +181,7 @@ export interface ViewAtlasState {
   moveTokensBulk: (ids: string[], dx: number, dy: number) => void;
   setTokenPositions: (positions: Array<{id: string, x: number, y: number}>) => void;
   deleteTokens: (ids: string[]) => void;
-  /** Deletes every selected token and drawing in one undo step. */
+  /** Deletes every selected token, drawing, text and pin in one undo step. */
   deleteSelected: () => void;
   
   // Drag state
@@ -205,9 +209,10 @@ export interface ViewAtlasState {
   dmNotePath: string | null;
   setDMNotePath: (path: string | null) => void;
 
-  // Duplication actions
-  duplicateTokens: (ids: string[]) => void;
-  duplicatePins: (ids: string[]) => void;
+  // Copy, paste and duplicate (from mapObjectsSlice.ts)
+  insertMapObjects: MapObjectsSlice['insertMapObjects'];
+  duplicateMapObjects: MapObjectsSlice['duplicateMapObjects'];
+  removeMapObjects: MapObjectsSlice['removeMapObjects'];
 
   // Map state management
   deleteMapObject: (type: 'token' | 'fog' | 'pin' | 'text' | 'drawing' | 'wall' | 'light' | 'audio', id: string) => void;
@@ -251,6 +256,11 @@ export interface ViewAtlasState {
   addDiceLogEntry: (entry: DiceRollResult) => void;
   clearDiceLog: () => void;
 
+  // Pinned note preview windows (persisted per map)
+  pinnedNotePreviews: PinnedNotePreviewSlice['pinnedNotePreviews'];
+  savePinnedNotePreview: PinnedNotePreviewSlice['savePinnedNotePreview'];
+  removePinnedNotePreview: PinnedNotePreviewSlice['removePinnedNotePreview'];
+
   // --- Per-view UI visibility (from uiSlice.ts, NOT persisted) ---
   isGridSettingsOpen: UISlice['isGridSettingsOpen'];
   isDMDashboardOpen: UISlice['isDMDashboardOpen'];
@@ -272,24 +282,11 @@ export interface ViewAtlasState {
   // Note: Undo/Redo functionality is added by temporal middleware
 }
 
+/** Data for a new token; the store assigns the id (unless given), kind default and instance number. */
+export type TokenInput = Omit<TokenEntity, 'id' | 'kind'> & { kind?: 'token' | 'character'; id?: string };
+
 /** The subset of view state that is written to the map file. */
 export type PersistedViewState = Partial<ViewAtlasState>;
-
-/** Find the lowest unused instance number for tokens sharing the same imagePath. */
-function computeNextInstanceNumber(
-  tokens: Record<string, TokenEntity>,
-  imagePath: string,
-): number {
-  const usedNumbers = new Set(
-    Object.values(tokens)
-      .filter((t) => t.imagePath === imagePath)
-      .map((t) => t.instanceNumber)
-      .filter((n): n is number => n != null)
-  );
-  let num = 1;
-  while (usedNumbers.has(num)) num++;
-  return num;
-}
 
 // Simple default widget settings
 const createDefaultWidgets = (): WidgetSettings => ({
@@ -300,7 +297,7 @@ const createDefaultWidgets = (): WidgetSettings => ({
 });
 
 // Initial state for each store instance
-const createInitialState = (): Pick<ViewAtlasState, 'schema' | 'version' | 'mapPath' | 'background' | 'grid' | 'objects' | 'camera' | 'persistenceEnabled' | 'widgetSettings' | 'widgetValues' | 'dmNotePath' | 'tokenSettings' | 'initiative' | 'diceLog'> => ({
+const createInitialState = (): Pick<ViewAtlasState, 'schema' | 'version' | 'mapPath' | 'background' | 'grid' | 'objects' | 'camera' | 'persistenceEnabled' | 'widgetSettings' | 'widgetValues' | 'dmNotePath' | 'tokenSettings' | 'initiative' | 'diceLog' | 'pinnedNotePreviews'> => ({
   schema: ATLAS_SCHEMA,
   version: ATLAS_VERSION,
   mapPath: null,
@@ -341,6 +338,7 @@ const createInitialState = (): Pick<ViewAtlasState, 'schema' | 'version' | 'mapP
   },
   initiative: createDefaultInitiativeState(),
   diceLog: [],
+  pinnedNotePreviews: {},
 });
 
 /**
@@ -570,26 +568,22 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
           }),
 
           // Add a new token and return its ID
-          addToken: (data) => {
-            const id = data.id ?? `tok_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
-            const kind = data.kind ?? 'token';
-            
-            // Normalize the image path to prevent app:// URLs
-            const normalizedData = {
-              ...data,
-              imagePath: normalizeImagePath(data.imagePath)
-            };
+          addToken: (data) => get().addTokens([data])[0]!,
 
-            const instanceNumber = computeNextInstanceNumber(get().objects.tokens, normalizedData.imagePath);
-
+          addTokens: (entries) => {
+            const ids: string[] = [];
             set((draft) => {
-              const tokenEntity = { id, kind, ...normalizedData, instanceNumber } as TokenEntity;
-
-              draft.objects.tokens[id] = tokenEntity;
-              draft._visionDirty = true;
+              for (const data of entries) {
+                const id = data.id ?? `tok_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+                // Normalize the image path to prevent app:// URLs
+                const imagePath = normalizeImagePath(data.imagePath);
+                const instanceNumber = computeNextInstanceNumber(draft.objects.tokens, imagePath);
+                draft.objects.tokens[id] = { ...data, id, kind: data.kind ?? 'token', imagePath, instanceNumber } as TokenEntity;
+                ids.push(id);
+              }
+              if (ids.length > 0) draft._visionDirty = true;
             });
-
-            return id;
+            return ids;
           },
 
           // Add a new character and return its ID
@@ -658,6 +652,10 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
             for (const { id, changes } of entries) {
               applyTokenUpdates(draft.objects.tokens[id], changes);
             }
+          }),
+
+          retargetRenamedFile: (oldPath, newPath) => set((draft) => {
+            rewriteMapReferences(draft.objects, oldPath, newPath);
           }),
 
           deleteToken: (id) => set((draft) => {
@@ -800,73 +798,10 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
             draft.selectedIds = draft.selectedIds.filter(selectedId => !ids.includes(selectedId));
           }),
 
-          deleteSelected: () => set((draft) => {
-            const { tokens, drawings } = draft.objects;
-            draft.selectedIds = draft.selectedIds.filter((id) => {
-              if (!tokens[id] && !drawings[id]) return true;
-              delete tokens[id];
-              delete drawings[id];
-              return false;
-            });
-          }),
+          deleteSelected: () => get().removeMapObjects(get().selectedIds),
 
-          // Token duplication
-          duplicateTokens: (ids) => set((draft) => {
-            if (!ids || !Array.isArray(ids)) {
-              console.warn(`[ViewStore-${viewId}] Invalid ids provided to duplicateTokens:`, ids);
-              return;
-            }
-            const newIds: string[] = [];
-            ids.forEach(id => {
-              const original = draft.objects.tokens[id];
-              if (original) {
-                const newId = `tok_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
-                const offset = 20;
-
-                const instanceNumber = computeNextInstanceNumber(
-                  draft.objects.tokens,
-                  original.imagePath,
-                );
-
-                draft.objects.tokens[newId] = {
-                  ...original,
-                  id: newId,
-                  x: original.x + offset,
-                  y: original.y + offset,
-                  instanceNumber,
-                };
-                newIds.push(newId);
-              }
-            });
-            draft.selectedIds = newIds;
-          }),
-
-          duplicatePins: (ids) => set((draft) => {
-            if (!ids || !Array.isArray(ids)) {
-              console.warn(`[ViewStore-${viewId}] Invalid ids provided to duplicatePins:`, ids);
-              return;
-            }
-            const newIds: string[] = [];
-            ids.forEach(id => {
-              const original = draft.objects.pins[id];
-              if (original) {
-                const newId = `pin_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
-                const offset = 20;
-                const copy: NotePin = {
-                  ...original,
-                  id: newId,
-                  x: original.x + offset,
-                  y: original.y + offset
-                };
-                if (isPinLabelKind(copy.icon)) {
-                  copy.label = nextPinLabel(draft.objects.pins, copy.icon);
-                }
-                draft.objects.pins[newId] = copy;
-                newIds.push(newId);
-              }
-            });
-            draft.selectedIds = newIds;
-          }),
+          // --- Copy, paste and duplicate (from mapObjectsSlice.ts) ---
+          ...createMapObjectsActions(set, get),
 
           deleteMapObject: (type: 'token' | 'fog' | 'pin' | 'text' | 'drawing' | 'wall' | 'light' | 'audio', id: string) => set((draft) => {
             switch (type) {
@@ -1065,24 +1000,6 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
               const drawing = draft.objects.drawings[id];
               if (drawing) Object.assign(drawing, updates);
             }
-          }),
-
-          duplicateDrawings: (ids) => set((draft) => {
-            const offset = 20;
-            const newIds: string[] = [];
-            for (const id of ids) {
-              const original = draft.objects.drawings[id];
-              if (!original) continue;
-              const newId = `drawing_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
-              draft.objects.drawings[newId] = {
-                ...original,
-                id: newId,
-                timestamp: Date.now(),
-                points: original.points.map((p) => ({ x: p.x + offset, y: p.y + offset })),
-              };
-              newIds.push(newId);
-            }
-            if (newIds.length > 0) draft.selectedIds = newIds;
           }),
 
           deleteDrawing: (id) => set((draft) => {
@@ -1305,6 +1222,7 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
             // Maps without saved widgets must not inherit the previous map's
             draft.widgetSettings = createDefaultWidgets();
             draft.widgetValues = {};
+            draft.pinnedNotePreviews = {};
 
             // Note: We don't clear background here - it will be set by the new map
             // Note: We don't clear mapPath - it must be preserved for storage adapter
@@ -1445,6 +1363,10 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
             draft.diceLog = [];
           }),
 
+          // --- Pinned note previews (persisted per map) ---
+          pinnedNotePreviews: {},
+          ...createPinnedNotePreviewActions(set),
+
           // --- Per-view UI visibility (from uiSlice.ts) ---
           ...createInitialUIState(),
           ...createUIActions(set),
@@ -1484,6 +1406,7 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
               initiative: state.initiative, // Initiative tracker state
               initiativeTrackerOpen: state.initiativeTrackerOpen, // Initiative tracker open/closed state
               diceLog: state.diceLog, // Dice roll history (last 20 per map)
+              pinnedNotePreviews: state.pinnedNotePreviews, // Pinned note preview windows
             };
           },
           

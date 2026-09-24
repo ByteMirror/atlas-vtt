@@ -1,0 +1,168 @@
+// Scene Switcher - keyboard switcher for the maps open in the scene tab bar
+@use '../../../../../styles/tokens' as *;
+@use '../../../../../styles/mixins' as *;
+
+.atlas-scene-switcher {
+  position: fixed;
+  inset: 0;
+  z-index: $z-atlas-dropdown;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 12vh $spacing-s $spacing-s;
+  pointer-events: auto;
+}
+
+// Same surface, spacing and rows as the scene tab bar, stacked vertically
+.atlas-scene-switcher__panel {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: min(420px, 100%);
+  max-height: 60vh;
+  padding: 4px;
+
+  @include atlas-elevated-surface;
+
+  transform-origin: top center;
+  transition: opacity 150ms $transition-ease-out, transform 150ms $transition-ease-out;
+
+  @starting-style {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    transition-property: opacity;
+  }
+}
+
+// Flat like the rows below: no field chrome or focus ring, only hover and press feedback
+.atlas-scene-switcher__search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  padding: 6px;
+  border-radius: $radius-l;
+  cursor: text;
+  transition: background $transition-fast;
+
+  &:hover {
+    background: var(--background-modifier-hover);
+  }
+
+  &:active {
+    background: var(--background-modifier-active-hover);
+  }
+
+  svg {
+    flex-shrink: 0;
+    // Centres the 14px icon over the 18px number badges below
+    margin-inline: 2px;
+    color: var(--text-faint);
+  }
+
+  input[type='text'] {
+    &,
+    &:hover,
+    &:focus,
+    &:focus-visible,
+    &:active {
+      flex: 1;
+      min-width: 0;
+      height: 20px;
+      padding: 0;
+      border: none;
+      border-radius: 0;
+      background: transparent;
+      box-shadow: none;
+      outline: none;
+      color: var(--text-normal);
+      font-size: $font-ui-medium;
+      font-family: var(--font-interface);
+    }
+
+    &::placeholder {
+      color: var(--text-faint);
+    }
+  }
+}
+
+.atlas-scene-switcher__list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 0;
+  overflow-y: auto;
+
+  @include atlas-scrollbar;
+}
+
+.atlas-scene-switcher__item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  padding: 6px;
+  border-radius: $radius-l;
+  color: var(--text-muted);
+  font-size: $font-ui-small;
+  cursor: pointer;
+  transition: background $transition-fast;
+
+  &--selected {
+    background: var(--background-modifier-hover);
+    color: var(--text-normal);
+  }
+
+  &--current {
+    color: var(--text-normal);
+    font-weight: $font-weight-medium;
+  }
+}
+
+.atlas-scene-switcher__number {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  min-width: 18px;
+  height: 18px;
+  border: $border-width-s solid var(--background-modifier-border);
+  border-radius: $radius-s;
+  color: var(--text-muted);
+  font-size: $font-ui-smaller;
+  font-weight: $font-weight-normal;
+  font-variant-numeric: tabular-nums;
+
+  &:empty {
+    visibility: hidden;
+  }
+}
+
+.atlas-scene-switcher__name {
+  flex: 1;
+  min-width: 0;
+
+  @include atlas-truncate;
+}
+
+.atlas-scene-switcher__match {
+  background: none;
+  color: var(--text-normal);
+  font-weight: $font-weight-bold;
+}
+
+.atlas-scene-switcher__current {
+  flex-shrink: 0;
+  color: var(--text-faint);
+  font-size: $font-ui-smaller;
+  font-weight: $font-weight-normal;
+}
+
+.atlas-scene-switcher__empty {
+  padding: 6px;
+  color: var(--text-faint);
+  font-size: $font-ui-small;
+}

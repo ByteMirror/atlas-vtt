@@ -17,6 +17,7 @@ import { TokenControlsUI } from '../TokenControlsUI';
 import { TokenRotationUI } from '../TokenRotationUI';
 import { TokenResizeUI } from '../TokenResizeUI';
 import type { ConditionDefinition } from '../../types/collectionSettingsTypes';
+import { destroyTree } from '../utils/destroyTree';
 
 export class UIManager implements ITokenUIManager {
   private viewport: Viewport;
@@ -109,21 +110,15 @@ export class UIManager implements ITokenUIManager {
       return null;
     }
     
-    const ui = new TokenUIRenderer(this.store, this.viewId, this.viewport);
+    const ui = new TokenUIRenderer(this.store);
     ui.conditionDefsProvider = this.conditionDefsProvider;
     this.tokenUIs[tokenId] = ui;
     
     const uiElement = ui.getContainer();
     this.uiContainer.addChild(uiElement);
     
-    // Get token size from container metadata
-    const tokenSize = container.tokenSize || 70;
-    const gridSize = this.store.getState().grid?.size || 70;
-    const tokenSizeInCells = token.size || 1;
-    const tokenDiameterInCells = (2 * tokenSizeInCells - 1);
-    
     // Initial update and position sync
-    ui.update(token, tokenSize, tokenDiameterInCells, gridSize);
+    ui.update(token, container.tokenSize || 70);
     this.syncUIPosition(tokenId, container.position.x, container.position.y);
     
     // Set up hover handlers for the UI
@@ -145,12 +140,7 @@ export class UIManager implements ITokenUIManager {
     
     // Get sprite dimensions
     const sprite = tokenSprite.getChildByLabel('tokenSprite');
-    const spriteWidth = sprite?.width || 70;
-    const gridSize = this.store.getState().grid?.size || 70;
-    const tokenSizeInCells = token.size || 1;
-    const tokenDiameterInCells = (2 * tokenSizeInCells - 1);
-    
-    ui.update(token, spriteWidth, tokenDiameterInCells, gridSize);
+    ui.update(token, sprite?.width || 70);
   }
 
   updateSelectionUI(selectedTokenIds: string[]): void {
@@ -312,8 +302,8 @@ export class UIManager implements ITokenUIManager {
     if (this.uiContainer.parent) {
       this.uiContainer.parent.removeChild(this.uiContainer);
     }
-    this.uiContainer.destroy({ children: true });
-    this.playerUIContainer?.destroy({ children: true });
+    destroyTree(this.uiContainer);
+    if (this.playerUIContainer) destroyTree(this.playerUIContainer);
     this.playerUIContainer = null;
   }
 
@@ -326,15 +316,12 @@ export class UIManager implements ITokenUIManager {
     }
   }
 
-  syncUIScale(tokenId: string, tokenSize: number, gridSizeOverride?: number): void {
+  syncUIScale(tokenId: string, tokenSize: number): void {
     const ui = this.tokenUIs[tokenId];
     if (ui) {
       const token = this.store.getState().objects?.tokens?.[tokenId];
       if (token && token.kind === 'character') {
-        const gridSize = gridSizeOverride ?? (this.store.getState().grid?.size || 70);
-        const tokenSizeInCells = token.size || 1;
-        const tokenDiameterInCells = (2 * tokenSizeInCells - 1);
-        ui.update(token, tokenSize, tokenDiameterInCells, gridSize);
+        ui.update(token, tokenSize);
       }
     }
   }
@@ -436,13 +423,12 @@ export class UIManager implements ITokenUIManager {
       if (!token || token.kind !== 'character' || !sprite) continue;
       let ui = this.playerTokenUIs[tokenId];
       if (!ui) {
-        ui = new TokenUIRenderer(this.store, this.viewId);
+        ui = new TokenUIRenderer(this.store);
         this.playerTokenUIs[tokenId] = ui;
         this.playerUIContainer.addChild(ui.getContainer());
       }
       ui.conditionDefsProvider = this.conditionDefsProvider;
-      ui.update(token, sprite.tokenSize || 70,
-        1, state.grid?.size || 70, settings);
+      ui.update(token, sprite.tokenSize || 70, settings);
       ui.getContainer().position.copyFrom(sprite.position);
       ui.getContainer().renderable = sprite.visible && !token.isHidden;
     }

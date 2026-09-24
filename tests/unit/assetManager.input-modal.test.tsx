@@ -28,7 +28,7 @@ function Harness({ onClose, onConfirm, initialInputOpen = true }: {
     } as unknown as EffectDeps['sel'],
     crud: {
       isTokenCreatorOpen: false, isMapCreatorOpen: false, isCreateSceneModalOpen: false,
-      isCreateFolderModalOpen: false, isMoveModalOpen: false, settingsModalCollectionId: null,
+      isCreateFolderModalOpen: false, isMoveModalOpen: false, settingsModalCollectionId: null, transfer: null,
       inputModalState: { isOpen: inputOpen }, setEditingToken: vi.fn(),
     } as unknown as EffectDeps['crud'],
     tags: { isTagManagerOpen: false, isEditTagsModalOpen: false } as EffectDeps['tags'],

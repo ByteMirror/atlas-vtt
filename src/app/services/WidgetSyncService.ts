@@ -31,6 +31,8 @@ interface WidgetSyncEventDetail extends SyncedWidgetState {
 }
 
 const WIDGET_SYNC_EVENT = 'atlas-widget-sync';
+/** Shared fallback, so a store without widget settings never looks changed. */
+const NO_WIDGETS: SyncedWidgetState['widgets'] = {};
 
 /**
  * Service to synchronize widget values between all atlas views
@@ -59,7 +61,7 @@ export class WidgetSyncService {
     const unsubscribe = store.subscribe(
       (state): SyncedWidgetState => ({
         // Only sync widget definitions, not view-specific settings like globalVisible
-        widgets: state.widgetSettings?.widgets || {},
+        widgets: state.widgetSettings?.widgets ?? NO_WIDGETS,
         widgetValues: state.widgetValues
       }),
       (curr) => {
@@ -69,9 +71,9 @@ export class WidgetSyncService {
         }
       },
       {
-        equalityFn: (a, b) =>
-          JSON.stringify(a.widgets) === JSON.stringify(b.widgets) &&
-          JSON.stringify(a.widgetValues) === JSON.stringify(b.widgetValues)
+        // Immer keeps unchanged branches, so references tell whether widgets changed.
+        // This runs on every store update, including each drag frame.
+        equalityFn: (a, b) => a.widgets === b.widgets && a.widgetValues === b.widgetValues
       }
     );
 

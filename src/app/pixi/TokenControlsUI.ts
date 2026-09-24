@@ -8,6 +8,8 @@ import { toError } from '../utils/errors';
 import type { TokenGestureEventDetail } from '../types/atlasWindowEvents';
 import { openResourceEditor, type BarAnchor, type ResourceEditor, type ResourceValue } from './tokenValueEditor';
 import { ResourceBarHitArea } from './ResourceBarHitArea';
+import { destroyTree } from './utils/destroyTree';
+import { tokenUIScale } from './token-renderer/tokenSizing';
 
 type ControlIconType = 'plus' | 'minus';
 
@@ -45,8 +47,7 @@ export class TokenControlsUI {
   private readonly STRESS_COLOR = colors.stress.fill;
   private readonly DANGER_COLOR = colors.health.critical;
 
-  // Token reference for positioning using design tokens
-  private tokenSize: number = 70;
+  // Bar geometry from design tokens
   private barHeight: number = barDimensions.token.height;
   private barWidth: number = barDimensions.token.width;
   
@@ -73,7 +74,7 @@ export class TokenControlsUI {
     this.container.visible = false;
     this.container.eventMode = 'passive'; // Allow events to pass through to tokens
     this.container.sortableChildren = true;
-    
+
     // Don't stop propagation at container level - let individual buttons handle it
     
     // Create buttons first (without icons)
@@ -306,14 +307,8 @@ export class TokenControlsUI {
     }
     
     this.currentTokenId = tokenId;
-    this.tokenSize = tokenSize;
-    
-    // Position container at token position
-    this.container.position.set(worldX, worldY);
-    
-    // Update scale before updating buttons to ensure consistent positioning
-    this.updateScale();
-    
+    this.placeBelowToken(worldX, worldY, tokenSize);
+
     // Update button visibility and handlers
     this.updateButtons(token);
     
@@ -338,26 +333,18 @@ export class TokenControlsUI {
   public updatePosition(worldX: number, worldY: number, tokenSize: number): void {
     if (!this.isVisible) return;
     
-    this.tokenSize = tokenSize;
-    this.container.position.set(worldX, worldY);
-    this.updateScale();
+    this.placeBelowToken(worldX, worldY, tokenSize);
     this.followEditor?.();
   }
-  
+
   private get isVisible(): boolean {
     return this.container.visible;
   }
-  
-  private updateScale(): void {
-    // Get grid size from store
-    const gridSize = this.store.getState().grid?.size || 70;
-    
-    // Calculate UI scale to match TokenUIRenderer
-    const baseUISize = 70;
-    const uiScale = gridSize / baseUISize;
-    
-    // Apply scale to container
-    this.container.scale.set(uiScale);
+
+  /** Anchors the controls at the bottom edge of the token centred at (`worldX`, `worldY`) and scales them with it. */
+  private placeBelowToken(worldX: number, worldY: number, tokenSize: number): void {
+    this.container.position.set(worldX, worldY + tokenSize / 2);
+    this.container.scale.set(tokenUIScale(tokenSize));
   }
   
   private updateButtons(token: Character): void {
@@ -372,14 +359,9 @@ export class TokenControlsUI {
     const barHeight = this.barHeight;
     const gap = barDimensions.token.gap;
     const baseGap = 2;
-    
-    // Calculate token radius in UI units
-    const gridSize = this.store.getState().grid?.size || 70;
-    const uiScale = gridSize / 70;
-    const tokenRadiusInUIUnits = (this.tokenSize / 2) / uiScale;
-    
+
     // Match TokenUIRenderer positioning - currentY is top of bar, not center
-    let currentY = tokenRadiusInUIUnits + baseGap; // Top of first bar
+    let currentY = baseGap; // Top of first bar
     
     if (token.hp && typeof token.hp === 'object' && typeof token.hp.max === 'number') {
       const hp = token.hp;
@@ -463,7 +445,6 @@ export class TokenControlsUI {
     const updatedToken = this.store.getState().objects.tokens[this.currentTokenId] as Character | undefined;
     if (updatedToken) {
       this.updateButtons(updatedToken);
-      this.updateScale();
     }
   }
   
@@ -552,6 +533,6 @@ export class TokenControlsUI {
     this.iconTextureCache.clear();
     
     // Destroy graphics
-    this.container.destroy({ children: true });
+    destroyTree(this.container);
   }
 }

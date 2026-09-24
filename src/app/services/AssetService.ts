@@ -1,13 +1,16 @@
 import { wasTokenRegistrationSaved } from './assetRegistrationRecovery';
 import { SettingsService } from './SettingsService';
-import { App, TFile, TFolder } from 'obsidian';
+import { App, Notice, TFile, TFolder } from 'obsidian';
+import { ensureAdapterFolder } from '../plugin/vaultFolders';
 import type { TokenStateSnapshot } from '../types';
 import type { CellCoord, EncounterFormation } from '../encounters/encounterFormation';
 import { getDataFilePath } from '../utils/dataFileMigration';
+import { mapStrings } from '../utils/mapStrings';
+import { SerialLock } from '../utils/serialLock';
+import { preserveUnreadableMetadata, readStoredMetadata, type StoredMetadata } from './assetMetadataFile';
+import { collectionNameKey, freeCollectionId, uniqueCollectionName } from './collectionNaming';
 import type { CollectionSettings } from '../types/collectionSettingsTypes';
 import {
-  isAssetMetadata,
-  isLegacyAssetMetadata,
   isLegacyTokenRecord,
   isRecord,
   parseGroupTokenRefs,
@@ -32,7 +35,7 @@ export interface TokenAsset extends BaseAsset {
   imagePath: string;
   /** Default footprint of spawned tokens as the size multiplier from `tokenSizing.ts`; missing means 1×1. */
   size?: number;
-  /** Small preview written by TokenThumbnailService; regenerated when missing. */
+  /** Small preview written by AssetThumbnailService; regenerated when missing. */
   thumbnailPath?: string;
   statblockPath?: string; // Optional link to statblock note
 }
@@ -161,8 +164,16 @@ export interface CollectionMetadata {
   id: string;
   /** Globally unique identifier — survives export/import */
   uid: string;
-  /** Integer version, bumped before re-export */
+  /** Release number. Only the publisher raises it, when exporting a release. */
   version: number;
+  /** Vault that created the collection and publishes its releases; missing on collections from before publishing existed. */
+  publisherId?: string;
+  /** Author shown to people who install the collection. */
+  author?: string;
+  /** When the installed or last exported release was made. */
+  releasedAt?: number;
+  /** Vault path of the cover image shown when the collection is exported or imported. */
+  coverPath?: string;
   name: string;
   description?: string;
   tags: Record<string, TagMetadata>; // Collection-specific tags
@@ -176,18 +187,48 @@ export interface AssetMetadata {
   collections: Record<string, CollectionMetadata>;
   assets: Record<string, Asset>;
   version: number;
+  /** Identifies this vault as the publisher of the collections it creates. */
+  vaultId?: string;
+}
+
+/** What an import writes into the asset index, in one save. */
+export interface CollectionImportCommit {
+  collectionId: string;
+  collection: CollectionMetadata;
+  /** Asset records to add or replace, already pointing at their files in this vault. */
+  upsert: readonly Asset[];
+  /** Ids of asset records to drop; their files are handled by the import. */
+  remove: readonly string[];
 }
 
 export const ATLAS_VTT_DIR = 'atlas-vtt';
 export const COLLECTIONS_DIR = `${ATLAS_VTT_DIR}/collections`;
 export const GLOBAL_ASSETS_DIR = `${ATLAS_VTT_DIR}/assets`;
 const ASSETS_METADATA_PATH = getDataFilePath(`${ATLAS_VTT_DIR}/assets-metadata.json`);
+const LEGACY_ASSETS_METADATA_PATH = `${ATLAS_VTT_DIR}/assets-metadata.json`;
+/** A sync tool may be rewriting the index; a few more reads ride that out. */
+const METADATA_READ_OPTIONS = { retries: 3, retryDelayMs: 200 };
+
+/** Tags are keyed by their lower-case, hyphenated name. */
+const tagIdOf = (name: string): string => name.trim().toLowerCase().replace(/\s+/g, '-');
+
+/** The id of a collection folder (`atlas-vtt/collections/goblins` → `goblins`), or null for any other path. */
+function collectionIdOfFolder(path: string): string | null {
+  const prefix = `${COLLECTIONS_DIR}/`;
+  const id = path.startsWith(prefix) ? path.slice(prefix.length) : '';
+  return id && !id.includes('/') ? id : null;
+}
 
 export class AssetService {
   private static instance: AssetService | null = null;
   private app: App;
   private metadata: AssetMetadata | null = null;
   private initialization: Promise<void> | null = null;
+  /** Held by work that must not interleave with re-reading or checking the index, such as an import. */
+  private readonly indexLock = new SerialLock();
+  /** Metadata writes, in the order they were requested. */
+  private readonly writes = new SerialLock();
+  private saveCount = 0;
 
   private constructor(app: App) {
     this.app = app;
@@ -218,6 +259,32 @@ export class AssetService {
     await this.ensureDirectory(COLLECTIONS_DIR);
     await this.ensureDefaultCollection();
     await this.loadMetadata();
+    await this.reconcileOnceVaultIsListed();
+  }
+
+  /**
+   * Checks the index against the vault's files once Obsidian has listed them all;
+   * before the layout is ready `getFiles()` can miss files that exist. Resolves
+   * after the check when the layout is already ready, at once otherwise.
+   */
+  private reconcileOnceVaultIsListed(): Promise<void> {
+    const reconciled = new Promise<void>((resolve) => {
+      this.app.workspace.onLayoutReady(() => {
+        resolve(this.indexLock.run(() => this.reconcileMetadataWithVault()).catch((error: unknown) => {
+          console.error('[AssetService] Checking the index against the vault failed:', error);
+        }));
+      });
+    });
+    return this.app.workspace.layoutReady ? reconciled : Promise.resolve();
+  }
+
+  /**
+   * Runs `task` while no refresh or vault check reads or rewrites the index. An
+   * import holds it from its first file write to its commit, so nothing sees or
+   * saves the half-written collection. `task` must not call `refreshMetadata`.
+   */
+  runExclusive<T>(task: () => Promise<T>): Promise<T> {
+    return this.indexLock.run(task);
   }
 
   /**
@@ -246,22 +313,7 @@ export class AssetService {
   }
 
   private async ensureDirectoryViaAdapter(path: string): Promise<void> {
-    const parts = path.split('/').filter(Boolean);
-    let currentPath = '';
-
-    for (const part of parts) {
-      currentPath = currentPath ? `${currentPath}/${part}` : part;
-      if (await this.app.vault.adapter.exists(currentPath)) {
-        continue;
-      }
-      try {
-        await this.app.vault.adapter.mkdir(currentPath);
-      } catch (error) {
-        if (!(error instanceof Error) || !error.message.includes('already exists')) {
-          throw error;
-        }
-      }
-    }
+    await ensureAdapterFolder(this.app, path);
   }
 
   private async ensureDefaultCollection(): Promise<void> {
@@ -310,45 +362,71 @@ export class AssetService {
     }
   }
 
+  private readStoredMetadata(): Promise<StoredMetadata> {
+    return readStoredMetadata(this.app.vault.adapter, [ASSETS_METADATA_PATH, LEGACY_ASSETS_METADATA_PATH], METADATA_READ_OPTIONS);
+  }
+
   private async loadMetadata(): Promise<void> {
-    try {
-      const oldPath = 'atlas-vtt/assets-metadata.json';
-      let content: string | null = null;
-
-      if (await this.app.vault.adapter.exists(ASSETS_METADATA_PATH)) {
-        content = await this.app.vault.adapter.read(ASSETS_METADATA_PATH);
-      } else if (await this.app.vault.adapter.exists(oldPath)) {
-        content = await this.app.vault.adapter.read(oldPath);
-      }
-
-      if (!content) {
-        // Create default metadata
+    const stored = await this.readStoredMetadata();
+    switch (stored.kind) {
+      case 'missing':
         this.metadata = await this.createDefaultMetadata();
         await this.saveMetadata();
-      } else {
-        const parsed: unknown = JSON.parse(content);
-
-        if (isLegacyAssetMetadata(parsed)) {
-          await this.migrateFromOldFormat(parsed);
-        } else if (isAssetMetadata(parsed)) {
-          this.metadata = parsed;
-          // Migrate tags to collection-based system if needed
-          await this.migrateTagsToCollections();
-        } else {
-          // Invalid metadata structure, create default
-          this.metadata = await this.createDefaultMetadata();
-          await this.saveMetadata();
-        }
-      }
-    } catch (error) {
-      console.error('[AssetService] Error loading metadata:', error);
-      this.metadata = await this.createDefaultMetadata();
+        break;
+      case 'legacy':
+        await this.migrateFromOldFormat(stored.metadata);
+        break;
+      case 'current':
+        this.metadata = stored.metadata;
+        await this.migrateTagsToCollections();
+        break;
+      case 'unreadable':
+        await this.startOverFromUnreadableMetadata(stored);
+        break;
     }
 
     // Ensure all collections have uid, version, and settings fields
     await this.migrateCollectionFields();
-    // Recover from partially missing metadata by reconciling known files.
-    await this.reconcileMetadataWithVault();
+  }
+
+  /**
+   * Keeps a copy of an index that cannot be read, then starts from an empty one
+   * that the startup check against the vault fills from the collection files.
+   * Without a copy the file is left alone and nothing is saved over it.
+   */
+  private async startOverFromUnreadableMetadata(stored: Extract<StoredMetadata, { kind: 'unreadable' }>): Promise<void> {
+    console.error('[AssetService] The asset index could not be read:', stored.error);
+    let copyPath: string;
+    try {
+      copyPath = await preserveUnreadableMetadata(this.app.vault.adapter, stored.path);
+    } catch (error) {
+      new Notice(`Atlas VTT could not read its asset index (${stored.path}) and left it untouched. Restart Obsidian to try again.`, 0);
+      throw error;
+    }
+    new Notice(`Atlas VTT could not read its asset index and is rebuilding it from your collection files. The unreadable file was kept as ${copyPath}.`, 0);
+    this.metadata = await this.createDefaultMetadata();
+  }
+
+  /**
+   * Replaces the in-memory index with the one on disk. Waits for pending saves
+   * and reads again when a save lands meanwhile, so it never goes back to an
+   * older index; a file that cannot be read leaves the index in memory as it is.
+   */
+  private async rereadMetadata(): Promise<void> {
+    for (;;) {
+      await this.writes.idle();
+      const savesBefore = this.saveCount;
+      const stored = await this.readStoredMetadata();
+      if (this.saveCount !== savesBefore) continue;
+      if (stored.kind !== 'current') {
+        console.error('[AssetService] Could not re-read the asset index; keeping the loaded one.', stored);
+        return;
+      }
+      this.metadata = stored.metadata;
+      await this.migrateTagsToCollections();
+      await this.migrateCollectionFields();
+      return;
+    }
   }
 
   private async createDefaultMetadata(): Promise<AssetMetadata> {
@@ -389,7 +467,7 @@ export class AssetService {
 
   private createCollectionMetadata(id: string): CollectionMetadata {
     const now = Date.now();
-    const name = id === 'default' ? 'Default' : this.prettifyIdentifier(id);
+    const name = id === 'default' ? 'Default' : this.numberedCollectionName(this.prettifyIdentifier(id));
     return {
       id,
       uid: crypto.randomUUID(),
@@ -730,7 +808,8 @@ export class AssetService {
       const isRecoveredId = id.startsWith('token-recovered-');
       const isAllowedRecoveredGlobalToken = !!imagePath && encounterOrPlayerTokenRefs.has(imagePath);
 
-      if (!imagePath || !vaultFilePaths.has(imagePath)) {
+      // The file list can lag behind the disk, so a token is dropped only when its image is really gone.
+      if (!imagePath || (!vaultFilePaths.has(imagePath) && !(await this.app.vault.adapter.exists(imagePath)))) {
         delete this.metadata.assets[id];
         needsSave = true;
         continue;
@@ -777,6 +856,10 @@ export class AssetService {
     if (!this.metadata) return;
 
     let needsSave = false;
+    if (!this.metadata.vaultId) {
+      this.metadata.vaultId = crypto.randomUUID();
+      needsSave = true;
+    }
     for (const collection of Object.values(this.metadata.collections)) {
       if (!collection.uid) {
         collection.uid = crypto.randomUUID();
@@ -790,6 +873,20 @@ export class AssetService {
         collection.settings = { conditions: [] };
         needsSave = true;
       }
+    }
+
+    // Older imports could reuse a taken name; numbering them keeps every collection distinguishable.
+    const takenNames: string[] = [];
+    const defaultFirst = Object.values(this.metadata.collections)
+      .sort((a, b) => Number(b.id === 'default') - Number(a.id === 'default'));
+    for (const collection of defaultFirst) {
+      const stored = typeof collection.name === 'string' && collection.name.trim() ? collection.name : this.prettifyIdentifier(collection.id);
+      const name = uniqueCollectionName(stored, takenNames);
+      if (name !== collection.name) {
+        collection.name = name;
+        needsSave = true;
+      }
+      takenNames.push(name);
     }
 
     if (needsSave) {
@@ -824,11 +921,16 @@ export class AssetService {
     await this.saveMetadata();
   }
 
-  private async saveMetadata(): Promise<void> {
-    if (!this.metadata) return;
-    
+  /** Saves the index as it is now; saves reach the disk in the order they were made. */
+  private saveMetadata(): Promise<void> {
+    if (!this.metadata) return Promise.resolve();
     const content = JSON.stringify(this.metadata, null, 2);
-    const oldPath = 'atlas-vtt/assets-metadata.json';
+    this.saveCount++;
+    return this.writes.run(() => this.writeMetadataFile(content));
+  }
+
+  private async writeMetadataFile(content: string): Promise<void> {
+    const oldPath = LEGACY_ASSETS_METADATA_PATH;
     const hasLegacyPath = await this.app.vault.adapter.exists(oldPath);
     const hasHiddenPath = await this.app.vault.adapter.exists(ASSETS_METADATA_PATH);
     const saveTargets = new Set<string>();
@@ -952,14 +1054,16 @@ export class AssetService {
   // Collection management
   async createCollection(name: string, description?: string): Promise<CollectionMetadata> {
     await this.ensureLoaded();
+    this.assertCollectionNameFree(name);
 
-    const id = name.toLowerCase().replace(/\s+/g, '-');
+    const id = this.freeCollectionId(name);
     const now = Date.now();
     
     const collection: CollectionMetadata = {
       id,
       uid: crypto.randomUUID(),
       version: 1,
+      publisherId: this.metadata!.vaultId!,
       name,
       ...(description !== undefined && { description }),
       tags: {}, // Initialize empty tags
@@ -983,19 +1087,86 @@ export class AssetService {
     return Object.values(this.metadata!.collections);
   }
 
-  /** Finds a collection by its display name or id; the UI lists names, metadata is keyed by id. */
-  async resolveCollectionId(nameOrId: string): Promise<string | null> {
-    const collections = await this.getCollections();
-    return collections.find((collection) => collection.name === nameOrId || collection.id === nameOrId)?.id ?? null;
+  /** Registers a record for a collection id that assets already point at. */
+  private async ensureCollectionRecord(id: string): Promise<void> {
+    if (this.metadata!.collections[id]) return;
+    this.metadata!.collections[id] = this.createCollectionMetadata(id);
+    await this.ensureCollectionStructure(id);
+    await this.saveMetadata();
   }
 
   async renameCollection(collectionId: string, name: string): Promise<void> {
     await this.ensureLoaded();
     const collection = this.metadata!.collections[collectionId];
     if (!collection) throw new Error(`Collection ${collectionId} not found`);
+    this.assertCollectionNameFree(name, collectionId);
     collection.name = name;
     collection.modifiedAt = Date.now();
     await this.saveMetadata();
+  }
+
+  /**
+   * Follows a collection folder renamed in the vault: the record moves to the
+   * new folder name as its id and takes it as display name, and every stored
+   * path into the folder is rewritten. Renaming the default folder turns its
+   * contents into a normal collection and starts an empty default one. A
+   * folder moved out of the collections folder is no longer a collection.
+   * Returns whether `oldPath` was a collection folder.
+   */
+  async followCollectionFolderRename(oldPath: string, newPath: string): Promise<boolean> {
+    await this.ensureLoaded();
+    const oldId = collectionIdOfFolder(oldPath);
+    const newId = collectionIdOfFolder(newPath);
+    const collection = oldId ? this.metadata!.collections[oldId] : undefined;
+    if (!oldId || oldId === newId || !collection) return false;
+    if (!newId) return this.forgetDeletedCollectionFolder(oldPath);
+
+    delete this.metadata!.collections[oldId];
+    this.metadata!.collections[newId] = {
+      ...collection,
+      id: newId,
+      name: this.numberedCollectionName(this.prettifyIdentifier(newId), oldId),
+      modifiedAt: Date.now(),
+    };
+
+    const oldPrefix = `${oldPath}/`;
+    const newPrefix = `${newPath}/`;
+    const movePath = (text: string): string => (text.startsWith(oldPrefix) ? newPrefix + text.slice(oldPrefix.length) : text);
+    for (const [id, asset] of Object.entries(this.metadata!.assets)) {
+      const moved = mapStrings(asset, movePath);
+      this.metadata!.assets[id] = asset.collection === oldId ? { ...moved, collection: newId } : moved;
+    }
+
+    if (oldId === 'default') {
+      this.metadata!.collections.default = this.createCollectionMetadata('default');
+      await this.ensureDefaultCollection();
+    }
+    await this.saveMetadata();
+    return true;
+  }
+
+  /**
+   * Follows a collection folder deleted in the vault: the collection and its
+   * assets leave the metadata. Files outside the folder, such as token images
+   * in the global assets folder, stay. Deleting the default folder starts an
+   * empty default collection. Returns whether `path` was a collection folder.
+   */
+  async forgetDeletedCollectionFolder(path: string): Promise<boolean> {
+    await this.ensureLoaded();
+    const id = collectionIdOfFolder(path);
+    if (!id || !this.metadata!.collections[id]) return false;
+
+    for (const [assetId, asset] of Object.entries(this.metadata!.assets)) {
+      if (asset.collection === id) delete this.metadata!.assets[assetId];
+    }
+    delete this.metadata!.collections[id];
+
+    if (id === 'default') {
+      this.metadata!.collections.default = this.createCollectionMetadata('default');
+      await this.ensureDefaultCollection();
+    }
+    await this.saveMetadata();
+    return true;
   }
 
   async deleteCollection(collectionId: string): Promise<void> {
@@ -1029,10 +1200,15 @@ export class AssetService {
     return this.registerAsset(newAsset);
   }
 
+  /** A new asset id; unique within this vault. */
+  static newAssetId(type: Asset['type']): string {
+    return `${type}-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+  }
+
   private createAssetIdentity(type: Asset['type']): Pick<BaseAsset, 'id' | 'createdAt' | 'modifiedAt'> {
     const now = Date.now();
     return {
-      id: `${type}-${now}-${Math.random().toString(36).substring(2, 8)}`,
+      id: AssetService.newAssetId(type),
       createdAt: now,
       modifiedAt: now
     };
@@ -1046,10 +1222,7 @@ export class AssetService {
       newAsset.filePath = this.getAssetPath(newAsset);
     }
 
-    // Ensure collection exists
-    if (!this.metadata!.collections[newAsset.collection]) {
-      await this.createCollection(newAsset.collection);
-    }
+    await this.ensureCollectionRecord(newAsset.collection);
 
     // Save asset data if needed
     if (newAsset.type === 'map') {
@@ -1259,10 +1432,7 @@ export class AssetService {
     const asset = this.metadata!.assets[assetId];
     if (!asset) return;
 
-    // Ensure target collection exists
-    if (!this.metadata!.collections[targetCollection]) {
-      await this.createCollection(targetCollection);
-    }
+    await this.ensureCollectionRecord(targetCollection);
 
     const oldPath = this.getAssetPath(asset);
     const updatedAsset = { ...asset, collection: targetCollection, modifiedAt: Date.now() };
@@ -1319,34 +1489,115 @@ export class AssetService {
     return Object.values(this.metadata!.collections).find((collection) => collection.uid === uid) ?? null;
   }
 
+  /** This vault's identity as a publisher of collections. */
+  async getVaultId(): Promise<string> {
+    await this.ensureLoaded();
+    return this.metadata!.vaultId!;
+  }
+
+  /** Whether another collection than `exceptId` already uses `name`; names are compared without case. */
+  async isCollectionNameTaken(name: string, exceptId?: string): Promise<boolean> {
+    await this.ensureLoaded();
+    return this.findCollectionByName(name, exceptId) !== undefined;
+  }
+
+  /** `name`, or `name (2)`, `name (3)`, … when another collection already uses it. */
+  async freeCollectionName(name: string, exceptId?: string): Promise<string> {
+    await this.ensureLoaded();
+    return this.numberedCollectionName(name, exceptId);
+  }
+
+  /** A new id derived from `name` that no collection uses yet. */
+  async freeCollectionIdFor(name: string): Promise<string> {
+    await this.ensureLoaded();
+    return this.freeCollectionId(name);
+  }
+
+  private freeCollectionId(name: string): string {
+    // A leftover folder of a deleted collection must not leak its files into the new one.
+    return freeCollectionId(name, (id) => Boolean(this.metadata!.collections[id] || this.app.vault.getAbstractFileByPath(`${COLLECTIONS_DIR}/${id}`)));
+  }
+
+  private numberedCollectionName(name: string, exceptId?: string): string {
+    const taken = Object.values(this.metadata?.collections ?? {})
+      .filter((collection) => collection.id !== exceptId)
+      .map((collection) => collection.name);
+    return uniqueCollectionName(name, taken);
+  }
+
+  private findCollectionByName(name: string, exceptId?: string): CollectionMetadata | undefined {
+    const wanted = collectionNameKey(name);
+    return Object.values(this.metadata!.collections)
+      .find((collection) => collection.id !== exceptId && collectionNameKey(collection.name) === wanted);
+  }
+
+  private assertCollectionNameFree(name: string, exceptId?: string): void {
+    if (this.findCollectionByName(name, exceptId)) throw new Error(`A collection named "${name.trim()}" already exists`);
+  }
+
+  /** Stores the release a publisher just exported, once the export has been written. */
+  async recordCollectionRelease(
+    collectionId: string,
+    release: { version: number; releasedAt: number; author?: string | undefined; coverPath?: string | undefined },
+  ): Promise<void> {
+    await this.ensureLoaded();
+    const collection = this.metadata!.collections[collectionId];
+    if (!collection) throw new Error(`Collection ${collectionId} not found`);
+    collection.version = release.version;
+    collection.releasedAt = release.releasedAt;
+    if (release.author === undefined) delete collection.author;
+    else collection.author = release.author;
+    if (release.coverPath === undefined) delete collection.coverPath;
+    else collection.coverPath = release.coverPath;
+    collection.publisherId = this.metadata!.vaultId!;
+    await this.saveMetadata();
+  }
+
+  /**
+   * Turns a copy of someone else's collection into this vault's own collection:
+   * it gets a new identity and name, so it no longer receives the original's
+   * updates and its exports are this vault's releases.
+   */
+  async forkCollection(collectionId: string, name: string, uid: string): Promise<CollectionMetadata> {
+    await this.ensureLoaded();
+    const collection = this.metadata!.collections[collectionId];
+    if (!collection) throw new Error(`Collection ${collectionId} not found`);
+    this.assertCollectionNameFree(name, collectionId);
+    collection.uid = uid;
+    collection.name = name;
+    collection.version = 1;
+    collection.publisherId = this.metadata!.vaultId!;
+    delete collection.releasedAt;
+    collection.modifiedAt = Date.now();
+    await this.saveMetadata();
+    return collection;
+  }
+
   /**
    * Records an imported collection and its assets in one metadata save. The
-   * files must already be in the vault at the paths the assets reference. An
-   * existing record with `collectionId` keeps its creation date and tags, and
-   * the imported assets replace those with the same id.
+   * files must already be in the vault at the paths the assets reference.
    */
-  async adoptImportedCollection(imported: CollectionMetadata, assets: readonly Asset[], collectionId: string): Promise<CollectionMetadata> {
+  async commitCollectionImport({ collectionId, collection, upsert, remove }: CollectionImportCommit): Promise<void> {
     await this.ensureLoaded();
-    const now = Date.now();
-    const existing = this.metadata!.collections[collectionId];
-    const description = imported.description ?? existing?.description;
-    const collection: CollectionMetadata = {
-      ...imported,
-      id: collectionId,
-      ...(description !== undefined && { description }),
-      tags: { ...existing?.tags, ...imported.tags },
-      createdAt: existing?.createdAt ?? now,
-      modifiedAt: now,
-    };
-    this.metadata!.collections[collectionId] = collection;
+    this.assertCollectionNameFree(collection.name, collectionId);
     await this.ensureCollectionStructure(collectionId);
-
-    for (const asset of assets) {
-      this.metadata!.assets[asset.id] = { ...asset, collection: collectionId };
+    // Changes go to a copy that replaces the index only once it is saved, so a failed save leaves nothing half-applied.
+    const current = this.metadata!;
+    const next: AssetMetadata = {
+      ...current,
+      collections: { ...current.collections, [collectionId]: { ...collection, id: collectionId } },
+      assets: { ...current.assets },
+    };
+    for (const id of remove) delete next.assets[id];
+    for (const asset of upsert) next.assets[asset.id] = { ...asset, collection: collectionId };
+    this.metadata = next;
+    try {
+      await this.saveMetadata();
+    } catch (error) {
+      this.metadata = current;
+      throw error;
     }
-    await this.saveMetadata();
-    if (assets.some((asset) => asset.type === 'token')) SettingsService.forApp(this.app)?.markTokenImported();
-    return collection;
+    if (upsert.some((asset) => asset.type === 'token')) SettingsService.forApp(this.app)?.markTokenImported();
   }
 
   // Backward compatibility methods
@@ -1401,8 +1652,13 @@ export class AssetService {
     return changed;
   }
 
+  /** Re-reads the index from disk, after any import in progress has finished. */
   async refreshMetadata(): Promise<void> {
-    await this.loadMetadata();
+    if (!this.metadata) {
+      await this.ensureLoaded();
+      return;
+    }
+    await this.indexLock.run(() => this.rereadMetadata());
   }
 
   /**
@@ -1500,8 +1756,7 @@ export class AssetService {
       collection.tags = {};
     }
     
-    // Create tag with ID based on name
-    const tagId = tagName.toLowerCase().replace(/\s+/g, '-');
+    const tagId = tagIdOf(tagName);
     const tag: TagMetadata = {
       id: tagId,
       name: tagName
@@ -1514,6 +1769,29 @@ export class AssetService {
   }
 
   /**
+   * Renames a tag. Its id follows the name, and every asset in the collection
+   * that carries the tag (by id or, as creators store it, by name) is retagged.
+   */
+  async renameTag(collectionId: string, tagId: string, name: string): Promise<TagMetadata> {
+    await this.ensureLoaded();
+    const tags = this.metadata!.collections[collectionId]?.tags;
+    const tag = tags?.[tagId];
+    if (!tags || !tag) throw new Error(`Tag ${tagId} not found`);
+
+    const renamed: TagMetadata = { ...tag, id: tagIdOf(name), name: name.trim() };
+    if (renamed.id !== tagId && tags[renamed.id]) throw new Error(`A tag named "${name}" already exists`);
+    delete tags[tagId];
+    tags[renamed.id] = renamed;
+
+    const retag = (value: string): string => (value === tag.id ? renamed.id : value === tag.name ? renamed.name : value);
+    for (const asset of Object.values(this.metadata!.assets)) {
+      if (asset.collection === collectionId) asset.tags = asset.tags.map(retag);
+    }
+    await this.saveMetadata();
+    return renamed;
+  }
+
+  /**
    * Delete a tag from a collection and remove it from all assets
    */
   async deleteTag(collectionId: string, tagId: string): Promise<void> {
@@ -1521,15 +1799,15 @@ export class AssetService {
     if (!this.metadata) throw new Error('Metadata not loaded');
     
     const collection = this.metadata.collections[collectionId];
-    if (!collection || !collection.tags) return;
+    const tag = collection?.tags?.[tagId];
+    if (!collection?.tags || !tag) return;
     
-    // Remove tag from collection
     delete collection.tags[tagId];
     
-    // Remove tag from all assets in this collection
+    // Assets reference the tag by id or, as creators store it, by name.
     Object.values(this.metadata.assets).forEach(asset => {
       if (asset.collection === collectionId) {
-        asset.tags = asset.tags.filter(t => t !== tagId);
+        asset.tags = asset.tags.filter(t => t !== tag.id && t !== tag.name);
       }
     });
     

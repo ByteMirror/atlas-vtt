@@ -16,7 +16,7 @@ import { useTagsAndCollections } from './hooks/useTagsAndCollections';
 import { useContextMenus } from './hooks/useContextMenus';
 import { useStatblockLink } from './hooks/useStatblockLink';
 import { useAssetManagerEffects } from './hooks/useAssetManagerEffects';
-import { runInBackground } from '../../../utils/backgroundTask';
+import { useFollowSelectedCollection } from './hooks/useFollowSelectedCollection';
 import { hasAssetTag } from './utils/assetTags';
 
 const wrapperVariants = {
@@ -42,7 +42,6 @@ const containerVariants = {
 };
 
 export default function AssetManager({ isOpen, onClose, initialTab }: AssetManagerProps): React.JSX.Element | null {
-  const [tokenCreatorSource, setTokenCreatorSource] = useState<'images' | 'statblocks'>('images');
   const [search, setSearch] = useState('');
   const [activeTab, setActiveTab] = useState<Tab>('tokens');
   const [selectedCollection, setSelectedCollection] = useState<string | null>('default');
@@ -54,6 +53,7 @@ export default function AssetManager({ isOpen, onClose, initialTab }: AssetManag
   const containerRef = useRef<HTMLDivElement>(null);
 
   const data = useAssetData(activeTab, selectedCollection, isOpen);
+  useFollowSelectedCollection(data.collections, selectedCollection, setSelectedCollection);
   const settings = useAtlasSettings(SettingsService.forApp(data.app));
 
   const visibleIds = useRef<VisibleIds>({ assets: [], folders: [] });
@@ -94,15 +94,14 @@ export default function AssetManager({ isOpen, onClose, initialTab }: AssetManag
   const crud = useAssetCrud(
     data.app, data.assetService, activeTab, selectedCollection,
     sel.selectedFolderId, data.folders, data.assets, data.collections,
-    data.setFolders, data.setAssets, data.setCollections, setSelectedCollection,
+    data.setFolders, data.setAssets, data.reloadCollections, setSelectedCollection,
     data.loadFoldersForActiveTab, data.loadAssetsForActiveTab,
     draggedItems, setDraggedItems, setDropTarget,
   );
 
   const tags = useTagsAndCollections(
     data.assetService, selectedCollection, data.availableTags,
-    data.setAvailableTags, data.setAssets, data.collections,
-    data.setCollections, setSelectedCollection, data.reloadGlobalTags,
+    data.setAvailableTags, data.setAssets, data.reloadCollections, data.reloadGlobalTags,
   );
 
   const statblock = useStatblockLink(data.app);
@@ -116,12 +115,6 @@ export default function AssetManager({ isOpen, onClose, initialTab }: AssetManag
     setSearch, setActiveTab, setIsSidebarCollapsed, setSelectedCollection,
     data, sel, crud, tags, statblock,
   });
-
-  const handleEditCollectionSettings = async (collectionName: string): Promise<void> => {
-    if (!data.assetService) return;
-    const id = await data.assetService.resolveCollectionId(collectionName);
-    if (id) crud.setSettingsModalCollectionId(id);
-  };
 
   if (!isOpen) return null;
 
@@ -167,7 +160,7 @@ export default function AssetManager({ isOpen, onClose, initialTab }: AssetManag
               selectedCollection={selectedCollection}
               onSelectCollection={setSelectedCollection}
               onManageTags={() => tags.setIsTagManagerOpen(true)}
-              onEditCollectionSettings={(collectionName) => runInBackground(handleEditCollectionSettings(collectionName), 'Opening collection settings')}
+              onEditCollectionSettings={crud.setSettingsModalCollectionId}
               onExportCollection={() => { void crud.handleExportCollection(); }}
               onImportCollection={crud.handleImportCollection}
               isCollapsed={isSidebarCollapsed}
@@ -179,8 +172,7 @@ export default function AssetManager({ isOpen, onClose, initialTab }: AssetManag
               activeTab={activeTab}
               onTabChange={setActiveTab}
               assetCounts={data.assetCounts}
-              onCreateTokens={() => { setTokenCreatorSource('images'); crud.setIsTokenCreatorOpen(true); }}
-              onImportStatblocks={() => { setTokenCreatorSource('statblocks'); crud.setIsTokenCreatorOpen(true); }}
+              onCreateTokens={() => crud.setIsTokenCreatorOpen(true)}
               onCreateMap={crud.handleCreateMap}
               onCreateCollection={crud.handleCreateCollection}
               onCreateFolder={crud.handleCreateFolder}
@@ -219,7 +211,7 @@ export default function AssetManager({ isOpen, onClose, initialTab }: AssetManag
                   setDropTarget={setDropTarget}
                   onDrop={crud.handleDrop}
                   view={data.view}
-                  addToken={data.addToken}
+                  addTokens={data.addTokens}
                   setSelection={data.setSelection}
                   app={data.app}
                   assetService={data.assetService}
@@ -243,7 +235,6 @@ export default function AssetManager({ isOpen, onClose, initialTab }: AssetManag
       )}
 
       <ModalLayer
-        tokenCreatorSource={tokenCreatorSource}
         isOpen={isOpen}
         activeTab={activeTab}
         selectedCollection={selectedCollection}

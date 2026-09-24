@@ -11,6 +11,9 @@ vi.mock('../../src/app/services/PlayerWindowPresenter', () => ({ presentActiveTa
 vi.mock('../../src/app/react/components/command-palette/GridSettingsPanel', () => ({ GridSettingsPanel: () => null }));
 vi.mock('../../src/app/react/components/command-palette/TokenSettingsPanel', () => ({ TokenSettingsPanel: () => null }));
 vi.mock('../../src/app/react/components/command-palette/LocalPlayerViewSettingsPanel', () => ({ LocalPlayerViewSettingsPanel: () => null }));
+vi.mock('../../src/app/react/components/command-palette/SceneSnapshotsPanel', () => ({
+  SceneSnapshotsPanel: ({ onRestore }: { onRestore: () => void }) => <button onClick={onRestore}>Restore snapshot</button>,
+}));
 
 import { CommandPalette } from '../../src/app/react/components/CommandPalette';
 
@@ -76,5 +79,17 @@ describe('Space command menu panel toggles', () => {
     fireEvent.keyDown(input, { key: 'Enter' });
     expect(store.getState().isDiceLogOpen).toBe(true);
     expect(onClose).toHaveBeenCalledTimes(3);
+  });
+
+  it('morphs into the scene snapshots page and closes when a snapshot is restored', () => {
+    const onClose = vi.fn();
+    render(<ViewStoreProvider store={createPanelStore()}><CommandPalette isOpen onClose={onClose} /></ViewStoreProvider>);
+
+    fireEvent.click(screen.getByRole('button', { name: /Scene snapshots/ }));
+    expect(screen.getByRole('heading', { name: 'Scene Snapshots' })).toBeTruthy();
+    expect(screen.queryByPlaceholderText('Search commands...')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Restore snapshot' }));
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 });

@@ -1,13 +1,25 @@
 import { App, FileSystemAdapter, Menu, TFile, Notice, type EventRef } from 'obsidian';
 import { openContextMenuGlobal, type ContextMenuEntry } from '../react/root/ContextMenuContext';
 import { PlayerWindowService } from './PlayerWindowService';
+import { playImageEnter, playImageExit } from './imageDisplayMotion';
 import './image-display.scss';
+
+/** An image overlay in the player window. */
+interface ImageDisplay {
+  container: HTMLDivElement;
+  stage: HTMLDivElement;
+  imageUrl: string;
+}
 
 export class ImageDisplayService {
   private app: App;
   private static instance: ImageDisplayService | null = null;
   private imageContainer: HTMLDivElement | null = null;
   private currentImage: HTMLImageElement | null = null;
+  /** Wraps the image so the entrance can animate while the image's own transform pans and zooms. */
+  private imageStage: HTMLDivElement | null = null;
+  /** Overlays still fading out after being closed or replaced. */
+  private leavingDisplays = new Set<ImageDisplay>();
   private currentScale: number = 1;
   private isDragging: boolean = false;
   private dragStartX: number = 0;
@@ -72,6 +84,8 @@ export class ImageDisplayService {
     // This adds our item to Obsidian's native menu for rendered image embeds (![[image.png]])
     const editorMenuRef = this.app.workspace.on('editor-menu', (menu: Menu) => {
       const target = this.lastContextMenuTarget;
+      // Holding the element would keep its whole (possibly closed) view in memory
+      this.lastContextMenuTarget = null;
       if (!target) return;
 
       const result = this.resolveImageFromTarget(target);
@@ -280,18 +294,12 @@ export class ImageDisplayService {
    */
   private createImageDisplay(playerWindow: Window, imageUrl: string, fileName: string): void {
     const doc = playerWindow.document;
-    
-    // Remove existing image container if any
-    this.disposeImageDisplay(false);
+    const previous = this.detachImageDisplay();
 
-    // Create container
-    this.imageContainer = doc.body.createDiv();
-    this.imageContainer.id = 'atlas-image-display-container';
-
-    // Create image element
-    this.currentImage = this.imageContainer.createEl('img');
+    this.imageContainer = doc.body.createDiv({ cls: 'atlas-image-display' });
+    this.imageStage = this.imageContainer.createDiv({ cls: 'atlas-image-display__stage' });
+    this.currentImage = this.imageStage.createEl('img', { cls: 'atlas-image-display__image' });
     this.currentImage.src = imageUrl;
-    this.currentImage.className = 'atlas-image-display__image';
 
     // Reset scale and position
     this.currentScale = 1;
@@ -310,7 +318,11 @@ export class ImageDisplayService {
     // Add event listeners
     this.setupEventListeners(playerWindow);
 
-    // Append elements
+    // A replaced image leaves above the new one, so the scrim stays dark while they crossfade
+    previous?.container.before(this.imageContainer);
+    const entrance = playImageEnter(this.imageContainer, this.imageStage, this.currentImage, previous !== null);
+    // The previous image stays until the new one can paint, so the crossfade never shows an empty scrim
+    if (previous) void this.leave(previous, entrance);
   }
 
   /**
@@ -394,7 +406,10 @@ export class ImageDisplayService {
    * Close the image display
    */
   public closeImageDisplay(): void {
-    this.disposeImageDisplay(true);
+    const display = this.detachImageDisplay();
+    if (!display) return;
+    new Notice('Image display closed');
+    void this.leave(display);
   }
   
   /**
@@ -508,7 +523,7 @@ export class ImageDisplayService {
    * Destroy the service
    */
   public destroy(): void {
-    this.disposeImageDisplay(false);
+    this.disposeImageDisplay();
 
     document.removeEventListener('contextmenu', this.boundStoreContextMenuTarget, true);
     document.removeEventListener('contextmenu', this.boundHandleContextMenu, false);
@@ -523,28 +538,44 @@ export class ImageDisplayService {
     ImageDisplayService.instance = null;
   }
 
-  private disposeImageDisplay(showNotice: boolean): void {
-    if (!this.imageContainer && !this.currentImage) {
-      return;
-    }
+  /** Removes every overlay at once, including ones still fading out. */
+  private disposeImageDisplay(): void {
+    const display = this.detachImageDisplay();
+    if (display) this.removeImageDisplay(display);
+    for (const leaving of this.leavingDisplays) this.removeImageDisplay(leaving);
+    this.leavingDisplays.clear();
+  }
 
+  /** Stops the shown overlay from reacting to input and hands it back for its exit, or null when none is shown. */
+  private detachImageDisplay(): ImageDisplay | null {
+    if (!this.imageContainer || !this.imageStage || !this.currentImage) return null;
     this.teardownImageEventListeners();
-
-    if (this.currentImage) {
-      URL.revokeObjectURL(this.currentImage.src);
-    }
-
-    this.imageContainer?.remove();
+    const display: ImageDisplay = { container: this.imageContainer, stage: this.imageStage, imageUrl: this.currentImage.src };
+    // A leaving overlay may sit above the next image; let input reach that one
+    display.container.addClass('is-leaving');
     this.imageContainer = null;
+    this.imageStage = null;
     this.currentImage = null;
     this.currentScale = 1;
     this.imageX = 0;
     this.imageY = 0;
     this.isDragging = false;
+    return display;
+  }
 
-    if (showNotice) {
-      new Notice('Image display closed');
-    }
+  private async leave(display: ImageDisplay, after?: Promise<void>): Promise<void> {
+    this.leavingDisplays.add(display);
+    await after;
+    // Removed at once meanwhile (destroy)
+    if (!this.leavingDisplays.has(display)) return;
+    await playImageExit(display.container, display.stage);
+    if (!this.leavingDisplays.delete(display)) return;
+    this.removeImageDisplay(display);
+  }
+
+  private removeImageDisplay(display: ImageDisplay): void {
+    display.container.remove();
+    URL.revokeObjectURL(display.imageUrl);
   }
 
   private teardownImageEventListeners(): void {

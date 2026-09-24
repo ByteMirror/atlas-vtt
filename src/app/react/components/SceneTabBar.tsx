@@ -2,15 +2,11 @@ import React from 'react';
 import { Eye, Plus, X } from 'lucide-react';
 import { useStore } from 'zustand';
 import { cn } from '../../../utils/cn';
-import { useAtlasUI } from '../root/AtlasUIContext';
-import { createTabMetaStore } from '../../stores/tabMetaStore';
+import { useSceneTabStore } from '../hooks/useSceneTabStore';
 import { playerWindowStore } from '../../stores/playerWindowStore';
 import type { SceneTab } from '../../types/sceneTabTypes';
 import { LabelTooltip, TooltipProvider } from '../../packages/components/primitives/tooltip';
 import './scene-tab-bar.scss';
-
-/** Static empty store used as safe fallback when view.tabMetaStore is unavailable. */
-const EMPTY_TAB_STORE = createTabMetaStore();
 
 interface SceneTabBarProps {
   onSwitchTab: (tabId: string) => void;
@@ -49,8 +45,7 @@ function TabActionButton({ icon: Icon, label, isActive, onClick }: TabActionButt
 }
 
 export function SceneTabBar({ onSwitchTab, onCloseTab, onAddTab, onPresentTab }: SceneTabBarProps): React.ReactElement | null {
-  const { view } = useAtlasUI();
-  const store = view?.tabMetaStore ?? EMPTY_TAB_STORE;
+  const store = useSceneTabStore();
 
   const tabs = useStore(store, (s) => s.tabs);
   const activeTabId = useStore(store, (s) => s.activeTabId);

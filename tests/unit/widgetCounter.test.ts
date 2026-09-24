@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { resolveWidgetIcon, DEFAULT_WIDGET_ICON } from '../../src/app/types/widgetIcons';
-import { clampCounterValue, readCounterValue } from '../../src/app/react/components/CounterWidgetDisplay';
+import { clampCounterValue, readCounterValue } from '../../src/app/utils/counterWidget';
 import type { CounterWidget } from '../../src/app/types/widgetTypes';
 
 const counter: CounterWidget = {

@@ -15,11 +15,11 @@ it('applies player bar and nameplate preferences independently of DM and per-tok
   const token = { id: 'hero', kind: 'character', name: 'Hero', showNameplate: true, statblockPath: 'hero.md', hp: { current: 8, max: 10 }, stress: { current: 2, max: 6 } } as any;
   const original = store.getState();
   try {
-    ui.update(token, 70, 1, 70, { showTokenHP: true, showTokenStress: false, showTokenNameplates: true });
+    ui.update(token, 70, { showTokenHP: true, showTokenStress: false, showTokenNameplates: true });
     expect((ui as any).hpBar.visible).toBe(true);
     expect((ui as any).stressBar.visible).toBe(false);
     expect((ui as any).nameText.visible).toBe(true);
-    ui.update(token, 70, 1, 70, { showTokenHP: false, showTokenStress: true, showTokenNameplates: false });
+    ui.update(token, 70, { showTokenHP: false, showTokenStress: true, showTokenNameplates: false });
     expect((ui as any).hpBar.visible).toBe(false);
     expect((ui as any).stressBar.visible).toBe(true);
     expect((ui as any).nameText.visible).toBe(false);

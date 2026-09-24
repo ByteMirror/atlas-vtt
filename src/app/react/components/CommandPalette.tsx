@@ -20,6 +20,7 @@ import {
   Users,
   Palette,
   UserCheck,
+  History,
 } from 'lucide-react';
 import { Notice } from 'obsidian';
 import { useStore } from 'zustand';
@@ -39,6 +40,7 @@ import { GridSettingsPanel } from './command-palette/GridSettingsPanel';
 import { TokenSettingsPanel } from './command-palette/TokenSettingsPanel';
 import { WidgetSettingsPanel } from './command-palette/WidgetSettingsPanel';
 import { LocalPlayerViewSettingsPanel } from './command-palette/LocalPlayerViewSettingsPanel';
+import { SceneSnapshotsPanel } from './command-palette/SceneSnapshotsPanel';
 import { isSettingsPanelId, type CommandOption, type SettingsPanelId } from './command-palette/types';
 
 interface CommandPaletteProps {
@@ -58,6 +60,7 @@ const DEFAULT_PALETTE_WIDTH = 600;
 const TOOLBAR_GAP = 8;
 
 const SETTINGS_PANEL_META: Record<SettingsPanelId, { title: string; icon: React.ReactNode }> = {
+  'scene-snapshots': { title: 'Scene Snapshots', icon: <History /> },
   'grid-settings': { title: 'Grid Settings', icon: <Grid /> },
   'token-settings': { title: 'Token Settings', icon: <Users /> },
   'widget-settings': { title: 'Widget Settings', icon: <Palette /> },
@@ -224,6 +227,15 @@ export function CommandPalette({ isOpen, onClose, toolbarRef }: CommandPalettePr
         onClose();
         view?.openSceneBrowser();
       },
+    },
+    {
+      id: "scene-snapshots",
+      icon: <History />,
+      label: "Scene snapshots",
+      keywords: ["save", "restore", "reset", "encounter", "state"],
+      section: "tools",
+      hasSubmenu: true,
+      submenu: [],
     },
     {
       id: "open-dice-log",
@@ -492,6 +504,8 @@ export function CommandPalette({ isOpen, onClose, toolbarRef }: CommandPalettePr
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent): void => {
       if (!isOpen || document.querySelector('.atlas-onboarding-overlay')) return;
+      // Keys pressed in a dialog or context menu opened from a page belong to it.
+      if ((e.target as Element | null)?.closest?.('.atlas-text-dialog-backdrop, .atlas-ctx-menu')) return;
       if (!isShortcutScopeActive(containerRef.current, view?.viewId)) return;
 
       // In settings modes, only handle Escape and Cmd+K for closing
@@ -603,6 +617,8 @@ export function CommandPalette({ isOpen, onClose, toolbarRef }: CommandPalettePr
       window.setTimeout(() => {
         const target = e.target as Element;
         if (target?.closest?.('.atlas-onboarding-overlay')) return;
+        // Dialogs opened from a page (naming or deleting a snapshot) sit outside the palette.
+        if (target?.closest?.('.atlas-text-dialog-backdrop')) return;
 
         // Don't close if clicking on Obsidian menu elements
         if (target?.closest?.('.menu') ||
@@ -704,6 +720,8 @@ export function CommandPalette({ isOpen, onClose, toolbarRef }: CommandPalettePr
 
   const renderSettingsPanel = (panel: SettingsPanelId): React.ReactElement => {
     switch (panel) {
+      case 'scene-snapshots':
+        return <SceneSnapshotsPanel onRestore={onClose} />;
       case 'grid-settings':
         return (
           <GridSettingsPanel
@@ -768,6 +786,7 @@ export function CommandPalette({ isOpen, onClose, toolbarRef }: CommandPalettePr
         className={cn(
           'atlas-command-palette-container',
           activePanel && 'atlas-command-palette-container--expanded',
+          activePanel && `atlas-command-palette-container--${activePanel}`,
           !hasCalculatedInitialPosition && 'atlas-no-transition',
           (isTemporarilyHidden || !position) && 'atlas-command-palette-container--hidden',
         )}

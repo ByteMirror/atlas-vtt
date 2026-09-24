@@ -26,6 +26,9 @@ import { TokenStatblockLinkService } from '../../services/TokenStatblockLinkServ
 import type { ConditionDefinition } from '../../types/collectionSettingsTypes';
 import { WALLS_AND_LIGHTING_ENABLED } from '../../featureFlags';
 import { saveMapTokensAsEncounter } from '../../encounters/saveMapTokensAsEncounter';
+import { copyMapObjects } from '../../clipboard/mapClipboardActions';
+import { copyDragSelection } from './dragCopy';
+import type { DragRuler } from './DragRuler';
 import { runInBackground } from '../../utils/backgroundTask';
 import { tokenSizeSubmenu } from '../../react/components/context-menu/tokenSizeMenu';
 
@@ -38,6 +41,10 @@ interface DragState {
   pendingUpdate: boolean;
   hasMoved: boolean;
   clickToken?: TokenEntity;
+  /** Alt/Option was held at pointer down: the drag moves copies and leaves the originals. */
+  copyOnDrag?: boolean;
+  /** The token the pointer grabbed; the drag ruler measures its path. */
+  rulerTokenId?: string;
 }
 
 export class InteractionController implements ITokenInteractionController {
@@ -73,6 +80,7 @@ export class InteractionController implements ITokenInteractionController {
   private updateUIPosition?: (tokenId: string, x: number, y: number) => void;
   private updateControlsPosition?: (x: number, y: number, tokenSize: number) => void;
   private updateHandlePositions?: () => void;
+  private dragRuler?: DragRuler;
 
   constructor(
     viewport: Viewport,
@@ -226,6 +234,7 @@ export class InteractionController implements ITokenInteractionController {
     // Store the token for potential click handling
     this.dragState.clickToken = token;
     this.dragState.hasMoved = false;
+    this.dragState.copyOnDrag = e.altKey;
     
     // Determine which tokens to potentially drag
     if (e.shiftKey) {
@@ -277,6 +286,9 @@ export class InteractionController implements ITokenInteractionController {
       this.store.getState().setIsDragging(true);
       // The whole drag becomes one undo step; closed in onPointerUp.
       beginHistoryTransaction(this.store);
+      const grabbedIndex = Math.max(0, this.dragState.dragIds.indexOf(this.dragState.clickToken?.id ?? ''));
+      if (this.dragState.copyOnDrag) this.dragCopiesInstead();
+      this.startDragRuler(this.dragState.dragIds[grabbedIndex]);
     }
     
     // If we haven't moved enough, don't update positions
@@ -297,15 +309,16 @@ export class InteractionController implements ITokenInteractionController {
       }
     }
 
+    const rulerStart = this.dragState.rulerTokenId ? this.dragState.initialPositions[this.dragState.rulerTokenId] : undefined;
+    if (rulerStart) this.dragRuler?.update({ x: rulerStart.x + dx, y: rulerStart.y + dy });
+
     // Push live positions to the store at a bounded cadence.
     if (currentTime - this.lastDragStreamSentAt >= 50) {
-      const updates = this.dragState.dragIds
-        .map((id) => {
-          const sprite = this.getTokenSprite?.(id);
-          if (!sprite) return null;
-          return { id, x: sprite.position.x, y: sprite.position.y };
-        })
-        .filter((entry): entry is { id: string; x: number; y: number } => entry != null);
+      // Positions come from the pointer, not the sprites: an Alt-drag copy may still be loading its sprite.
+      const updates = this.dragState.dragIds.flatMap((id) => {
+        const initPos = this.dragState.initialPositions[id];
+        return initPos ? [{ id, x: initPos.x + dx, y: initPos.y + dy }] : [];
+      });
 
       if (updates.length > 0) {
         // Update store positions during drag so vision recomputes in real time.
@@ -322,6 +335,21 @@ export class InteractionController implements ITokenInteractionController {
       this.dragState.animationFrameId = window.requestAnimationFrame(() => this.throttledUIUpdate());
     }
   };
+
+  /** Swaps the drag over to fresh copies of the dragged tokens, which then become the selection. */
+  private dragCopiesInstead(): void {
+    const copies = copyDragSelection(this.store, this.dragState.dragIds, this.dragState.initialPositions);
+    if (!copies) return;
+    this.dragState.dragIds = copies.ids;
+    this.dragState.initialPositions = copies.initialPositions;
+  }
+
+  private startDragRuler(tokenId: string | undefined): void {
+    const origin = tokenId ? this.dragState.initialPositions[tokenId] : undefined;
+    if (!tokenId || !origin) return;
+    this.dragState.rulerTokenId = tokenId;
+    this.dragRuler?.begin(tokenId, origin);
+  }
 
   private throttledUIUpdate = () => {
     if (!this.dragState.pendingUpdate) return;
@@ -453,6 +481,8 @@ export class InteractionController implements ITokenInteractionController {
       console.error('[InteractionController] Error in onPointerUp handler:', error);
     } finally {
       if (wasDrag) endHistoryTransaction(this.store);
+      this.dragRuler?.end();
+      delete this.dragState.rulerTokenId;
 
       // Always clean up event listeners to prevent accumulation
       this.cleanupDragListeners();
@@ -531,6 +561,18 @@ export class InteractionController implements ITokenInteractionController {
     if (!this.isPlayerView) {
       const selectedIds = this.store.getState().selectedIds;
       const groupIds = selectedIds.includes(token.id) ? selectedIds : [token.id];
+      entries.push({
+        type: 'item',
+        label: 'Duplicate',
+        icon: 'files',
+        onClick: () => this.store.getState().duplicateMapObjects(groupIds),
+      });
+      entries.push({
+        type: 'item',
+        label: 'Copy',
+        icon: 'copy',
+        onClick: () => copyMapObjects(this.store, groupIds),
+      });
       entries.push({
         type: 'item',
         label: 'Save as Encounter',
@@ -704,6 +746,10 @@ export class InteractionController implements ITokenInteractionController {
     this.updateHandlePositions = updater;
   }
 
+  setDragRuler(ruler: DragRuler): void {
+    this.dragRuler = ruler;
+  }
+
   private renderDestructiveRow(token: TokenEntity): React.ReactNode {
     return React.createElement(DestructiveActionRow, {
       tokenId: token.id,
@@ -780,6 +826,7 @@ export class InteractionController implements ITokenInteractionController {
 
     // A drag interrupted by teardown must not leave its transaction open
     if (this.dragState.hasMoved) endHistoryTransaction(this.store);
+    this.dragRuler?.end();
 
     // Remove any active viewport listeners using the same cleanup method
     this.cleanupDragListeners();

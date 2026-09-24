@@ -21,6 +21,8 @@ import { EXTENSION_ATLASMAP, registerAtlasLeafSync } from './src/app/plugin/atla
 import { registerColorSwatchIcons } from './src/app/plugin/colorSwatchIcons';
 import { HeaderAutocompleteSuggest } from './src/app/plugin/HeaderAutocompleteSuggest';
 import { registerCommands } from './src/app/plugin/registerCommands';
+import { registerPlayerWindowReloadCleanup } from './src/app/plugin/playerWindowReload';
+import { registerSceneSnapshotSync } from './src/app/plugin/sceneSnapshotSync';
 import { runStartupMigration } from './src/app/plugin/startupMigration';
 import { registerStatusBarVisibility } from './src/app/plugin/statusBarVisibility';
 import { ChangelogService } from './src/app/changelog/ChangelogService';
@@ -79,6 +81,8 @@ export default class AtlasVTTPlugin extends Plugin {
     ]));
     this.registerEditorSuggest(new HeaderAutocompleteSuggest(this.app));
     registerAtlasLeafSync(this);
+    registerSceneSnapshotSync(this);
+    registerPlayerWindowReloadCleanup(this);
     registerCommands(this, {
       imageDisplay: this.imageDisplayService,
       assetManager: this.globalAssetManager,

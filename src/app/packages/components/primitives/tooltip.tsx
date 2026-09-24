@@ -38,6 +38,8 @@ TooltipContent.displayName = TooltipPrimitive.Content.displayName
 interface LabelTooltipProps {
   label: string
   side?: React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Content>["side"]
+  /** Describes `children` instead of naming them, for controls whose visible text already names them. */
+  describe?: boolean
   children: React.ReactElement
 }
 
@@ -46,12 +48,12 @@ interface LabelTooltipProps {
  * The name is set through `aria-labelledby`: Obsidian shows its own tooltip for
  * every `aria-label`, and `title` adds the browser one, so use neither on `children`.
  */
-function LabelTooltip({ label, side = "top", children }: LabelTooltipProps): React.ReactElement {
+function LabelTooltip({ label, side = "top", describe = false, children }: LabelTooltipProps): React.ReactElement {
   const labelId = React.useId()
   const hasProvider = React.useContext(ProviderMounted)
   const tooltip = (
     <Tooltip>
-      <TooltipTrigger asChild aria-labelledby={labelId}>{children}</TooltipTrigger>
+      <TooltipTrigger asChild {...(describe ? { "aria-describedby": labelId } : { "aria-labelledby": labelId })}>{children}</TooltipTrigger>
       <span id={labelId} hidden>{label}</span>
       <TooltipContent side={side} sideOffset={10}>
         <div className="tooltip-inner">

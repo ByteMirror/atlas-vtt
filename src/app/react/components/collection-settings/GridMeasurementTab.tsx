@@ -6,13 +6,21 @@
 import React from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { Button } from '../../../packages/components/primitives/button';
+import { SegmentedControl, type SegmentedOption } from '../../../packages/components/primitives/SegmentedControl';
 import { LabelTooltip } from '../../../packages/components/primitives/tooltip';
 import { ObsidianMenuDropdown } from '../ObsidianMenuDropdown';
 import type {
   CollectionGridDefaults,
+  DiagonalRule,
   GridUnitType,
+  MeasurementMode,
   RangeBand,
 } from '../../../types/collectionSettingsTypes';
+
+const MEASUREMENT_MODES: readonly SegmentedOption<MeasurementMode>[] = [
+  { value: 'metric', label: 'Metric' },
+  { value: 'abstract', label: 'Abstract' },
+];
 
 interface GridMeasurementTabProps {
   gridDefaults: CollectionGridDefaults;
@@ -24,6 +32,12 @@ const UNIT_OPTIONS: Record<GridUnitType, string> = {
   meters: 'Meters',
   units: 'Units',
   custom: 'Custom',
+};
+
+const DIAGONAL_OPTIONS: Record<DiagonalRule, string> = {
+  equidistant: 'Every diagonal counts 1 (5e)',
+  alternating: 'Alternate 1 and 2 (5/10/5)',
+  euclidean: 'Exact distance',
 };
 
 export function GridMeasurementTab({
@@ -83,25 +97,26 @@ export function GridMeasurementTab({
         />
       </div>
 
+      {/* Diagonal rule (square grids; hex grids always count hex steps) */}
+      <div className="atlas-csm-field">
+        <label className="atlas-csm-label">Diagonal Movement</label>
+        <ObsidianMenuDropdown
+          className="atlas-setting-dropdown atlas-csm-dropdown"
+          value={gridDefaults.diagonalRule ?? 'equidistant'}
+          options={DIAGONAL_OPTIONS}
+          onChange={(value) => updateField('diagonalRule', value as DiagonalRule)}
+        />
+      </div>
+
       {/* Measurement mode */}
       <div className="atlas-csm-field">
         <label className="atlas-csm-label">Measurement Mode</label>
-        <div className="atlas-csm-segmented">
-          <Button
-            variant="ghost"
-            className={`atlas-csm-segment ${gridDefaults.measurementMode === 'metric' ? 'atlas-active' : ''}`}
-            onClick={() => updateField('measurementMode', 'metric')}
-          >
-            Metric
-          </Button>
-          <Button
-            variant="ghost"
-            className={`atlas-csm-segment ${gridDefaults.measurementMode === 'abstract' ? 'atlas-active' : ''}`}
-            onClick={() => updateField('measurementMode', 'abstract')}
-          >
-            Abstract
-          </Button>
-        </div>
+        <SegmentedControl
+          ariaLabel="Measurement mode"
+          value={gridDefaults.measurementMode}
+          options={MEASUREMENT_MODES}
+          onChange={(mode) => updateField('measurementMode', mode)}
+        />
       </div>
 
       {/* Range Bands — only visible in abstract mode */}

@@ -587,6 +587,30 @@ $modal-corner-inset: calc(#{$border-width-m} + #{$spacing-l});
   }
 }
 
+/// Thin scrollbar that shows only while the area scrolls: it fades in at once
+/// and out a moment after scrolling stops. `useScrollActivity` marks the
+/// element with `data-scrolling`. Its space stays reserved, so content never shifts.
+/// The thumb colour `--atlas-scrollbar-thumb` is registered in `main.scss`, so it can transition.
+@mixin atlas-scrollbar-while-scrolling {
+  @include atlas-scrollbar;
+  --atlas-scrollbar-thumb: transparent;
+  scrollbar-color: var(--atlas-scrollbar-thumb) transparent;
+  transition: --atlas-scrollbar-thumb $transition-slow $transition-ease;
+
+  &::-webkit-scrollbar-thumb {
+    background: var(--atlas-scrollbar-thumb);
+  }
+
+  &[data-scrolling] {
+    --atlas-scrollbar-thumb: var(--scrollbar-thumb-bg);
+    transition-duration: $transition-fast;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+  }
+}
+
 // ── Text ─────────────────────────────────────────────────────────────────────
 
 /// Truncate text with ellipsis.

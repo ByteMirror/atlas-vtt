@@ -258,6 +258,11 @@ export class DataFileMigration {
     }
 }
 
+/** Vault path of the thumbnail saved for a map, named after its .atlasmap file. */
+export function mapThumbnailPath(mapPath: string): string {
+    return getDataFilePath(mapPath.replace('.atlasmap', '.thumb.jpg'));
+}
+
 /**
  * Helper function to get the correct path for data files
  * This should be used throughout the codebase when saving/loading data files

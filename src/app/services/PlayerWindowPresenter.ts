@@ -6,9 +6,12 @@ import type { ViewAtlasState } from '../storeFactory';
 import { playerWindowStore } from '../stores/playerWindowStore';
 import type { SceneTab } from '../types/sceneTabTypes';
 import { PlayerWindowService, type PlayerFrameSource } from './PlayerWindowService';
+import { getRenderedFrames } from '../pixi/RenderScheduler';
 
 /** Unsubscribes the tab watcher of the view whose tab is currently presented. */
 let stopWatchingPresentedTab: (() => void) | null = null;
+/** The view whose presented tab is being watched. */
+let watchedView: AtlasView | null = null;
 
 /** Present the active view's current scene tab, opening the player window if needed. */
 export async function presentActiveTabInPlayerWindow(app: App): Promise<void> {
@@ -85,25 +88,32 @@ export async function restorePlayerWindow(app: App, player: LocalPlayerView): Pr
     app, sourceView.atlasStore, sourceView.serviceManager.getSettingsService(),
   );
   const viewport = sourceView.serviceManager.getRendererService().getViewport();
-  const dmCamera = source.getCamera?.();
-  if (session.camera && viewport) {
+  // A frozen camera is rendered on its own, so only a live presentation moves the DM viewport.
+  if (session.camera && viewport && !session.frozen) {
     viewport.setZoom(session.camera.scale);
     viewport.moveCenter(session.camera.centerX, session.camera.centerY);
   }
+  // Freeze before attaching so the first mirrored frame already uses the saved camera.
+  if (session.frozen) service.freezeCamera(session.camera ?? source.getCamera?.());
   service.attachToView(player, source, sourceTab.id);
   watchPresentedTab(sourceView, service);
-  if (session.frozen) {
-    service.toggleCameraFreeze();
-    if (dmCamera && viewport) {
-      viewport.setZoom(dmCamera.scale);
-      viewport.moveCenter(dmCamera.centerX, dmCamera.centerY);
-    }
-  }
   if (previousTabId && previousTabId !== sourceTab.id) await sourceView.switchToTab(previousTabId);
 }
 
+/** Views that already release the player window when they close. */
+const viewsReleasingOnClose = new WeakSet<AtlasView>();
+
 function watchPresentedTab(view: AtlasView, service: PlayerWindowService): void {
   stopWatchingPresentedTab?.();
+  if (!viewsReleasingOnClose.has(view)) {
+    viewsReleasingOnClose.add(view);
+    // Closing the presented map must not leave its renderer and store reachable from the player window
+    view.register(() => {
+      if (watchedView === view) stopWatchingPresentedTab?.();
+      PlayerWindowService.getInstance()?.releaseSource(view.atlasStore);
+    });
+  }
+  watchedView = view;
   // Release the view once the player window closes, otherwise this closure keeps a closed view alive.
   const stopWatchingWindow = playerWindowStore.subscribe((state) => {
     if (!state.presentedTabId) stopWatchingPresentedTab?.();
@@ -123,6 +133,7 @@ function watchPresentedTab(view: AtlasView, service: PlayerWindowService): void 
     stopWatchingTabs();
     stopWatchingWindow();
     stopWatchingPresentedTab = null;
+    watchedView = null;
   };
 }
 
@@ -146,7 +157,8 @@ async function waitForRenderedFrameSource(view: AtlasView): Promise<PlayerFrameS
   return {
     canvas,
     store: view.atlasStore,
-    withPlayerSafeFrame: (capture, settings) => renderer.withPlayerSafeFrame(capture, settings),
+    withPlayerSafeFrame: (capture, settings, camera) => renderer.withPlayerSafeFrame(capture, settings, camera),
+    getRenderedFrames: () => getRenderedFrames(renderer.getAppInstance()),
     getCamera: () => {
       const viewport = view.serviceManager.getRendererService().getViewport();
       return viewport ? { centerX: viewport.center.x, centerY: viewport.center.y, scale: viewport.scale.x } : undefined;

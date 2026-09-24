@@ -16,6 +16,8 @@ import { normalizeImagePath } from '../../utils/pathUtils';
  * detail beyond this is never visible and only costs GPU memory and upload time.
  */
 const MAX_TOKEN_TEXTURE_SIZE = 1024;
+/** Cache key of the placeholder used for tokens without art. */
+const DEFAULT_TOKEN_TEXTURE_KEY = 'default-token';
 
 function fitWithin(width: number, height: number, max: number): { width: number; height: number } {
   const scale = Math.min(1, max / Math.max(width, height));
@@ -312,6 +314,18 @@ export class TextureCache implements ITextureCache {
     }
   }
 
+  /**
+   * Evicts every token image not in `usedImagePaths`. Called when a scene loads, so art
+   * from scenes visited earlier does not stay decoded for the life of the view.
+   */
+  releaseUnusedImages(usedImagePaths: Iterable<string>): void {
+    const used = new Set([DEFAULT_TOKEN_TEXTURE_KEY]);
+    for (const path of usedImagePaths) if (path) used.add(normalizeImagePath(path));
+    for (const key of Array.from(this.textureCache.keys())) {
+      if (!used.has(key)) this.releaseImageTexture(key);
+    }
+  }
+
   destroyAll(): void {
     for (const key of Array.from(this.textureCache.keys())) {
       this.releaseImageTexture(key);
@@ -346,7 +360,7 @@ export class TextureCache implements ITextureCache {
   // Private helper methods
 
   private getDefaultTokenTexture(): Texture {
-    const cacheKey = 'default-token';
+    const cacheKey = DEFAULT_TOKEN_TEXTURE_KEY;
     
     if (this.textureCache.has(cacheKey)) {
       return this.textureCache.get(cacheKey)!;

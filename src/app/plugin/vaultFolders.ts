@@ -28,3 +28,24 @@ export async function ensureFolder(app: App, path: string): Promise<TFolder> {
   }
   return folder;
 }
+
+/**
+ * Creates `path` and its parents through the adapter, which also reaches hidden
+ * folders the vault API does not index. `known` remembers folders that already
+ * exist, so many files in one folder check it only once.
+ */
+export async function ensureAdapterFolder(app: App, path: string, known: Set<string> = new Set()): Promise<void> {
+  let current = '';
+  for (const segment of path.split('/').filter(Boolean)) {
+    current = current ? `${current}/${segment}` : segment;
+    if (known.has(current)) continue;
+    if (!(await app.vault.adapter.exists(current))) {
+      try {
+        await app.vault.adapter.mkdir(current);
+      } catch (error: unknown) {
+        if (!(error instanceof Error) || !error.message.includes('already exists')) throw error;
+      }
+    }
+    known.add(current);
+  }
+}

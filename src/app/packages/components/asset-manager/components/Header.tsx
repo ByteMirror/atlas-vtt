@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useId } from 'react';
 import {
   Search, X, Plus, ChevronLeft, ChevronRight, FolderPlus, RefreshCw,
   ArrowUp, ArrowDown, PanelLeft,
-  Gamepad2, Map as MapIcon, FolderOpen, FileInput,
+  Map as MapIcon, FolderOpen,
 } from 'lucide-react';
 import { Button } from '../../primitives/button';
 import { LabelTooltip } from '../../primitives/tooltip';
@@ -10,6 +10,7 @@ import type { Tab, SortOption } from '../types';
 import { tabs, getTabDisplayName } from '../types';
 import type { SelectionState } from '../hooks/useSelectionHandlers';
 import { Breadcrumb } from './Breadcrumb';
+import { TokenIcon } from '../../../../react/components/TokenIcon';
 
 export interface HeaderProps {
   search: string;
@@ -18,7 +19,6 @@ export interface HeaderProps {
   onTabChange: (tab: Tab) => void;
   assetCounts: Record<Tab, number>;
   onCreateTokens?: () => void;
-  onImportStatblocks?: () => void;
   onCreateMap?: () => void;
   onCreateCollection?: () => void;
   onCreateFolder: () => void;
@@ -58,7 +58,6 @@ export function Header({
   onTabChange,
   assetCounts,
   onCreateTokens,
-  onImportStatblocks,
   onCreateMap,
   onCreateCollection,
   onCreateFolder,
@@ -88,9 +87,8 @@ export function Header({
   const canGoForward = sel.navigationHistory.canGoForward();
 
   const createOptions: CreateOption[] = [
-    { label: 'Create Token', icon: <Gamepad2 />, onSelect: onCreateTokens },
+    { label: 'Create Token', icon: <TokenIcon />, onSelect: onCreateTokens },
     { label: 'Add Map', icon: <MapIcon />, onSelect: onCreateMap },
-    { label: 'Import from Fantasy Statblocks…', icon: <FileInput />, onSelect: onImportStatblocks },
   ];
 
   const cycleSort = (): void => {

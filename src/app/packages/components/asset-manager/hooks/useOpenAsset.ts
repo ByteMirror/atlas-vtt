@@ -9,7 +9,7 @@ import { useStableCallback } from '../../../../react/hooks/useStableCallback';
 export interface OpenAssetDeps {
   app: App;
   view: AtlasView | null;
-  addToken: ViewAtlasState['addToken'];
+  addTokens: ViewAtlasState['addTokens'];
   setSelection: (ids: string[]) => void;
   assetService: AssetService | null;
   onClose: () => void;
@@ -34,7 +34,7 @@ async function openScene(deps: OpenAssetDeps, assetId: string): Promise<void> {
 export function useOpenAsset(deps: OpenAssetDeps): OpenAsset {
   return useStableCallback(async (asset: AnyAsset, spawnCount: number): Promise<void> => {
     const spawnCtx: SpawnContext = {
-      app: deps.app, view: deps.view, addToken: deps.addToken, setSelection: deps.setSelection, assetService: deps.assetService,
+      app: deps.app, view: deps.view, addTokens: deps.addTokens, setSelection: deps.setSelection, assetService: deps.assetService,
     };
     switch (asset.type) {
       case 'maps':

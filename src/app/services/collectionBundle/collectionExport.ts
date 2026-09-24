@@ -1,57 +1,278 @@
-import { TFile, type App } from 'obsidian';
-import type { AssetService } from '../AssetService';
-import { BUNDLE_FORMAT, BUNDLE_MANIFEST, zipPathFor, type CollectionBundleManifest } from './bundleFormat';
-import { CollectionReferenceCollector } from './collectionReferences';
+import type { App } from 'obsidian';
+import { COLLECTIONS_DIR, type Asset, type AssetService, type CollectionMetadata } from '../AssetService';
+import { BUNDLE_FORMAT, BUNDLE_MANIFEST, zipPathFor, type BundleFile, type CollectionBundleManifest } from './bundleFormat';
+import { rewriteContent } from './bundleContent';
+import { selectContent } from './bundleContents';
+import { reportFileStep, type BundleProgressListener } from './bundleProgress';
+import { coverCandidates, coverFileFor, currentCover, storeCover, type CoverCandidate, type CoverChoice, type CoverFile, type CurrentCover } from './collectionCover';
+import { CollectionReferenceCollector, type MissingReference } from './collectionReferences';
+import { assetFingerprint, fieldFingerprint } from './fingerprints';
+import { sha256 } from './hashing';
+import { COLLECTION_FIELDS, deleteInstallRecord, readInstallRecord, writeInstallRecord, type InstallRecord } from './installRecord';
+import { remapPaths } from './pathRemap';
+import { readVaultBinary, vaultFileSize } from '../../utils/hiddenVaultFiles';
 
-export interface BundleProgress {
-  message: string;
-  /** 0..1 */
-  fraction: number;
-}
-export type BundleProgressListener = (progress: BundleProgress) => void;
+/**
+ * The kinds of content Atlas has today, as the asset manager shows them. Older
+ * vaults may still hold player, character, statblock and note records from
+ * removed features; exports leave them behind.
+ */
+const EXPORTED_TYPES: ReadonlySet<Asset['type']> = new Set<Asset['type']>(['token', 'map', 'scene', 'encounter']);
 
 /** Images and audio are already compressed; deflating them only costs time. */
 const STORED_EXTENSIONS = /\.(png|jpe?g|webp|gif|avif|mp3|ogg|wav|m4a|zip)$/i;
 
+/** What an export would pack, shown before the user decides how to export. */
+export interface ExportPreview {
+  collection: CollectionMetadata;
+  assets: Asset[];
+  files: BundleFile[];
+  missing: MissingReference[];
+  /** Size in bytes of every file, by vault path. */
+  fileSizes: ReadonlyMap<string, number>;
+  /** The collection's cover, when it has one. */
+  cover?: CurrentCover | undefined;
+  /** Maps and scenes whose artwork can become the cover. */
+  coverCandidates: CoverCandidate[];
+  /**
+   * `self`: this vault publishes the collection, so its exports are releases.
+   * `other`: it was installed from someone else's release.
+   * `unknown`: it predates publishing and was never installed from a bundle, so the user says which it is.
+   */
+  publisher: 'self' | 'other' | 'unknown';
+  /** Lowest version a release may carry. */
+  minimumVersion: number;
+  suggestedVersion: number;
+}
+
 /**
- * Packs a collection with every file it depends on into a zip. Files keep
- * their vault paths inside the archive; the manifest lists them with their
- * roles so the importer can place and rewrite them.
+ * - `release`: the publisher's new version, which installed copies update to.
+ * - `share`: a copy of the installed version, with the sharer's changes.
+ * - `fork`: the collection becomes this vault's own under a new identity and name.
+ */
+export type ExportChoice = ExportContentChoice & (
+  | { kind: 'release'; version: number; author?: string | undefined; notes?: string | undefined }
+  | { kind: 'share' }
+  | { kind: 'fork'; name: string; author?: string | undefined; notes?: string | undefined }
+);
+
+interface ExportContentChoice {
+  /** Content keys (see `groupContents`) the user left out. */
+  excluded?: ReadonlySet<string> | undefined;
+  /** Defaults to the collection's current cover. */
+  cover?: CoverChoice | undefined;
+}
+
+export interface ExportedBundle {
+  blob: Blob;
+  /** Records a release or fork in this vault; call once the file has been handed to the user. */
+  commit(): Promise<void>;
+  fileName: string;
+  collectionName: string;
+  version: number;
+  assetCount: number;
+  fileCount: number;
+}
+
+async function publisherOf(app: App, assets: AssetService, collection: CollectionMetadata): Promise<ExportPreview['publisher']> {
+  if (collection.publisherId !== undefined) return collection.publisherId === await assets.getVaultId() ? 'self' : 'other';
+  return (await readInstallRecord(app, collection.uid)) === null ? 'unknown' : 'other';
+}
+
+export async function prepareCollectionExport(app: App, assets: AssetService, collectionId: string): Promise<ExportPreview> {
+  const collection = await assets.getCollection(collectionId);
+  if (!collection) throw new Error(`Collection ${collectionId} not found`);
+  const collectionAssets = (await assets.getAssets(collectionId)).filter((asset) => EXPORTED_TYPES.has(asset.type));
+  const { files, missing } = await new CollectionReferenceCollector(app, assets).collect(collectionAssets);
+  const fileSizes = new Map<string, number>();
+  for (const file of files) fileSizes.set(file.vaultPath, await vaultFileSize(app, file.vaultPath));
+  const publisher = await publisherOf(app, assets, collection);
+  // A collection that was never released starts at its own version; later releases count up.
+  const neverReleased = collection.publisherId !== undefined && collection.releasedAt === undefined;
+  return {
+    collection: { ...collection },
+    assets: collectionAssets,
+    files,
+    missing,
+    fileSizes,
+    cover: currentCover(app, collection),
+    coverCandidates: await coverCandidates(app, collectionAssets),
+    publisher,
+    minimumVersion: collection.version,
+    suggestedVersion: neverReleased ? collection.version : collection.version + 1,
+  };
+}
+
+function bundleFileName(name: string, version: number): string {
+  const safeName = name.replace(/[\\/:*?"<>|]+/g, '-').trim() || 'Collection';
+  return `${safeName} v${version}.atlas-collection.zip`;
+}
+
+/** The collection record the bundle carries for `choice`. */
+async function exportedCollection(assets: AssetService, preview: ExportPreview, choice: ExportChoice, exportedAt: number): Promise<CollectionMetadata> {
+  const base: CollectionMetadata = { ...preview.collection, releasedAt: exportedAt };
+  if (choice.kind === 'share') return base;
+  const release: CollectionMetadata = { ...base, publisherId: await assets.getVaultId() };
+  const author = choice.author?.trim();
+  if (author) release.author = author;
+  else delete release.author;
+  return choice.kind === 'release'
+    ? { ...release, version: choice.version }
+    : { ...release, uid: crypto.randomUUID(), name: choice.name.trim(), version: 1 };
+}
+
+/**
+ * Packs the previewed collection with every file it depends on into a zip.
+ * Files keep their vault paths inside the archive; the manifest lists them
+ * with their roles, owners and SHA-256, so the importer can place, verify and
+ * compare them. Releases and forks are recorded as this vault's install of
+ * that version, so re-importing an older export of it is recognised.
  */
 export async function exportCollectionBundle(
   app: App,
   assets: AssetService,
-  collectionId: string,
+  preview: ExportPreview,
+  choice: ExportChoice,
   onProgress: BundleProgressListener = () => undefined,
-): Promise<Blob> {
-  const collection = await assets.getCollection(collectionId);
-  if (!collection) throw new Error(`Collection ${collectionId} not found`);
+): Promise<ExportedBundle> {
+  if (choice.kind === 'release' && preview.publisher === 'other') {
+    throw new Error('Only the collection\'s publisher can release new versions.');
+  }
+  if (choice.kind === 'release' && (!Number.isInteger(choice.version) || choice.version < preview.minimumVersion)) {
+    throw new Error(`The version must be a whole number of at least ${preview.minimumVersion}.`);
+  }
+  if (choice.kind === 'fork' && await assets.isCollectionNameTaken(choice.name, preview.collection.id)) {
+    throw new Error(`A collection named "${choice.name.trim()}" already exists.`);
+  }
 
-  onProgress({ message: 'Collecting files…', fraction: 0 });
-  const collectionAssets = await assets.getAssets(collectionId);
-  const files = await new CollectionReferenceCollector(app, assets).collect(collectionAssets);
-
+  const exportedAt = Date.now();
+  const selected = selectContent(preview.assets, preview.files, choice.excluded ?? new Set());
+  const cover = await coverFileFor(app, preview.collection, choice.cover ?? { kind: 'current' });
+  const packedPaths = [...selected.files.map((file) => file.vaultPath), ...(cover ? [cover.path] : [])];
+  const origin = choice.kind === 'share'
+    ? await originNames(app, preview.collection, packedPaths)
+    : { collectionId: preview.collection.id, name: preview.collection.name, names: new Map<string, string>() };
+  const named = (value: string): string => origin.names.get(value) ?? value;
+  const exported = await exportedCollection(assets, preview, choice, exportedAt);
+  const collection: CollectionMetadata = { ...exported, id: origin.collectionId, name: choice.kind === 'share' ? origin.name : exported.name };
+  if (cover) collection.coverPath = named(cover.path);
+  else delete collection.coverPath;
   const { default: JSZip } = await import('jszip');
   const zip = new JSZip();
+  const files: BundleFile[] = [];
+  for (const [index, file] of selected.files.entries()) {
+    reportFileStep(onProgress, 'Adding', index, selected.files.length, 0, 0.6);
+    const content = await readVaultBinary(app, file.vaultPath);
+    if (!content) continue;
+    const data = rewriteContent(file, content, origin.names);
+    const bundlePath = named(file.vaultPath);
+    files.push({
+      ...file,
+      vaultPath: bundlePath,
+      sha256: await sha256(data),
+      ...(file.owners && { owners: file.owners.map(named) }),
+      ...(file.statblockImage && { statblockImage: { ...file.statblockImage, path: named(file.statblockImage.path) } }),
+    });
+    zip.file(zipPathFor(bundlePath), data, { compression: STORED_EXTENSIONS.test(bundlePath) ? 'STORE' : 'DEFLATE' });
+  }
+  if (cover && collection.coverPath) {
+    files.push({ vaultPath: collection.coverPath, role: 'cover', sha256: await sha256(cover.data) });
+    zip.file(zipPathFor(collection.coverPath), cover.data, { compression: 'STORE' });
+  }
+  const notes = choice.kind === 'share' ? undefined : choice.notes?.trim() || undefined;
   const manifest: CollectionBundleManifest = {
     format: BUNDLE_FORMAT,
-    exportedAt: Date.now(),
+    exportedAt,
     collection,
-    assets: collectionAssets,
+    release: { kind: choice.kind === 'share' ? 'share' : 'release', ...(notes ? { notes } : {}) },
+    assets: selected.assets.map((asset) => remapPaths(asset, origin.names)),
     files,
   };
   zip.file(BUNDLE_MANIFEST, JSON.stringify(manifest, null, 2));
 
-  for (const [index, file] of files.entries()) {
-    onProgress({ message: `Adding ${index + 1} of ${files.length} files…`, fraction: (index / files.length) * 0.6 });
-    const vaultFile = app.vault.getAbstractFileByPath(file.vaultPath);
-    if (!(vaultFile instanceof TFile)) continue;
-    zip.file(zipPathFor(file.vaultPath), await app.vault.readBinary(vaultFile), {
-      compression: STORED_EXTENSIONS.test(file.vaultPath) ? 'STORE' : 'DEFLATE',
-    });
-  }
-
-  return zip.generateAsync({ type: 'blob', streamFiles: true }, ({ percent }) => {
+  const blob = await zip.generateAsync({ type: 'blob', streamFiles: true }, ({ percent }) => {
     onProgress({ message: 'Compressing…', fraction: 0.6 + (percent / 100) * 0.4 });
   });
+  return {
+    blob,
+    commit: () => (choice.kind === 'share' ? Promise.resolve() : recordRelease(app, assets, preview, manifest, cover)),
+    fileName: bundleFileName(collection.name, collection.version),
+    collectionName: collection.name,
+    version: collection.version,
+    assetCount: selected.assets.length,
+    fileCount: files.length,
+  };
+}
+
+/**
+ * A shared copy names its files and assets as the bundles it was installed
+ * from did, so every vault that has the collection compares the same items.
+ * Files the sharer added move from their collection folder to the original's.
+ */
+async function originNames(app: App, collection: CollectionMetadata, packedPaths: readonly string[]): Promise<{ collectionId: string; name: string; names: Map<string, string> }> {
+  const record = await readInstallRecord(app, collection.uid);
+  const collectionId = record?.sourceCollectionId ?? collection.id;
+  // A name the vault had to give the copy (because another collection used the original) is not a rename by the user.
+  const keptOwnName = record?.sourceName !== undefined && record.fields.name?.installed === await fieldFingerprint(collection, 'name');
+  const name = keptOwnName ? record.sourceName : collection.name;
+  const names = new Map<string, string>();
+  for (const [bundlePath, file] of Object.entries(record?.files ?? {})) {
+    if (file.target !== bundlePath) names.set(file.target, bundlePath);
+  }
+  for (const [bundleId, asset] of Object.entries(record?.assets ?? {})) {
+    if (asset.localId !== bundleId) names.set(asset.localId, bundleId);
+  }
+  const localFolder = `${COLLECTIONS_DIR}/${collection.id}/`;
+  if (collectionId !== collection.id) {
+    for (const vaultPath of packedPaths) {
+      if (!names.has(vaultPath) && vaultPath.startsWith(localFolder)) {
+        names.set(vaultPath, `${COLLECTIONS_DIR}/${collectionId}/${vaultPath.slice(localFolder.length)}`);
+      }
+    }
+  }
+  return { collectionId, name, names };
+}
+
+/**
+ * The publisher's vault holds exactly what it exported, so every fingerprint is
+ * both source and installed state. A new cover is stored first, so it is too. Files outside Atlas's folder are recorded
+ * too, so a shared copy coming back is matched to them instead of copied; an
+ * import only ever removes files inside the collection's own folder.
+ */
+async function recordRelease(app: App, assets: AssetService, preview: ExportPreview, manifest: CollectionBundleManifest, cover: CoverFile | null): Promise<void> {
+  const { collection } = manifest;
+  const collectionId = preview.collection.id;
+  if (cover) await storeCover(app, cover);
+  if (collection.uid !== preview.collection.uid) {
+    await assets.forkCollection(collectionId, collection.name, collection.uid);
+    await deleteInstallRecord(app, preview.collection.uid);
+  }
+  await assets.recordCollectionRelease(collectionId, {
+    version: collection.version, releasedAt: manifest.exportedAt, author: collection.author, coverPath: collection.coverPath,
+  });
+
+  const record: InstallRecord = {
+    uid: collection.uid,
+    collectionId,
+    sourceCollectionId: collectionId,
+    sourceName: collection.name,
+    version: collection.version,
+    releasedAt: manifest.exportedAt,
+    installedAt: manifest.exportedAt,
+    files: {},
+    assets: {},
+    fields: {},
+  };
+  for (const file of manifest.files) {
+    if (file.sha256) record.files[file.vaultPath] = { target: file.vaultPath, source: file.sha256, installed: file.sha256 };
+  }
+  for (const asset of manifest.assets) {
+    const fingerprint = await assetFingerprint(asset);
+    record.assets[asset.id] = { localId: asset.id, source: fingerprint, installed: fingerprint };
+  }
+  for (const field of COLLECTION_FIELDS) {
+    const fingerprint = await fieldFingerprint(collection, field);
+    record.fields[field] = { source: fingerprint, installed: fingerprint };
+  }
+  await writeInstallRecord(app, record);
 }

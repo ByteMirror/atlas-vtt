@@ -34,6 +34,11 @@
     font-variant-numeric: tabular-nums;
   }
 
+  &__actions {
+    @include atlas-flex-row($gap: $spacing-s);
+    justify-content: center;
+  }
+
   &__bar {
     width: 100%;
     height: 6px;
@@ -47,6 +52,31 @@
     border-radius: inherit;
     background: var(--interactive-accent);
     transition: width $transition-fast $transition-ease;
+  }
+}
+
+// Busy work that finishes quickly (reading a collection before its dialog opens)
+// never shows the card: it only fades in once the work takes a noticeable moment.
+.atlas-progress-modal-overlay[aria-busy='true'] .atlas-progress-modal {
+  animation: atlas-progress-modal-appear $transition-normal $transition-ease-out 250ms both;
+}
+
+@keyframes atlas-progress-modal-appear {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .atlas-progress-modal-overlay[aria-busy='true'] .atlas-progress-modal {
+    animation-name: atlas-progress-modal-fade;
+  }
+}
+
+@keyframes atlas-progress-modal-fade {
+  from {
+    opacity: 0;
   }
 }
 

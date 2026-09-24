@@ -28,16 +28,18 @@ function encounterPreviewStyle(index: number, total: number): React.CSSPropertie
 }
 
 function Artwork({ asset }: { asset: AnyAsset }): React.JSX.Element {
-  if (asset.type === 'encounters' && asset.tokenPreviewUrls.length > 0) {
-    const overflow = Math.max(0, asset.tokens.length - asset.tokenPreviewUrls.length);
+  if (asset.type === 'encounters' && asset.tokenPreviews.length > 0) {
+    const overflow = Math.max(0, asset.tokens.length - asset.tokenPreviews.length);
     return (
       <div className="atlas-encounter-preview">
-        {asset.tokenPreviewUrls.map((url, index) => (
+        {asset.tokenPreviews.map((preview, index) => (
           <TokenPortrait
             key={`${asset.id}-encounter-preview-${index}`}
-            style={encounterPreviewStyle(index, asset.tokenPreviewUrls.length)}
-            src={url}
+            style={encounterPreviewStyle(index, asset.tokenPreviews.length)}
+            src={preview.url}
             alt={`${asset.name} token ${index + 1}`}
+            showRing={preview.showRing}
+            ringColor={preview.ringColor}
             lazy
           />
         ))}
@@ -80,6 +82,7 @@ export const AssetCard = memo(function AssetCard({
         <div
           className={`atlas-asset-card ${isSelected ? 'atlas-selected' : ''} ${isDragging ? 'atlas-dragging' : ''}`}
           data-type={asset.type}
+          data-asset-id={asset.id}
           onClick={(event) => onSelect(asset.id, event)}
           onDoubleClick={handleDoubleClick}
           onContextMenu={(event) => { event.preventDefault(); event.stopPropagation(); onContextMenu(asset, event); }}
@@ -118,7 +121,7 @@ export const AssetCard = memo(function AssetCard({
                   <button
                     type="button"
                     className="atlas-spawn-btn"
-                    onClick={(event) => { event.stopPropagation(); onSpawnCountChange(asset.id, -1); }}
+                    onClick={(event) => { event.stopPropagation(); onSpawnCountChange(asset.id, spawnCount - 1); }}
                   >−</button>
                 </LabelTooltip>
                 <span className="atlas-spawn-count">×{spawnCount}</span>
@@ -126,7 +129,7 @@ export const AssetCard = memo(function AssetCard({
                   <button
                     type="button"
                     className="atlas-spawn-btn"
-                    onClick={(event) => { event.stopPropagation(); onSpawnCountChange(asset.id, 1); }}
+                    onClick={(event) => { event.stopPropagation(); onSpawnCountChange(asset.id, spawnCount + 1); }}
                   >+</button>
                 </LabelTooltip>
                 <LabelTooltip label={`Spawn ${spawnCount} tokens`}>

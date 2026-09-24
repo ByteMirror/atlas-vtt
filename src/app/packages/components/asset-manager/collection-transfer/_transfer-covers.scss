@@ -1,0 +1,164 @@
+@use '../../../../../../styles/tokens' as *;
+@use '../../../../../../styles/mixins' as *;
+
+// Cover rail: large 16:9 cards stacked in the dialog's side column.
+
+.atlas-transfer-covers {
+  @include atlas-flex-col($gap: $spacing-l);
+  flex: 1;
+  min-height: 0;
+
+  &__header {
+    @include atlas-flex-col($gap: $spacing-xs);
+    // Leaves the top-right corner to the dialog's close button.
+    padding-right: $button-height-l;
+  }
+
+  &__hint {
+    color: var(--text-faint);
+    font-size: $font-ui-smaller;
+  }
+
+  &__list {
+    @include atlas-flex-col($gap: $spacing-m);
+    flex: 1;
+    min-height: 0;
+    // Room for the selection ring, which sits outside each card.
+    margin: (-$spacing-xs);
+    padding: $spacing-xs;
+    overflow-y: auto;
+    @include atlas-scrollbar-while-scrolling;
+  }
+}
+
+.atlas-transfer-cover-card {
+  position: relative;
+  flex-shrink: 0;
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  padding: 0;
+  overflow: hidden;
+  border: none;
+  border-radius: $radius-l;
+  background: var(--background-secondary);
+  box-shadow: inset 0 0 0 $border-width-s var(--background-modifier-border);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: transform $transition-press $transition-ease-out, box-shadow $transition-fast $transition-ease;
+
+  &:active {
+    transform: scale(0.98);
+  }
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 $border-width-l var(--background-modifier-border-focus);
+  }
+
+  &__art {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+
+    img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transition: transform 400ms $transition-ease-out;
+    }
+
+    svg {
+      width: $icon-l;
+      height: $icon-l;
+    }
+  }
+
+  // Name over a scrim along the bottom edge.
+  &__label {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding: $spacing-l $spacing-m $spacing-s;
+    overflow: hidden;
+    background: linear-gradient(to top, rgb(0 0 0 / 0.72), transparent);
+    color: #fff;
+    font-size: $font-ui-smaller;
+    font-weight: $font-weight-medium;
+    text-align: left;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__badge {
+    position: absolute;
+    top: $spacing-s;
+    right: $spacing-s;
+    display: grid;
+    place-items: center;
+    width: $icon-m;
+    height: $icon-m;
+    border-radius: $radius-full;
+    background: var(--interactive-accent);
+    color: var(--text-on-accent);
+    box-shadow: $shadow-md;
+
+    svg {
+      width: $icon-xs;
+      height: $icon-xs;
+      stroke-width: 3;
+    }
+  }
+
+  &[aria-checked='true'] {
+    box-shadow: 0 0 0 $border-width-l var(--interactive-accent);
+  }
+
+  // Upload and "No cover": icon over a quiet label, no art.
+  &[data-variant='action'] {
+    aspect-ratio: 16 / 7;
+    background: transparent;
+    box-shadow: inset 0 0 0 $border-width-m var(--background-modifier-border);
+
+    .atlas-transfer-cover-card__art {
+      bottom: $spacing-l;
+    }
+
+    .atlas-transfer-cover-card__label {
+      background: none;
+      color: var(--text-muted);
+      text-align: center;
+    }
+
+    &:not([aria-checked='true']) {
+      box-shadow: inset 0 0 0 $border-width-m var(--background-modifier-border);
+      outline: $border-width-m dashed var(--background-modifier-border-hover);
+      outline-offset: -$border-width-m;
+    }
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    &:hover {
+      background: var(--background-secondary);
+      color: var(--text-normal);
+
+      img {
+        transform: scale(1.04);
+      }
+    }
+
+    &[data-variant='action']:hover {
+      background: var(--background-modifier-hover);
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .atlas-transfer-cover-card,
+  .atlas-transfer-cover-card__art img {
+    transition: none;
+  }
+}

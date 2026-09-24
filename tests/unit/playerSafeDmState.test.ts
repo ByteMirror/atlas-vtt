@@ -21,6 +21,26 @@ describe('hiddenTokenLayers', () => {
   });
 });
 
+describe('captureWithLayerVisibility with a player camera', () => {
+  it('renders from the frozen camera and restores the DM camera afterwards', () => {
+    const viewport = Object.assign(new Container(), { screenWidth: 800, screenHeight: 600 });
+    viewport.position.set(-100, -50);
+    viewport.scale.set(2, 2);
+    const renders: Array<{ x: number; y: number; scale: number }> = [];
+    const render = (): void => { renders.push({ x: viewport.x, y: viewport.y, scale: viewport.scale.x }); };
+    const camera = { centerX: 500, centerY: 400, scale: 0.5 };
+
+    captureWithLayerVisibility([], render, () => {
+      expect(viewport.scale.x).toBe(0.5);
+      expect(viewport.x).toBe(400 - 500 * 0.5);
+      expect(viewport.y).toBe(300 - 400 * 0.5);
+    }, { target: viewport, camera });
+
+    expect(renders).toEqual([{ x: 150, y: 100, scale: 0.5 }, { x: -100, y: -50, scale: 2 }]);
+    expect(viewport.scale.y).toBe(2);
+  });
+});
+
 describe('SelectionManager.getPlayerViewLayers', () => {
   it('hides the selection overlay and marquee for the player frame', () => {
     const viewport = new Container();

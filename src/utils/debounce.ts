@@ -21,8 +21,11 @@ export function debounce<A extends unknown[]>(
 
   const invoke = (): void => {
     timeout = undefined;
-    if (lastArgs) {
-      func(...lastArgs);
+    const args = lastArgs;
+    // Drop the arguments once used: a debounced save would otherwise keep a whole map snapshot alive
+    lastArgs = undefined;
+    if (args) {
+      func(...args);
     }
   };
 

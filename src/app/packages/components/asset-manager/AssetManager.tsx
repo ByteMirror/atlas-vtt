@@ -42,7 +42,6 @@ const containerVariants = {
 };
 
 export default function AssetManager({ isOpen, onClose, initialTab }: AssetManagerProps): React.JSX.Element | null {
-  const [tokenCreatorSource, setTokenCreatorSource] = useState<'images' | 'statblocks'>('images');
   const [search, setSearch] = useState('');
   const [activeTab, setActiveTab] = useState<Tab>('tokens');
   const [selectedCollection, setSelectedCollection] = useState<string | null>('default');
@@ -179,8 +178,7 @@ export default function AssetManager({ isOpen, onClose, initialTab }: AssetManag
               activeTab={activeTab}
               onTabChange={setActiveTab}
               assetCounts={data.assetCounts}
-              onCreateTokens={() => { setTokenCreatorSource('images'); crud.setIsTokenCreatorOpen(true); }}
-              onImportStatblocks={() => { setTokenCreatorSource('statblocks'); crud.setIsTokenCreatorOpen(true); }}
+              onCreateTokens={() => crud.setIsTokenCreatorOpen(true)}
               onCreateMap={crud.handleCreateMap}
               onCreateCollection={crud.handleCreateCollection}
               onCreateFolder={crud.handleCreateFolder}
@@ -243,7 +241,6 @@ export default function AssetManager({ isOpen, onClose, initialTab }: AssetManag
       )}
 
       <ModalLayer
-        tokenCreatorSource={tokenCreatorSource}
         isOpen={isOpen}
         activeTab={activeTab}
         selectedCollection={selectedCollection}

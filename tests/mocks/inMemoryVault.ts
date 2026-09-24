@@ -165,6 +165,8 @@ export function createInMemoryApp(seed: InMemoryVaultSeed = {}): InMemoryApp {
   };
 
   app.workspace = {
+    layoutReady: true,
+    onLayoutReady: vi.fn((callback: () => void) => callback()),
     getLeavesOfType: vi.fn(() => []),
     on: vi.fn(() => ({})),
     offref: vi.fn(),

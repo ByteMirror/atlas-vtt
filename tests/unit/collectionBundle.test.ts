@@ -896,3 +896,81 @@ describe('sharing and forking', () => {
     expect(review).toMatchObject({ relation: 'new', collectionName: 'Fan edition' });
   });
 });
+
+describe('refreshing the index during an import', () => {
+  const WOLF_IMAGE = 'atlas-vtt/collections/source/tokens/wolf.webp';
+  const tokenNames = async ({ assets }: Vault): Promise<string[]> => (await assets.getAssets('source', 'token')).map((asset) => asset.name).sort();
+
+  /** Asks for a refresh with every file the import writes, the way the asset manager or a file event would. */
+  function refreshOnEveryWrite({ vault, assets }: Vault): Promise<void>[] {
+    const refreshes: Promise<void>[] = [];
+    const createBinary = vault.app.vault.createBinary.bind(vault.app.vault);
+    vault.app.vault.createBinary = vi.fn(async (path: string, data: ArrayBuffer) => {
+      refreshes.push(assets.refreshMetadata());
+      return createBinary(path, data);
+    });
+    return refreshes;
+  }
+
+  /** The index a fresh start of Obsidian would load from disk. */
+  async function reloadedTokenNames({ vault }: Vault): Promise<string[]> {
+    return tokenNames({ vault, assets: service(vault) });
+  }
+
+  async function creatorWithCollectionToken(): Promise<Vault> {
+    const creator = await creatorVault();
+    await creator.vault.app.vault.create(WOLF_IMAGE, 'WOLF');
+    await creator.assets.addTokenAsset({ name: 'Wolf', imagePath: WOLF_IMAGE, collection: 'source', tags: [] });
+    return creator;
+  }
+
+  it('waits for a new collection to be written, so it gets neither extra nor missing tokens', async () => {
+    const fan = await emptyVault();
+    const refreshes = refreshOnEveryWrite(fan);
+    await importInto(fan, await exportFrom(await creatorWithCollectionToken()));
+    await Promise.all(refreshes);
+
+    expect(refreshes.length).toBeGreaterThan(0);
+    expect(await tokenNames(fan)).toEqual(['Goblin', 'Wolf']);
+    expect(await reloadedTokenNames(fan)).toEqual(['Goblin', 'Wolf']);
+  });
+
+  it('waits for an update to be written', async () => {
+    const creator = await creatorWithCollectionToken();
+    const fan = await emptyVault();
+    await importInto(fan, await exportFrom(creator));
+    await creator.vault.app.vault.create('atlas-vtt/collections/source/tokens/orc.webp', 'ORC');
+    await creator.assets.addTokenAsset({ name: 'Orc', imagePath: 'atlas-vtt/collections/source/tokens/orc.webp', collection: 'source', tags: [] });
+
+    const refreshes = refreshOnEveryWrite(fan);
+    await importInto(fan, await exportFrom(creator, { kind: 'release', version: 2 }));
+    await Promise.all(refreshes);
+
+    expect(await tokenNames(fan)).toEqual(['Goblin', 'Orc', 'Wolf']);
+    expect(await reloadedTokenNames(fan)).toEqual(['Goblin', 'Orc', 'Wolf']);
+  });
+
+  it('leaves the index and the collection\'s files as they were when saving an update fails', async () => {
+    const creator = await creatorVault();
+    const fan = await emptyVault();
+    await importInto(fan, await exportFrom(creator));
+    creator.vault.files.set(MAP_PATH, mapFile(12));
+    const [token] = await creator.assets.getAssets('source', 'token');
+    await creator.assets.updateAsset(token!.id, { name: 'Goblin Boss' });
+    const { apply } = await reviewImport(fan, await exportFrom(creator, { kind: 'release', version: 2 }));
+
+    const filesBefore = new Map(fan.vault.files);
+    const write = fan.vault.app.vault.adapter.write.bind(fan.vault.app.vault.adapter);
+    fan.vault.app.vault.adapter.write = vi.fn(async (path: string, content: string) => {
+      if (path.endsWith('assets-metadata.json')) throw new Error('Disk full');
+      return write(path, content);
+    });
+    await expect(apply()).rejects.toThrow('Disk full');
+
+    expect(await tokenNames(fan)).toEqual(['Goblin']);
+    expect((await fan.assets.getCollection('source'))?.version).toBe(1);
+    const filesAfter = [...fan.vault.files].filter(([path]) => !path.includes('/backups/'));
+    expect(new Map(filesAfter)).toEqual(filesBefore);
+    expect(await reloadedTokenNames(fan)).toEqual(['Goblin']);
+  });
+});

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
-import { afterEach, beforeEach, expect, it } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { AssetService } from '../../src/app/services/AssetService';
 import { AtlasUIContext } from '../../src/app/react/root/AtlasUIContext';
 import { useAssetData } from '../../src/app/packages/components/asset-manager/hooks/useAssetData';
@@ -72,4 +72,39 @@ it('shows a renamed non-default collection and deletes it by id', async () => {
   await waitFor(() => expect(result.current.selected).toBe('default'));
   await waitFor(() => expect(shownTokens(result)).toEqual(['Goblin']));
   expect(result.current.data.collections.map((c) => c.id)).toEqual(['default']);
+});
+
+it('reads the index from disk when it opens, not on every collection switch', async () => {
+  const { result } = mountManager();
+  await waitFor(() => expect(shownTokens(result)).toEqual(['Goblin']));
+  const reads = vi.mocked(app.vault.adapter.read).mock.calls.length;
+
+  await act(async () => { result.current.setSelected('winter-camp'); });
+  await waitFor(() => expect(shownTokens(result)).toEqual(['Wolf']));
+
+  expect(vi.mocked(app.vault.adapter.read).mock.calls.length).toBe(reads);
+});
+
+it('shows the newly selected collection when a refresh was announced before the switch rendered', async () => {
+  const handlers = new Set<() => unknown>();
+  app.workspace.on = ((_name: string, callback: () => unknown) => { handlers.add(callback); return callback; }) as never;
+  app.workspace.offref = ((ref: () => unknown) => { handlers.delete(ref); }) as never;
+  const { result } = mountManager();
+  await waitFor(() => expect(shownTokens(result)).toEqual(['Goblin']));
+
+  // Reading the index from disk takes a moment in Obsidian.
+  const read = app.vault.adapter.read;
+  app.vault.adapter.read = vi.fn(async (path: string): Promise<string> => {
+    await new Promise((resolve) => window.setTimeout(resolve, 10));
+    return read(path);
+  });
+
+  // An import selects its collection and announces the change before React re-renders.
+  await act(async () => {
+    result.current.setSelected('winter-camp');
+    handlers.forEach((handler) => { void handler(); });
+  });
+  await act(() => new Promise((resolve) => window.setTimeout(resolve, 50)));
+
+  expect(shownTokens(result)).toEqual(['Wolf']);
 });

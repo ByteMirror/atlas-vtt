@@ -49,3 +49,5 @@
 - "Delete selected" in Manage Tags & Collections deletes the selected tags and collections instead of only clearing the selection.
 - Renaming a tag in Manage Tags & Collections is saved; before, the new name was lost on the next reload.
 - Deleting from the right-click menu in Manage Tags & Collections deletes the row you clicked, not an earlier selection, and switching between Tags and Collections clears the selection.
+- Importing or updating a collection while the asset manager refreshes no longer adds duplicate tokens to it or drops tokens from it. Refreshes now wait until the import is finished.
+- Atlas no longer removes tokens from the asset manager at startup because Obsidian had not finished listing the vault's files; a token is only removed when its image is really gone.

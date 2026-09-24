@@ -6,6 +6,7 @@ import type { TokenStateSnapshot } from '../types';
 import type { CellCoord, EncounterFormation } from '../encounters/encounterFormation';
 import { getDataFilePath } from '../utils/dataFileMigration';
 import { mapStrings } from '../utils/mapStrings';
+import { SerialLock } from '../utils/serialLock';
 import { collectionNameKey, freeCollectionId, uniqueCollectionName } from './collectionNaming';
 import type { CollectionSettings } from '../types/collectionSettingsTypes';
 import {
@@ -203,6 +204,7 @@ export const ATLAS_VTT_DIR = 'atlas-vtt';
 export const COLLECTIONS_DIR = `${ATLAS_VTT_DIR}/collections`;
 export const GLOBAL_ASSETS_DIR = `${ATLAS_VTT_DIR}/assets`;
 const ASSETS_METADATA_PATH = getDataFilePath(`${ATLAS_VTT_DIR}/assets-metadata.json`);
+const LEGACY_ASSETS_METADATA_PATH = `${ATLAS_VTT_DIR}/assets-metadata.json`;
 
 /** Tags are keyed by their lower-case, hyphenated name. */
 const tagIdOf = (name: string): string => name.trim().toLowerCase().replace(/\s+/g, '-');
@@ -219,6 +221,11 @@ export class AssetService {
   private app: App;
   private metadata: AssetMetadata | null = null;
   private initialization: Promise<void> | null = null;
+  /** Held by work that must not interleave with re-reading or checking the index, such as an import. */
+  private readonly indexLock = new SerialLock();
+  /** Metadata writes, in the order they were requested. */
+  private readonly writes = new SerialLock();
+  private saveCount = 0;
 
   private constructor(app: App) {
     this.app = app;
@@ -249,6 +256,32 @@ export class AssetService {
     await this.ensureDirectory(COLLECTIONS_DIR);
     await this.ensureDefaultCollection();
     await this.loadMetadata();
+    await this.reconcileOnceVaultIsListed();
+  }
+
+  /**
+   * Checks the index against the vault's files once Obsidian has listed them all;
+   * before the layout is ready `getFiles()` can miss files that exist. Resolves
+   * after the check when the layout is already ready, at once otherwise.
+   */
+  private reconcileOnceVaultIsListed(): Promise<void> {
+    const reconciled = new Promise<void>((resolve) => {
+      this.app.workspace.onLayoutReady(() => {
+        resolve(this.indexLock.run(() => this.reconcileMetadataWithVault()).catch((error: unknown) => {
+          console.error('[AssetService] Checking the index against the vault failed:', error);
+        }));
+      });
+    });
+    return this.app.workspace.layoutReady ? reconciled : Promise.resolve();
+  }
+
+  /**
+   * Runs `task` while no refresh or vault check reads or rewrites the index. An
+   * import holds it from its first file write to its commit, so nothing sees or
+   * saves the half-written collection. `task` must not call `refreshMetadata`.
+   */
+  runExclusive<T>(task: () => Promise<T>): Promise<T> {
+    return this.indexLock.run(task);
   }
 
   /**
@@ -326,16 +359,15 @@ export class AssetService {
     }
   }
 
+  private async readMetadataFile(): Promise<string | null> {
+    if (await this.app.vault.adapter.exists(ASSETS_METADATA_PATH)) return this.app.vault.adapter.read(ASSETS_METADATA_PATH);
+    if (await this.app.vault.adapter.exists(LEGACY_ASSETS_METADATA_PATH)) return this.app.vault.adapter.read(LEGACY_ASSETS_METADATA_PATH);
+    return null;
+  }
+
   private async loadMetadata(): Promise<void> {
     try {
-      const oldPath = 'atlas-vtt/assets-metadata.json';
-      let content: string | null = null;
-
-      if (await this.app.vault.adapter.exists(ASSETS_METADATA_PATH)) {
-        content = await this.app.vault.adapter.read(ASSETS_METADATA_PATH);
-      } else if (await this.app.vault.adapter.exists(oldPath)) {
-        content = await this.app.vault.adapter.read(oldPath);
-      }
+      const content = await this.readMetadataFile();
 
       if (!content) {
         // Create default metadata
@@ -363,8 +395,35 @@ export class AssetService {
 
     // Ensure all collections have uid, version, and settings fields
     await this.migrateCollectionFields();
-    // Recover from partially missing metadata by reconciling known files.
-    await this.reconcileMetadataWithVault();
+  }
+
+  /**
+   * Replaces the in-memory index with the one on disk. Waits for pending saves
+   * and reads again when a save lands meanwhile, so it never goes back to an
+   * older index; an unreadable file leaves the index in memory as it is.
+   */
+  private async rereadMetadata(): Promise<void> {
+    for (;;) {
+      await this.writes.idle();
+      const savesBefore = this.saveCount;
+      let parsed: unknown;
+      try {
+        const content = await this.readMetadataFile();
+        parsed = content ? JSON.parse(content) : null;
+      } catch (error) {
+        console.error('[AssetService] Could not re-read the index; keeping the loaded one:', error);
+        return;
+      }
+      if (this.saveCount !== savesBefore) continue;
+      if (!isAssetMetadata(parsed)) {
+        console.error('[AssetService] The index on disk is not valid; keeping the loaded one.');
+        return;
+      }
+      this.metadata = parsed;
+      await this.migrateTagsToCollections();
+      await this.migrateCollectionFields();
+      return;
+    }
   }
 
   private async createDefaultMetadata(): Promise<AssetMetadata> {
@@ -746,7 +805,8 @@ export class AssetService {
       const isRecoveredId = id.startsWith('token-recovered-');
       const isAllowedRecoveredGlobalToken = !!imagePath && encounterOrPlayerTokenRefs.has(imagePath);
 
-      if (!imagePath || !vaultFilePaths.has(imagePath)) {
+      // The file list can lag behind the disk, so a token is dropped only when its image is really gone.
+      if (!imagePath || (!vaultFilePaths.has(imagePath) && !(await this.app.vault.adapter.exists(imagePath)))) {
         delete this.metadata.assets[id];
         needsSave = true;
         continue;
@@ -858,11 +918,16 @@ export class AssetService {
     await this.saveMetadata();
   }
 
-  private async saveMetadata(): Promise<void> {
-    if (!this.metadata) return;
-    
+  /** Saves the index as it is now; saves reach the disk in the order they were made. */
+  private saveMetadata(): Promise<void> {
+    if (!this.metadata) return Promise.resolve();
     const content = JSON.stringify(this.metadata, null, 2);
-    const oldPath = 'atlas-vtt/assets-metadata.json';
+    this.saveCount++;
+    return this.writes.run(() => this.writeMetadataFile(content));
+  }
+
+  private async writeMetadataFile(content: string): Promise<void> {
+    const oldPath = LEGACY_ASSETS_METADATA_PATH;
     const hasLegacyPath = await this.app.vault.adapter.exists(oldPath);
     const hasHiddenPath = await this.app.vault.adapter.exists(ASSETS_METADATA_PATH);
     const saveTargets = new Set<string>();
@@ -1579,8 +1644,13 @@ export class AssetService {
     return changed;
   }
 
+  /** Re-reads the index from disk, after any import in progress has finished. */
   async refreshMetadata(): Promise<void> {
-    await this.loadMetadata();
+    if (!this.metadata) {
+      await this.ensureLoaded();
+      return;
+    }
+    await this.indexLock.run(() => this.rereadMetadata());
   }
 
   /**

@@ -586,13 +586,7 @@ export class TokenRenderer {
     }
 
     // Update instance badge position/size for ring size changes
-    const token = this.store.getState().objects.tokens[tokenId];
-    if (token) {
-      const allTokens = this.store.getState().objects.tokens;
-      const sameCount = Object.values(allTokens).filter(t => t.imagePath === token.imagePath).length;
-      const showBadge = sameCount >= 2 && (this.store.getState().tokenSettings?.showInstanceBadges ?? true);
-      updateInstanceBadge(tokenGroup, token.instanceNumber ?? 1, sizeWithMultiplier, showBadge);
-    }
+    if (current) this.drawInstanceBadge(current, tokenGroup, this.countTokensWithImage(current.imagePath), sizeWithMultiplier);
   }
 
   /**
@@ -614,19 +608,24 @@ export class TokenRenderer {
 
   /** Draws the badge of a single token, e.g. one whose sprite finished loading after the last sync. */
   private refreshInstanceBadge(tokenId: string): void {
-    const tokens = this.store.getState().objects.tokens;
-    const token = tokens[tokenId];
+    const token = this.store.getState().objects.tokens[tokenId];
     const tokenGroup = this.tokenSprites[tokenId];
-    if (!token || !tokenGroup) return;
-
-    const sameImageCount = Object.values(tokens).filter((other) => other.imagePath === token.imagePath).length;
-    this.drawInstanceBadge(token, tokenGroup, sameImageCount);
+    if (token && tokenGroup) this.drawInstanceBadge(token, tokenGroup, this.countTokensWithImage(token.imagePath));
   }
 
-  private drawInstanceBadge(token: TokenEntity, tokenGroup: TokenGroupContainer, sameImageCount: number): void {
+  private countTokensWithImage(imagePath: string): number {
+    const tokens = Object.values(this.store.getState().objects.tokens);
+    return tokens.filter((token) => token.imagePath === imagePath).length;
+  }
+
+  private drawInstanceBadge(
+    token: TokenEntity,
+    tokenGroup: TokenGroupContainer,
+    sameImageCount: number,
+    size: number = tokenGroup.tokenSize || 70
+  ): void {
     const showBadges = this.store.getState().tokenSettings?.showInstanceBadges ?? true;
-    const tokenSize = tokenGroup.tokenSize || 70;
-    updateInstanceBadge(tokenGroup, token.instanceNumber ?? 1, tokenSize, showBadges && sameImageCount >= 2);
+    updateInstanceBadge(tokenGroup, token.instanceNumber ?? 1, size, showBadges && sameImageCount >= 2);
   }
 
   private isInPlayerMode(): boolean {

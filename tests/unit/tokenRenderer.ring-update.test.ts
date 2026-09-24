@@ -13,7 +13,8 @@ describe('TokenRenderer ring updates', () => {
     const createdRing = new Graphics();
     const createTokenRing = vi.fn(() => createdRing);
 
-    const harness = {
+    // Inherit the prototype so updateTokenRing reaches the badge helpers it delegates to
+    const harness = Object.assign(Object.create(TokenRenderer.prototype) as object, {
       spriteFactory: { createTokenRing },
       store: {
         getState: () => ({
@@ -33,7 +34,7 @@ describe('TokenRenderer ring updates', () => {
         }),
       },
       tokenRings: {} as Record<string, Graphics>,
-    };
+    });
 
     (TokenRenderer.prototype as any).updateTokenRing.call(
       harness,

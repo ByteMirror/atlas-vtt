@@ -187,6 +187,22 @@ describe('TokenRenderer Integration Tests', () => {
     });
   });
 
+  describe('Instance Badges', () => {
+    const badgeOf = (id: string): Container | null => tokenGroup(id).getChildByLabel('instanceBadge');
+
+    it('should number tokens spawned after the map loaded as soon as their sprites exist', async () => {
+      // The first load redraws every badge once all sprites exist; later spawns must not depend on that.
+      store.getState().addToken(token({ id: 'goblin-1' }));
+      await waitForTokens('goblin-1');
+
+      store.getState().addTokens([token({ id: 'goblin-2', x: 200 }), token({ id: 'goblin-3', x: 300 }), token({ id: 'orc', imagePath: ORC_IMAGE })]);
+      await waitForTokens('goblin-2', 'goblin-3', 'orc');
+
+      for (const id of ['goblin-1', 'goblin-2', 'goblin-3']) expect(badgeOf(id)?.visible).toBe(true);
+      expect(badgeOf('orc')?.visible ?? false).toBe(false);
+    });
+  });
+
   describe('Sizing on Grid Change', () => {
     it('should update all token sizes when grid size changes', async () => {
       store.getState().addToken(token({ id: 'token-1', size: 2 }));

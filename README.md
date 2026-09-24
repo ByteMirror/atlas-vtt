@@ -92,7 +92,7 @@ The build also copies the plugin into local test vaults when they are present.
 
 ## Credits and license
 
-Widget icons are by Lorc, Delapouite, Skoll, sbed, and Carl Olsen from [game-icons.net](https://game-icons.net), under [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/). Their backgrounds were removed and glyphs recoloured. Other asset and library credits are in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+Widget icons and the token icon are by Lorc, Delapouite, Skoll, sbed, and Carl Olsen from [game-icons.net](https://game-icons.net), under [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/). Their backgrounds were removed and glyphs recoloured. Other asset and library credits are in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 Atlas VTT is free software. Copyright (C) 2025-2026 Fabian Urbanek.
 

@@ -321,6 +321,7 @@
   padding: 0 $spacing-s;
   margin: 0;
   @include atlas-flex-row;
+  justify-content: flex-start;
   font-size: $font-ui-small;
   background-color: transparent !important;
   color: var(--text-normal);

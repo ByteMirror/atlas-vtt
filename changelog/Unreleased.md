@@ -20,6 +20,7 @@
 - Switching between open maps is much faster and no longer flashes a loading screen. The previous map stays on screen until the next one is ready and then gently crossfades into it (in the player view too, when you send it another map), recently viewed map images stay decoded so switching back is instant, and the loading screen only appears for maps that take a moment to load.
 - Images shown on the player view fade in and settle into place, crossfade when you show another image, and fade out when closed, instead of popping in and out.
 - Token controls grow with the token, like in Owlbear Rodeo. Hit point and secondary resource bars, their +/- buttons, nameplates, condition markers and the resize and rotate handles now keep their proportions to the token: large and gargantuan creatures get controls to match their size instead of tiny ones, and they grow live while you resize a token.
+- The Create Token option in the asset manager's + menu shows a token pawn instead of a game controller, and all options in that menu line up on the left.
 
 ## Fixed
 

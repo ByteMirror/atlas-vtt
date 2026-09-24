@@ -145,7 +145,6 @@ export const AssetCard = memo(function AssetCard({
       </TooltipTrigger>
       <TooltipContent className="atlas-asset-card-tooltip" side="top" sideOffset={10}>
         {asset.name}
-        {asset.type === 'tokens' && <span className="atlas-asset-card-tooltip-hint">Type a number to spawn several</span>}
       </TooltipContent>
     </Tooltip>
   );

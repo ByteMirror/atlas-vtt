@@ -121,6 +121,11 @@ describe('import review', () => {
     vi.unstubAllGlobals();
   });
 
+  it('names nothing through aria-label or title, which would show Obsidian\'s or the browser\'s tooltip', () => {
+    const { container } = render(<ImportReviewDialog review={review({ canRestore: true, conflicts: [{ key: 'asset:cave', kind: 'Scene', name: 'Cave', reason: 'both-changed' }] })} onConfirm={vi.fn()} onCancel={vi.fn()} />);
+    expect(container.querySelectorAll('[aria-label], [title]')).toHaveLength(0);
+  });
+
   it('cancels on Escape', () => {
     const onCancel = vi.fn();
     render(<ImportReviewDialog review={review()} onConfirm={vi.fn()} onCancel={onCancel} />);
@@ -198,6 +203,12 @@ describe('export options', () => {
 
     fireEvent.click(screen.getByRole('checkbox', { name: 'Include all tokens' }));
     expect((screen.getByRole('button', { name: 'Export v3' }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('names nothing through aria-label or title, and shows no banner without a cover', () => {
+    const { container } = render(<ExportCollectionDialog preview={preview({ publisher: 'other' })} onExport={vi.fn(async () => null)} onCancel={vi.fn()} />);
+    expect(container.querySelectorAll('[aria-label], [title]')).toHaveLength(0);
+    expect(container.querySelector('.atlas-transfer-hero__art')).toBeNull();
   });
 
   it('starts from the first map as cover and exports the one the user picks', async () => {

@@ -1,5 +1,4 @@
 import React from 'react';
-import { PackageOpen } from 'lucide-react';
 
 interface CollectionHeroProps {
   /** What is happening to the collection, e.g. "Export collection" or "Update". */
@@ -14,15 +13,15 @@ interface CollectionHeroProps {
   description?: string | undefined;
 }
 
-/** Key-art banner: the collection as people who install it see it, its name over its cover. */
+/** Key-art banner: the collection as people who install it see it, its name over its cover; just the name without one. */
 export function CollectionHero({ eyebrow, imageUrl, name, version, details, description }: CollectionHeroProps): React.JSX.Element {
   return (
     <header className="atlas-transfer-hero" data-empty={!imageUrl || undefined}>
-      <div className="atlas-transfer-hero__art">
-        {imageUrl
-          ? <img key={imageUrl} src={imageUrl} alt="" draggable={false} decoding="async" />
-          : <PackageOpen className="atlas-transfer-hero__placeholder" aria-hidden="true" />}
-      </div>
+      {imageUrl && (
+        <div className="atlas-transfer-hero__art">
+          <img key={imageUrl} src={imageUrl} alt="" draggable={false} decoding="async" />
+        </div>
+      )}
       <div className="atlas-transfer-hero__identity">
         <span className="atlas-transfer-eyebrow">{eyebrow}</span>
         <h2 className="atlas-transfer-hero__name">{name}</h2>

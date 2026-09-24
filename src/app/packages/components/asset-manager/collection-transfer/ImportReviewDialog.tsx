@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useId, useState } from 'react';
 import type { ImportDecision } from '../../../../services/collectionBundle/collectionImport';
 import type { ChangeStatus, Resolution } from '../../../../services/collectionBundle/importPlan';
 import type { ImportReview } from '../../../../services/collectionBundle/importReview';
 import { plural } from '../../../../utils/plural';
 import { formatRelativeTime } from '../../../../utils/relativeTime';
 import { Button } from '../../primitives/button';
+import { LabelTooltip } from '../../primitives/tooltip';
 import { CollectionHero } from './CollectionHero';
 import { ConflictList } from './ConflictList';
 import { ContentsList } from './ContentsList';
@@ -57,6 +58,7 @@ export function ImportReviewDialog({ review, onConfirm, onCancel }: ImportReview
   const [resolutions, setResolutions] = useState<Map<string, Resolution>>(new Map());
   const [restore, setRestore] = useState(false);
   const coverUrl = useObjectUrl(review.cover);
+  const notesId = useId();
 
   const title = titleOf(review, restore);
   const counts = COUNT_LABELS.filter(([status]) => review.counts[status] > 0).map(([status, label]) => `${review.counts[status]} ${label}`);
@@ -87,11 +89,15 @@ export function ImportReviewDialog({ review, onConfirm, onCancel }: ImportReview
       summary={`${plural(itemCount, 'item')} · ${plural(review.fileCount, 'file')}`}
       actions={(
         <>
-          <Button variant="outline" onClick={onCancel}>{canConfirm ? 'Cancel' : 'Close'}</Button>
+          <LabelTooltip label={canConfirm ? 'Close without importing anything' : 'Close'} describe>
+            <Button variant="outline" onClick={onCancel}>{canConfirm ? 'Cancel' : 'Close'}</Button>
+          </LabelTooltip>
           {canConfirm && (
-            <Button variant={review.relation === 'older' || restore || review.publisherWarning ? 'destructive' : 'default'} className="atlas-transfer-confirm" onClick={confirm}>
-              {confirmLabel}
-            </Button>
+            <LabelTooltip label={restore ? 'Replace everything you changed with the original' : review.relation === 'new' ? 'Add this collection to your vault' : 'Apply the changes listed here'} describe>
+              <Button variant={review.relation === 'older' || restore || review.publisherWarning ? 'destructive' : 'default'} className="atlas-transfer-confirm" onClick={confirm}>
+                {confirmLabel}
+              </Button>
+            </LabelTooltip>
           )}
         </>
       )}
@@ -132,8 +138,8 @@ export function ImportReviewDialog({ review, onConfirm, onCancel }: ImportReview
         </label>
       )}
       {review.releaseNotes && (
-        <section className="atlas-transfer-section" aria-label="Release notes">
-          <h4 className="atlas-transfer-section__title">{review.relation === 'new' ? 'Release notes' : 'What’s new'}</h4>
+        <section className="atlas-transfer-section" aria-labelledby={notesId}>
+          <h4 id={notesId} className="atlas-transfer-section__title">{review.relation === 'new' ? 'Release notes' : 'What’s new'}</h4>
           <p className="atlas-transfer-notes-view">{review.releaseNotes}</p>
         </section>
       )}

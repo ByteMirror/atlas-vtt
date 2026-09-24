@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useId, useRef } from 'react';
 import { CloseButton } from '../../primitives/CloseButton';
 import { useDialogEscape } from '../../primitives/useDialogEscape';
 
@@ -21,6 +21,7 @@ interface TransferDialogProps {
 /** The cinematic modal frame shared by the export and import dialogs. */
 export function TransferDialog({ label, onClose, hero, ambientUrl, aside, summary, actions, children }: TransferDialogProps): React.JSX.Element {
   const dialogRef = useRef<HTMLDivElement>(null);
+  const labelId = useId();
   useDialogEscape(dialogRef, onClose);
   return (
     <div className="atlas-transfer-overlay" onClick={onClose}>
@@ -30,9 +31,10 @@ export function TransferDialog({ label, onClose, hero, ambientUrl, aside, summar
         data-with-aside={aside ? true : undefined}
         role="dialog"
         aria-modal="true"
-        aria-label={label}
+        aria-labelledby={labelId}
         onClick={(event) => event.stopPropagation()}
       >
+        <span id={labelId} hidden>{label}</span>
         {ambientUrl && <img key={ambientUrl} className="atlas-transfer-dialog__ambient" src={ambientUrl} alt="" aria-hidden="true" />}
         <CloseButton className="atlas-transfer-dialog__close" onClick={onClose} />
         <div className="atlas-transfer-dialog__main">

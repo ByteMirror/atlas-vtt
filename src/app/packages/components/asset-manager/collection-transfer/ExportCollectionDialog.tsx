@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useId, useMemo, useState } from 'react';
 import { groupContents, selectContent, selectedKeys } from '../../../../services/collectionBundle/bundleContents';
 import type { CoverChoice } from '../../../../services/collectionBundle/collectionCover';
 import type { ExportChoice, ExportPreview } from '../../../../services/collectionBundle/collectionExport';
@@ -6,6 +6,7 @@ import { formatFileSize } from '../../../../utils/imageOptimizer';
 import { baseName } from '../../../../utils/pathUtils';
 import { plural } from '../../../../utils/plural';
 import { Button } from '../../primitives/button';
+import { LabelTooltip } from '../../primitives/tooltip';
 import { CollectionHero } from './CollectionHero';
 import { ContentsList } from './ContentsList';
 import { CoverPicker } from './CoverPicker';
@@ -54,6 +55,7 @@ export function ExportCollectionDialog({ preview, onExport, onCancel }: ExportCo
   const [excluded, setExcluded] = useState<ReadonlySet<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const uploadUrl = useObjectUrl(upload);
+  const nameLabelId = useId();
 
   const groups = useMemo(() => groupContents(preview.assets, preview.files), [preview]);
   const selected = useMemo(() => selectContent(preview.assets, preview.files, excluded), [preview, excluded]);
@@ -93,7 +95,12 @@ export function ExportCollectionDialog({ preview, onExport, onCancel }: ExportCo
           eyebrow={isFork ? 'Publish as your own' : 'Export collection'}
           imageUrl={heroUrl}
           name={isFork
-            ? <input className="atlas-transfer-hero__name-input" aria-label="Name" value={forkName} onChange={(event) => setForkName(event.target.value)} />
+            ? (
+              <>
+                <span id={nameLabelId} hidden>Name</span>
+                <input className="atlas-transfer-hero__name-input" aria-labelledby={nameLabelId} value={forkName} onChange={(event) => setForkName(event.target.value)} />
+              </>
+            )
             : collection.name}
           version={`v${isWholeVersion ? versionNumber : '…'}`}
           details={[author.trim() && `by ${author.trim()}`]}
@@ -116,8 +123,12 @@ export function ExportCollectionDialog({ preview, onExport, onCancel }: ExportCo
       summary={`${plural(itemCount, 'item')} · ${plural(selected.files.length + (cover.kind === 'none' ? 0 : 1), 'file')} · ${formatFileSize(bytes)}`}
       actions={(
         <>
-          <Button variant="outline" onClick={onCancel}>Cancel</Button>
-          <Button variant="default" className="atlas-transfer-confirm" disabled={selected.assets.length === 0} onClick={() => { void submit(); }}>{confirmLabel}</Button>
+          <LabelTooltip label="Close without exporting" describe>
+            <Button variant="outline" onClick={onCancel}>Cancel</Button>
+          </LabelTooltip>
+          <LabelTooltip label={selected.assets.length === 0 ? 'Include at least one item to export' : 'Save the collection as a .zip file you can give to others'} describe>
+            <Button variant="default" className="atlas-transfer-confirm" disabled={selected.assets.length === 0} onClick={() => { void submit(); }}>{confirmLabel}</Button>
+          </LabelTooltip>
         </>
       )}
     >

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useId } from 'react';
 import type { ConflictReason, Resolution } from '../../../../services/collectionBundle/importPlan';
 import type { ReviewUnit } from '../../../../services/collectionBundle/importReview';
 import { Button } from '../../primitives/button';
@@ -25,10 +25,11 @@ interface ConflictListProps {
 /** Items the user and the update both changed, each with its own choice; unresolved ones keep the user's version. */
 export function ConflictList({ conflicts, resolutions, onChange }: ConflictListProps): React.JSX.Element {
   const setAll = (resolution: Resolution): void => onChange(new Map(conflicts.map((unit) => [unit.key, resolution])));
+  const titleId = useId();
   return (
-    <section className="atlas-transfer-conflicts" aria-label="Conflicts">
+    <section className="atlas-transfer-conflicts" aria-labelledby={titleId}>
       <div className="atlas-transfer-conflicts__header">
-        <strong>Your changes and the update overlap ({conflicts.length})</strong>
+        <strong id={titleId}>Your changes and the update overlap ({conflicts.length})</strong>
         <div className="atlas-transfer-conflicts__bulk">
           <Button variant="ghost" size="sm" onClick={() => setAll('mine')}>Keep mine for all</Button>
           <Button variant="ghost" size="sm" onClick={() => setAll('theirs')}>Use update for all</Button>

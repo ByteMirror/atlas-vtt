@@ -68,7 +68,7 @@ function GroupRow({ group, selection }: { group: ContentGroup; selection?: Conte
       <div className="atlas-transfer-group__header">
         {selection && (
           <Checkbox
-            aria-label={`Include all ${group.label.toLowerCase()}`}
+            aria-labelledby={`${id}-all`}
             checked={total > 0 && leftOut === 0}
             indeterminate={leftOut > 0 && leftOut < total}
             disabled={total === 0}
@@ -88,6 +88,7 @@ function GroupRow({ group, selection }: { group: ContentGroup; selection?: Conte
           <span className="atlas-transfer-group__count">{count}</span>
           <ChevronDown className="atlas-transfer-group__chevron" aria-hidden="true" />
         </button>
+        {selection && <span id={`${id}-all`} hidden>Include all {group.label.toLowerCase()}</span>}
       </div>
       <div id={`${id}-items`} className="atlas-transfer-group__panel" data-expanded={expanded} aria-hidden={!expanded} inert={!expanded}>
         <div className="atlas-transfer-group__clip">
@@ -102,9 +103,10 @@ function GroupRow({ group, selection }: { group: ContentGroup; selection?: Conte
 
 /** A collection's contents by kind, each kind expandable to list its items. */
 export function ContentsList({ groups, selection }: ContentsListProps): React.JSX.Element {
+  const titleId = useId();
   return (
-    <section className="atlas-transfer-section" aria-label="What's included">
-      <h4 className="atlas-transfer-section__title">What&rsquo;s included</h4>
+    <section className="atlas-transfer-section" aria-labelledby={titleId}>
+      <h4 id={titleId} className="atlas-transfer-section__title">What&rsquo;s included</h4>
       <ul className="atlas-transfer-groups">
         {groups.map((group) => <GroupRow key={group.category} group={group} selection={selection} />)}
       </ul>

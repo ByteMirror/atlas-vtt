@@ -149,9 +149,6 @@ $hero-height: 288px;
     inset: 0;
     overflow: hidden;
     mask-image: linear-gradient(to bottom, #000 35%, transparent 100%);
-    background:
-      radial-gradient(120% 90% at 15% 0%, color-mix(in oklch, var(--interactive-accent) 32%, transparent), transparent 70%),
-      var(--background-secondary);
 
     img {
       width: 100%;
@@ -164,16 +161,6 @@ $hero-height: 288px;
         transform: scale(1.04);
       }
     }
-  }
-
-  &__placeholder {
-    position: absolute;
-    top: $spacing-2xl;
-    right: $spacing-2xl;
-    width: 96px;
-    height: 96px;
-    color: var(--text-faint);
-    opacity: 0.5;
   }
 
   // A soft shade behind the name keeps it readable on bright art in any theme.
@@ -193,6 +180,22 @@ $hero-height: 288px;
     right: $spacing-xl;
     bottom: $spacing-l;
     z-index: 1;
+  }
+
+  // Without a cover there is no banner: the name simply opens the dialog.
+  &[data-empty] {
+    height: auto;
+
+    &::after {
+      content: none;
+    }
+
+    .atlas-transfer-hero__identity {
+      position: static;
+      padding: $spacing-xl $spacing-xl 0;
+      // Clears the close button when it sits over the main pane.
+      padding-right: calc(#{$spacing-xl} + #{$button-height-l});
+    }
   }
 
   .atlas-transfer-eyebrow {

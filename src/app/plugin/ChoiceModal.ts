@@ -1,4 +1,5 @@
 import { App, Modal } from 'obsidian';
+import { ATLAS_NATIVE_MODAL_CLASSES } from '../ui/nativeModal';
 
 export interface ChoiceModalButton<T> {
   text: string;
@@ -36,6 +37,7 @@ export class ChoiceModal<T> extends Modal {
 
   onOpen(): void {
     const { contentEl, options } = this;
+    this.modalEl.addClass(...ATLAS_NATIVE_MODAL_CLASSES);
     this.setTitle(options.title);
 
     for (const paragraph of options.message) {

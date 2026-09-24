@@ -3,11 +3,12 @@ import { TFile } from 'obsidian';
 import { useAtlasUI } from '../../root/AtlasUIContext';
 import { useAtlasStore } from '../../ViewStoreContext';
 import type { DiceRollResult } from '../../../tools/DiceTool';
+import { AssetService } from '../../../services/AssetService';
 import { TokenStatblockLinkService } from '../../../services/TokenStatblockLinkService';
 
 export interface DiceAvatar {
   src: string;
-  showRing: boolean | undefined;
+  showRing: boolean;
   ringColor: string | undefined;
 }
 
@@ -16,7 +17,9 @@ export interface DiceAvatar {
  * the roll: resource URLs do not survive a restart, and a token may have been
  * given new artwork since. The map token's current image wins, then the image
  * of the token currently linked to the statblock, then the path recorded with
- * the roll. The ring follows the map token, so the avatar matches the canvas.
+ * the roll. The ring follows the map token, so the avatar matches the canvas;
+ * without one it follows the library token drawn with that artwork, and any
+ * other image is shown unframed.
  */
 export function useDiceAvatar(source: DiceRollResult['source']): DiceAvatar | null {
   const { app } = useAtlasUI();
@@ -25,7 +28,7 @@ export function useDiceAvatar(source: DiceRollResult['source']): DiceAvatar | nu
   const currentImagePath = useAtlasStore((state): string | undefined =>
     tokenId ? state.objects?.tokens?.[tokenId]?.imagePath : undefined,
   );
-  const showRing = useAtlasStore((state): boolean | undefined =>
+  const mapShowRing = useAtlasStore((state): boolean | undefined =>
     tokenId ? state.objects?.tokens?.[tokenId]?.showRing : undefined,
   );
   const ringColor = useAtlasStore((state): string | undefined =>
@@ -41,10 +44,19 @@ export function useDiceAvatar(source: DiceRollResult['source']): DiceAvatar | nu
       ? TokenStatblockLinkService.getInstance(app).readStatblockImage(statblockFile)
       : null;
   const imagePath = currentImagePath ?? linkedImagePath ?? source?.tokenImagePath;
+  const file = imagePath ? app.vault.getAbstractFileByPath(imagePath) : null;
+  const imageFile = file instanceof TFile ? file : null;
+  const showRing = currentImagePath !== undefined
+    ? mapShowRing !== false
+    : libraryTokenShowsRing(AssetService.getInstance(app), imageFile);
 
-  return useMemo((): DiceAvatar | null => {
-    if (!imagePath) return null;
-    const file = app.vault.getAbstractFileByPath(imagePath);
-    return file instanceof TFile ? { src: app.vault.getResourcePath(file), showRing, ringColor } : null;
-  }, [app, imagePath, showRing, ringColor]);
+  return useMemo((): DiceAvatar | null => (
+    imageFile ? { src: app.vault.getResourcePath(imageFile), showRing, ringColor } : null
+  ), [app, imageFile, showRing, ringColor]);
+}
+
+function libraryTokenShowsRing(assets: AssetService, imageFile: TFile | null): boolean {
+  if (!imageFile) return false;
+  const asset = assets.findTokenAssetByImagePath(imageFile.path);
+  return asset ? asset.showRing !== false : false;
 }

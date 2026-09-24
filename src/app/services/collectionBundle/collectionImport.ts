@@ -192,8 +192,8 @@ async function applyImport(
     }
 
     onProgress({ message: 'Registering assets…', fraction: 0.95 });
-    collection = await mergedCollection(assets, context, actions, name);
-    await assets.commitCollectionImport({ collectionId: targets.collectionId, collection, upsert, remove });
+    const merged = await mergedCollection(assets, context, actions, name);
+    collection = await assets.commitCollectionImport({ collectionId: targets.collectionId, collection: merged, upsert, remove });
   } catch (error) {
     const unrestored = await journal.rollback();
     const reason = (error instanceof Error ? error.message : String(error)).replace(/\.$/, '');

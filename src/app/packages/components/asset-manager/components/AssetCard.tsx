@@ -4,6 +4,7 @@ import type { AnyAsset } from '../types';
 import type { AssetCardHandlers } from '../hooks/useAssetCardHandlers';
 import { TokenPortrait } from '../../shared/TokenPortrait';
 import { LabelTooltip, Tooltip, TooltipContent, TooltipTrigger } from '../../primitives/tooltip';
+import { AssetTagMenu } from './AssetTagMenu';
 
 export interface AssetCardProps extends AssetCardHandlers {
   asset: AnyAsset;
@@ -103,6 +104,8 @@ export const AssetCard = memo(function AssetCard({
                 <input type="checkbox" checked={isSelected} onChange={() => {}} />
               </LabelTooltip>
             </div>
+
+            <AssetTagMenu asset={asset} />
 
             {statblockPath && spawnCount <= 1 && (
               <LabelTooltip label="Statblock linked – click to open">

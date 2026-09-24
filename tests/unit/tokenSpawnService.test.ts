@@ -5,8 +5,8 @@ import type { AtlasView } from '../../src/app/atlas-view';
 import type { AssetService } from '../../src/app/services/AssetService';
 import { createInMemoryApp } from '../mocks/inMemoryVault';
 
-const unframed: TokenAsset = { id: 'goblin', name: 'Goblin', type: 'tokens', imageUrl: 'app://goblin.png', imagePath: 'tokens/goblin.png', showRing: false, size: 2 };
-const framed: TokenAsset = { id: 'knight', name: 'Knight', type: 'tokens', imageUrl: 'app://knight.png', imagePath: 'tokens/knight.png', showRing: true };
+const unframed: TokenAsset = { id: 'goblin', name: 'Goblin', type: 'tokens', imageUrl: 'app://goblin.png', imagePath: 'tokens/goblin.png', showRing: false, size: 2, modifiedAt: 0 };
+const framed: TokenAsset = { id: 'knight', name: 'Knight', type: 'tokens', imageUrl: 'app://knight.png', imagePath: 'tokens/knight.png', showRing: true, modifiedAt: 0 };
 
 function setup(records: Record<string, Partial<TokenAsset>> = {}) {
   const { app } = createInMemoryApp({ files: { 'tokens/goblin.png': '', 'tokens/knight.png': '' } });
@@ -55,6 +55,12 @@ describe('token spawning keeps asset defaults', () => {
     expect(ctx.setSelection).toHaveBeenCalledWith(ids);
   });
 
+  it('spawns a token without a statblock with no hit points, so it shows no resource bar', async () => {
+    const { ctx, spawned } = setup();
+    await spawnTokenAsset(ctx, unframed, 1);
+    expect(spawned[0]).not.toHaveProperty('hp');
+  });
+
   it('skips assets that have no image path', async () => {
     const { ctx, spawned } = setup();
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
@@ -66,7 +72,7 @@ describe('token spawning keeps asset defaults', () => {
 
 describe('encounter spawning', () => {
   const encounter = (tokens: EncounterAsset['tokens']): EncounterAsset => ({
-    id: 'ambush', name: 'Ambush', type: 'encounters', tags: [], tokens, tokenPreviews: [],
+    id: 'ambush', name: 'Ambush', type: 'encounters', tags: [], tokens, tokenPreviews: [], modifiedAt: 0,
   });
 
   it('frames tokens added from the asset manager like their token asset', async () => {

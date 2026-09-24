@@ -6,9 +6,9 @@ import { PinRenderer } from '../../src/app/pixi/PinRenderer';
 import { createViewAtlasStore } from '../../src/app/storeFactory';
 import { createInMemoryApp } from '../mocks/inMemoryVault';
 
-// jsdom has no 2D canvas, so the SVG rasteriser cannot run here.
-vi.mock('../../src/app/pixi/utils/lucideIconTexture', () => ({
-  createLucideIconTexture: vi.fn(async () => new Texture()),
+// jsdom has no 2D canvas, so pin glyphs cannot be rasterised here.
+vi.mock('../../src/app/pixi/utils/pinIconTexture', () => ({
+  createPinIconTexture: vi.fn(() => new Texture()),
 }));
 
 type ViewStore = ReturnType<typeof createViewAtlasStore>;
@@ -29,7 +29,7 @@ function setup(): Harness {
   const store = createViewAtlasStore(app, 'pin-test-view');
   store.getState().setPersistenceEnabled(false);
   store.getState().setMapPath('maps/pin-test.atlasmap');
-  const renderer = new PinRenderer(app, viewport, new EventEmitter(), store);
+  const renderer = new PinRenderer(viewport, new EventEmitter(), store);
   harness = { renderer, viewport, store };
   return harness;
 }

@@ -6,6 +6,7 @@ import { loadStatblockOverrides } from '../packages/components/asset-manager/uti
 import { parseResourceValue } from './statblockResources';
 import { isPersistedMapEnvelope } from './MapPersistence';
 import type { BaseToken, Character } from '../types';
+import { ATLAS_NATIVE_MODAL_CLASSES } from '../ui/nativeModal';
 
 export interface TokenStatblockLink {
   tokenImagePath: string;
@@ -416,7 +417,7 @@ export class TokenStatblockLinkService extends EventEmitter {
 
         onOpen() {
           const { contentEl } = this;
-          
+          this.modalEl.addClass(...ATLAS_NATIVE_MODAL_CLASSES);
           this.titleEl.setText(title);
           contentEl.setText(message);
           

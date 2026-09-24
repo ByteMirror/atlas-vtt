@@ -124,19 +124,19 @@ export class NotePreviewWindow {
     // Pin Button
     this.pinButton = controlsDiv.createEl('button', { cls: 'atlas-note-preview-pin-btn' });
     setIcon(this.pinButton, 'pin');
-    this.pinButton.title = 'Pin window';
+    this.pinButton.setAttribute('aria-label', 'Pin window');
     this.pinButton.onclick = () => this.togglePin();
     
     // Open File Button
     const openFileBtn = controlsDiv.createEl('button', { cls: 'atlas-note-preview-open-btn' });
     setIcon(openFileBtn, 'file-text');
-    openFileBtn.title = 'Open file';
+    openFileBtn.setAttribute('aria-label', 'Open file');
     openFileBtn.onclick = () => this.openFile();
     
     // Close Button
     const closeBtn = controlsDiv.createEl('button', { cls: 'atlas-note-preview-close-btn' });
     setIcon(closeBtn, 'x');
-    closeBtn.title = 'Close window';
+    closeBtn.setAttribute('aria-label', 'Close window');
     closeBtn.onclick = () => this.close();
 
     // Content area for the leaf
@@ -714,8 +714,8 @@ export class NotePreviewWindow {
       // Set the appropriate icon
       setIcon(this.pinButton, this.isPinned ? 'pin-off' : 'pin');
       
-      // Update title and class
-      this.pinButton.title = this.isPinned ? 'Unpin window' : 'Pin window';
+      // Update label and class
+      this.pinButton.setAttribute('aria-label', this.isPinned ? 'Unpin window' : 'Pin window');
       
       // Toggle the pinned class
       if (this.isPinned) {

@@ -13,12 +13,31 @@
   pointer-events: auto;
 }
 
+// Keycap shared by the row numbers and the footer hints
+%scene-switcher-key {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border: $border-width-s solid var(--background-modifier-border);
+  border-radius: $radius-s;
+  background: none;
+  color: var(--text-muted);
+  font-family: var(--font-interface);
+  font-size: $font-ui-smaller;
+  font-weight: $font-weight-normal;
+  font-variant-numeric: tabular-nums;
+}
+
 // Same surface, spacing and rows as the scene tab bar, stacked vertically
 .atlas-scene-switcher__panel {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  width: min(420px, 100%);
+  width: min(520px, 100%);
   max-height: 60vh;
   padding: 4px;
 
@@ -123,18 +142,7 @@
 }
 
 .atlas-scene-switcher__number {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  min-width: 18px;
-  height: 18px;
-  border: $border-width-s solid var(--background-modifier-border);
-  border-radius: $radius-s;
-  color: var(--text-muted);
-  font-size: $font-ui-smaller;
-  font-weight: $font-weight-normal;
-  font-variant-numeric: tabular-nums;
+  @extend %scene-switcher-key;
 
   &:empty {
     visibility: hidden;
@@ -165,4 +173,35 @@
   padding: 6px;
   color: var(--text-faint);
   font-size: $font-ui-small;
+}
+
+// Hint groups sit further apart than a key and its label so each pair reads as one unit
+.atlas-scene-switcher__footer {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: $spacing-m;
+  flex-shrink: 0;
+  padding: 6px;
+  overflow: hidden;
+  color: var(--text-faint);
+  font-size: $font-ui-smaller;
+  white-space: nowrap;
+  transition: box-shadow 150ms $transition-ease-out;
+
+  // Only while the list continues underneath does the footer need to read as a separate layer
+  &--raised {
+    box-shadow: 0 -6px 12px -8px var(--background-modifier-box-shadow);
+  }
+}
+
+.atlas-scene-switcher__hint {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+
+  kbd {
+    @extend %scene-switcher-key;
+  }
 }

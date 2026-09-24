@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { afterEach, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, expect, it, vi } from 'vitest';
+import { MotionGlobalConfig } from 'framer-motion';
 import InputModal from '../../src/app/packages/components/primitives/InputModal';
 import { useAssetManagerEffects } from '../../src/app/packages/components/asset-manager/hooks/useAssetManagerEffects';
 import { confirmAction } from '../../src/app/ui/confirmDialog';
@@ -31,7 +32,7 @@ function Harness({ onClose, onConfirm, initialInputOpen = true }: {
       isCreateFolderModalOpen: false, isMoveModalOpen: false, settingsModalCollectionId: null, transfer: null,
       inputModalState: { isOpen: inputOpen }, setEditingToken: vi.fn(),
     } as unknown as EffectDeps['crud'],
-    tags: { isTagManagerOpen: false, isEditTagsModalOpen: false } as EffectDeps['tags'],
+    tags: { isTagManagerOpen: false } as EffectDeps['tags'],
     statblock: { linkingStatblockAsset: null } as EffectDeps['statblock'],
   });
   return (
@@ -44,6 +45,10 @@ function Harness({ onClose, onConfirm, initialInputOpen = true }: {
     </div>
   );
 }
+
+// jsdom does not run animation frames; settle the dialog's exit animation at once.
+beforeAll(() => { MotionGlobalConfig.skipAnimations = true; });
+afterAll(() => { MotionGlobalConfig.skipAnimations = false; });
 
 afterEach(() => {
   cleanup();
@@ -71,37 +76,37 @@ it('lets the collection input receive focus and clicks without dismissing the ma
   expect(onClose).not.toHaveBeenCalled();
 });
 
-it.each(['Cancel', 'Close'])('%s dismisses only the collection dialog', (name) => {
+it.each(['Cancel', 'Close'])('%s dismisses only the collection dialog', async (name) => {
   const { onClose, onConfirm } = setup();
   clickWithMouseDown(screen.getByRole('button', { name }));
   expect(onClose).not.toHaveBeenCalled();
   expect(onConfirm).not.toHaveBeenCalled();
-  expect(screen.queryByRole('textbox')).toBeNull();
+  await waitFor(() => expect(screen.queryByRole('textbox')).toBeNull());
 });
 
-it('confirms the collection name without closing the manager', () => {
+it('confirms the collection name without closing the manager', async () => {
   const { onClose, onConfirm } = setup();
   fireEvent.change(screen.getByRole('textbox'), { target: { value: '  Encounters  ' } });
   clickWithMouseDown(screen.getByRole('button', { name: 'Confirm' }));
   expect(onClose).not.toHaveBeenCalled();
   expect(onConfirm).toHaveBeenCalledExactlyOnceWith('Encounters');
-  expect(screen.queryByRole('textbox')).toBeNull();
+  await waitFor(() => expect(screen.queryByRole('textbox')).toBeNull());
 });
 
-it('Escape closes the collection dialog first, then the manager on a second press', () => {
+it('Escape closes the collection dialog first, then the manager on a second press', async () => {
   const { onClose } = setup();
   fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Escape' });
   expect(onClose).not.toHaveBeenCalled();
-  expect(screen.queryByRole('textbox')).toBeNull();
+  await waitFor(() => expect(screen.queryByRole('textbox')).toBeNull());
   fireEvent.keyDown(document, { key: 'Escape' });
   expect(onClose).toHaveBeenCalledTimes(1);
 });
 
-it('backdrop clicks dismiss only the child dialog and outside clicks work afterward', () => {
+it('backdrop clicks dismiss only the child dialog and outside clicks work afterward', async () => {
   const { onClose } = setup();
   clickWithMouseDown(screen.getByRole('textbox').closest('.atlas-modal-overlay')!);
   expect(onClose).not.toHaveBeenCalled();
-  expect(screen.queryByRole('textbox')).toBeNull();
+  await waitFor(() => expect(screen.queryByRole('textbox')).toBeNull());
   fireEvent.mouseDown(document.body);
   expect(onClose).toHaveBeenCalledTimes(1);
 });

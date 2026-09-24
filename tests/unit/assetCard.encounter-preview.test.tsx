@@ -31,6 +31,7 @@ describe('AssetCard encounter previews', () => {
     const encounter: EncounterAsset = {
       id: 'enc-1',
       name: 'Forest Ambush',
+      modifiedAt: 0,
       type: 'encounters',
       tags: [],
       tokens: ['Goblin', 'Wolf', 'Boss', 'Shaman'].map((name, index) => ({ id: String(index), name, imagePath: tokenPath(name) })),

@@ -1,7 +1,17 @@
 @use '../../../../../styles/tokens' as *;
 @use '../../../../../styles/mixins' as *;
 
-// Shared close control (see CloseButton.tsx). One size for every "×" in the plugin.
-.atlas-close-btn {
+// Shared close control (see CloseButton.tsx). `.btn` outranks the generic button rules.
+.atlas-close-btn.btn {
+  @include atlas-close-button;
+}
+
+// Clears a field rather than closing a panel: sized by the field it sits in.
+.atlas-clear-btn {
   @include atlas-control-icon-button;
+}
+
+// Obsidian's own modals opened by Atlas (ATLAS_NATIVE_MODAL_CLASSES).
+&.atlas-native-modal {
+  @include atlas-native-modal-close-control;
 }

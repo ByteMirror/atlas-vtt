@@ -56,3 +56,13 @@ it('requires every selected tag and restores assets as filters are cleared', () 
   fireEvent.click(screen.getByRole('button', { name: /^Forest/ }));
   expect(shownTokens()).toHaveLength(5);
 });
+
+it('clears every selected tag from the chip beside the Tags heading', () => {
+  render(<AssetManager isOpen onClose={() => {}} />);
+  expect(screen.queryByRole('button', { name: /^Clear .*tag filter/ })).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: /^Testing Tags/ }));
+  fireEvent.click(screen.getByRole('button', { name: /^Forest/ }));
+  fireEvent.click(screen.getByRole('button', { name: 'Clear 2 tag filters' }));
+  expect(shownTokens()).toHaveLength(5);
+  expect(screen.getByRole('button', { name: /^Testing Tags/ }).getAttribute('aria-pressed')).toBe('false');
+});

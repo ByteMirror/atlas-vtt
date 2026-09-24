@@ -10,6 +10,7 @@
 // ── Floating control panel ──────────────────────────────────────────────
 .atlas-grid-alignment-panel {
   @include atlas-elevated-surface;
+  @include atlas-panel-radius($radius-2xl);
   @include atlas-flex-col($spacing-m);
   @include atlas-panel-padding;
 
@@ -21,9 +22,12 @@
   pointer-events: auto;
 
   // ── Header row: title + close ───────────────────────────────────────
+  // Reaches past the panel padding to its top-right corner, where the close button belongs.
   .atlas-grid-alignment-header {
     @include atlas-flex-row($spacing-m);
+    @include atlas-close-header(0);
     justify-content: space-between;
+    margin: calc(-1 * #{$spacing-m}) calc(-1 * #{$spacing-m}) 0 0;
   }
 
   .atlas-grid-alignment-title {
@@ -150,9 +154,14 @@
   }
 
   // ── Action buttons row ──────────────────────────────────────────────
+  // The last row: its outer button sits in the panel's bottom-right corner.
   .atlas-grid-alignment-actions {
     @include atlas-flex-row($spacing-s);
     justify-content: flex-end;
+
+    > :last-child {
+      @include atlas-panel-inset-radius($spacing-m, bottom-right);
+    }
   }
 
   .atlas-grid-alignment-btn {

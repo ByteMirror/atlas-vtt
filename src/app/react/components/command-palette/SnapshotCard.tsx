@@ -3,6 +3,7 @@ import { ImageOff } from 'lucide-react';
 import type { SceneSnapshotEntry } from '../../../snapshots/SceneSnapshotService';
 import { formatRelativeTime } from '../../../utils/relativeTime';
 import { cn } from '../../../../utils/cn';
+import { LabelTooltip } from '../../../packages/components/primitives/tooltip';
 
 interface SnapshotCardProps {
   entry: SceneSnapshotEntry;
@@ -103,9 +104,9 @@ export function SnapshotCard({
             {name}
           </button>
         )}
-        <span className="atlas-snapshot-card__date" title={`${updatedAt ? 'Updated' : 'Saved'} ${dateFormat.format(takenAt)}`}>
-          {formatRelativeTime(takenAt)}
-        </span>
+        <LabelTooltip label={`${updatedAt ? 'Updated' : 'Saved'} ${dateFormat.format(takenAt)}`} describe>
+          <span className="atlas-snapshot-card__date">{formatRelativeTime(takenAt)}</span>
+        </LabelTooltip>
       </div>
     </div>
   );

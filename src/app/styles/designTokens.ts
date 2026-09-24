@@ -87,8 +87,7 @@ export const inputHeight = {
 // ── Pin/Badge Sizes ──────────────────────────────────────────────────────────
 export const pinSize = {
   badgeRadius: 20,
-  iconScale: 20 / 48, // badgeRadius / textureSize
-  indicatorRadius: 8,
+  iconSize: 22,
 } as const;
 
 // ── Token Ring 3D Effect ─────────────────────────────────────────────────────

@@ -1,4 +1,5 @@
 @use '../../../styles/tokens' as *;
+@use '../../../styles/mixins' as *;
 
 .atlas-onboarding-overlay, .atlas-hotkey-help {
   position: fixed;
@@ -53,14 +54,16 @@
   max-height: calc(100dvh - #{$spacing-2xl});
   display: flex;
   flex-direction: column;
-  border-radius: $radius-2xl;
+  @include atlas-panel-radius($radius-2xl, $border-width-s);
 }
+// Reaches past the card's padding to its top-right corner, where the close button belongs.
 .atlas-hotkey-help-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: $spacing-l;
-  margin-bottom: $spacing-s;
+  margin: calc(-1 * var(--atlas-onboarding-padding)) calc(-1 * var(--atlas-onboarding-padding)) $spacing-s 0;
+  @include atlas-close-header(0);
   flex-shrink: 0;
 
   h2 { margin: 0; font-size: $font-ui-large; }

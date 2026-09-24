@@ -1,9 +1,11 @@
 import React from 'react';
+import { motion } from 'framer-motion';
 import { FolderPlus } from 'lucide-react';
 import type { Tab } from '../types';
 import { getTabDisplayName } from '../types';
 import { CloseButton } from '../../primitives/CloseButton';
 import { Button } from '../../primitives/button';
+import { dialogOverlayMotion, useDialogWindowVariants } from '../../primitives/dialogMotion';
 
 export interface CreateFolderModalProps {
   selectedFolderId: string | null;
@@ -18,20 +20,22 @@ export function CreateFolderModal({
   selectedFolderId, activeTab, targetFolderName,
   setTargetFolderName, onClose, onConfirm,
 }: CreateFolderModalProps): React.JSX.Element {
+  const windowVariants = useDialogWindowVariants();
   return (
-    <div
+    <motion.div
+      {...dialogOverlayMotion}
       className="atlas-asset-manager-move-modal atlas-asset-manager-create-folder-modal"
       onClick={(e) => { e.stopPropagation(); if (e.target === e.currentTarget) onClose(); }}
       onMouseDown={(e) => e.stopPropagation()}
     >
-      <div className="atlas-asset-manager-move-container" onClick={(e) => e.stopPropagation()}>
+      <motion.div className="atlas-asset-manager-move-container" variants={windowVariants} onClick={(e) => e.stopPropagation()}>
         <div className="atlas-asset-manager-move-header">
           <h3><FolderPlus /> New folder</h3>
           <CloseButton onClick={(e) => { e.stopPropagation(); onClose(); }} />
         </div>
         <div className="atlas-asset-manager-move-body">
           <p className="atlas-asset-manager-move-info">
-            Creates a folder {selectedFolderId ? 'inside the current folder' : 'at the top level'} of your {getTabDisplayName(activeTab)}.
+            Creates a folder {selectedFolderId ? 'inside the current folder' : 'at the top level'} of your {getTabDisplayName(activeTab).toLowerCase()}.
           </p>
           <div className="atlas-asset-manager-move-collections">
             <div className="atlas-asset-manager-move-label">Folder Name</div>
@@ -57,7 +61,7 @@ export function CreateFolderModal({
             Create folder
           </Button>
         </div>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }

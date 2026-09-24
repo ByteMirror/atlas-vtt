@@ -1,6 +1,7 @@
 import React, { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import type { App } from 'obsidian';
 import { Button } from '../packages/components/primitives/button';
+import { CommunityLink } from './CommunityLink';
 import { PreferenceToggle } from './PreferenceToggle';
 import { ReleaseEntry } from './ReleaseEntry';
 import type { ChangelogOptions } from './types';
@@ -34,6 +35,7 @@ export function ChangelogContent(props: Props): React.JSX.Element {
         {previous.map(release => entry(release, false))}
       </section>}
     </div>
+    <CommunityLink />
     <div className="atlas-changelog-footer">
       <div className="atlas-changelog-preferences">
         <PreferenceToggle label="Show changelog after updates" checked={showOnUpdate} onChange={checked => {

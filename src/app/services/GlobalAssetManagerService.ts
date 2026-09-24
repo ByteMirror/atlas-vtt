@@ -34,10 +34,12 @@ export class GlobalAssetManagerService {
     this.container = document.body.createDiv();
     this.container.addClasses(['atlas-vtt-plugin', 'atlas-global-asset-manager-container']);
 
-    // Create React root and render with context
     this.root = createRoot(this.container);
-    
-    // Create a minimal context value
+    this.render(this.root, true);
+  }
+
+  /** No ViewStoreProvider: there is no map view here, the asset manager reads the store optionally. */
+  private render(root: Root, isOpen: boolean, onExitComplete?: () => void): void {
     const contextValue = {
       app: this.app,
       view: null,
@@ -46,15 +48,14 @@ export class GlobalAssetManagerService {
       isPlayerMode: false,
       setPlayerMode: () => {}
     };
-    
-    // No ViewStoreProvider: there is no map view here, the asset manager reads the store optionally.
-    this.root.render(
+    root.render(
       React.createElement(AtlasUIContext.Provider, {
         value: contextValue,
         children: React.createElement(ContextMenuProvider, {
           children: React.createElement(AssetManager, {
-            isOpen: true,
+            isOpen,
             onClose: () => this.close(),
+            ...(onExitComplete ? { onExitComplete } : {}),
             ...(this.initialTab ? { initialTab: this.initialTab } : {})
           })
         })
@@ -62,19 +63,22 @@ export class GlobalAssetManagerService {
     );
   }
 
+  /** Plays the closing animation, then unmounts. */
   close(): void {
-    if (this.root) {
-      this.root.unmount();
-      this.root = null;
-    }
-
-    if (this.container) {
-      this.container.remove();
-      this.container = null;
-    }
-
+    const root = this.root;
+    const container = this.container;
+    this.root = null;
+    this.container = null;
     this.isOpen = false;
     this.initialTab = undefined;
+    if (!root) {
+      container?.remove();
+      return;
+    }
+    this.render(root, false, () => {
+      root.unmount();
+      container?.remove();
+    });
   }
 
   isModalOpen(): boolean {

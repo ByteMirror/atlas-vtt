@@ -19,7 +19,6 @@ interface EffectDeps {
   containerRef: React.RefObject<HTMLDivElement | null>;
   setSearch: (s: string) => void;
   setActiveTab: React.Dispatch<React.SetStateAction<Tab>>;
-  setIsSidebarCollapsed: (collapsed: boolean) => void;
   setSelectedCollection: (col: string | null) => void;
   data: AssetData;
   sel: SelectionState;
@@ -31,14 +30,14 @@ interface EffectDeps {
 export function useAssetManagerEffects({
   isOpen, onClose, initialTab,
   modalRef, containerRef,
-  setSearch, setActiveTab, setIsSidebarCollapsed, setSelectedCollection,
+  setSearch, setActiveTab, setSelectedCollection,
   data, sel, crud, tags, statblock,
 }: EffectDeps): void {
   const isAnySubModalOpen =
     crud.isTokenCreatorOpen || crud.isMapCreatorOpen ||
     crud.isCreateSceneModalOpen || crud.inputModalState.isOpen ||
-    crud.isMoveModalOpen || crud.settingsModalCollectionId !== null ||
-    tags.isTagManagerOpen || tags.isEditTagsModalOpen ||
+    crud.isMoveModalOpen || crud.settingsModalCollectionId !== null || crud.isCreateCollectionModalOpen ||
+    tags.isTagManagerOpen ||
     statblock.linkingStatblockAsset !== null || crud.transfer !== null;
 
   useEffect(() => {
@@ -59,14 +58,6 @@ export function useAssetManagerEffects({
       const mapCol = data.assetService.getCollectionForMap(data.mapPath);
       if (mapCol) setSelectedCollection(mapCol);
     }
-  }, [isOpen]);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    const check = (): void => { if (window.innerWidth < 768) setIsSidebarCollapsed(true); };
-    check();
-    window.addEventListener('resize', check);
-    return () => window.removeEventListener('resize', check);
   }, [isOpen]);
 
   useEffect(() => {

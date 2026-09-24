@@ -5,6 +5,7 @@ import { TFile, type App } from 'obsidian';
 import { ImageOff, Search } from 'lucide-react';
 import { ObsidianMenuDropdown } from '../../shared/ObsidianMenuDropdown';
 import { Button } from '../../primitives/button';
+import { LabelTooltip } from '../../primitives/tooltip';
 import { StatblockTokenImportService } from '../../../../services/StatblockTokenImportService';
 import { statblockPreviewImages } from '../token-creator/statblockPreviewImages';
 import type { PreviewImage } from '../token-creator/types';
@@ -112,11 +113,12 @@ export function StatblockImportContent({ app, queuedPaths, onAdd, onClose, contr
             <div className="atlas-statblock-import__list" aria-label="Statblocks">
               {filtered.map(row => {
                 const url = thumbnail(app, row);
-                return <div key={row.path} className="atlas-statblock-import__row" title={row.detail}>
+                const status = <span className={`atlas-statblock-import__status atlas-statblock-import__status--${row.status}`}>{queuedPaths.includes(row.path) ? 'Added to import' : statusLabels[row.status]}</span>;
+                return <div key={row.path} className="atlas-statblock-import__row">
                   <input type="checkbox" aria-label={`Select ${row.name}`} checked={selected.has(row.path)} disabled={disabled || row.status !== 'ready' || queuedPaths.includes(row.path)} onChange={() => toggle(row.path)} />
                   <span className="atlas-statblock-import__portrait">{url ? <TokenPortrait src={url} alt="" showRing={false} /> : <ImageOff size={20} />}</span>
                   <span className="atlas-statblock-import__identity"><strong>{row.name}</strong><span>{row.path}</span></span>
-                  <span className={`atlas-statblock-import__status atlas-statblock-import__status--${row.status}`}>{queuedPaths.includes(row.path) ? 'Added to import' : statusLabels[row.status]}</span>
+                  {row.status === 'ready' ? status : <LabelTooltip label={row.detail} describe>{status}</LabelTooltip>}
                 </div>;
               })}
               {filtered.length === 0 && <p>{query ? 'No statblocks match your search.' : 'No statblock notes found. Enable frontmatter parsing in Fantasy Statblocks, or add a statblock code block to a note.'}</p>}

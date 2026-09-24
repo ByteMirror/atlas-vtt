@@ -5,27 +5,20 @@
 // Asset Manager – Asset grid, folder rows, drag & drop
 // ═══════════════════════════════════════════════════════════════════════════
 
-.atlas-asset-grid {
-  display: grid;
-  // The lower bound must match CARD_MIN_WIDTH in VirtualAssetGrid.tsx.
-  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
-  gap: $spacing-s;
-}
-
-// Virtualized grid: rows are positioned inside a container sized to the whole
-// list, and the column count is computed from the container width.
+// Virtualized grid: each card is placed by its own transform inside a container
+// sized to the whole list; the column count is computed from the container width.
 .atlas-asset-grid-virtual {
   position: relative;
   width: 100%;
   column-gap: $spacing-s;
 }
 
-.atlas-asset-grid-row {
+// Cards leaving the grid drop below this while they fade out.
+.atlas-asset-grid-cell {
   position: absolute;
   top: 0;
   left: 0;
-  width: 100%;
-  grid-template-columns: repeat(var(--atlas-grid-columns, 1), minmax(0, 1fr));
+  z-index: 1;
 }
 
 // Folders are compact rows so they do not compete with artwork.

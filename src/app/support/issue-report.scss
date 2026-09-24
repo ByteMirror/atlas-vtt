@@ -2,7 +2,6 @@
 @use '../../../styles/mixins' as *;
 
 .atlas-vtt-plugin.atlas-issue-report-modal {
-  @include atlas-native-modal-close-control;
   width: min(640px, 90vw);
   // The whole form stays on screen: the dialog may use almost the full window
   // height, and when even that is too short the text boxes give up height

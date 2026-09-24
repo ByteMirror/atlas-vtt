@@ -45,8 +45,9 @@ interface LabelTooltipProps {
 
 /**
  * Wraps `children` in the shared Atlas tooltip and names it for assistive tech.
- * The name is set through `aria-labelledby`: Obsidian shows its own tooltip for
- * every `aria-label`, and `title` adds the browser one, so use neither on `children`.
+ * The name is set through `aria-labelledby`, which takes precedence over an
+ * `aria-label` on `children`. Never give `children` a `title`: it adds the browser's
+ * tooltip. Obsidian's `aria-label` tooltip is off throughout Atlas (styles/_native-tooltips.scss).
  */
 function LabelTooltip({ label, side = "top", describe = false, children }: LabelTooltipProps): React.ReactElement {
   const labelId = React.useId()

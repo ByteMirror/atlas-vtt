@@ -4,7 +4,6 @@ import { openContextMenuGlobal, type ContextMenuEntry } from '../root/ContextMen
 import {
   Dices,
   Swords,
-  Square,
   ChevronUp,
   ChevronDown,
 } from 'lucide-react';
@@ -12,6 +11,7 @@ import { useAtlasStore } from '../ViewStoreContext';
 import { useAtlasUI } from '../root/AtlasUIContext';
 import { isActiveAtlasLeaf } from '../../utils/activeLeafGuard';
 import { InitiativeCard } from './InitiativeCard';
+import { EndCombatIcon } from './EndCombatIcon';
 import { StatblockHoverPreview, useStatblockHoverPreview } from './StatblockHoverPreview';
 import type { InitiativeEntry } from '../../types/initiativeTypes';
 import type { Character } from '../../types';
@@ -365,7 +365,7 @@ export const InitiativeTracker: React.FC = () => {
             className="clickable-icon atlas-initiative-tracker__btn atlas-initiative-tracker__btn--end"
             onClick={endCombat}
           >
-            <Square />
+            <EndCombatIcon />
           </button>
         )}
       </div>

@@ -38,8 +38,8 @@ describe('AssetService metadata loading', () => {
 
     const tokens = await service.getAssets('default', 'token');
     await service.getAssets('default');
-    await service.getCollectionTags('default');
-    await service.getAllTags();
+    await service.getCollectionTags('default', 'tokens');
+    await service.getAllTags('tokens');
 
     expect(tokens.map((asset) => asset.id)).toEqual(['token-1']);
     expect(app.vault.adapter.read).toHaveBeenCalledTimes(1);

@@ -1,21 +1,24 @@
 import React, { useId, useState } from 'react';
-import { cn } from '../../../../utils/cn';
 import { Button } from '../../../packages/components/primitives/button';
 import { LabelTooltip } from '../../../packages/components/primitives/tooltip';
-import { WIDGET_ICONS, resolveWidgetIcon, type WidgetIcon } from '../../../types/widgetIcons';
-import type { WidgetType } from '../../../types/widgetTypes';
-import { WidgetIconGlyph } from '../WidgetIconGlyph';
+import { resolveWidgetIcon, type WidgetIcon } from '../../../types/widgetIcons';
+import type { WidgetScope, WidgetType } from '../../../types/widgetTypes';
+import { WidgetIconPicker } from '../WidgetIconPicker';
+import { SettingToggleRow } from './SettingRows';
 
 export interface WidgetDraft {
   type: WidgetType;
   label: string;
   icon: WidgetIcon;
   color: string;
+  scope: WidgetScope;
 }
 
 interface WidgetEditorFormProps {
   /** Existing widget values when editing; omitted when creating. */
   initial?: Partial<WidgetDraft>;
+  /** Only scenes inside a collection can share widgets with it. */
+  canShareWithCollection: boolean;
   submitLabel: string;
   onSubmit: (draft: WidgetDraft) => void;
   onCancel: () => void;
@@ -28,22 +31,28 @@ const WIDGET_TYPES: { type: WidgetType; label: string }[] = [
 
 const DEFAULT_COLOR = '#ffc107';
 
-export function WidgetEditorForm({ initial, submitLabel, onSubmit, onCancel }: WidgetEditorFormProps): React.ReactElement {
+export function WidgetEditorForm({
+  initial,
+  canShareWithCollection,
+  submitLabel,
+  onSubmit,
+  onCancel,
+}: WidgetEditorFormProps): React.ReactElement {
   const isNew = !initial;
   const [type, setType] = useState<WidgetType>(initial?.type ?? 'counter');
   const [label, setLabel] = useState(initial?.label ?? '');
   const [icon, setIcon] = useState<WidgetIcon>(resolveWidgetIcon(initial?.icon));
   const [color, setColor] = useState(initial?.color ?? DEFAULT_COLOR);
+  const [scope, setScope] = useState<WidgetScope>(initial?.scope ?? 'scene');
   const typeLabelId = useId();
   const nameLabelId = useId();
-  const iconLabelId = useId();
 
   const trimmedLabel = label.trim();
 
   const submit = (e: React.FormEvent): void => {
     e.preventDefault();
     if (!trimmedLabel) return;
-    onSubmit({ type, label: trimmedLabel, icon, color });
+    onSubmit({ type, label: trimmedLabel, icon, color, scope });
   };
 
   return (
@@ -89,23 +98,16 @@ export function WidgetEditorForm({ initial, submitLabel, onSubmit, onCancel }: W
         </LabelTooltip>
       </div>
 
-      <div className="atlas-widget-editor-icons" role="radiogroup" aria-labelledby={iconLabelId}>
-        <span id={iconLabelId} hidden>Widget icon</span>
-        {WIDGET_ICONS.map((name) => (
-          <LabelTooltip key={name} label={name}>
-            <button
-              type="button"
-              role="radio"
-              aria-checked={icon === name}
-              className={cn('atlas-widget-editor-icon', icon === name && 'atlas-active')}
-              style={icon === name ? { color } : undefined}
-              onClick={() => setIcon(name)}
-            >
-              <WidgetIconGlyph icon={name} size={20} />
-            </button>
-          </LabelTooltip>
-        ))}
-      </div>
+      <WidgetIconPicker label="Widget icon" value={icon} onChange={setIcon} color={color} />
+
+      {canShareWithCollection && (
+        <SettingToggleRow
+          label="Share across collection"
+          hint="Every scene in this collection shows it with the same value"
+          value={scope === 'collection'}
+          onToggle={() => setScope(scope === 'collection' ? 'scene' : 'collection')}
+        />
+      )}
 
       <div className="atlas-widget-editor-actions">
         <Button type="button" variant="ghost" size="sm" onClick={onCancel}>

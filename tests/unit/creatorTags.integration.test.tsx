@@ -17,7 +17,7 @@ const service = {
   getCollections: vi.fn().mockResolvedValue([{ id: 'default', name: 'Default' }]),
   getCollection: vi.fn(async (id: string) => (await service.getCollections()).find((c: { id: string }) => c.id === id) ?? null),
   getAllTags: vi.fn().mockResolvedValue(['Existing']),
-  createTag: vi.fn(async (_collection: string, name: string) => ({ name })),
+  createTag: vi.fn(async (_collection: string, _group: string, name: string) => ({ name })),
   addTokenAsset: vi.fn().mockResolvedValue({}),
   addAsset: vi.fn().mockResolvedValue({}),
   getAssets: vi.fn().mockResolvedValue([]),
@@ -51,19 +51,20 @@ function mount(child: React.ReactNode) {
   render(<AtlasUIContext.Provider value={{ app } as any}>{child}</AtlasUIContext.Provider>);
 }
 
-async function selectAndCreateTags() {
+async function selectAndCreateTags(group: 'tokens' | 'maps') {
   fireEvent.click(await screen.findByRole('button', { name: 'Existing' }));
+  expect(service.getAllTags).toHaveBeenCalledWith(group);
   const input = screen.getByRole('textbox', { name: 'Search or create tags' });
   fireEvent.change(input, { target: { value: 'New tag' } });
   fireEvent.keyDown(input, { key: 'Enter' });
   await waitFor(() => expect(screen.getByRole('button', { name: 'New tag' }).getAttribute('aria-pressed')).toBe('true'));
-  expect(service.createTag).toHaveBeenCalledWith('default', 'New tag');
+  expect(service.createTag).toHaveBeenCalledWith('default', group, 'New tag');
 }
 
 it.each(['token', 'map'] as const)('persists selected and newly created tags when importing a %s', async (mode) => {
   mount(<TokenCreator isOpen onClose={() => {}} mode={mode} />);
   fireEvent.change(document.querySelector('input[type=file]')!, { target: { files: [new File(['art'], 'Test.png', { type: 'image/png' })] } });
-  await selectAndCreateTags();
+  await selectAndCreateTags(mode === 'token' ? 'tokens' : 'maps');
   fireEvent.click(screen.getByRole('button', { name: /^Create/ }));
   const save = mode === 'token' ? service.addTokenAsset : service.addAsset;
   await waitFor(() => expect(save).toHaveBeenCalledWith(expect.objectContaining({ tags: ['Existing', 'New tag'] })));
@@ -73,7 +74,7 @@ it('persists selected and newly created tags when creating a scene', async () =>
   mount(<CreateSceneModal isOpen onClose={() => {}} onSceneCreated={() => {}}
     selectedCollection="default" assetService={service as unknown as AssetService} />);
   fireEvent.change(screen.getByPlaceholderText('Enter scene name'), { target: { value: 'Forest scene' } });
-  await selectAndCreateTags();
+  await selectAndCreateTags('maps');
   expect(service.addAsset).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole('button', { name: 'Create scene' }));
   await waitFor(() => expect(service.addAsset).toHaveBeenCalledWith(expect.objectContaining({ type: 'scene', tags: ['Existing', 'New tag'] })));

@@ -9,6 +9,7 @@ import type { SelectionState } from './useSelectionHandlers';
 import type { AssetCrudActions } from './useAssetCrud';
 import type { TagsAndCollectionsState } from './useTagsAndCollections';
 import type { StatblockLinkState } from './useStatblockLink';
+import { tagGroupOfTab } from '../utils/assetTags';
 
 interface ContextMenuDeps {
   data: AssetData;
@@ -43,9 +44,9 @@ export function useContextMenus({
       setIsMoveModalOpen: crud.setIsMoveModalOpen,
       setInputModalState: crud.setInputModalState,
       setAssets: data.setAssets, setSelectedAssetIds: sel.setSelectedAssetIds,
-      setAvailableTags: data.setAvailableTags,
       loadAssetsForActiveTab: data.loadAssetsForActiveTab,
-      handleCreateTag: tags.handleCreateTag,
+      handleCreateTag: (name) => tags.handleCreateTag(tagGroupOfTab(asset.type), name),
+      setAssetTags: tags.setAssetTags,
       handleSaveAsEncounter: crud.handleSaveAsEncounter,
       openStatblockLinkModal: statblock.openStatblockLinkModal,
       unlinkStatblock: statblock.unlinkStatblock,
@@ -72,7 +73,7 @@ export function useContextMenus({
   const handleContentContextMenu = (event: React.MouseEvent): void => {
     event.preventDefault();
     const entries = buildContentContextMenuEntries({
-      sortBy: sel.sortBy, setSortBy: sel.setSortBy,
+      sortBy: sel.sortBy, sortOptions: sel.sortOptions, setSortBy: sel.setSortBy,
       sortOrder: sel.sortOrder, setSortOrder: sel.setSortOrder,
       handleCreateFolder: crud.handleCreateFolder,
       handleRefresh: crud.handleRefresh,

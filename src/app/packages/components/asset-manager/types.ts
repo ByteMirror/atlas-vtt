@@ -1,20 +1,21 @@
 import { App as ObsidianApp, Modal } from 'obsidian';
 import type { KeyboardEvent, MouseEvent } from 'react';
 import type { CollectionMetadata, EncounterAsset as StoredEncounterAsset } from '../../../services/AssetService';
+import { ATLAS_NATIVE_MODAL_CLASSES } from '../../../ui/nativeModal';
 
 // ─── Tab / View Constants ───────────────────────────────────────────
 
 export const tabs = ['scenes', 'maps', 'encounters', 'tokens'] as const;
 export type Tab = (typeof tabs)[number];
 
-export const getTabDisplayName = (tab: Tab): string => {
-  switch (tab) {
-    case 'tokens':
-      return 'Characters';
-    default:
-      return tab;
-  }
+const tabDisplayNames: Record<Tab, string> = {
+  scenes: 'Scenes',
+  maps: 'Maps',
+  encounters: 'Encounters',
+  tokens: 'Characters',
 };
+
+export const getTabDisplayName = (tab: Tab): string => tabDisplayNames[tab];
 
 export type SortOption = 'name' | 'date' | 'type';
 export type SortOrder = 'asc' | 'desc';
@@ -33,6 +34,8 @@ export interface Asset {
   filePath?: string;
   folderId?: string | null;
   tags?: string[];
+  /** Epoch milliseconds of the last change to the stored record. */
+  modifiedAt: number;
 }
 
 export interface TokenAsset extends Asset {
@@ -121,6 +124,8 @@ export interface AssetManagerProps {
   isOpen: boolean;
   onClose: () => void;
   initialTab?: Tab;
+  /** Called once the closing animation has finished. */
+  onExitComplete?: () => void;
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────
@@ -134,6 +139,7 @@ export async function showConfirmationModal(
     const modal = new (class extends Modal {
       onOpen(): void {
         const { contentEl } = this;
+        this.modalEl.addClass(...ATLAS_NATIVE_MODAL_CLASSES);
         contentEl.createEl('h2', { text: title });
         contentEl.createEl('p', { text: message });
 

@@ -2,9 +2,9 @@
 @use '../../../../../styles/mixins' as *;
 
 // ── Command palette shell ───────────────────────────────────────────────────
-// Opened by hotkey many times per session: the shell has no enter/exit
-// animation. The only motion is the size morph between list and settings
-// panel, and press feedback on controls.
+// Opened by hotkey many times per session: the shell rises out of the toolbar
+// in a short Framer Motion animation (CommandPalette.tsx). Besides that, the
+// shell morphs between list and settings panel, and controls give press feedback.
 
 .atlas-command-palette-overlay {
   position: fixed;
@@ -20,23 +20,37 @@
   background: transparent;
 }
 
+// Places the palette above the toolbar and slides it between the list's and
+// the settings panel's position. Its transform is its own, so the container's
+// open / close animation can use the container's.
+.atlas-command-palette-anchor {
+  position: absolute;
+  transition: left $transition-normal $transition-ease-out,
+              transform $transition-normal $transition-ease-out;
+
+  &--hidden {
+    visibility: hidden;
+  }
+
+  // Position is measured after mount; skip the transition until it is known.
+  &.atlas-no-transition,
+  &.atlas-no-transition .atlas-command-palette-container {
+    transition: none;
+  }
+}
+
 .atlas-command-palette-container {
   @include atlas-elevated-surface;
-  position: absolute;
+  @include atlas-panel-radius($radius-2xl);
+  position: relative;
   display: flex;
   flex-direction: column;
   width: 600px;
   height: 450px;
   overflow: hidden;
+  transform-origin: bottom center;
   transition: width $transition-normal $transition-ease-out,
-              height $transition-normal $transition-ease-out,
-              left $transition-normal $transition-ease-out,
-              transform $transition-normal $transition-ease-out;
-
-  // Position is measured after mount; skip the transition until it is known.
-  &.atlas-no-transition {
-    transition: none;
-  }
+              height $transition-normal $transition-ease-out;
 
   &--expanded {
     width: 900px;
@@ -44,9 +58,6 @@
     max-height: 650px;
   }
 
-  &--hidden {
-    visibility: hidden;
-  }
 }
 
 // ── Search ──────────────────────────────────────────────────────────────────
@@ -62,7 +73,7 @@
   padding: 0 $spacing-xs;
   background: var(--background-modifier-form-field);
   border: $border-width-s solid var(--background-modifier-border);
-  border-radius: $radius-l;
+  @include atlas-panel-inset-radius($spacing-s);
   transition: border-color $transition-fast $transition-ease,
               box-shadow $transition-fast $transition-ease;
 
@@ -72,7 +83,7 @@
   }
 }
 
-.atlas-command-palette-search-inner .atlas-close-btn {
+.atlas-command-palette-search-inner .atlas-clear-btn {
   &.btn,
   &.btn--icon {
     width: 22px;
@@ -229,6 +240,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .atlas-command-palette-anchor,
   .atlas-command-palette-container {
     transition: none;
   }

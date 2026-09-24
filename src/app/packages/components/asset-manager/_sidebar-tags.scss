@@ -19,6 +19,47 @@
   height: 24px;
 }
 
+.atlas-tags-heading {
+  @include atlas-flex-row($gap: $spacing-s);
+  min-width: 0;
+}
+
+.atlas-tags-clear-wrapper {
+  display: inline-flex;
+}
+
+// Tinted like the selected tags it clears, so it reads as their summary.
+.atlas-asset-manager-sidebar .atlas-tags-clear.btn {
+  height: 18px;
+  // Less on the right: the X glyph carries its own whitespace.
+  padding: 0 $spacing-xs 0 6px;
+  gap: 2px;
+  border-radius: $radius-full;
+  background-color: color-mix(in oklch, var(--interactive-accent) 14%, transparent);
+  color: var(--text-accent);
+  font-size: $font-ui-smaller;
+  font-weight: $font-weight-medium;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  transition: background-color $transition-fast $transition-ease,
+              transform $transition-press $transition-ease-out;
+
+  &:hover {
+    background-color: color-mix(in oklch, var(--interactive-accent) 24%, transparent);
+    color: var(--text-accent);
+  }
+
+  &:active {
+    transform: scale(0.94);
+  }
+
+  svg {
+    width: 10px;
+    height: 10px;
+    stroke-width: 2.5;
+  }
+}
+
 .atlas-tags-search-container {
   position: relative;
   @include atlas-flex-row($gap: $spacing-xs);

@@ -22,6 +22,7 @@ $log-width: 360px;
   pointer-events: auto;
 
   @include atlas-elevated-surface;
+  @include atlas-panel-radius($radius-2xl);
 
   animation: dice-log-slide-in 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
@@ -38,12 +39,15 @@ $log-width: 360px;
 }
 
 // ── Header ───────────────────────────────────────────────────────────────────
+// Reaches past the log's padding to its top-right corner, where the close button belongs.
 .dice-roll-log__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: $spacing-s;
   flex-shrink: 0;
+  @include atlas-close-header(0);
+  margin: calc(-1 * #{$spacing-s}) calc(-1 * #{$spacing-s}) 0 0;
 }
 
 .dice-roll-log__title {
@@ -61,14 +65,9 @@ $log-width: 360px;
   gap: 2px;
 }
 
+// The same size as the close button beside them.
 .dice-roll-log__action-btn {
-  width: $button-height-s !important;
-  height: $button-height-s !important;
-
-  svg {
-    width: $icon-xs !important;
-    height: $icon-xs !important;
-  }
+  @include atlas-control-icon-button;
 
   &--active {
     color: var(--interactive-accent) !important;
@@ -121,7 +120,7 @@ $log-width: 360px;
   padding: $spacing-s;
   background: var(--background-modifier-hover);
   border: $border-width-s solid color-mix(in oklch, var(--mono-100) $border-opacity-subtle, transparent);
-  border-radius: $radius-l;
+  @include atlas-panel-inset-radius($spacing-s);
   cursor: pointer;
   transition: background $transition-fast $transition-ease,
               border-color $transition-fast $transition-ease;

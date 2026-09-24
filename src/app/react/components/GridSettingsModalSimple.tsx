@@ -10,7 +10,7 @@ interface GridSettingsModalProps {
 }
 
 type GridType = 'square' | 'hex-horizontal' | 'hex-vertical';
-type UnitType = 'feet' | 'meters' | 'units';
+type UnitType = 'feet' | 'yards' | 'meters' | 'units';
 
 interface GridSettings {
   type: GridType;
@@ -185,6 +185,7 @@ export function GridSettingsModal({ isOpen, onClose, view }: GridSettingsModalPr
                 className="atlas-grid-units-select"
               >
                 <option value="feet">feet</option>
+                <option value="yards">yards</option>
                 <option value="meters">meters</option>
                 <option value="units">units</option>
               </select>

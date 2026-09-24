@@ -11,7 +11,8 @@ interface TagSearchModalProps {
   availableTags: Tag[];
   allAssets: AnyAsset[];
   onToggleTag: (tagId: string, selectedAssets: AnyAsset[]) => void;
-  onCreateTag: (tagName: string) => void;
+  /** Receives the dialog's assets with the tags toggled so far. */
+  onCreateTag: (tagName: string, selectedAssets: AnyAsset[]) => void;
   onClose: () => void;
 }
 
@@ -80,7 +81,7 @@ function TagSearchModalInner({
   const handleCreate = (): void => {
     const name = searchQuery.trim();
     if (!name) return;
-    onCreateTag(name);
+    onCreateTag(name, assets);
     setSearchQuery('');
     onClose();
   };

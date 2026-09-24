@@ -25,7 +25,7 @@ function Harness({ onClose, transfer = null }: { onClose: () => void; transfer?:
       isMoveModalOpen: false, settingsModalCollectionId: null,
       inputModalState: { isOpen: false }, setEditingToken: vi.fn(), transfer,
     } as EffectDeps['crud'],
-    tags: { isTagManagerOpen: false, isEditTagsModalOpen: false } as EffectDeps['tags'],
+    tags: { isTagManagerOpen: false } as EffectDeps['tags'],
     statblock: { linkingStatblockAsset: null } as EffectDeps['statblock'],
   });
   return <div ref={modalRef} tabIndex={-1}>
@@ -46,8 +46,8 @@ function setup(): { onClose: ReturnType<typeof vi.fn>; onToggleTag: ReturnType<t
   const onCreateTag = vi.fn();
   render(<Harness onClose={onClose} />);
   const assets: AnyAsset[] = [
-    { id: 'token', type: 'tokens', name: 'Dragon token', imageUrl: '', tags: [] },
-    { id: 'scene', type: 'scenes', name: 'Dragon scene', tags: [] },
+    { id: 'token', type: 'tokens', name: 'Dragon token', imageUrl: '', tags: [], modifiedAt: 0 },
+    { id: 'scene', type: 'scenes', name: 'Dragon scene', tags: [], modifiedAt: 0 },
   ];
   // Use the real independent React root opened by the asset context menu.
   modal = new TagSearchModal(new App(), {
@@ -92,7 +92,7 @@ it('creates a tag without dismissing the asset manager', () => {
   const { onClose, onCreateTag } = setup();
   fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Undead' } });
   clickWithMouseDown(screen.getByText('Create “Undead”'));
-  expect(onCreateTag).toHaveBeenCalledExactlyOnceWith('Undead');
+  expect(onCreateTag).toHaveBeenCalledExactlyOnceWith('Undead', expect.any(Array));
   expect(screen.queryByText('Manage Tags')).toBeNull();
   expect(onClose).not.toHaveBeenCalled();
 });

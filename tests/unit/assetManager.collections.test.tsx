@@ -16,9 +16,9 @@ it('lists collections by name and selects them by id', () => {
   const onSelectCollection = vi.fn();
   render(
     <Sidebar
-      selectedTagIds={[]} onSelectTag={() => {}} tags={[]} assets={[]}
+      selectedTagIds={[]} onSelectTag={() => {}} onClearTags={() => {}} tags={[]} assets={[]}
       collections={collections} selectedCollection="default" onSelectCollection={onSelectCollection}
-      onManageTags={() => {}} isCollapsed={false} onToggleCollapse={() => {}}
+      onManageTags={() => {}}
     />,
   );
   fireEvent.click(screen.getByRole('button', { name: 'Default' }));
@@ -44,9 +44,9 @@ it('shows a renamed default collection under its new name and still selects it b
   const onSelectCollection = vi.fn();
   render(
     <Sidebar
-      selectedTagIds={[]} onSelectTag={() => {}} tags={[]} assets={[]}
+      selectedTagIds={[]} onSelectTag={() => {}} onClearTags={() => {}} tags={[]} assets={[]}
       collections={[{ id: 'default', uid: 'u-default', name: '5e' }]} selectedCollection={null} onSelectCollection={onSelectCollection}
-      onManageTags={() => {}} isCollapsed={false} onToggleCollapse={() => {}}
+      onManageTags={() => {}}
     />,
   );
   fireEvent.click(screen.getByRole('button', { name: 'All Collections' }));

@@ -100,6 +100,11 @@ $input-height-s: 28px;
 $input-height-m: 36px;
 $input-height-l: 44px;
 
+// Close button: the "×" of every panel. One size, and one gap to the panel's
+// border above and beside it, whatever the panel's size or radius.
+$close-button-size: var(--input-height);
+$close-button-gap: $spacing-s;
+
 // ── Breakpoints (for responsive layouts) ─────────────────────────────────────
 $breakpoint-xs: 480px;
 $breakpoint-s:  640px;

@@ -3,6 +3,7 @@
 
 .atlas-player-initiative {
   @include atlas-elevated-surface;
+  @include atlas-panel-radius($radius-2xl);
   position: absolute;
   top: 50%;
   right: $spacing-m;
@@ -40,6 +41,11 @@
     background: var(--background-modifier-hover);
     border: $border-width-s solid var(--background-modifier-border);
     border-radius: $radius-l;
+
+    // The first card sits $spacing-s below the panel's top border.
+    &:first-child {
+      @include atlas-panel-inset-radius($spacing-s, top-left, top-right);
+    }
 
     &--active {
       border-color: var(--interactive-accent);

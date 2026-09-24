@@ -16,6 +16,7 @@ import {
   parseGroupTokenRefs,
   type LegacyAssetMetadata,
 } from './assetMetadataGuards';
+import { groupLegacyTags, hasAssetTag, tagGroupOf, tagKey, type TagGroup } from './tagGroups';
 
 export interface BaseAsset {
   id: string;
@@ -156,6 +157,8 @@ export function groupTokenRefs(asset: GroupAsset): GroupTokenRef[] {
 export interface TagMetadata {
   id: string;
   name: string;
+  /** Missing on tags saved before tag groups existed; `migrateTags` fills it in. */
+  group?: TagGroup;
   color?: string;
   icon?: string;
 }
@@ -378,7 +381,7 @@ export class AssetService {
         break;
       case 'current':
         this.metadata = stored.metadata;
-        await this.migrateTagsToCollections();
+        await this.migrateTags();
         break;
       case 'unreadable':
         await this.startOverFromUnreadableMetadata(stored);
@@ -423,7 +426,7 @@ export class AssetService {
         return;
       }
       this.metadata = stored.metadata;
-      await this.migrateTagsToCollections();
+      await this.migrateTags();
       await this.migrateCollectionFields();
       return;
     }
@@ -1576,20 +1579,25 @@ export class AssetService {
   /**
    * Records an imported collection and its assets in one metadata save. The
    * files must already be in the vault at the paths the assets reference.
+   * Returns the collection as recorded, with tags from older bundles grouped.
    */
-  async commitCollectionImport({ collectionId, collection, upsert, remove }: CollectionImportCommit): Promise<void> {
+  async commitCollectionImport({ collectionId, collection, upsert, remove }: CollectionImportCommit): Promise<CollectionMetadata> {
     await this.ensureLoaded();
     this.assertCollectionNameFree(collection.name, collectionId);
     await this.ensureCollectionStructure(collectionId);
     // Changes go to a copy that replaces the index only once it is saved, so a failed save leaves nothing half-applied.
     const current = this.metadata!;
-    const next: AssetMetadata = {
-      ...current,
-      collections: { ...current.collections, [collectionId]: { ...collection, id: collectionId } },
-      assets: { ...current.assets },
+    const assets = { ...current.assets };
+    for (const id of remove) delete assets[id];
+    for (const asset of upsert) assets[asset.id] = { ...asset, collection: collectionId };
+    const collectionAssets = Object.values(assets).filter((asset) => asset.collection === collectionId);
+    const recorded: CollectionMetadata = {
+      ...collection,
+      id: collectionId,
+      // A bundle update can drop the field; tags then stay as the bundle left them.
+      tags: groupLegacyTags(collection.tags ?? {}, collectionAssets) ?? collection.tags,
     };
-    for (const id of remove) delete next.assets[id];
-    for (const asset of upsert) next.assets[asset.id] = { ...asset, collection: collectionId };
+    const next: AssetMetadata = { ...current, collections: { ...current.collections, [collectionId]: recorded }, assets };
     this.metadata = next;
     try {
       await this.saveMetadata();
@@ -1598,6 +1606,7 @@ export class AssetService {
       throw error;
     }
     if (upsert.some((asset) => asset.type === 'token')) SettingsService.forApp(this.app)?.markTokenImported();
+    return recorded;
   }
 
   // Backward compatibility methods
@@ -1662,156 +1671,114 @@ export class AssetService {
   }
 
   /**
-   * Migrate existing tags to collection-based system
+   * Gives every collection a tag registry, filled from its assets' tags when it
+   * had none, and moves ungrouped tags into their tag groups.
    */
-  private async migrateTagsToCollections(): Promise<void> {
+  private async migrateTags(): Promise<void> {
     if (!this.metadata) return;
-    
-    // Check if collections have tags property
-    let needsMigration = false;
-    Object.values(this.metadata.collections).forEach(collection => {
+    const assets = Object.values(this.metadata.assets);
+    let changed = false;
+    for (const collection of Object.values(this.metadata.collections)) {
+      const collectionAssets = assets.filter((asset) => (asset.collection || 'default') === collection.id);
       if (!collection.tags) {
         collection.tags = {};
-        needsMigration = true;
+        changed = true;
+        for (const tagName of new Set(collectionAssets.flatMap((asset) => asset.tags ?? []))) {
+          collection.tags[tagIdOf(tagName)] = { id: tagIdOf(tagName), name: tagName };
+        }
       }
-    });
-    
-    if (needsMigration) {
-      // Collect all unique tags from assets and create them in their collections
-      const tagsByCollection = new Map<string, Set<string>>();
-      
-      Object.values(this.metadata.assets).forEach(asset => {
-        if (asset.tags && asset.tags.length > 0) {
-          const collectionId = asset.collection || 'default';
-          if (!tagsByCollection.has(collectionId)) {
-            tagsByCollection.set(collectionId, new Set<string>());
-          }
-          asset.tags.forEach(tag => {
-            tagsByCollection.get(collectionId)!.add(tag);
-          });
-        }
-      });
-      
-      // Create tags in collections
-      tagsByCollection.forEach((tags, collectionId) => {
-        const collection = this.metadata!.collections[collectionId];
-        if (collection) {
-          tags.forEach(tagName => {
-            const tagId = tagName.toLowerCase().replace(/\s+/g, '-');
-            collection.tags[tagId] = {
-              id: tagId,
-              name: tagName
-            };
-          });
-        }
-      });
-      
-      await this.saveMetadata();
+      const grouped = groupLegacyTags(collection.tags, collectionAssets);
+      if (grouped) {
+        collection.tags = grouped;
+        changed = true;
+      }
     }
+    if (changed) await this.saveMetadata();
   }
 
-  /**
-   * Get all unique registered and assigned tags across all collections.
-   */
-  async getAllTags(): Promise<string[]> {
+  /** The tags of a group: registered in any collection or carried by any asset of the group, sorted by name. */
+  async getAllTags(group: TagGroup): Promise<string[]> {
     await this.ensureLoaded();
     if (!this.metadata) return [];
-    
+
     const tags = new Set<string>();
-    Object.values(this.metadata.collections).forEach(collection => {
-      Object.values(collection.tags ?? {}).forEach(tag => tags.add(tag.name));
-    });
-    Object.values(this.metadata.assets).forEach(asset => {
-      asset.tags.forEach(tag => tags.add(tag));
-    });
-    
+    for (const collection of Object.values(this.metadata.collections)) {
+      for (const tag of Object.values(collection.tags ?? {})) {
+        if (tag.group === group) tags.add(tag.name);
+      }
+    }
+    for (const asset of Object.values(this.metadata.assets)) {
+      if (tagGroupOf(asset.type) === group) asset.tags.forEach((tag) => tags.add(tag));
+    }
     return Array.from(tags).sort();
   }
 
-  /**
-   * Get all tags for a specific collection
-   */
-  async getCollectionTags(collectionId: string): Promise<TagMetadata[]> {
+  /** The tags a collection registers in a group. */
+  async getCollectionTags(collectionId: string, group: TagGroup): Promise<TagMetadata[]> {
     await this.ensureLoaded();
-    if (!this.metadata) return [];
-    
-    const collection = this.metadata.collections[collectionId];
-    if (!collection || !collection.tags) return [];
-    
-    return Object.values(collection.tags);
+    const tags = this.metadata?.collections[collectionId]?.tags ?? {};
+    return Object.values(tags).filter((tag) => tag.group === group);
   }
 
-  /**
-   * Create a new tag in a collection
-   */
-  async createTag(collectionId: string, tagName: string): Promise<TagMetadata> {
+  /** Registers a tag in a collection's group; an existing tag of that name is returned as it is. */
+  async createTag(collectionId: string, group: TagGroup, tagName: string): Promise<TagMetadata> {
     await this.ensureLoaded();
     if (!this.metadata) throw new Error('Metadata not loaded');
-    
+
     const collection = this.metadata.collections[collectionId];
     if (!collection) throw new Error(`Collection ${collectionId} not found`);
-    
-    // Initialize tags if not present
-    if (!collection.tags) {
-      collection.tags = {};
-    }
-    
-    const tagId = tagIdOf(tagName);
-    const tag: TagMetadata = {
-      id: tagId,
-      name: tagName
-    };
-    
-    collection.tags[tagId] = tag;
+    collection.tags ??= {};
+
+    const id = tagIdOf(tagName);
+    const existing = collection.tags[tagKey(group, id)];
+    if (existing) return existing;
+
+    const tag: TagMetadata = { id, name: tagName.trim(), group };
+    collection.tags[tagKey(group, id)] = tag;
     await this.saveMetadata();
-    
     return tag;
   }
 
   /**
-   * Renames a tag. Its id follows the name, and every asset in the collection
-   * that carries the tag (by id or, as creators store it, by name) is retagged.
+   * Renames a tag. Its id follows the name, and every asset of the group in the
+   * collection that carries the tag (by id or, as creators store it, by name) is retagged.
    */
-  async renameTag(collectionId: string, tagId: string, name: string): Promise<TagMetadata> {
+  async renameTag(collectionId: string, group: TagGroup, tagId: string, name: string): Promise<TagMetadata> {
     await this.ensureLoaded();
     const tags = this.metadata!.collections[collectionId]?.tags;
-    const tag = tags?.[tagId];
+    const tag = tags?.[tagKey(group, tagId)];
     if (!tags || !tag) throw new Error(`Tag ${tagId} not found`);
 
-    const renamed: TagMetadata = { ...tag, id: tagIdOf(name), name: name.trim() };
-    if (renamed.id !== tagId && tags[renamed.id]) throw new Error(`A tag named "${name}" already exists`);
-    delete tags[tagId];
-    tags[renamed.id] = renamed;
+    const renamed: TagMetadata = { ...tag, id: tagIdOf(name), name: name.trim(), group };
+    if (renamed.id !== tagId && tags[tagKey(group, renamed.id)]) throw new Error(`A tag named "${name}" already exists`);
+    delete tags[tagKey(group, tagId)];
+    tags[tagKey(group, renamed.id)] = renamed;
 
     const retag = (value: string): string => (value === tag.id ? renamed.id : value === tag.name ? renamed.name : value);
-    for (const asset of Object.values(this.metadata!.assets)) {
-      if (asset.collection === collectionId) asset.tags = asset.tags.map(retag);
-    }
+    for (const asset of this.assetsOfTagGroup(collectionId, group)) asset.tags = asset.tags.map(retag);
     await this.saveMetadata();
     return renamed;
   }
 
-  /**
-   * Delete a tag from a collection and remove it from all assets
-   */
-  async deleteTag(collectionId: string, tagId: string): Promise<void> {
+  /** Deletes a tag from a collection's group and removes it from the group's assets. */
+  async deleteTag(collectionId: string, group: TagGroup, tagId: string): Promise<void> {
     await this.ensureLoaded();
     if (!this.metadata) throw new Error('Metadata not loaded');
-    
-    const collection = this.metadata.collections[collectionId];
-    const tag = collection?.tags?.[tagId];
-    if (!collection?.tags || !tag) return;
-    
-    delete collection.tags[tagId];
-    
-    // Assets reference the tag by id or, as creators store it, by name.
-    Object.values(this.metadata.assets).forEach(asset => {
-      if (asset.collection === collectionId) {
-        asset.tags = asset.tags.filter(t => t !== tag.id && t !== tag.name);
-      }
-    });
-    
+
+    const tags = this.metadata.collections[collectionId]?.tags;
+    const tag = tags?.[tagKey(group, tagId)];
+    if (!tags || !tag) return;
+
+    delete tags[tagKey(group, tagId)];
+    for (const asset of this.assetsOfTagGroup(collectionId, group)) {
+      asset.tags = asset.tags.filter((value) => !hasAssetTag([value], tag));
+    }
     await this.saveMetadata();
+  }
+
+  private assetsOfTagGroup(collectionId: string, group: TagGroup): Asset[] {
+    return Object.values(this.metadata!.assets)
+      .filter((asset) => asset.collection === collectionId && tagGroupOf(asset.type) === group);
   }
 
   /**
@@ -1837,6 +1804,8 @@ export class AssetService {
     if (!collection) throw new Error(`Collection ${collectionId} not found`);
     collection.settings = { ...collection.settings, ...settings };
     collection.modifiedAt = Date.now();
+    // Open maps apply the change at once; the write to disk follows
+    this.app.workspace.trigger('atlas-vtt:collection-settings-changed', collectionId);
     await this.saveMetadata();
   }
 
@@ -1844,6 +1813,14 @@ export class AssetService {
   getCollectionSettings(collectionId: string): CollectionSettings {
     const collection = this.metadata?.collections[collectionId];
     return collection?.settings ?? { conditions: [] };
+  }
+
+  /** The library token drawn with this artwork, read from the loaded index. */
+  findTokenAssetByImagePath(imagePath: string): TokenAsset | null {
+    if (!this.metadata) return null;
+    return Object.values(this.metadata.assets).find(
+      (asset): asset is TokenAsset => asset.type === 'token' && asset.imagePath === imagePath,
+    ) ?? null;
   }
 
   /** Get the collection ID that a given map file belongs to */

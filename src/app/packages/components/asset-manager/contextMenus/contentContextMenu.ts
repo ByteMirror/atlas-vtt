@@ -1,8 +1,10 @@
 import type { ContextMenuEntry } from '../../../../react/components/context-menu/AtlasContextMenu';
 import type { SortOption, SortOrder } from '../types';
+import { SORT_LABELS } from '../utils/assetSort';
 
 export interface ContentContextMenuDeps {
   sortBy: SortOption;
+  sortOptions: readonly SortOption[];
   setSortBy: (sort: SortOption) => void;
   sortOrder: SortOrder;
   setSortOrder: (order: SortOrder) => void;
@@ -29,9 +31,9 @@ export function buildContentContextMenuEntries(
     label: 'Sort by',
     icon: 'arrow-up-down',
     children: [
-      { type: 'item', label: 'Name', checked: deps.sortBy === 'name', onClick: () => deps.setSortBy('name') },
-      { type: 'item', label: 'Date Modified', checked: deps.sortBy === 'date', onClick: () => deps.setSortBy('date') },
-      { type: 'item', label: 'Type', checked: deps.sortBy === 'type', onClick: () => deps.setSortBy('type') },
+      ...deps.sortOptions.map((option): ContextMenuEntry => ({
+        type: 'item', label: SORT_LABELS[option], checked: deps.sortBy === option, onClick: () => deps.setSortBy(option),
+      })),
       { type: 'separator' },
       {
         type: 'item',

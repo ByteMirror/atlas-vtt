@@ -2,72 +2,135 @@ import { act, cleanup, renderHook, type RenderHookResult } from '@testing-librar
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { Notice } from 'obsidian';
 import { useCollectionTransfer, type CollectionTransferActions } from '../../src/app/packages/components/asset-manager/hooks/useCollectionTransfer';
-import { importCollectionBundle, type CollectionImportResult, type ImportOptions, type UpdateRequest } from '../../src/app/services/collectionBundle/collectionImport';
-import { confirmAction } from '../../src/app/ui/confirmDialog';
+import { openCollectionImport, type CollectionImportResult, type ImportSession } from '../../src/app/services/collectionBundle/collectionImport';
+import { exportCollectionBundle, prepareCollectionExport, type ExportPreview } from '../../src/app/services/collectionBundle/collectionExport';
+import type { ImportReview } from '../../src/app/services/collectionBundle/importReview';
 
 vi.mock('obsidian', async (importOriginal) => ({ ...(await importOriginal<typeof import('obsidian')>()), Notice: vi.fn() }));
-vi.mock('../../src/app/services/collectionBundle/collectionImport', () => ({ importCollectionBundle: vi.fn() }));
-vi.mock('../../src/app/ui/confirmDialog', () => ({ confirmAction: vi.fn() }));
+vi.mock('../../src/app/services/collectionBundle/collectionImport', () => ({ openCollectionImport: vi.fn() }));
+vi.mock('../../src/app/services/collectionBundle/collectionExport', () => ({ prepareCollectionExport: vi.fn(), exportCollectionBundle: vi.fn() }));
 
-const request = { existing: { name: 'Default 2' }, imported: { name: '5e' }, exportedAt: Date.now() } as UpdateRequest;
+const review = { relation: 'newer', collectionName: 'Source', version: 2 } as ImportReview;
+const updated: CollectionImportResult = {
+  collectionName: 'Source', version: 2, created: false, written: 3, removed: 1, keptLocal: 1,
+  backupCount: 4, backupFolder: 'atlas-vtt/.atlas-data/backups/source/2026-09-23 19-30-05',
+};
 
-/** Imports that meet a collection the vault already has, as the Dolmenwood vault did. */
-function importsExistingCollection(): void {
-  vi.mocked(importCollectionBundle).mockImplementation(async (_app, _assets, _file, options?: ImportOptions): Promise<CollectionImportResult> => {
-    const update = await options!.confirmUpdate!(request);
-    return { outcome: update ? 'updated' : 'kept', collectionName: '5e', assetCount: 3, fileCount: 9 };
-  });
+function session(apply: ImportSession['apply'] = vi.fn(async () => updated)): ImportSession {
+  return { review, apply };
 }
 
-function setup(): { hook: RenderHookResult<CollectionTransferActions, unknown>; onImported: ReturnType<typeof vi.fn> } {
+function setup(): { hook: RenderHookResult<CollectionTransferActions, unknown>; onImported: ReturnType<typeof vi.fn>; assetService: Record<string, ReturnType<typeof vi.fn>> } {
   const onImported = vi.fn(async (): Promise<void> => undefined);
+  const assetService = {
+    resolveCollectionId: vi.fn(async () => 'source'),
+    isCollectionNameTaken: vi.fn(async (name: string) => name === 'Taken'),
+  };
   const app = { workspace: { trigger: vi.fn() } };
-  const hook = renderHook(() => useCollectionTransfer({ app: app as never, assetService: {} as never, selectedCollection: null, onImported }));
-  return { hook, onImported };
+  const hook = renderHook(() => useCollectionTransfer({ app: app as never, assetService: assetService as never, selectedCollection: 'Source', onImported }));
+  return { hook, onImported, assetService };
 }
 
-function pickFile(hook: RenderHookResult<CollectionTransferActions, unknown>): void {
+async function pickFile(hook: RenderHookResult<CollectionTransferActions, unknown>): Promise<void> {
   act(() => hook.result.current.handleImportCollection());
   const input = document.querySelector<HTMLInputElement>('input[type="file"]')!;
-  Object.defineProperty(input, 'files', { value: [new File(['zip'], '5e.atlas-collection.zip')] });
+  Object.defineProperty(input, 'files', { value: [new File(['zip'], 'Source v2.atlas-collection.zip')] });
   input.dispatchEvent(new Event('change'));
+  await vi.waitFor(() => expect(openCollectionImport).toHaveBeenCalled());
 }
 
 beforeEach(() => { vi.clearAllMocks(); });
 afterEach(cleanup);
 
-it('asks with a warning before updating, keeping the asset manager blocked, and changes nothing when declined', async () => {
-  importsExistingCollection();
-  let answer: (update: boolean) => void = () => undefined;
-  vi.mocked(confirmAction).mockImplementation(() => new Promise((resolve) => { answer = resolve; }));
+it('reviews a bundle, applies the user\'s decision and shows the result until closed', async () => {
+  const apply = vi.fn(async () => updated);
+  vi.mocked(openCollectionImport).mockResolvedValue(session(apply));
   const { hook, onImported } = setup();
-  pickFile(hook);
-  await vi.waitFor(() => expect(confirmAction).toHaveBeenCalledWith(expect.objectContaining({ title: 'Update collection', confirmLabel: 'Update', destructive: true })));
-  expect(hook.result.current.transfer).toMatchObject({ isAwaitingConfirmation: true });
-  await act(async () => answer(false));
+  await pickFile(hook);
+  await vi.waitFor(() => expect(hook.result.current.transfer).toEqual({ step: 'import-review', review }));
+
+  const decision = { resolutions: new Map([['asset:cave', 'theirs' as const]]) };
+  await act(async () => hook.result.current.confirmImport(decision));
+  expect(apply).toHaveBeenCalledWith(decision, expect.any(Function));
+  expect(hook.result.current.transfer).toEqual({
+    step: 'done',
+    title: 'Collection updated',
+    message: 'Updated “Source” v2: 3 files written, 1 file removed, 1 item kept as you had them. Replaced files were backed up to atlas-vtt/.atlas-data/backups/source/2026-09-23 19-30-05.',
+  });
+  expect(onImported).toHaveBeenCalled();
+  act(() => hook.result.current.closeTransfer());
   expect(hook.result.current.transfer).toBeNull();
-  expect(onImported).not.toHaveBeenCalled();
 });
 
-it('shows the result of a confirmed update until it is closed', async () => {
-  importsExistingCollection();
-  vi.mocked(confirmAction).mockResolvedValue(true);
-  const { hook, onImported } = setup();
-  pickFile(hook);
-  await vi.waitFor(() => expect(hook.result.current.transfer?.title).toBe('Collection imported'));
-  expect(hook.result.current.transfer?.progress.message).toBe('Updated "5e" with 3 assets from the export.');
-  await vi.waitFor(() => expect(onImported).toHaveBeenCalled());
-  act(() => hook.result.current.transfer?.prompt?.actions[0]?.onSelect());
-  expect(hook.result.current.transfer).toBeNull();
+it('explains a bundle it cannot read and an import that failed', async () => {
+  vi.mocked(openCollectionImport).mockRejectedValueOnce(new Error('This collection export is damaged.'));
+  const { hook } = setup();
+  await pickFile(hook);
+  await vi.waitFor(() => expect(hook.result.current.transfer).toEqual({ step: 'done', title: 'Import failed', message: 'This collection export is damaged.' }));
+
+  act(() => hook.result.current.closeTransfer());
+  vi.mocked(openCollectionImport).mockResolvedValueOnce(session(vi.fn(async () => { throw new Error('The import failed: Disk full. Nothing was changed.'); })));
+  await pickFile(hook);
+  await vi.waitFor(() => expect(hook.result.current.transfer?.step).toBe('import-review'));
+  await act(async () => hook.result.current.confirmImport({}));
+  expect(hook.result.current.transfer).toMatchObject({ step: 'done', title: 'Import failed', message: 'The import failed: Disk full. Nothing was changed.' });
 });
 
 it('reports the result as a notice when the asset manager closed during the import', async () => {
-  let finishImport: (result: CollectionImportResult) => void = () => undefined;
-  vi.mocked(importCollectionBundle).mockImplementation(() => new Promise((resolve) => { finishImport = resolve; }));
+  let finish: (result: CollectionImportResult) => void = () => undefined;
+  vi.mocked(openCollectionImport).mockResolvedValue(session(() => new Promise((resolve) => { finish = resolve; })));
   const { hook } = setup();
-  pickFile(hook);
-  await vi.waitFor(() => expect(importCollectionBundle).toHaveBeenCalled());
+  await pickFile(hook);
+  await vi.waitFor(() => expect(hook.result.current.transfer?.step).toBe('import-review'));
+  const applying = hook.result.current.confirmImport({});
   hook.unmount();
-  await act(async () => finishImport({ outcome: 'created', collectionName: '5e', assetCount: 3, fileCount: 9 }));
-  expect(Notice).toHaveBeenCalledWith('Imported "5e" with 3 assets.');
+  finish({ ...updated, created: true });
+  await applying;
+  expect(Notice).toHaveBeenCalledWith('Imported “Source” v2.');
+});
+
+it('shows export options, keeps them open for a name that is taken, and exports the chosen release', async () => {
+  vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: vi.fn(() => 'blob:x'), revokeObjectURL: vi.fn() }));
+  const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+  const preview = { collection: { id: 'source', name: 'Source' } } as ExportPreview;
+  vi.mocked(prepareCollectionExport).mockResolvedValue(preview);
+  const commit = vi.fn(async (): Promise<void> => undefined);
+  vi.mocked(exportCollectionBundle).mockResolvedValue({ blob: new Blob(['zip']), commit, fileName: 'Source v2.atlas-collection.zip', collectionName: 'Source', version: 2, assetCount: 3, fileCount: 9 });
+  const { hook } = setup();
+
+  await act(async () => hook.result.current.handleExportCollection());
+  expect(hook.result.current.transfer).toEqual({ step: 'export-options', preview });
+  let error: string | null = null;
+  await act(async () => { error = await hook.result.current.confirmExport({ kind: 'fork', name: 'Taken' }); });
+  expect(error).toBe('A collection named “Taken” already exists.');
+  expect(hook.result.current.transfer?.step).toBe('export-options');
+
+  await act(async () => { await hook.result.current.confirmExport({ kind: 'release', version: 2 }); });
+  expect(exportCollectionBundle).toHaveBeenCalledWith(expect.anything(), expect.anything(), preview, { kind: 'release', version: 2 }, expect.any(Function));
+  expect(hook.result.current.transfer).toEqual({
+    step: 'done', title: 'Collection exported', message: 'Packed “Source” v2 (3 assets, 9 files) into Source v2.atlas-collection.zip.',
+  });
+  expect(click).toHaveBeenCalledOnce();
+  expect(commit).toHaveBeenCalledOnce();
+  click.mockRestore();
+  vi.unstubAllGlobals();
+});
+
+it('reports an export whose file went out but whose release could not be recorded', async () => {
+  vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: vi.fn(() => 'blob:x'), revokeObjectURL: vi.fn() }));
+  const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+  vi.mocked(prepareCollectionExport).mockResolvedValue({ collection: { id: 'source', name: 'Source' } } as ExportPreview);
+  vi.mocked(exportCollectionBundle).mockResolvedValue({
+    blob: new Blob(['zip']), commit: vi.fn(async () => { throw new Error('Disk full'); }),
+    fileName: 'Source v2.atlas-collection.zip', collectionName: 'Source', version: 2, assetCount: 3, fileCount: 9,
+  });
+  const { hook } = setup();
+  await act(async () => hook.result.current.handleExportCollection());
+  await act(async () => { await hook.result.current.confirmExport({ kind: 'release', version: 2 }); });
+  expect(hook.result.current.transfer).toMatchObject({
+    step: 'done', title: 'Collection exported',
+    message: expect.stringContaining('could not record the release (Disk full)'),
+  });
+  click.mockRestore();
+  vi.unstubAllGlobals();
 });

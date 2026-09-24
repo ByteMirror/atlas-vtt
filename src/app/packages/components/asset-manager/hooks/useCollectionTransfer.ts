@@ -1,29 +1,27 @@
 import { useEffect, useRef, useState } from 'react';
 import { Notice, type App as ObsidianApp } from 'obsidian';
 import type { AssetService } from '../../../../services/AssetService';
-import { exportCollectionBundle, type BundleProgress } from '../../../../services/collectionBundle/collectionExport';
-import { importCollectionBundle, type CollectionImportResult, type UpdateRequest } from '../../../../services/collectionBundle/collectionImport';
-import { confirmAction } from '../../../../ui/confirmDialog';
-import type { ProgressModalPrompt } from '../../primitives/ProgressModal';
-import { formatRelativeTime } from '../../../../utils/relativeTime';
+import type { BundleProgress, BundleProgressListener } from '../../../../services/collectionBundle/bundleProgress';
+import { exportCollectionBundle, prepareCollectionExport, type ExportChoice, type ExportPreview } from '../../../../services/collectionBundle/collectionExport';
+import { openCollectionImport, type CollectionImportResult, type ImportDecision, type ImportSession } from '../../../../services/collectionBundle/collectionImport';
+import type { ImportReview } from '../../../../services/collectionBundle/importReview';
+import { describeError } from '../../../../utils/errors';
+import { plural } from '../../../../utils/plural';
 
-export interface CollectionTransfer {
-  title: string;
-  progress: BundleProgress;
-  /** Set once the transfer has finished: `progress.message` is its result, shown until closed. */
-  prompt?: ProgressModalPrompt;
-  /**
-   * A confirmation dialog is open. It stacks below the progress dialog, which
-   * therefore hides, while the asset manager still treats a dialog as open.
-   */
-  isAwaitingConfirmation?: boolean;
-}
+/** Where an export or import stands; the asset manager blocks while one is set. */
+export type CollectionTransfer =
+  | { step: 'working'; title: string; progress: BundleProgress }
+  | { step: 'export-options'; preview: ExportPreview }
+  | { step: 'import-review'; review: ImportReview }
+  | { step: 'done'; title: string; message: string };
 
 export interface CollectionTransferActions {
-  /** The export or import in progress; the UI blocks while it is set. */
   transfer: CollectionTransfer | null;
   handleExportCollection: () => Promise<void>;
   handleImportCollection: () => void;
+  confirmExport: (choice: ExportChoice) => Promise<string | null>;
+  confirmImport: (decision: ImportDecision) => Promise<void>;
+  closeTransfer: () => void;
 }
 
 interface Deps {
@@ -36,24 +34,13 @@ interface Deps {
 const EXPORTING = 'Exporting collection';
 const IMPORTING = 'Importing collection';
 
-function describeImportResult(result: CollectionImportResult): string {
-  const name = `"${result.collectionName}"`;
-  return result.outcome === 'created'
-    ? `Imported ${name} with ${result.assetCount} assets.`
-    : `Updated ${name} with ${result.assetCount} assets from the export.`;
-}
-
-/** Only the user knows whether the export or the vault's copy holds the work to keep. */
-function confirmUpdate({ existing, imported, exportedAt }: UpdateRequest): Promise<boolean> {
-  return confirmAction({
-    title: 'Update collection',
-    message: [
-      `This vault already has "${existing.name}". The export of "${imported.name}" was made ${formatRelativeTime(exportedAt)}.`,
-      'Updating replaces the collection\'s name, settings, files and assets in this vault with the ones from the export.',
-    ],
-    confirmLabel: 'Update',
-    destructive: true,
-  });
+function describeImport(result: CollectionImportResult): string {
+  const name = `“${result.collectionName}” v${result.version}`;
+  if (result.created) return `Imported ${name}.`;
+  const parts = [`${plural(result.written, 'file')} written`, `${plural(result.removed, 'file')} removed`];
+  if (result.keptLocal > 0) parts.push(`${plural(result.keptLocal, 'item')} kept as you had them`);
+  const backup = result.backupCount > 0 ? ` Replaced files were backed up to ${result.backupFolder}.` : '';
+  return `Updated ${name}: ${parts.join(', ')}.${backup}`;
 }
 
 function downloadBlob(blob: Blob, fileName: string): void {
@@ -64,69 +51,103 @@ function downloadBlob(blob: Blob, fileName: string): void {
   URL.revokeObjectURL(url);
 }
 
-/** Exports the selected collection to a zip and imports zips, showing progress while files are packed or written. */
+/**
+ * Drives exporting the selected collection and importing bundles: progress,
+ * the export options and import review dialogs, and the final result.
+ */
 export function useCollectionTransfer({ app, assetService, selectedCollection, onImported }: Deps): CollectionTransferActions {
   const [transfer, setTransfer] = useState<CollectionTransfer | null>(null);
+  const session = useRef<ImportSession | null>(null);
   const isMounted = useRef(true);
   useEffect(() => {
     isMounted.current = true;
     return (): void => { isMounted.current = false; };
   }, []);
 
-  const close = (): void => setTransfer(null);
+  const working = (title: string): BundleProgressListener => (progress) => setTransfer({ step: 'working', title, progress });
+
+  const closeTransfer = (): void => {
+    session.current = null;
+    setTransfer(null);
+  };
 
   // The dialog stays open with the result: a fast transfer would otherwise only flash.
   const finish = (title: string, message: string): void => {
+    session.current = null;
     // An update can close the map view hosting this asset manager; the result must still reach the user.
     if (!isMounted.current) {
       new Notice(message);
       return;
     }
-    setTransfer({
-      title,
-      progress: { message, fraction: 1 },
-      prompt: { actions: [{ label: 'Close', onSelect: close, isPrimary: true }], onDismiss: close },
-    });
+    setTransfer({ step: 'done', title, message });
   };
 
   const handleExportCollection = async (): Promise<void> => {
     if (!assetService || !selectedCollection || transfer) return;
-    const collections = await assetService.getCollections();
-    const match = collections.find((collection) => collection.name === selectedCollection || collection.id === selectedCollection);
-    if (!match) return;
-    setTransfer({ title: EXPORTING, progress: { message: 'Preparing…', fraction: 0 } });
+    const id = await assetService.resolveCollectionId(selectedCollection);
+    if (!id) return;
+    setTransfer({ step: 'working', title: EXPORTING, progress: { message: 'Checking the collection…', fraction: 0 } });
     try {
-      const blob = await exportCollectionBundle(app, assetService, match.id, (progress) => setTransfer({ title: EXPORTING, progress }));
-      const fileName = `${match.name}.atlas-collection.zip`;
-      downloadBlob(blob, fileName);
-      finish('Collection exported', `Packed "${match.name}" into ${fileName}.`);
+      setTransfer({ step: 'export-options', preview: await prepareCollectionExport(app, assetService, id) });
+    } catch (error) {
+      console.error('[useCollectionTransfer] Export preparation failed:', error);
+      finish('Export failed', describeError(error));
+    }
+  };
+
+  const confirmExport = async (choice: ExportChoice): Promise<string | null> => {
+    if (!assetService || transfer?.step !== 'export-options') return null;
+    const { preview } = transfer;
+    if (choice.kind === 'fork' && await assetService.isCollectionNameTaken(choice.name, preview.collection.id)) {
+      return `A collection named “${choice.name.trim()}” already exists.`;
+    }
+    setTransfer({ step: 'working', title: EXPORTING, progress: { message: 'Preparing…', fraction: 0 } });
+    try {
+      const bundle = await exportCollectionBundle(app, assetService, preview, choice, working(EXPORTING));
+      downloadBlob(bundle.blob, bundle.fileName);
+      const packed = `Packed “${bundle.collectionName}” v${bundle.version} (${plural(bundle.assetCount, 'asset')}, ${plural(bundle.fileCount, 'file')}) into ${bundle.fileName}.`;
+      try {
+        await bundle.commit();
+      } catch (error) {
+        // The file is out already; only recording the release here failed.
+        console.error('[useCollectionTransfer] Recording the release failed:', error);
+        finish('Collection exported', `${packed} This vault could not record the release (${describeError(error)}), so export it again before sharing another version.`);
+        return null;
+      }
+      finish('Collection exported', packed);
+      if (choice.kind === 'fork') await onImported();
     } catch (error) {
       console.error('[useCollectionTransfer] Export failed:', error);
-      finish('Export failed', error instanceof Error ? error.message : 'The collection could not be exported.');
+      finish('Export failed', describeError(error));
     }
+    return null;
   };
 
   const importFile = async (file: File): Promise<void> => {
     if (!assetService) return;
-    setTransfer({ title: IMPORTING, progress: { message: 'Reading bundle…', fraction: 0 } });
+    setTransfer({ step: 'working', title: IMPORTING, progress: { message: 'Reading bundle…', fraction: 0 } });
+    try {
+      session.current = await openCollectionImport(app, assetService, file, working(IMPORTING));
+      setTransfer({ step: 'import-review', review: session.current.review });
+    } catch (error) {
+      console.error('[useCollectionTransfer] Reading the bundle failed:', error);
+      finish('Import failed', describeError(error));
+    }
+  };
+
+  const confirmImport = async (decision: ImportDecision): Promise<void> => {
+    const current = session.current;
+    if (!current) return;
+    setTransfer({ step: 'working', title: IMPORTING, progress: { message: 'Writing…', fraction: 0 } });
     let result: CollectionImportResult;
     try {
-      result = await importCollectionBundle(app, assetService, file, {
-        onProgress: (progress) => setTransfer({ title: IMPORTING, progress }),
-        confirmUpdate: async (request) => {
-          setTransfer({ title: IMPORTING, progress: { message: 'Waiting for confirmation…', fraction: 0 }, isAwaitingConfirmation: true });
-          const update = await confirmUpdate(request);
-          setTransfer(update ? { title: IMPORTING, progress: { message: 'Updating…', fraction: 0 } } : null);
-          return update;
-        },
-      });
+      result = await current.apply(decision, working(IMPORTING));
     } catch (error) {
       console.error('[useCollectionTransfer] Import failed:', error);
-      finish('Import failed', error instanceof Error ? error.message : 'The collection could not be imported.');
+      finish('Import failed', describeError(error));
       return;
     }
-    if (result.outcome === 'kept') return;
-    finish('Collection imported', describeImportResult(result));
+    finish(result.created ? 'Collection imported' : 'Collection updated', describeImport(result));
     // The import is complete; a failed refresh must not report it as failed.
     try {
       await onImported();
@@ -152,5 +173,5 @@ export function useCollectionTransfer({ app, assetService, selectedCollection, o
     input.click();
   };
 
-  return { transfer, handleExportCollection, handleImportCollection };
+  return { transfer, handleExportCollection, handleImportCollection, confirmExport, confirmImport, closeTransfer };
 }

@@ -2,6 +2,7 @@ import { App, TFile } from 'obsidian';
 import { groupTokenRefs, type AssetService, type GroupAsset } from '../../../../services/AssetService';
 import { findTokenPlacements, removeTokenPlacements } from '../../../../services/tokenAssetPlacements';
 import type { AnyAsset } from '../types';
+import { plural } from '../../../../utils/plural';
 
 /** Where the token assets about to be deleted are still in use. */
 export interface TokenDeleteImpact {
@@ -14,10 +15,6 @@ export interface TokenDeleteImpact {
 function listNames(names: string[]): string {
   const shown = names.slice(0, 5).map((n) => `"${n}"`).join(', ');
   return names.length > 5 ? `${shown} and ${names.length - 5} more` : shown;
-}
-
-function plural(count: number, noun: string): string {
-  return `${count} ${noun}${count === 1 ? '' : 's'}`;
 }
 
 /** Looks up encounters and maps that use any of the given token assets. */

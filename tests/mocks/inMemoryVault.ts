@@ -55,6 +55,13 @@ export function createInMemoryApp(seed: InMemoryVaultSeed = {}): InMemoryApp {
   };
 
   for (const path of files.keys()) addParentFolders(path);
+  const folderWithChildren = (path: string): TFolder => {
+    const folder = new TFolder(path);
+    folder.children = [...files.keys(), ...folders]
+      .filter((entry) => parentOf(entry) === path)
+      .map((entry) => (files.has(entry) ? new TFile(entry) : new TFolder(entry)));
+    return folder;
+  };
 
   const app = new App();
 
@@ -68,12 +75,15 @@ export function createInMemoryApp(seed: InMemoryVaultSeed = {}): InMemoryApp {
       }),
       write: vi.fn(async (path: string, content: string) => writeFile(path, content)),
       read: vi.fn(async (path: string) => files.get(path) ?? ''),
+      writeBinary: vi.fn(async (path: string, content: ArrayBuffer) => writeFile(path, new TextDecoder().decode(content))),
+      readBinary: vi.fn(async (path: string) => new TextEncoder().encode(files.get(path) ?? '').buffer),
+      remove: vi.fn(async (path: string) => { files.delete(path); }),
     },
-    getFiles: vi.fn(() => Array.from(files.keys(), (path) => new TFile(path))),
+    getFiles: vi.fn(() => Array.from(files.keys()).filter((path) => !isHiddenPath(path)).map((path) => new TFile(path))),
     getAbstractFileByPath: vi.fn((path: string): TAbstractFile | null => {
       if (isHiddenPath(path)) return null;
       if (files.has(path)) return new TFile(path);
-      if (folders.has(path)) return new TFolder(path);
+      if (folders.has(path)) return folderWithChildren(path);
       return null;
     }),
     getFolderByPath: vi.fn((path: string): TFolder | null => (folders.has(path) && !isHiddenPath(path) ? new TFolder(path) : null)),
@@ -101,6 +111,12 @@ export function createInMemoryApp(seed: InMemoryVaultSeed = {}): InMemoryApp {
   };
 
   app.fileManager = {
+    renameFile: vi.fn(async (file: TAbstractFile, newPath: string) => {
+      const content = files.get(file.path);
+      if (content === undefined) return;
+      files.delete(file.path);
+      writeFile(newPath, content);
+    }),
     trashFile: vi.fn(async (file: TAbstractFile) => {
       files.delete(file.path);
       folders.delete(file.path);

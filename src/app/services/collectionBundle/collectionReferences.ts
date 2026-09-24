@@ -8,23 +8,46 @@ import type { BundleFile, BundleFileRole, StatblockImageKey } from './bundleForm
 /** The scene thumbnail lives next to its map file. */
 export const sceneThumbnailPath = (mapPath: string): string => mapPath.replace(/\.atlasmap$/, '.thumb.jpg');
 
+/** A file the collection refers to that is no longer in the vault. */
+export interface MissingReference {
+  path: string;
+  role: BundleFileRole;
+  /** Name of the asset that refers to it. */
+  assetName: string;
+}
+
+interface CollectedFiles {
+  files: BundleFile[];
+  missing: MissingReference[];
+}
+
+/** Previews are regenerated when missing, so their absence is not worth a warning. */
+const OPTIONAL_ROLES = new Set<BundleFileRole>(['thumbnail', 'scene-thumbnail']);
+
 /**
  * Lists every vault file a collection depends on, so a bundle can carry the
  * whole collection: asset records and images, scene maps with their
  * backgrounds and the artwork of tokens placed on them, and the statblock
- * notes tokens link to together with their artwork. Missing files are
- * skipped; the first role claimed for a path wins.
+ * notes tokens link to together with their artwork. Every file lists the
+ * assets that use it; the first role claimed for a path wins. Referenced
+ * files that are gone are reported instead of packed.
  */
 export class CollectionReferenceCollector {
   private readonly files = new Map<string, BundleFile>();
   private readonly statblockNotes = new Set<string>();
+  private readonly missing = new Map<string, MissingReference>();
+  private owner: Asset | null = null;
 
   constructor(private readonly app: App, private readonly assets: AssetService) {}
 
-  async collect(assets: readonly Asset[]): Promise<BundleFile[]> {
-    for (const asset of assets) await this.collectAsset(asset);
+  async collect(assets: readonly Asset[]): Promise<CollectedFiles> {
+    for (const asset of assets) {
+      this.owner = asset;
+      await this.collectAsset(asset);
+    }
+    this.owner = null;
     for (const notePath of this.statblockNotes) this.collectStatblockImage(notePath);
-    return [...this.files.values()];
+    return { files: [...this.files.values()], missing: [...this.missing.values()] };
   }
 
   private async collectAsset(asset: Asset): Promise<void> {
@@ -104,14 +127,25 @@ export class CollectionReferenceCollector {
     const reference = imageReference(frontmatter[key]);
     const image = reference ? localImage(this.app, reference, notePath) : null;
     if (!image) return;
-    this.add(image.path, 'statblock-image');
+    this.add(image.path, 'statblock-image', entry.owners);
     entry.statblockImage = { key, path: image.path };
   }
 
-  private add(path: string | undefined, role: BundleFileRole): boolean {
-    if (!path || this.files.has(path)) return false;
-    if (!(this.app.vault.getAbstractFileByPath(path) instanceof TFile)) return false;
-    this.files.set(path, { vaultPath: path, role });
+  /** Records `path` for the current asset (or `owners`); returns whether it was newly added. */
+  private add(path: string | undefined, role: BundleFileRole, owners: readonly string[] = this.owner ? [this.owner.id] : []): boolean {
+    if (!path) return false;
+    const existing = this.files.get(path);
+    if (existing) {
+      existing.owners = [...new Set([...(existing.owners ?? []), ...owners])];
+      return false;
+    }
+    if (!(this.app.vault.getAbstractFileByPath(path) instanceof TFile)) {
+      if (!OPTIONAL_ROLES.has(role) && this.owner && !this.missing.has(path)) {
+        this.missing.set(path, { path, role, assetName: this.owner.name });
+      }
+      return false;
+    }
+    this.files.set(path, { vaultPath: path, role, owners: [...owners] });
     return true;
   }
 }

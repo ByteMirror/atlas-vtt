@@ -5,7 +5,7 @@ import EditAssetTagsModal from '../EditAssetTagsModal';
 import CreateSceneModal from '../CreateSceneModal';
 import StatblockLinkModal from '../StatblockLinkModal';
 import InputModal from '../../primitives/InputModal';
-import { ProgressModal } from '../../primitives/ProgressModal';
+import { CollectionTransferLayer } from '../collection-transfer/CollectionTransferLayer';
 import { CollectionSettingsModal } from '../../../../react/components/CollectionSettingsModal';
 import { MoveModal } from './MoveModal';
 import { CreateFolderModal } from './CreateFolderModal';
@@ -56,14 +56,12 @@ export function ModalLayer({
 
   return (
     <>
-      {crud.transfer && !crud.transfer.isAwaitingConfirmation && (
-        <ProgressModal
-          title={crud.transfer.title}
-          message={crud.transfer.progress.message}
-          fraction={crud.transfer.progress.fraction}
-          prompt={crud.transfer.prompt}
-        />
-      )}
+      <CollectionTransferLayer
+        transfer={crud.transfer}
+        confirmExport={crud.confirmExport}
+        confirmImport={crud.confirmImport}
+        closeTransfer={crud.closeTransfer}
+      />
 
       {/* Token Creator */}
       {isOpen && crud.isTokenCreatorOpen && (

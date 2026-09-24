@@ -63,6 +63,17 @@ describe('bulk importing recognized statblock notes', () => {
     expect(rows.find(r => r.path === 'Inline.md')?.size).toBeUndefined();
   });
 
+  it('decodes the link encoding Fantasy Statblocks applies to bestiary images', async () => {
+    const { files, frontmatter, app, assets } = setup();
+    frontmatter[note]!.image = `<STATBLOCK-WIKI-LINK>${image}|portrait<STATBLOCK-WIKI-LINK>`;
+    files.set('Artwork/big goblin.webp', 'image-bytes');
+    files.set('Markdown.md', 'markdown');
+    frontmatter['Markdown.md'] = { statblock: true, name: 'Big Goblin', image: '<STATBLOCK-MARKDOWN-LINK>Artwork/big%20goblin.webp|Big<STATBLOCK-MARKDOWN-LINK>' };
+    const rows = await new StatblockTokenImportService(app, assets).scan();
+    expect(rows.find(r => r.path === note)).toMatchObject({ status: 'ready', imagePath: image });
+    expect(rows.find(r => r.path === 'Markdown.md')).toMatchObject({ status: 'ready', imagePath: 'Artwork/big goblin.webp' });
+  });
+
   it('creates distinct owned images for equal names/artwork, preserves source notes and skips reruns', async () => {
     const { app, files, frontmatter, assets } = setup();
     files.set('Other/Goblin.md', 'Other original');

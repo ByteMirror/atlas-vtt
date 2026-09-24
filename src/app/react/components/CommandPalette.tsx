@@ -504,8 +504,8 @@ export function CommandPalette({ isOpen, onClose, toolbarRef }: CommandPalettePr
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent): void => {
       if (!isOpen || document.querySelector('.atlas-onboarding-overlay')) return;
-      // Keys typed in a dialog opened from a page (naming a snapshot) belong to that dialog.
-      if ((e.target as Element | null)?.closest?.('.atlas-text-dialog-backdrop')) return;
+      // Keys pressed in a dialog or context menu opened from a page belong to it.
+      if ((e.target as Element | null)?.closest?.('.atlas-text-dialog-backdrop, .atlas-ctx-menu')) return;
       if (!isShortcutScopeActive(containerRef.current, view?.viewId)) return;
 
       // In settings modes, only handle Escape and Cmd+K for closing
@@ -786,6 +786,7 @@ export function CommandPalette({ isOpen, onClose, toolbarRef }: CommandPalettePr
         className={cn(
           'atlas-command-palette-container',
           activePanel && 'atlas-command-palette-container--expanded',
+          activePanel && `atlas-command-palette-container--${activePanel}`,
           !hasCalculatedInitialPosition && 'atlas-no-transition',
           (isTemporarilyHidden || !position) && 'atlas-command-palette-container--hidden',
         )}

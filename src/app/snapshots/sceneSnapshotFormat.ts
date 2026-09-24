@@ -24,6 +24,8 @@ export interface SceneSnapshot {
   name: string;
   /** Unix time in milliseconds. */
   createdAt: number;
+  /** When the snapshot was last overwritten with the map's state, in Unix milliseconds. */
+  updatedAt?: number;
   version?: number;
   state: MapState;
 }
@@ -35,6 +37,7 @@ export function isSceneSnapshot(value: unknown): value is SceneSnapshot {
     && typeof value.id === 'string'
     && typeof value.name === 'string'
     && typeof value.createdAt === 'number'
+    && (value.updatedAt === undefined || typeof value.updatedAt === 'number')
     && isRecord(value.state)
     && isPersistedMapEnvelope(value);
 }

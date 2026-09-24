@@ -1,6 +1,5 @@
 import type { AtlasSettings } from '../services/SettingsService';
 import { Container, Graphics, Text, TextStyle, Texture, FillGradient } from 'pixi.js';
-import { Viewport } from 'pixi-viewport';
 import type { Character, BaseToken } from '../types';
 import type { ViewAtlasState } from '../storeFactory';
 import type { StoreApi } from 'zustand';
@@ -13,13 +12,16 @@ import type { TokenGestureEventDetail } from '../types/atlasWindowEvents';
 import { resourceBarFill } from './resourceBarFill';
 import { ResourceBarLabel } from './ResourceBarLabel';
 import { destroyTree } from './utils/destroyTree';
+import { tokenUIScale } from './token-renderer/tokenSizing';
 
 /**
  * Text is drawn at scale 0.333 and the viewport zooms to at most 5x, so a
- * resolution of 3 keeps glyphs crisp on HiDPI screens without rasterising
- * every nameplate at eight times its size.
+ * resolution of 3 keeps glyphs crisp on HiDPI screens for a medium token without
+ * rasterising every nameplate at eight times its size. Larger tokens scale their
+ * UI up, so their text resolution grows with it, up to a gargantuan token's.
  */
 const TEXT_RESOLUTION = 3;
+const MAX_TEXT_RESOLUTION = 12;
 
 /**
  * Metallic bar gradients depend only on the base colour, so one FillGradient
@@ -52,6 +54,10 @@ export class TokenUIRenderer {
   private barTextureCache: Map<string, Texture> = new Map();
 
   private container: Container;
+  /** Bars, nameplate and condition dots, anchored at the token's bottom edge and scaled with the token. */
+  private belowToken: Container;
+  /** Condition hover panel, anchored at the token's right edge and scaled with the token. */
+  private besideToken: Container;
   private hpBar: Graphics;
   private hpFill: Graphics;
   private hpText: ResourceBarLabel;
@@ -72,7 +78,7 @@ export class TokenUIRenderer {
   private lastUpdateData: string = ''; // Cache for checking if update is needed
   private isHiddenDuringResize: boolean = false;
   private isHiddenDuringRotation: boolean = false;
-  
+
   // Name badge elements
   private nameBadge: Graphics;
   private nameText: Text;
@@ -85,26 +91,27 @@ export class TokenUIRenderer {
   private editCursor: Graphics;
   private cursorBlinkInterval: number | null = null;
 
-  private viewport: Viewport | undefined;
-
   // Condition UI
   private conditionDots: ConditionDotsRenderer;
   private conditionPanel: ConditionHoverPanel;
   public conditionDefsProvider: (() => ConditionDefinition[]) | null = null;
   
 
-  constructor(store?: StoreApi<ViewAtlasState>, viewId?: string, viewport?: Viewport) {
+  constructor(store?: StoreApi<ViewAtlasState>) {
     this.store = store;
-    this.viewport = viewport;
 
     // Condition dots and hover panel
     this.conditionDots = new ConditionDotsRenderer();
     this.conditionPanel = new ConditionHoverPanel();
 
+    // The container sits at the token centre in world units; the UI itself lives in
+    // anchors on the token's edges, laid out in UI units and scaled with the token.
     this.container = new Container();
-    this.container.sortableChildren = true; // Needed for condition dots to render above bars
     this.container.zIndex = 10; // UI is above token and ring
-    // Don't set eventMode on container - let it propagate naturally
+    this.belowToken = new Container();
+    this.belowToken.sortableChildren = true; // Needed for condition dots to render above bars
+    this.besideToken = new Container();
+    this.container.addChild(this.belowToken, this.besideToken);
     
     // Create HP bar
     this.hpBar = new Graphics();
@@ -164,7 +171,7 @@ export class TokenUIRenderer {
         // No stroke for cleaner look in the badge.
       })
     });
-    this.nameText.scale.set(0.333); // Will be adjusted dynamically based on token size
+    this.nameText.scale.set(0.333);
     this.nameText.resolution = TEXT_RESOLUTION;
     this.nameText.zIndex = 2; // Name text above name badge background
     
@@ -179,23 +186,22 @@ export class TokenUIRenderer {
     this.editCursor.zIndex = 3; // Above name text
     this.editCursor.visible = false;
     
-    // Add all elements to container in the correct order (no sorting needed)
-    this.container.addChild(this.nameBadge); // z: 1 - name badge at bottom
-    this.container.addChild(this.nameText); // z: 2 - name text
-    this.container.addChild(this.editCursor); // z: 3 - edit cursor
-    this.container.addChild(this.hpBar); // z: 10
-    this.container.addChild(this.hpFill); // z: 11  
-    this.container.addChild(this.hpText); // z: 12
-    this.container.addChild(this.stressBar); // z: 10
-    this.container.addChild(this.stressFill); // z: 11
-    this.container.addChild(this.stressText); // z: 12
-    this.container.addChild(this.difficultyBadge); // z: 20
-    this.container.addChild(this.difficultyText); // z: 21
-    this.container.addChild(this.defeatedOverlay); // z: 30 - on top
+    // Add all elements below the token in the correct order (no sorting needed)
+    this.belowToken.addChild(this.nameBadge); // z: 1 - name badge at bottom
+    this.belowToken.addChild(this.nameText); // z: 2 - name text
+    this.belowToken.addChild(this.editCursor); // z: 3 - edit cursor
+    this.belowToken.addChild(this.hpBar); // z: 10
+    this.belowToken.addChild(this.hpFill); // z: 11
+    this.belowToken.addChild(this.hpText); // z: 12
+    this.belowToken.addChild(this.stressBar); // z: 10
+    this.belowToken.addChild(this.stressFill); // z: 11
+    this.belowToken.addChild(this.stressText); // z: 12
+    this.belowToken.addChild(this.difficultyBadge); // z: 20
+    this.belowToken.addChild(this.difficultyText); // z: 21
+    this.belowToken.addChild(this.defeatedOverlay); // z: 30 - on top
     this.conditionDots.container.zIndex = 25; // Above HP bars (12) and nameplate (2)
-    this.container.addChild(this.conditionDots.container); // Condition dots between nameplate and HP bar
-    this.conditionPanel.container.zIndex = 26;
-    this.container.addChild(this.conditionPanel.container); // Hover panel to the right
+    this.belowToken.addChild(this.conditionDots.container); // Condition dots between nameplate and HP bar
+    this.besideToken.addChild(this.conditionPanel.container); // Hover panel to the right
     
     // Initially visible
     this.container.visible = true;
@@ -204,21 +210,11 @@ export class TokenUIRenderer {
     
     // Set up theme observer
     this.setupThemeObserver();
-    
-    // Set up viewport zoom listeners for UI scaling updates
-    this.setupViewportListeners();
+
+    this.setupGestureListeners();
   }
-  
-  private setupViewportListeners(): void {
-    // Listen for viewport zoom events to update UI scaling
-    if (this.viewport) {
-      // Listen for viewport resize events to update dynamic sizing
-      this.viewport.on('resize', this.handleViewportResize);
-    }
-    
-    // Listen for window resize events for responsive design
-    window.addEventListener('resize', this.handleWindowResize);
-    
+
+  private setupGestureListeners(): void {
     // Listen for token resize events to hide/show UI elements
     window.addEventListener('atlas-token-resize-started', this.onResizeStarted);
     window.addEventListener('atlas-token-resize-ended', this.onResizeEnded);
@@ -227,31 +223,6 @@ export class TokenUIRenderer {
     window.addEventListener('atlas-token-rotation-started', this.onRotationStarted);
     window.addEventListener('atlas-token-rotation-ended', this.onRotationEnded);
   }
-  
-  private handleViewportResize = (): void => {
-    // Viewport dimensions changed - update dynamic sizing
-    if (this.currentToken && this.currentTokenSize > 0) {
-      this.lastUpdateData = ''; // Clear cache to force update
-      this.update(this.currentToken, this.currentTokenSize);
-    }
-  };
-  
-  private handleWindowResize = (): void => {
-    // Window dimensions changed - update responsive design
-    // Throttle window resize events to avoid performance issues
-    if (this.resizeTimeout) {
-      window.clearTimeout(this.resizeTimeout);
-    }
-    
-    this.resizeTimeout = window.setTimeout(() => {
-      if (this.currentToken && this.currentTokenSize > 0) {
-        this.lastUpdateData = ''; // Clear cache to force update
-        this.update(this.currentToken, this.currentTokenSize);
-      }
-    }, 100); // 100ms throttle
-  };
-  
-  private resizeTimeout: number | null = null;
   
   /**
    * Handle resize started events - hide UI elements except resize handles
@@ -361,10 +332,8 @@ export class TokenUIRenderer {
   }
   
   
-  public update(token: BaseToken & Partial<Character>, spriteWidth: number, logicalCells: number = 1, gridPxPerCell?: number, playerSettings?: Pick<AtlasSettings['localPlayerView'], 'showTokenHP' | 'showTokenStress' | 'showTokenNameplates'>): void {
-    // Get grid size - from parameter or store
-    const gridPx = gridPxPerCell || this.store?.getState().grid?.size || 70;
-    
+  /** Redraws the UI for `token`, whose sprite is `spriteWidth` world pixels wide. */
+  public update(token: BaseToken & Partial<Character>, spriteWidth: number, playerSettings?: Pick<AtlasSettings['localPlayerView'], 'showTokenHP' | 'showTokenStress' | 'showTokenNameplates'>): void {
     // Get token settings from store
     const tokenSettings = playerSettings ? {
       showHPBars: playerSettings.showTokenHP,
@@ -382,7 +351,7 @@ export class TokenUIRenderer {
     const stressString = token.stress === undefined ? 'no-stress' : (typeof token.stress === 'object' ? `${token.stress.current}/${token.stress.max}` : `${token.stress}/${token.maxStress ?? 10}`);
     const showNameplate = playerSettings ? playerSettings.showTokenNameplates : isNameplateVisible(token, tokenSettings.showNameplates);
     const conditionsKey = token.conditions?.join(',') ?? '';
-    const updateKey = `${hpString}_${stressString}_${spriteWidth}_${gridPx}_${this.isHovered}_${this.isSelected}_${token.name || ''}_${showNameplate}_${token.statblockName || ''}_${tokenSettings.showHPBars}_${tokenSettings.showStressBars}_${conditionsKey}`;
+    const updateKey = `${hpString}_${stressString}_${spriteWidth}_${this.isHovered}_${this.isSelected}_${token.name || ''}_${showNameplate}_${token.statblockName || ''}_${tokenSettings.showHPBars}_${tokenSettings.showStressBars}_${conditionsKey}`;
     
     // Skip update if nothing has changed
     if (this.lastUpdateData === updateKey) {
@@ -416,26 +385,23 @@ export class TokenUIRenderer {
     }
     
     this.container.visible = true;
-    
-    // Calculate UI scale relative to grid size only (not token size)
-    // UI elements should maintain consistent size regardless of token size
-    const baseUISize = 70; // Base size when grid is 70px
-    const baseScale = gridPx / baseUISize; // Base scale from grid size only
-    const uiScale = baseScale; // Only use grid scale, not token scale
-    
-    // Set container scale to match grid proportions only
-    this.container.scale.set(uiScale);
-    
+
+    // Anchor the UI on the token's edges; everything below is laid out from there in UI units
+    const uiScale = tokenUIScale(spriteWidth);
+    this.belowToken.position.set(0, spriteWidth / 2);
+    this.besideToken.position.set(spriteWidth / 2, 0);
+    this.belowToken.scale.set(uiScale);
+    this.besideToken.scale.set(uiScale);
+    this.setTextResolution(Math.min(TEXT_RESOLUTION * Math.max(1, uiScale), MAX_TEXT_RESOLUTION));
+
     // Use design tokens for consistent sizing
     const barWidth = barDimensions.token.width;
     const barHeight = barDimensions.token.height;
     const barRadius = barDimensions.token.radius;
     const gap = barDimensions.token.gap;
     
-    // Convert token radius to UI units and position bars below token
-    const tokenRadiusInUIUnits = (spriteWidth / 2) / uiScale;
     const baseGap = 2; // Gap between token and first bar
-    let currentY = tokenRadiusInUIUnits + baseGap; // Start below token
+    let currentY = baseGap; // Start below token
     
     // HP Bar
     if (hasHP) {
@@ -601,10 +567,7 @@ export class TokenUIRenderer {
       const badgeRadius = badgeHeight / 2;
       
       // Position the name badge so its bottom edge aligns with the token's bottom edge
-      // Token radius in UI units (same as calculated above)
-      const tokenBottomY = tokenRadiusInUIUnits;
-      // Position name badge so its bottom edge is at the token's bottom edge
-      const nameY = tokenBottomY - badgeHeight/2;
+      const nameY = -badgeHeight / 2;
       
       // Draw rounded rectangle background
       this.nameBadge.clear();
@@ -643,13 +606,20 @@ export class TokenUIRenderer {
     
     // Condition dots — horizontal row between nameplate and HP bar
     const conditionDefs = this.conditionDefsProvider?.() ?? [];
-    const conditionY = tokenRadiusInUIUnits + baseGap / 2;
+    const conditionY = baseGap / 2;
     this.conditionDots.update(token.conditions ?? [], conditionDefs, conditionY);
 
   }
   
   public getContainer(): Container {
     return this.container;
+  }
+
+  /** Re-rasterises the nameplate and bar numbers only when their resolution changes. */
+  private setTextResolution(resolution: number): void {
+    if (this.nameText.resolution !== resolution) this.nameText.resolution = resolution;
+    this.hpText.setResolution(resolution);
+    this.stressText.setResolution(resolution);
   }
   
   public setVisibility(visible: boolean): void {
@@ -670,9 +640,7 @@ export class TokenUIRenderer {
 
     const showPanel = hovered && !modifierKeyDown && conditions.length > 0;
     if (showPanel) {
-      const uiScale = this.container.scale.x || 1;
-      const tokenRadius = (this.currentTokenSize / 2) / uiScale;
-      this.conditionPanel.show(conditions, conditionDefs, tokenRadius);
+      this.conditionPanel.show(conditions, conditionDefs);
     } else {
       this.conditionPanel.hide();
     }
@@ -745,23 +713,11 @@ export class TokenUIRenderer {
       this.editThemeObserver = null;
     }
     
-    // Clean up viewport listeners
-    if (this.viewport) {
-      this.viewport.off('resize', this.handleViewportResize);
-    }
-    
     // Clean up window listeners
-    window.removeEventListener('resize', this.handleWindowResize);
     window.removeEventListener('atlas-token-resize-started', this.onResizeStarted);
     window.removeEventListener('atlas-token-resize-ended', this.onResizeEnded);
     window.removeEventListener('atlas-token-rotation-started', this.onRotationStarted);
     window.removeEventListener('atlas-token-rotation-ended', this.onRotationEnded);
-    
-    // Clean up resize timeout
-    if (this.resizeTimeout) {
-      window.clearTimeout(this.resizeTimeout);
-      this.resizeTimeout = null;
-    }
     
     // Clean up condition renderers
     this.conditionDots.destroy();

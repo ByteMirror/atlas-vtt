@@ -25,6 +25,7 @@ import { computeNextInstanceNumber } from './stores/tokenInstanceNumbers';
 import type { DiceRollResult } from './tools/DiceTool';
 import { isAtlasToolAvailable } from './tools/toolAvailability';
 import { isPinLabelKind, nextPinLabel } from './tools/pinLabels';
+import { rewriteMapReferences } from './services/renamedPaths';
 
 // Individual store state interface (same as AtlasState but isolated)
 export interface ViewAtlasState {
@@ -102,6 +103,8 @@ export interface ViewAtlasState {
   updateToken: (id: string, updates: TokenUpdates) => void;
   /** Applies several token updates in one store write, so they form a single undo step. */
   updateTokens: (entries: Array<{ id: string; changes: TokenUpdates }>) => void;
+  /** Points tokens and pins that name a vault file at the path it was renamed to. */
+  retargetRenamedFile: (oldPath: string, newPath: string) => void;
   deleteToken: (id: string) => void;
   setTokens: (map: Record<string, TokenEntity>) => void;
   setTokenRing: (id: string, color: string | null) => void;
@@ -649,6 +652,10 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
             for (const { id, changes } of entries) {
               applyTokenUpdates(draft.objects.tokens[id], changes);
             }
+          }),
+
+          retargetRenamedFile: (oldPath, newPath) => set((draft) => {
+            rewriteMapReferences(draft.objects, oldPath, newPath);
           }),
 
           deleteToken: (id) => set((draft) => {

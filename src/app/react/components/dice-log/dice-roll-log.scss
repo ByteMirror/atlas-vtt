@@ -174,11 +174,10 @@ $log-width: 360px;
 .dice-log-entry__avatar {
   width: 44px;
   height: 44px;
-  border-radius: 50%;
-  object-fit: cover;
   flex-shrink: 0;
 
   &--fallback {
+    border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;

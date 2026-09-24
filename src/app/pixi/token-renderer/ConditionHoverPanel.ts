@@ -14,6 +14,8 @@ export class ConditionHoverPanel {
   private static readonly PADDING = 8;
   private static readonly DOT_RADIUS = 5;
   private static readonly MIN_WIDTH = 100;
+  /** Distance from the token's edge. */
+  private static readonly GAP = 8;
 
   constructor() {
     this.container.addChild(this.bg);
@@ -21,11 +23,10 @@ export class ConditionHoverPanel {
     this.container.eventMode = 'none';
   }
 
-  /** Show the panel with the resolved condition data positioned to the right of the token. */
+  /** Show the panel with the resolved condition data, starting just right of its parent's origin (the token's right edge). */
   show(
     activeConditionIds: string[],
     conditionDefs: ConditionDefinition[],
-    tokenRadius: number,
   ): void {
     this.clearRows();
 
@@ -91,7 +92,7 @@ export class ConditionHoverPanel {
       this.rows.push(row);
     }
 
-    this.container.position.set(tokenRadius + 8, -panelHeight / 2);
+    this.container.position.set(ConditionHoverPanel.GAP, -panelHeight / 2);
     this.container.visible = true;
   }
 

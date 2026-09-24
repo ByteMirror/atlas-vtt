@@ -108,9 +108,9 @@ export class CollectionReferenceCollector {
     }
     if (isPersistedMapEnvelope(envelope)) this.collectMapState(envelope);
 
-    for (const { snapshot, file, thumbnail } of await new SceneSnapshotService(this.app).list(mapPath)) {
-      this.add(file.path, 'scene-snapshot');
-      this.add(thumbnail?.path, 'scene-snapshot-thumbnail');
+    for (const { snapshot, path, thumbnailPath } of await new SceneSnapshotService(this.app).list(mapPath)) {
+      this.addHidden(path, 'scene-snapshot');
+      this.addHidden(thumbnailPath, 'scene-snapshot-thumbnail');
       this.collectMapState(snapshot);
     }
   }
@@ -141,6 +141,11 @@ export class CollectionReferenceCollector {
     if (!image) return;
     this.add(image.path, 'statblock-image', entry.owners);
     entry.statblockImage = { key, path: image.path };
+  }
+
+  /** Records a file in a hidden folder, which the vault index does not list; the caller already found it on disk. */
+  private addHidden(path: string | null, role: BundleFileRole): void {
+    if (path && !this.files.has(path)) this.files.set(path, { vaultPath: path, role, owners: this.owner ? [this.owner.id] : [] });
   }
 
   /** Records `path` for the current asset (or `owners`); returns whether it was newly added. */

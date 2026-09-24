@@ -59,4 +59,31 @@ describe('map save flushing', () => {
     } finally { release.resolve(); await flushing; }
     expect(JSON.parse(files.get(path)!).state.revision).toBe(2);
   });
+
+  it('does not recreate a map under its old name when it is renamed while a save waits', async () => {
+    vi.useFakeTimers();
+    const renamed = 'maps/cavern.atlasmap';
+    const { app, files } = createInMemoryApp({ files: { [path]: '{}' } });
+    const state = { mapPath: path };
+    const storage = createAtlasStorage(app, { getState: () => state });
+
+    await storage.setItem('atlas', { state: { revision: 1 }, version: 4 });
+    await app.vault.rename(app.vault.getFileByPath(path)!, renamed);
+    state.mapPath = renamed;
+    await vi.advanceTimersByTimeAsync(500);
+
+    expect(files.has(path)).toBe(false);
+    expect(files.has(renamed)).toBe(true);
+  });
+
+  it('still creates the file of a new map on its first save', async () => {
+    vi.useFakeTimers();
+    const { app, files } = createInMemoryApp();
+    const storage = createAtlasStorage(app, { getState: () => ({ mapPath: path }) });
+
+    await storage.setItem('atlas', { state: { revision: 1 }, version: 4 });
+    await vi.advanceTimersByTimeAsync(500);
+
+    expect(JSON.parse(files.get(path)!)).toEqual({ state: { revision: 1 }, version: 4 });
+  });
 });

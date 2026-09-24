@@ -1,13 +1,15 @@
-import { TFile, type App } from 'obsidian';
-import { ensureFolder } from '../plugin/vaultFolders';
+import type { App, TFile } from 'obsidian';
 import { isPersistedMapEnvelope, type PersistedMapEnvelope } from '../services/MapPersistence';
+import { ensureHiddenFolder, removeEmptyHiddenFolders, trashHiddenPath } from '../utils/hiddenVaultFiles';
 import { createSnapshot, isSceneSnapshot, restoreSnapshot, type SceneSnapshot } from './sceneSnapshotFormat';
-import { snapshotFilePath, snapshotFolderFor, snapshotThumbnailPath } from './snapshotPaths';
+import { parentFolderOf, snapshotFilePath, snapshotFolderFor, snapshotThumbnailPath } from './snapshotPaths';
 
 export interface SceneSnapshotEntry {
   snapshot: SceneSnapshot;
-  file: TFile;
-  thumbnail: TFile | null;
+  /** Vault path of the snapshot file (hidden from the vault index). */
+  path: string;
+  /** Vault path of its thumbnail, when it has one. */
+  thumbnailPath: string | null;
 }
 
 const DEFAULT_NAME = 'Snapshot';
@@ -30,59 +32,76 @@ function parseJson(data: string): unknown {
 
 /**
  * Reads and writes the snapshots of a scene: one JSON file per snapshot plus
- * a JPEG thumbnail, in a folder next to the scene's map file. Works on files
- * only; the open map view flushes and reloads around it.
+ * a JPEG thumbnail, in a hidden folder beside the scene's map file (see
+ * `snapshotFolderFor`). The vault does not index that folder, so every file
+ * operation goes through the adapter. Works on files only; the open map view
+ * flushes and reloads around it.
  */
 export class SceneSnapshotService {
   constructor(private readonly app: App) {}
 
   /** The scene's snapshots, newest first. Files that cannot be read are skipped. */
   async list(mapPath: string): Promise<SceneSnapshotEntry[]> {
-    const folder = this.app.vault.getFolderByPath(snapshotFolderFor(mapPath));
-    if (!folder) return [];
+    const { adapter } = this.app.vault;
+    const folder = snapshotFolderFor(mapPath);
+    if (!(await adapter.exists(folder))) return [];
 
+    const { files } = await adapter.list(folder);
+    const fileSet = new Set(files);
     const entries: SceneSnapshotEntry[] = [];
-    for (const child of folder.children) {
-      if (!(child instanceof TFile) || child.extension !== 'json') continue;
-      const snapshot = await this.read(child);
+    for (const path of files) {
+      if (!path.endsWith('.json')) continue;
+      const snapshot = await this.read(path);
       if (!snapshot) continue;
-      const thumbnail = this.app.vault.getFileByPath(snapshotThumbnailPath(folder.path, snapshot.id));
-      entries.push({ snapshot, file: child, thumbnail });
+      const thumbnailPath = snapshotThumbnailPath(folder, snapshot.id);
+      entries.push({ snapshot, path, thumbnailPath: fileSet.has(thumbnailPath) ? thumbnailPath : null });
     }
     return entries.sort((a, b) => b.snapshot.createdAt - a.snapshot.createdAt);
   }
 
+  /** An image URL for the entry's thumbnail that changes whenever the snapshot is overwritten. */
+  thumbnailUrl(entry: SceneSnapshotEntry): string | null {
+    if (!entry.thumbnailPath) return null;
+    const url = this.app.vault.adapter.getResourcePath(entry.thumbnailPath);
+    const version = entry.snapshot.updatedAt ?? entry.snapshot.createdAt;
+    return `${url}${url.includes('?') ? '&' : '?'}v=${version}`;
+  }
+
   /** Saves what the map file holds now as a new snapshot. Flush pending map saves first. */
   async create(mapFile: TFile, name: string, thumbnail: ArrayBuffer | null): Promise<SceneSnapshot> {
-    const envelope = parseJson(await this.app.vault.read(mapFile));
-    if (!isPersistedMapEnvelope(envelope) || !envelope.state) {
-      throw new Error(`Map file cannot be read: ${mapFile.path}`);
-    }
-
+    const envelope = await this.readMap(mapFile);
     const id = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
     const snapshot = createSnapshot(envelope, id, name, Date.now());
     const folder = snapshotFolderFor(mapFile.path);
-    await ensureFolder(this.app, folder);
-    await this.app.vault.create(snapshotFilePath(folder, id), JSON.stringify(snapshot));
-    if (thumbnail) await this.app.vault.createBinary(snapshotThumbnailPath(folder, id), thumbnail);
+    await ensureHiddenFolder(this.app, folder);
+    await this.app.vault.adapter.write(snapshotFilePath(folder, id), JSON.stringify(snapshot));
+    if (thumbnail) await this.app.vault.adapter.writeBinary(snapshotThumbnailPath(folder, id), thumbnail);
+    return snapshot;
+  }
+
+  /**
+   * Replaces the snapshot's state and thumbnail with what the map file holds
+   * now. It keeps its id, name and creation time. Flush pending map saves first.
+   */
+  async overwrite(entry: SceneSnapshotEntry, mapFile: TFile, thumbnail: ArrayBuffer | null): Promise<SceneSnapshot> {
+    const { id, name, createdAt } = entry.snapshot;
+    const snapshot: SceneSnapshot = { ...createSnapshot(await this.readMap(mapFile), id, name, createdAt), updatedAt: Date.now() };
+    await this.app.vault.adapter.write(entry.path, JSON.stringify(snapshot));
+    if (thumbnail) await this.app.vault.adapter.writeBinary(snapshotThumbnailPath(parentFolderOf(entry.path), id), thumbnail);
     return snapshot;
   }
 
   async rename(entry: SceneSnapshotEntry, name: string): Promise<void> {
-    await this.app.vault.process(entry.file, (data) => {
-      const snapshot = parseJson(data);
-      return isSceneSnapshot(snapshot) ? JSON.stringify({ ...snapshot, name }) : data;
-    });
+    const snapshot = await this.read(entry.path);
+    if (snapshot) await this.app.vault.adapter.write(entry.path, JSON.stringify({ ...snapshot, name }));
   }
 
-  /** Moves the snapshot and its thumbnail to the trash, and the folder too once it is empty. */
+  /** Moves the snapshot and its thumbnail to the trash, and removes folders it leaves empty. */
   async delete(entry: SceneSnapshotEntry): Promise<void> {
-    const folderPath = entry.file.path.slice(0, entry.file.path.lastIndexOf('/'));
-    await this.app.fileManager.trashFile(entry.file);
-    if (entry.thumbnail) await this.app.fileManager.trashFile(entry.thumbnail);
-
-    const folder = this.app.vault.getFolderByPath(folderPath);
-    if (folder && folder.children.length === 0) await this.app.fileManager.trashFile(folder);
+    await trashHiddenPath(this.app, entry.path);
+    if (entry.thumbnailPath) await trashHiddenPath(this.app, entry.thumbnailPath);
+    const folder = parentFolderOf(entry.path);
+    await removeEmptyHiddenFolders(this.app, folder, parentFolderOf(parentFolderOf(folder)));
   }
 
   /** Writes the snapshot's state into the map file. The open view must reload the map afterwards. */
@@ -94,8 +113,31 @@ export class SceneSnapshotService {
     });
   }
 
-  private async read(file: TFile): Promise<SceneSnapshot | null> {
-    const parsed = parseJson(await this.app.vault.read(file));
+  /**
+   * Runs `rewrite` over every snapshot file of the scene and saves the files
+   * it returns new content for. Returns whether any file changed.
+   */
+  async rewriteFiles(mapPath: string, rewrite: (content: string) => string | null): Promise<boolean> {
+    let changed = false;
+    for (const { path } of await this.list(mapPath)) {
+      const content = rewrite(await this.app.vault.adapter.read(path));
+      if (content === null) continue;
+      await this.app.vault.adapter.write(path, content);
+      changed = true;
+    }
+    return changed;
+  }
+
+  private async readMap(mapFile: TFile): Promise<PersistedMapEnvelope> {
+    const envelope = parseJson(await this.app.vault.read(mapFile));
+    if (!isPersistedMapEnvelope(envelope) || !envelope.state) {
+      throw new Error(`Map file cannot be read: ${mapFile.path}`);
+    }
+    return envelope;
+  }
+
+  private async read(path: string): Promise<SceneSnapshot | null> {
+    const parsed = parseJson(await this.app.vault.adapter.read(path));
     return isSceneSnapshot(parsed) ? parsed : null;
   }
 }

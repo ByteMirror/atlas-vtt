@@ -8,6 +8,7 @@ import { sha256 } from './hashing';
 import { COLLECTION_FIELDS, type InstallRecord } from './installRecord';
 import type { PlanItemInput } from './importPlan';
 import { planImportPaths, remapPaths } from './pathRemap';
+import { listHiddenFiles, readVaultBinary } from '../../utils/hiddenVaultFiles';
 
 /** Where the bundle's files and records go in this vault. */
 export interface ImportTargets {
@@ -83,8 +84,8 @@ export function referencedStrings(values: readonly unknown[], into: Set<string> 
 
 /** Fingerprint of the vault file at `path`, or null when there is none. */
 export async function vaultFileHash(app: App, path: string): Promise<string | null> {
-  const file = app.vault.getAbstractFileByPath(path);
-  return file instanceof TFile ? sha256(await app.vault.readBinary(file)) : null;
+  const content = await readVaultBinary(app, path);
+  return content ? sha256(content) : null;
 }
 
 /** The vault's record with `localId` when it belongs to the collection being updated; one in another collection is the user's own. */
@@ -100,7 +101,8 @@ export async function planTargets(
   collectionId: string,
   record: InstallRecord | null,
 ): Promise<ImportTargets> {
-  const exists = (path: string): boolean => app.vault.getAbstractFileByPath(normalizePath(path)) instanceof TFile;
+  const hiddenFiles = await listHiddenFiles(app, `${COLLECTIONS_DIR}/${collectionId}`);
+  const exists = (path: string): boolean => app.vault.getAbstractFileByPath(normalizePath(path)) instanceof TFile || hiddenFiles.has(path);
   const paths = new Map<string, string>();
   for (const file of manifest.files) {
     const target = record?.files[file.vaultPath]?.target;

@@ -3,11 +3,14 @@ import { Assets, Texture } from 'pixi.js';
 import type { MapFile } from './services/MapPersistence';
 import { migrateMapFile, isLegacyMapFile, isPersistedMapEnvelope } from './services/MapPersistence';
 import { AssetValidationService, type MissingAsset } from './services/AssetValidationService';
+import { backgroundTextureCache } from './pixi/backgroundTextureCache';
 
 export interface LoadedMap {
   mapData: MapFile;
   texture: InstanceType<typeof Texture>;
   hasBackground: boolean; // Indicate if this is a real background or placeholder
+  /** URL acquired from the background texture cache; the caller releases it when the map is left. */
+  backgroundUrl: string | null;
   missingAssets?: MissingAsset[]; // Track missing assets for reporting
 }
 
@@ -41,6 +44,7 @@ export class MapLoader {
 
     let texture: Texture;
     let hasBackground = false;
+    let backgroundUrl: string | null = null;
 
     const validationResult = await assetValidationService.validateMapAssets(mapData);
     if (!validationResult.valid) {
@@ -57,7 +61,8 @@ export class MapLoader {
         hasBackground = false;
       } else {
         const url = app.vault.adapter.getResourcePath(imgFile.path);
-        texture = await Assets.load<Texture>(url);
+        texture = await backgroundTextureCache.acquire(url);
+        backgroundUrl = url;
         hasBackground = true;
       }
     } else {
@@ -70,6 +75,7 @@ export class MapLoader {
       mapData, 
       texture, 
       hasBackground,
+      backgroundUrl,
       missingAssets: validationResult.missingAssets
     };
   }

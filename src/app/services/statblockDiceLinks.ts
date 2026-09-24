@@ -29,6 +29,9 @@ const MODIFIER_BASE_DICE = '1d20';
 
 const LINK_CLASS = 'atlas-dice-link';
 
+/** Set by the statblock renderer on the line that holds a creature's hit points. */
+const HIT_POINTS_SELECTOR = '[data-hit-points]';
+
 /** Elements whose text must never be rewritten. */
 const SKIPPED_TAGS = new Set(['SCRIPT', 'STYLE', 'INPUT', 'TEXTAREA', 'BUTTON']);
 
@@ -37,7 +40,11 @@ export interface DiceRollSource {
   statblockPath?: string | undefined;
   tokenName?: string | undefined;
   tokenImagePath?: string | undefined;
+  abilityName?: string | undefined;
 }
+
+/** Receives clicks on hit dice, in place of the ordinary roll. */
+export type HitPointsRollHandler = (formula: string, abilityName: string | undefined) => void;
 
 interface DiceToolLike {
   rollDice(formula: string, source?: DiceRollResult['source']): DiceRollResult;
@@ -56,6 +63,24 @@ function resolveDiceTool(app: App): DiceToolLike | null {
     if (diceTool) return diceTool;
   }
   return null;
+}
+
+/**
+ * Rolls through the dice tool of the open map, tagged with its statblock source.
+ * Returns null when no map is open.
+ */
+export function rollStatblockDice(app: App, formula: string, source: DiceRollSource): DiceRollResult | null {
+  const diceTool = resolveDiceTool(app);
+  if (!diceTool) return null;
+
+  const rollSource: NonNullable<DiceRollResult['source']> = { type: 'statblock' };
+  if (source.tokenId) rollSource.tokenId = source.tokenId;
+  if (source.statblockPath) rollSource.statblockPath = source.statblockPath;
+  if (source.tokenName) rollSource.tokenName = source.tokenName;
+  if (source.tokenImagePath) rollSource.tokenImagePath = source.tokenImagePath;
+  if (source.abilityName) rollSource.abilityName = source.abilityName;
+
+  return diceTool.rollDice(formula, rollSource);
 }
 
 /** Turns matched display text into a formula the dice tool understands. */
@@ -140,30 +165,26 @@ export function linkDiceIn(root: HTMLElement): void {
  * Wires click-to-roll into a container. Listens only — the dice spans
  * themselves are produced by the renderer (or by `linkDiceIn` on static DOM),
  * so this never mutates the container. Returns a disposer.
+ *
+ * Dice on the hit-points line go to `onRollHitPoints` when one is given.
  */
 export function attachDiceRolling(
   el: HTMLElement,
   app: App,
   getSource: () => DiceRollSource,
+  onRollHitPoints?: HitPointsRollHandler,
 ): () => void {
   const roll = (link: HTMLElement): void => {
     const formula = link.dataset.formula;
     if (!formula) return;
 
-    const diceTool = resolveDiceTool(app);
-    if (!diceTool) return;
-
-    const { tokenId, statblockPath, tokenName, tokenImagePath } = getSource();
     const abilityName = abilityNameFor(link);
+    if (onRollHitPoints && /d\d/i.test(formula) && link.closest(HIT_POINTS_SELECTOR)) {
+      onRollHitPoints(formula, abilityName);
+      return;
+    }
 
-    const source: NonNullable<DiceRollResult['source']> = { type: 'statblock' };
-    if (tokenId) source.tokenId = tokenId;
-    if (statblockPath) source.statblockPath = statblockPath;
-    if (tokenName) source.tokenName = tokenName;
-    if (tokenImagePath) source.tokenImagePath = tokenImagePath;
-    if (abilityName) source.abilityName = abilityName;
-
-    diceTool.rollDice(formula, source);
+    rollStatblockDice(app, formula, { ...getSource(), abilityName });
   };
 
   const onClick = (event: MouseEvent): void => {

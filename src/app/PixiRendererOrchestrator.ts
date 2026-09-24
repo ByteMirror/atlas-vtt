@@ -15,6 +15,7 @@ import { TokenRenderer } from "./pixi/token-renderer"; // Import TokenRenderer
 // Import color utils
 import { PinRenderer } from "./pixi/PinRenderer"; // Import PinRenderer
 import { captureWithLayerVisibility, type LayerVisibility } from "./pixi/playerSafeFrame";
+import type { PlayerCameraState } from "./local-player-view";
 import { SelectionManager } from "./pixi/SelectionManager"; // Import SelectionManager
 import { FogOfWarRenderer } from "./pixi/fog/FogOfWarRenderer";
 import { MeasureRenderer } from "./pixi/MeasureRenderer"; // Import MeasureRenderer
@@ -670,8 +671,11 @@ export class PixiRendererOrchestrator { // Renamed class
 
   getAppInstance(): Application { return this.pixiAppManager.getApp(); }
 
-  /** Capture player settings without changing the DM's scene or preferences. */
-  public withPlayerSafeFrame(capture: () => void, settings: AtlasSettings['localPlayerView']): void {
+  /**
+   * Capture player settings without changing the DM's scene or preferences.
+   * With `camera`, the frame is rendered from that camera instead of the DM's.
+   */
+  public withPlayerSafeFrame(capture: () => void, settings: AtlasSettings['localPlayerView'], camera?: PlayerCameraState): void {
     const app = this.pixiAppManager.getApp();
     if (!app?.renderer) return;
     const layers: LayerVisibility[] = [];
@@ -681,7 +685,9 @@ export class PixiRendererOrchestrator { // Renamed class
     layers.push(...(this.tokenRenderer?.getPlayerViewLayers(settings) ?? []));
     layers.push(...(this.fogRenderer?.getPlayerViewLayers() ?? []));
     layers.push(...(this.selectionManager?.getPlayerViewLayers() ?? []));
-    captureWithLayerVisibility(layers, () => app.renderer.render(app.stage), capture);
+    const viewport = this.pixiAppManager.getViewport();
+    const playerCamera = camera && viewport ? { target: viewport, camera } : undefined;
+    captureWithLayerVisibility(layers, () => app.renderer.render(app.stage), capture, playerCamera);
   }
 
   getViewportInstance(): Viewport | null { return this.pixiAppManager.getViewport(); }

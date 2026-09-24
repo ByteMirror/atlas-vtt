@@ -211,14 +211,14 @@ export class ServiceManager {
     }
   }
   
-  /** The map as it looks now, as JPEG bytes (used as a scene snapshot's thumbnail). */
+  /** The map as it looks now, as 16:9 JPEG bytes sharp enough for a scene snapshot card. */
   public renderMapThumbnail(): ArrayBuffer | null {
     const renderer = this.rendererService.getRenderer();
     const pixiApp = renderer?.getAppInstance();
     const viewport = renderer?.getViewportInstance();
     if (!renderer || !pixiApp || !viewport) return null;
 
-    const dataUrl = this.mapThumbnailService.renderThumbnail(pixiApp, viewport, renderer.getBackgroundSprite());
+    const dataUrl = this.mapThumbnailService.renderThumbnail(pixiApp, viewport, renderer.getBackgroundSprite(), { width: 640, height: 360 });
     return dataUrl ? dataUrlToBytes(dataUrl) : null;
   }
 
@@ -292,6 +292,7 @@ export class ServiceManager {
     this.rendererService.destroy();
     this.layerGraph.destroy();
     this.uiOverlay.unmount();
+    this.mapService.destroy();
     this.notePreviewUIManager.destroy();
 
     // Clean up thumbnail generation subscription

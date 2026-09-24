@@ -15,6 +15,7 @@ import {
 } from '../utils/tokenSpawnService';
 import { SPAWN_MULTIPLE_COUNTS } from '../utils/spawnCount';
 import type { AssetService } from '../../../../services/AssetService';
+import { renameScene } from '../../../../services/sceneRename';
 import { TagSearchModal } from '../TagSearchModal';
 import { runInBackground } from '../../../../utils/backgroundTask';
 import { confirmAction } from '../../../../ui/confirmDialog';
@@ -151,6 +152,16 @@ export function buildAssetContextMenuEntries(
           defaultValue: asset.name,
           onConfirm: (newName: string) => {
             if (newName.trim() === asset.name) return;
+            if (asset.type === 'scenes') {
+              const { assetService } = deps;
+              if (!assetService) return;
+              runInBackground(
+                renameScene(deps.app, assetService, asset.id, newName).then(() => deps.loadAssetsForActiveTab()),
+                `Renaming scene ${asset.id}`,
+                'Could not rename the scene'
+              );
+              return;
+            }
             deps.setAssets((prev) =>
               prev.map((a) => (a.id === asset.id ? { ...a, name: newName.trim() } : a))
             );

@@ -63,7 +63,7 @@ export class TokenRenderer {
   
   // Track loading tokens
   private tokensLoading: Set<string> = new Set();
-  private allTokensLoadedCallback?: () => void;
+  private allTokensLoadedCallbacks: Array<() => void> = [];
   private viewId: string;
   private themeObserver: MutationObserver | null = null;
   private isLocalPlayerMode: boolean = false;
@@ -499,13 +499,13 @@ export class TokenRenderer {
     };
   }
   
+  /** Runs `callback` once every token sprite being created has loaded (immediately if none is). */
   public onWhenAllTokensLoaded(callback: () => void): void {
-    this.allTokensLoadedCallback = callback;
-    
-    // If no tokens are loading, call immediately
     if (this.tokensLoading.size === 0) {
       callback();
+      return;
     }
+    this.allTokensLoadedCallbacks.push(callback);
   }
 
   // Backward-compatible alias used by older call sites during renderer initialization.
@@ -514,10 +514,10 @@ export class TokenRenderer {
   }
   
   private checkAllTokensLoaded(): void {
-    if (this.tokensLoading.size === 0 && this.allTokensLoadedCallback) {
-      this.allTokensLoadedCallback();
-      delete this.allTokensLoadedCallback; // Clear after calling
-    }
+    if (this.tokensLoading.size > 0) return;
+    const callbacks = this.allTokensLoadedCallbacks;
+    this.allTokensLoadedCallbacks = [];
+    for (const callback of callbacks) callback();
   }
   
   private requestSort(): void {

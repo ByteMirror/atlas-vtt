@@ -281,10 +281,12 @@ export function createAtlasStorage<T extends { mapPath: string | null }, S = unk
             const existingFile = app.vault.getAbstractFileByPath(dataPath);
             if (existingFile instanceof TFile) {
               await app.vault.process(existingFile, () => data);
-            } else {
-              // Create new file
+            } else if (store.getState().mapPath === path) {
               await app.vault.create(dataPath, data);
             }
+            // Otherwise the map was renamed while this save waited; the store has
+            // already scheduled its state for the new path, so recreating the old
+            // file would only leave a stale copy under the old name.
           } catch (error) {
             console.error(`[AtlasStorage] Error writing map file ${path}:`, error);
           }

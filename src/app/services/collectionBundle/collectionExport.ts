@@ -1,4 +1,4 @@
-import { TFile, type App } from 'obsidian';
+import type { App } from 'obsidian';
 import { COLLECTIONS_DIR, type Asset, type AssetService, type CollectionMetadata } from '../AssetService';
 import { BUNDLE_FORMAT, BUNDLE_MANIFEST, zipPathFor, type BundleFile, type CollectionBundleManifest } from './bundleFormat';
 import { rewriteContent } from './bundleContent';
@@ -8,6 +8,7 @@ import { assetFingerprint, fieldFingerprint } from './fingerprints';
 import { sha256 } from './hashing';
 import { COLLECTION_FIELDS, deleteInstallRecord, readInstallRecord, writeInstallRecord, type InstallRecord } from './installRecord';
 import { remapPaths } from './pathRemap';
+import { readVaultBinary, vaultFileSize } from '../../utils/hiddenVaultFiles';
 
 /** Images and audio are already compressed; deflating them only costs time. */
 const STORED_EXTENSIONS = /\.(png|jpe?g|webp|gif|avif|mp3|ogg|wav|m4a|zip)$/i;
@@ -61,10 +62,8 @@ export async function prepareCollectionExport(app: App, assets: AssetService, co
   if (!collection) throw new Error(`Collection ${collectionId} not found`);
   const collectionAssets = await assets.getAssets(collectionId);
   const { files, missing } = await new CollectionReferenceCollector(app, assets).collect(collectionAssets);
-  const totalBytes = files.reduce((sum, file) => {
-    const vaultFile = app.vault.getAbstractFileByPath(file.vaultPath);
-    return sum + (vaultFile instanceof TFile ? vaultFile.stat.size : 0);
-  }, 0);
+  let totalBytes = 0;
+  for (const file of files) totalBytes += await vaultFileSize(app, file.vaultPath);
   const publisher = await publisherOf(app, assets, collection);
   // A collection that was never released starts at its own version; later releases count up.
   const neverReleased = collection.publisherId !== undefined && collection.releasedAt === undefined;
@@ -134,9 +133,9 @@ export async function exportCollectionBundle(
   const files: BundleFile[] = [];
   for (const [index, file] of preview.files.entries()) {
     reportFileStep(onProgress, 'Adding', index, preview.files.length, 0, 0.6);
-    const vaultFile = app.vault.getAbstractFileByPath(file.vaultPath);
-    if (!(vaultFile instanceof TFile)) continue;
-    const data = rewriteContent(file, await app.vault.readBinary(vaultFile), origin.names);
+    const content = await readVaultBinary(app, file.vaultPath);
+    if (!content) continue;
+    const data = rewriteContent(file, content, origin.names);
     const bundlePath = named(file.vaultPath);
     files.push({
       ...file,

@@ -3,7 +3,6 @@ import { Notice, TFile } from 'obsidian';
 import { useAtlasUI } from '../../root/AtlasUIContext';
 import { useAtlasStore } from '../../ViewStoreContext';
 import { SceneSnapshotService, nextSnapshotName, type SceneSnapshotEntry } from '../../../snapshots/SceneSnapshotService';
-import { promptForText } from '../../../ui/textInputDialog';
 import { confirmAction } from '../../../ui/confirmDialog';
 
 export interface SceneSnapshotsController {
@@ -11,16 +10,19 @@ export interface SceneSnapshotsController {
   isLoading: boolean;
   /** True while a snapshot is being written or restored. */
   isBusy: boolean;
+  /** Image URL of the entry's thumbnail, or null when it has none. */
+  thumbnailUrl: (entry: SceneSnapshotEntry) => string | null;
   save: () => Promise<void>;
   restore: (entry: SceneSnapshotEntry) => Promise<void>;
-  rename: (entry: SceneSnapshotEntry) => Promise<void>;
+  overwrite: (entry: SceneSnapshotEntry) => Promise<void>;
+  rename: (entry: SceneSnapshotEntry, name: string) => Promise<void>;
   remove: (entry: SceneSnapshotEntry) => Promise<void>;
 }
 
 /**
- * The snapshots of the scene open in this view, with the dialogs that save,
- * restore, rename and delete them. `onRestore` runs right before a snapshot
- * replaces the map, so the caller can get out of the way.
+ * The snapshots of the scene open in this view and the actions on them.
+ * Restoring, overwriting and deleting ask for confirmation first. `onRestore` runs right
+ * before a snapshot replaces the map, so the caller can get out of the way.
  */
 export function useSceneSnapshots(onRestore: () => void): SceneSnapshotsController {
   const { app, view } = useAtlasUI();
@@ -57,13 +59,7 @@ export function useSceneSnapshots(onRestore: () => void): SceneSnapshotsControll
   const save = useCallback(async (): Promise<void> => {
     const mapFile = view?.file;
     if (!view || !(mapFile instanceof TFile)) return;
-    const name = await promptForText({
-      title: 'Save snapshot',
-      confirmLabel: 'Save',
-      initialValue: nextSnapshotName(entries.map((entry) => entry.snapshot.name)),
-      placeholder: 'Snapshot name',
-    });
-    if (!name) return;
+    const name = nextSnapshotName(entries.map((entry) => entry.snapshot.name));
 
     await run(async () => {
       await view.saveMap();
@@ -91,14 +87,31 @@ export function useSceneSnapshots(onRestore: () => void): SceneSnapshotsControll
     }, 'Could not restore the snapshot');
   }, [onRestore, run, service, view]);
 
-  const rename = useCallback(async (entry: SceneSnapshotEntry): Promise<void> => {
-    const name = await promptForText({
-      title: 'Rename snapshot',
-      confirmLabel: 'Rename',
-      initialValue: entry.snapshot.name,
-      placeholder: 'Snapshot name',
+  /** An empty name keeps the old one: every snapshot has a name. */
+  const overwrite = useCallback(async (entry: SceneSnapshotEntry): Promise<void> => {
+    const mapFile = view?.file;
+    if (!view || !(mapFile instanceof TFile)) return;
+    const confirmed = await confirmAction({
+      title: `Overwrite "${entry.snapshot.name}"?`,
+      message: [
+        'The snapshot is replaced with the map as it is now. Its previous state is lost.',
+      ],
+      confirmLabel: 'Overwrite',
+      destructive: true,
     });
+    if (!confirmed) return;
+
+    await run(async () => {
+      await view.saveMap();
+      await service.overwrite(entry, mapFile, view.serviceManager.renderMapThumbnail());
+    }, 'Could not overwrite the snapshot');
+  }, [run, service, view]);
+
+  const rename = useCallback(async (entry: SceneSnapshotEntry, requestedName: string): Promise<void> => {
+    const name = requestedName.trim();
     if (!name || name === entry.snapshot.name) return;
+    // Show the new name at once, like a file rename; the refresh after writing confirms it.
+    setEntries((current) => current.map((item) => (item === entry ? { ...item, snapshot: { ...item.snapshot, name } } : item)));
     await run(() => service.rename(entry, name), 'Could not rename the snapshot');
   }, [run, service]);
 
@@ -113,5 +126,7 @@ export function useSceneSnapshots(onRestore: () => void): SceneSnapshotsControll
     await run(() => service.delete(entry), 'Could not delete the snapshot');
   }, [run, service]);
 
-  return { entries, isLoading, isBusy, save, restore, rename, remove };
+  const thumbnailUrl = useCallback((entry: SceneSnapshotEntry): string | null => service.thumbnailUrl(entry), [service]);
+
+  return { entries, isLoading, isBusy, thumbnailUrl, save, restore, overwrite, rename, remove };
 }

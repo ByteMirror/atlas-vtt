@@ -1,5 +1,6 @@
 import type { Asset, CollectionMetadata } from '../AssetService';
 import { isRecord } from '../assetMetadataGuards';
+import { SNAPSHOTS_DIR } from '../../snapshots/snapshotPaths';
 
 /** Bumped when the zip layout or manifest shape changes. */
 export const BUNDLE_FORMAT = 3;
@@ -63,14 +64,21 @@ const SAFE_ID = /^[^/\\.][^/\\]{0,127}$/;
 const RESERVED_IDS: ReadonlySet<string> = new Set(['__proto__', 'constructor', 'prototype']);
 const isSafeId = (id: unknown): boolean => typeof id === 'string' && SAFE_ID.test(id) && !RESERVED_IDS.has(id);
 
+/** Scene snapshots live in `<folder>/.snapshots/<scene>/`, the only hidden folder a bundle may name. */
+const SNAPSHOT_ROLES: ReadonlySet<BundleFileRole> = new Set<BundleFileRole>(['scene-snapshot', 'scene-snapshot-thumbnail']);
+
 /**
  * Whether a bundled vault path is safe to plan an import for: relative, and
- * without `.`/`..` segments or hidden folders such as `.obsidian`.
+ * without `.`/`..` segments or hidden folders such as `.obsidian`. Snapshot
+ * files may sit in their scene's `.snapshots` folder.
  */
-export function isSafeBundlePath(path: string): boolean {
+export function isSafeBundlePath(path: string, role?: BundleFileRole): boolean {
   if (!path || path.length > 1024 || path.startsWith('/') || path.includes('\\')) return false;
   if ([...path].some((character) => character.charCodeAt(0) < 0x20)) return false;
-  return path.split('/').every((segment) => segment !== '' && !segment.startsWith('.'));
+  const segments = path.split('/');
+  const snapshotsIndex = role && SNAPSHOT_ROLES.has(role) ? segments.length - 3 : -1;
+  return segments.every((segment, index) => segment !== ''
+    && (!segment.startsWith('.') || (index === snapshotsIndex && segment === SNAPSHOTS_DIR)));
 }
 
 const isStatblockImage = (value: unknown): boolean =>
@@ -110,7 +118,7 @@ export function manifestProblem(value: unknown): string | null {
     && Array.isArray(files)
     && files.every(isBundleFile);
   if (!isSound) return 'This collection export is damaged.';
-  const unsafe = files.find((file) => !isSafeBundlePath(file.vaultPath) || (file.statblockImage && !isSafeBundlePath(file.statblockImage.path)));
+  const unsafe = files.find((file) => !isSafeBundlePath(file.vaultPath, file.role) || (file.statblockImage && !isSafeBundlePath(file.statblockImage.path)));
   if (unsafe) return `This collection export contains a file Atlas will not write: ${unsafe.vaultPath}`;
   return null;
 }

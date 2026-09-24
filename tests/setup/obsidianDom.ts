@@ -123,3 +123,37 @@ if (typeof Element !== 'undefined') {
     if (!(name in prototype)) prototype[name] = helper;
   }
 }
+
+// Obsidian's `node.win` / `node.doc` point at the window and document a node lives in (popouts included).
+if (typeof Node !== 'undefined' && !('win' in Node.prototype)) {
+  Object.defineProperties(Node.prototype, {
+    doc: { get(this: Node) { return this.ownerDocument ?? document; } },
+    win: { get(this: Node) { return this.ownerDocument?.defaultView ?? window; } },
+  });
+}
+
+// jsdom implements neither the Web Animations API nor media queries; Electron has both.
+if (typeof Element !== 'undefined' && typeof Element.prototype.animate !== 'function') {
+  const prototype = Element.prototype as unknown as Record<string, unknown>;
+  prototype.animate = (): Partial<Animation> => ({
+    cancel: () => undefined, finish: () => undefined, pause: () => undefined, play: () => undefined,
+    onfinish: null, finished: Promise.resolve() as Promise<Animation>,
+  });
+}
+// jsdom never decodes images
+if (typeof HTMLImageElement !== 'undefined' && typeof HTMLImageElement.prototype.decode !== 'function') {
+  HTMLImageElement.prototype.decode = (): Promise<void> => Promise.resolve();
+}
+if (typeof window !== 'undefined' && typeof window.matchMedia !== 'function') {
+  const scope = window as unknown as Record<string, unknown>;
+  scope.matchMedia = (query: string): MediaQueryList => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: () => undefined,
+    removeListener: () => undefined,
+    addEventListener: () => undefined,
+    removeEventListener: () => undefined,
+    dispatchEvent: () => false,
+  });
+}

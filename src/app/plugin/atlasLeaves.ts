@@ -9,7 +9,7 @@ function getExistingAtlasLeaf(app: App): WorkspaceLeaf | null {
 }
 
 /** The loaded Atlas view, or null when none is open (or it is still deferred). */
-function getLoadedAtlasView(app: App): AtlasView | null {
+export function getLoadedAtlasView(app: App): AtlasView | null {
   const view = getExistingAtlasLeaf(app)?.view;
   return view instanceof AtlasView ? view : null;
 }
@@ -77,8 +77,9 @@ export function registerAtlasLeafSync(plugin: Plugin): void {
   plugin.registerEvent(
     app.vault.on('rename', async (file, oldPath) => {
       if (!(file instanceof TFile)) return;
+      // The open map first, so its next autosave cannot write the old paths back.
+      getLoadedAtlasView(app)?.handleFileRenamed(oldPath, file.path, file.basename);
       await fileReferences.handleFileRenamed(oldPath, file.path);
-      getLoadedAtlasView(app)?.updateTabFilePath(oldPath, file.path, file.basename);
     })
   );
 

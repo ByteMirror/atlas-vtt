@@ -1,6 +1,6 @@
 import { App, TFile } from 'obsidian';
 import { Application, Container, Rectangle, type Texture } from 'pixi.js';
-import { getDataFilePath } from '../utils/dataFileMigration';
+import { mapThumbnailPath } from '../utils/dataFileMigration';
 import { requestRender } from '../pixi/RenderScheduler';
 
 /** The bytes of a base64 data URL, such as the JPEG `renderThumbnail` returns. */
@@ -15,11 +15,18 @@ export function dataUrlToBytes(dataUrl: string): ArrayBuffer | null {
   return bytes.buffer;
 }
 
+/** Pixel size of a rendered thumbnail. */
+export interface ThumbnailSize {
+  width: number;
+  height: number;
+}
+
+/** Map cards in the asset manager and dashboard. */
+const MAP_THUMBNAIL_SIZE: ThumbnailSize = { width: 400, height: 300 };
+
 export class MapThumbnailService {
   private app: App;
   private thumbnailCache: Map<string, string> = new Map(); // Map path -> data URL
-  private static readonly THUMBNAIL_WIDTH = 400;
-  private static readonly THUMBNAIL_HEIGHT = 300;
   private static readonly MAX_CACHE_ENTRIES = 8;
   
   constructor(app: App) {
@@ -54,18 +61,18 @@ export class MapThumbnailService {
   }
 
   /**
-   * Renders the map as it looks now into a 400×300 JPEG data URL, framed on
-   * the map image. Returns null when there is nothing to frame.
+   * Renders the map as it looks now into a JPEG data URL of `size` (400×300 by
+   * default), framed on the map image. Returns null when there is nothing to frame.
    */
-  renderThumbnail(pixiApp: Application, viewport: Container, background?: Container | null): string | null {
-    const contentBounds = this.calculateContentBounds(viewport, background);
+  renderThumbnail(pixiApp: Application, viewport: Container, background?: Container | null, size: ThumbnailSize = MAP_THUMBNAIL_SIZE): string | null {
+    const contentBounds = this.calculateContentBounds(viewport, size, background);
     if (!contentBounds) return null;
 
     // Keep render texture bounded so large scenes do not spike memory.
     const renderResolution = Math.min(
       1,
-      MapThumbnailService.THUMBNAIL_WIDTH / contentBounds.width,
-      MapThumbnailService.THUMBNAIL_HEIGHT / contentBounds.height
+      size.width / contentBounds.width,
+      size.height / contentBounds.height
     );
 
     const renderTexture: Texture = pixiApp.renderer.generateTexture({
@@ -76,15 +83,15 @@ export class MapThumbnailService {
     // The off-screen render consumed pending stage updates; the canvas still needs them
     requestRender(pixiApp);
     try {
-      const sourceCanvas = this.extractRenderCanvas(pixiApp, renderTexture);
-      const thumbnailCanvas = this.fitIntoThumbnailCanvas(sourceCanvas);
+      const sourceCanvas = this.extractRenderCanvas(pixiApp, renderTexture, size);
+      const thumbnailCanvas = this.fitIntoThumbnailCanvas(sourceCanvas, size);
       return thumbnailCanvas.toDataURL('image/jpeg', 0.8); // JPEG for smaller size
     } finally {
       renderTexture.destroy(true);
     }
   }
 
-  private extractRenderCanvas(pixiApp: Application, renderTexture: Texture): HTMLCanvasElement {
+  private extractRenderCanvas(pixiApp: Application, renderTexture: Texture, size: ThumbnailSize): HTMLCanvasElement {
     if (pixiApp.renderer.extract && typeof pixiApp.renderer.extract.canvas === 'function') {
       return pixiApp.renderer.extract.canvas(renderTexture) as HTMLCanvasElement;
     }
@@ -92,8 +99,8 @@ export class MapThumbnailService {
     const canvas = createEl('canvas');
     const pixelData = pixiApp.renderer.extract?.pixels(renderTexture);
     if (!pixelData) {
-      canvas.width = MapThumbnailService.THUMBNAIL_WIDTH;
-      canvas.height = MapThumbnailService.THUMBNAIL_HEIGHT;
+      canvas.width = size.width;
+      canvas.height = size.height;
       return canvas;
     }
 
@@ -108,10 +115,10 @@ export class MapThumbnailService {
     return canvas;
   }
 
-  private fitIntoThumbnailCanvas(sourceCanvas: HTMLCanvasElement): HTMLCanvasElement {
+  private fitIntoThumbnailCanvas(sourceCanvas: HTMLCanvasElement, size: ThumbnailSize): HTMLCanvasElement {
     const canvas = createEl('canvas');
-    canvas.width = MapThumbnailService.THUMBNAIL_WIDTH;
-    canvas.height = MapThumbnailService.THUMBNAIL_HEIGHT;
+    canvas.width = size.width;
+    canvas.height = size.height;
 
     const ctx = canvas.getContext('2d');
     if (!ctx) return canvas;
@@ -119,13 +126,13 @@ export class MapThumbnailService {
     const sourceWidth = Math.max(1, sourceCanvas.width);
     const sourceHeight = Math.max(1, sourceCanvas.height);
     const scale = Math.max(
-      MapThumbnailService.THUMBNAIL_WIDTH / sourceWidth,
-      MapThumbnailService.THUMBNAIL_HEIGHT / sourceHeight
+      size.width / sourceWidth,
+      size.height / sourceHeight
     );
     const drawWidth = sourceWidth * scale;
     const drawHeight = sourceHeight * scale;
-    const drawX = (MapThumbnailService.THUMBNAIL_WIDTH - drawWidth) / 2;
-    const drawY = (MapThumbnailService.THUMBNAIL_HEIGHT - drawHeight) / 2;
+    const drawX = (size.width - drawWidth) / 2;
+    const drawY = (size.height - drawHeight) / 2;
 
     ctx.drawImage(sourceCanvas, drawX, drawY, drawWidth, drawHeight);
     return canvas;
@@ -136,7 +143,7 @@ export class MapThumbnailService {
    * ignores the target's transform, so screen-space bounds include an unwanted
    * camera offset and zoom. Prefer the map image over grids and editor overlays.
    */
-  private calculateContentBounds(viewport: Container, background?: Container | null): Rectangle | null {
+  private calculateContentBounds(viewport: Container, size: ThumbnailSize, background?: Container | null): Rectangle | null {
     let bounds = viewport.getLocalBounds();
     if (background?.parent === viewport) {
       background.updateLocalTransform();
@@ -147,7 +154,7 @@ export class MapThumbnailService {
     const { x, y, width, height } = bounds;
     if (![x, y, width, height].every(Number.isFinite) || width <= 0 || height <= 0) return null;
 
-    const aspect = MapThumbnailService.THUMBNAIL_WIDTH / MapThumbnailService.THUMBNAIL_HEIGHT;
+    const aspect = size.width / size.height;
     const cropWidth = Math.min(width, height * aspect);
     const cropHeight = Math.min(height, width / aspect);
     return new Rectangle(
@@ -170,7 +177,7 @@ export class MapThumbnailService {
       const mapFile = this.app.vault.getAbstractFileByPath(mapPath);
       if (!mapFile || !(mapFile instanceof TFile)) return;
       
-      const thumbnailPath = getDataFilePath(mapPath.replace('.atlasmap', '.thumb.jpg'));
+      const thumbnailPath = mapThumbnailPath(mapPath);
       
       // Ensure directory exists for the thumbnail
       const dir = thumbnailPath.substring(0, thumbnailPath.lastIndexOf('/'));
@@ -203,7 +210,7 @@ export class MapThumbnailService {
     }
     
     // Try to load from vault - new location first
-    const thumbnailPath = getDataFilePath(mapPath.replace('.atlasmap', '.thumb.jpg'));
+    const thumbnailPath = mapThumbnailPath(mapPath);
     let thumbFile = this.app.vault.getAbstractFileByPath(thumbnailPath);
     
     // If not found in new location, try old location

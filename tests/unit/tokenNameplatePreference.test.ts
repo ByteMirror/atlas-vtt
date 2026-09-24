@@ -87,7 +87,7 @@ describe('per-token nameplate preference', () => {
     store.getState().setTokenSettings({ ...store.getState().tokenSettings, showNameplates: false });
     const ui = new TokenUIRenderer(store);
     try {
-      ui.update({ ...hero, id: 'hero', showNameplate: true }, 70, 1, 70);
+      ui.update({ ...hero, id: 'hero', showNameplate: true }, 70);
       expect((ui as unknown as { nameText: Text }).nameText.text).toBe('Hero');
       ui.startNameEdit();
       expect(document.activeElement?.classList.contains('atlas-offscreen-input')).toBe(true);

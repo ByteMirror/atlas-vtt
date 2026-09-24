@@ -46,6 +46,15 @@ body.atlas-player-window {
     text-align: center;
   }
 
+  // The outgoing map during a scene crossfade must sit exactly on the canvas
+  .atlas-scene-transition-snapshot {
+    image-rendering: pixelated;
+    image-rendering: -moz-crisp-edges;
+    image-rendering: crisp-edges;
+    object-fit: cover;
+    object-position: center;
+  }
+
   // Only the loading message shows until the first frame is mirrored.
   &:not(.atlas-player-window--live) {
     #atlas-player-canvas {

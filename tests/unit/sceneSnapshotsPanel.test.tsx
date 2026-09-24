@@ -1,5 +1,5 @@
 import React from 'react';
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { create } from 'zustand';
 import { TFile } from 'obsidian';
@@ -8,13 +8,14 @@ import { createInMemoryApp, type InMemoryApp } from '../mocks/inMemoryVault';
 
 const MAP_PATH = 'atlas-vtt/collections/c/scenes/Cave.atlasmap';
 const ui = vi.hoisted(() => ({ current: { app: {}, view: {} } as { app: unknown; view: unknown } }));
-const dialogs = vi.hoisted(() => ({ promptForText: vi.fn(), confirmAction: vi.fn() }));
+const dialogs = vi.hoisted(() => ({ confirmAction: vi.fn() }));
+const menu = vi.hoisted(() => ({ open: vi.fn() }));
 
 vi.mock('../../src/app/react/root/AtlasUIContext', async (importOriginal) => ({
   ...await importOriginal<typeof import('../../src/app/react/root/AtlasUIContext')>(),
   useAtlasUI: () => ui.current,
 }));
-vi.mock('../../src/app/ui/textInputDialog', () => ({ promptForText: dialogs.promptForText }));
+vi.mock('../../src/app/react/root/ContextMenuContext', () => ({ openContextMenuGlobal: menu.open }));
 vi.mock('../../src/app/ui/confirmDialog', () => ({ confirmAction: dialogs.confirmAction }));
 
 import { SceneSnapshotsPanel } from '../../src/app/react/components/command-palette/SceneSnapshotsPanel';
@@ -33,7 +34,6 @@ function mapWithGoblinAt(x: number): string {
 
 function renderPanel(): { vault: InMemoryApp; view: FakeView; onClose: ReturnType<typeof vi.fn> } {
   const vault = createInMemoryApp({ files: { [MAP_PATH]: mapWithGoblinAt(10) } });
-  vault.app.vault.getResourcePath = vi.fn((file: TFile) => `app://${file.path}`);
   const view: FakeView = {
     viewId: 'view-1',
     file: new TFile(MAP_PATH),
@@ -53,39 +53,84 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
+interface MenuItem { type: string; label?: string; onClick?: () => unknown }
+
+/** Right-clicks the card and runs the context menu item labelled `label`. */
+function chooseFromMenu(cardName: string, label: string): void {
+  fireEvent.contextMenu(screen.getByRole('group', { name: cardName }));
+  const entries = menu.open.mock.calls.at(-1)?.[0] as MenuItem[];
+  act(() => { void entries.find((entry) => entry.label === label)?.onClick?.(); });
+}
+
+/** The goblin's x position stored in the only snapshot of the map. */
+function savedGoblinX(vault: InMemoryApp): number | undefined {
+  const path = [...vault.files.keys()].find((file) => file.endsWith('.json') && file.includes('.snapshots/'));
+  const snapshot = path ? JSON.parse(vault.files.get(path)!) as { state: { objects: { tokens: { g: { x: number } } } } } : null;
+  return snapshot?.state.objects.tokens.g.x;
+}
+
+async function saveSnapshot(): Promise<void> {
+  const count = screen.queryAllByRole('group').length;
+  fireEvent.click(screen.getByRole('button', { name: /New snapshot/ }));
+  await waitFor(() => expect(screen.queryAllByRole('group')).toHaveLength(count + 1));
+}
+
 describe('scene snapshots page', () => {
-  it('saves the current map under the name the user gives it', async () => {
+  it('saves the current map under the next default name without asking', async () => {
     const { view } = renderPanel();
     expect(await screen.findByText(/No snapshots yet/)).toBeTruthy();
 
-    dialogs.promptForText.mockResolvedValueOnce('Before the ambush');
-    fireEvent.click(screen.getByRole('button', { name: /Save snapshot/ }));
+    await saveSnapshot();
+    await saveSnapshot();
 
-    expect(await screen.findByText('Before the ambush')).toBeTruthy();
-    expect(dialogs.promptForText).toHaveBeenCalledWith(expect.objectContaining({ initialValue: 'Snapshot 1' }));
-    expect(view.saveMap).toHaveBeenCalled();
-    const thumbnail = screen.getByRole('button', { name: 'Restore Before the ambush' }).querySelector('img');
-    expect(thumbnail?.getAttribute('src')).toMatch(/^app:\/\/.*Cave\.snapshots\/.*\.jpg$/);
+    expect(screen.getAllByRole('group').map((card) => card.getAttribute('aria-label')).sort()).toEqual(['Snapshot 1', 'Snapshot 2']);
+    expect(view.saveMap).toHaveBeenCalledTimes(2);
+    const thumbnail = screen.getByRole('button', { name: 'Restore Snapshot 1' }).querySelector('img');
+    expect(thumbnail?.getAttribute('src')).toMatch(/^app:\/\/local\/.*\/\.snapshots\/Cave\/.*\.jpg\?v=\d+$/);
   });
 
-  it('saves nothing when the name dialog is cancelled', async () => {
-    const { vault } = renderPanel();
-    dialogs.promptForText.mockResolvedValueOnce(null);
-    fireEvent.click(screen.getByRole('button', { name: /Save snapshot/ }));
+  it('renames in place: Enter keeps the new name, Escape cancels', async () => {
+    renderPanel();
+    await saveSnapshot();
 
-    await waitFor(() => expect(dialogs.promptForText).toHaveBeenCalled());
-    expect([...vault.files.keys()].some((path) => path.includes('.snapshots/'))).toBe(false);
+    fireEvent.click(screen.getByRole('button', { name: 'Rename Snapshot 1' }));
+    const input = screen.getByRole('textbox', { name: 'Snapshot name' });
+    fireEvent.change(input, { target: { value: 'Boss fight' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(await screen.findByRole('group', { name: 'Boss fight' })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Rename Boss fight' }));
+    const again = screen.getByRole('textbox', { name: 'Snapshot name' });
+    fireEvent.change(again, { target: { value: 'Discarded' } });
+    fireEvent.keyDown(again, { key: 'Escape' });
+    expect(screen.queryByRole('textbox')).toBeNull();
+    expect(screen.getByRole('group', { name: 'Boss fight' })).toBeTruthy();
+  });
+
+  it('keeps the name when the rename loses focus, and never allows an empty name', async () => {
+    renderPanel();
+    await saveSnapshot();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Rename Snapshot 1' }));
+    const input = screen.getByRole('textbox', { name: 'Snapshot name' });
+    fireEvent.change(input, { target: { value: 'Ambush' } });
+    fireEvent.blur(input);
+    expect(await screen.findByRole('group', { name: 'Ambush' })).toBeTruthy();
+
+    chooseFromMenu('Ambush', 'Rename');
+    const cleared = screen.getByRole('textbox', { name: 'Snapshot name' });
+    fireEvent.change(cleared, { target: { value: '  ' } });
+    fireEvent.blur(cleared);
+    expect(screen.getByRole('group', { name: 'Ambush' })).toBeTruthy();
   });
 
   it('restores a snapshot into the map after confirmation and closes the palette', async () => {
     const { vault, view, onClose } = renderPanel();
-    dialogs.promptForText.mockResolvedValueOnce('Start');
-    fireEvent.click(screen.getByRole('button', { name: /Save snapshot/ }));
-    const card = await screen.findByRole('button', { name: 'Restore Start' });
+    await saveSnapshot();
 
     vault.files.set(MAP_PATH, mapWithGoblinAt(99));
     dialogs.confirmAction.mockResolvedValueOnce(true);
-    fireEvent.click(card);
+    fireEvent.click(screen.getByRole('button', { name: 'Restore Snapshot 1' }));
 
     await waitFor(() => expect(view.reloadActiveScene).toHaveBeenCalled());
     expect(onClose).toHaveBeenCalled();
@@ -95,30 +140,38 @@ describe('scene snapshots page', () => {
 
   it('leaves the map alone when the restore is not confirmed', async () => {
     const { view, onClose } = renderPanel();
-    dialogs.promptForText.mockResolvedValueOnce('Start');
-    fireEvent.click(screen.getByRole('button', { name: /Save snapshot/ }));
-    const card = await screen.findByRole('button', { name: 'Restore Start' });
+    await saveSnapshot();
 
     dialogs.confirmAction.mockResolvedValueOnce(false);
-    fireEvent.click(card);
+    chooseFromMenu('Snapshot 1', 'Restore');
 
     await waitFor(() => expect(dialogs.confirmAction).toHaveBeenCalled());
     expect(view.reloadActiveScene).not.toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();
   });
 
-  it('renames and deletes snapshots', async () => {
-    renderPanel();
-    dialogs.promptForText.mockResolvedValueOnce('Start');
-    fireEvent.click(screen.getByRole('button', { name: /Save snapshot/ }));
-    await screen.findByText('Start');
+  it('overwrites a snapshot with the current map after confirmation', async () => {
+    const { vault } = renderPanel();
+    await saveSnapshot();
 
-    dialogs.promptForText.mockResolvedValueOnce('Boss fight');
-    fireEvent.click(within(screen.getByRole('group', { name: 'Start' })).getByRole('button', { name: 'Rename' }));
-    expect(await screen.findByText('Boss fight')).toBeTruthy();
+    vault.files.set(MAP_PATH, mapWithGoblinAt(42));
+    dialogs.confirmAction.mockResolvedValueOnce(false);
+    chooseFromMenu('Snapshot 1', 'Overwrite with current map');
+    await waitFor(() => expect(dialogs.confirmAction).toHaveBeenCalledTimes(1));
+    expect(savedGoblinX(vault)).toBe(10);
 
     dialogs.confirmAction.mockResolvedValueOnce(true);
-    fireEvent.click(within(screen.getByRole('group', { name: 'Boss fight' })).getByRole('button', { name: 'Delete' }));
+    chooseFromMenu('Snapshot 1', 'Overwrite with current map');
+    await waitFor(() => expect(savedGoblinX(vault)).toBe(42));
+    expect(screen.getByRole('group', { name: 'Snapshot 1' })).toBeTruthy();
+  });
+
+  it('deletes a snapshot from the context menu after confirmation', async () => {
+    renderPanel();
+    await saveSnapshot();
+
+    dialogs.confirmAction.mockResolvedValueOnce(true);
+    chooseFromMenu('Snapshot 1', 'Delete');
     expect(await screen.findByText(/No snapshots yet/)).toBeTruthy();
   });
 });

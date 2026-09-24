@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getStatblockResources, getResourceUpdate } from '../../src/app/services/statblockResources';
+import { getStatblockResources, getResourceUpdate, isHitPointsKey } from '../../src/app/services/statblockResources';
 import type { StatblockLayout } from '../../src/app/react/components/statblock/statblockTypes';
 
 const daggerheart: StatblockLayout = { id: 'daggerheart-adversary', name: 'Daggerheart Adversary', blocks: [] };
@@ -63,5 +63,12 @@ describe('statblock resource translation', () => {
     expect(resources).toMatchObject([{ current: 0, max: 0 }, { current: 2, max: 3 }, { current: 1, max: 6 }]);
     expect(getResourceUpdate(token, resources[1]!, 3)).toEqual({ stress: { current: 3, max: 3 }, maxStress: 3 });
     expect(getResourceUpdate(token, resources[2]!, 4)).toEqual({ hope: { current: 4, max: 6 } });
+  });
+});
+
+describe('isHitPointsKey', () => {
+  it('recognizes hit point keys and labels across systems', () => {
+    expect(['hp', 'HP', 'Hit Points:', 'hit_points', 'Health'].map(isHitPointsKey)).not.toContain(false);
+    expect(['Hit Dice', 'hope', 'AC', ''].map(isHitPointsKey)).not.toContain(true);
   });
 });

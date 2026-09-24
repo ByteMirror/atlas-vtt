@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useCallback, useState } from 'react';
 import { Plus } from 'lucide-react';
-import { useAtlasUI } from '../../root/AtlasUIContext';
+import { openContextMenuGlobal } from '../../root/ContextMenuContext';
+import type { SceneSnapshotEntry } from '../../../snapshots/SceneSnapshotService';
 import { SnapshotCard } from './SnapshotCard';
 import { useSceneSnapshots } from './useSceneSnapshots';
 
@@ -9,27 +10,48 @@ interface SceneSnapshotsPanelProps {
   onRestore: () => void;
 }
 
-/** The command palette page for the open scene's snapshots: a save tile, then the snapshots newest first. */
+/**
+ * The command palette page for the open scene's snapshots: a tile that saves
+ * one under a default name, then the snapshots newest first.
+ */
 export function SceneSnapshotsPanel({ onRestore }: SceneSnapshotsPanelProps): React.ReactElement {
-  const { app } = useAtlasUI();
-  const { entries, isLoading, isBusy, save, restore, rename, remove } = useSceneSnapshots(onRestore);
+  const { entries, isLoading, isBusy, thumbnailUrl, save, restore, overwrite, rename, remove } = useSceneSnapshots(onRestore);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+
+  const finishRename = useCallback((entry: SceneSnapshotEntry, name: string | null): void => {
+    setRenamingId(null);
+    if (name !== null) void rename(entry, name);
+  }, [rename]);
+
+  const openMenu = useCallback((entry: SceneSnapshotEntry, event: React.MouseEvent): void => {
+    event.preventDefault();
+    openContextMenuGlobal([
+      { type: 'item', label: 'Restore', icon: 'history', onClick: () => restore(entry) },
+      { type: 'item', label: 'Overwrite with current map', icon: 'refresh-cw', onClick: () => overwrite(entry) },
+      { type: 'item', label: 'Rename', icon: 'pencil', onClick: () => setRenamingId(entry.snapshot.id) },
+      { type: 'separator' },
+      { type: 'item', label: 'Delete', icon: 'trash-2', destructive: true, onClick: () => remove(entry) },
+    ], { x: event.clientX, y: event.clientY });
+  }, [overwrite, remove, restore]);
 
   return (
     <div className="atlas-snapshots">
       <div className="atlas-snapshots-grid">
         <button type="button" className="atlas-snapshot-new" disabled={isBusy} onClick={() => void save()}>
           <Plus />
-          <span>Save snapshot</span>
+          <span>New snapshot</span>
         </button>
         {entries.map((entry) => (
           <SnapshotCard
             key={entry.snapshot.id}
             entry={entry}
-            thumbnailUrl={entry.thumbnail ? app.vault.getResourcePath(entry.thumbnail) : null}
+            thumbnailUrl={thumbnailUrl(entry)}
             disabled={isBusy}
+            isRenaming={renamingId === entry.snapshot.id}
             onRestore={(target) => void restore(target)}
-            onRename={(target) => void rename(target)}
-            onDelete={(target) => void remove(target)}
+            onStartRename={(target) => setRenamingId(target.snapshot.id)}
+            onFinishRename={finishRename}
+            onContextMenu={openMenu}
           />
         ))}
       </div>

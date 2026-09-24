@@ -8,6 +8,7 @@ export const MAP_HOTKEYS = [
   { id: 'assets', label: 'Asset manager', group: 'Map', defaultKey: 'a', dmOnly: true },
   { id: 'dashboard', label: 'GM dashboard', group: 'Map', defaultKey: 'Tab', dmOnly: true },
   { id: 'gmView', label: 'Toggle GM view', group: 'Map', defaultKey: 'd', dmOnly: true },
+  { id: 'sceneSwitcher', label: 'Switch between open maps', group: 'Map', defaultKey: 'g', dmOnly: true },
   { id: 'fitMap', label: 'Fit map to view', group: 'Map', defaultKey: 'Shift+1' },
   { id: 'fitToken', label: 'Zoom to selected token', group: 'Map', defaultKey: 'Shift+2' },
   { id: 'move', label: 'Move / selection tools', group: 'Tools', defaultKey: 'v' },

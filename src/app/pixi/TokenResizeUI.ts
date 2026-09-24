@@ -3,7 +3,7 @@ import { Viewport } from 'pixi-viewport';
 import type { ViewAtlasState } from '../storeFactory';
 import type { StoreApi } from 'zustand';
 import { getTokenRingCenterRadius } from './token-renderer/tokenRingMetrics';
-import { computeTokenPixelSize, computeTokenStrokeWidth } from './token-renderer/tokenSizing';
+import { computeTokenPixelSize, computeTokenStrokeWidth, tokenUIScale } from './token-renderer/tokenSizing';
 import { toError } from '../utils/errors';
 import type { TokenHandleContainer } from './token-renderer/types';
 import { findTokenGroup } from './token-renderer/findTokenGroup';
@@ -209,15 +209,8 @@ export class TokenResizeUI {
       const token = this.store.getState().objects.tokens[tokenId];
       if (!token) continue;
       
-      // Get grid size for scaling
       const gridSize = this.store.getState().grid?.size || 70;
-      const baseUISize = 70;
-      const uiScale = gridSize / baseUISize;
-      
-      // Scale handles proportionally with grid size (matches TokenUIRenderer / TokenControlsUI)
-      handles.left.scale.set(uiScale);
-      handles.right.scale.set(uiScale);
-      
+
       // Get current size - check for temporary size during drag
       const tempSize = this.temporarySizes[tokenId];
       const currentSize = tempSize !== undefined ? tempSize : (token.size || 1);
@@ -225,6 +218,9 @@ export class TokenResizeUI {
       // Calculate token ring center radius (must match SpriteFactory.createTokenRing)
       const gridStrokeWidth = computeTokenStrokeWidth(gridSize);
       const spriteSize = computeTokenPixelSize(gridSize, currentSize);
+      // Handles keep their proportions to the token, including while it is being resized
+      handles.left.scale.set(tokenUIScale(spriteSize));
+      handles.right.scale.set(tokenUIScale(spriteSize));
       const ringScale = this.store.getState().tokenSettings?.tokenRingSize ?? 1;
       const ringTokenSize = spriteSize * ringScale;
       const ringCenterRadius = getTokenRingCenterRadius(ringTokenSize, gridStrokeWidth, ringScale);

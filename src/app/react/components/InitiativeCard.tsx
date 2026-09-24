@@ -56,9 +56,9 @@ export const InitiativeCard: React.FC<InitiativeCardProps> = ({
 
   // Match thresholds from hp-bar.tsx: >=70% ok, 30-69% warn, <30% crit
   const getHPColorClass = (): string => {
-    if (hpPercentage >= 70) return 'initiative-card__hp-fill--healthy';
-    if (hpPercentage >= 30) return 'initiative-card__hp-fill--injured';
-    return 'initiative-card__hp-fill--critical';
+    if (hpPercentage >= 70) return 'atlas-initiative-card__hp-fill--healthy';
+    if (hpPercentage >= 30) return 'atlas-initiative-card__hp-fill--injured';
+    return 'atlas-initiative-card__hp-fill--critical';
   };
 
   // Get image URL from vault path
@@ -192,12 +192,12 @@ export const InitiativeCard: React.FC<InitiativeCardProps> = ({
 
   // Build class names
   const cardClasses = [
-    'initiative-card',
-    entry.isActive && 'initiative-card--active',
-    entry.isDefeated && 'initiative-card--defeated',
-    isHoveredForPreview && 'initiative-card--preview-hover',
-    dropPosition === 'above' && 'initiative-card--drop-above',
-    dropPosition === 'below' && 'initiative-card--drop-below',
+    'atlas-initiative-card',
+    entry.isActive && 'atlas-initiative-card--active',
+    entry.isDefeated && 'atlas-initiative-card--defeated',
+    isHoveredForPreview && 'atlas-initiative-card--preview-hover',
+    dropPosition === 'above' && 'atlas-initiative-card--drop-above',
+    dropPosition === 'below' && 'atlas-initiative-card--drop-below',
   ].filter(Boolean).join(' ');
 
   return (
@@ -218,13 +218,13 @@ export const InitiativeCard: React.FC<InitiativeCardProps> = ({
       aria-roledescription="initiative card"
     >
       {/* Drag Handle */}
-      <div className="initiative-card__drag-handle">
+      <div className="atlas-initiative-card__drag-handle">
         <GripVertical />
       </div>
 
       {/* Avatar with optional instance badge */}
-      <div className="initiative-card__avatar-wrapper">
-        <div className="initiative-card__avatar">
+      <div className="atlas-initiative-card__avatar-wrapper">
+        <div className="atlas-initiative-card__avatar">
           {entry.imagePath ? (
             <img
               src={getImageUrl(entry.imagePath)}
@@ -239,26 +239,26 @@ export const InitiativeCard: React.FC<InitiativeCardProps> = ({
 
           {/* Defeated overlay */}
           {entry.isDefeated && (
-            <div className="initiative-card__defeated-overlay">
+            <div className="atlas-initiative-card__defeated-overlay">
               <Skull />
             </div>
           )}
         </div>
 
         {instanceBadge != null && (
-          <span className="initiative-card__instance-badge">{instanceBadge}</span>
+          <span className="atlas-initiative-card__instance-badge">{instanceBadge}</span>
         )}
       </div>
 
       {/* Initiative number */}
-      <span className="initiative-card__initiative">
+      <span className="atlas-initiative-card__initiative">
         {entry.initiative}
       </span>
 
       {/* HP Bar */}
-      <div className="initiative-card__hp-bar">
+      <div className="atlas-initiative-card__hp-bar">
         <div
-          className={`initiative-card__hp-fill ${getHPColorClass()}`}
+          className={`atlas-initiative-card__hp-fill ${getHPColorClass()}`}
           style={{ width: `${hpPercentage}%` }}
         />
       </div>

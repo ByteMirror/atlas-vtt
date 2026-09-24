@@ -142,3 +142,38 @@ describe('linkDiceIn + attachDiceRolling', () => {
     ]);
   });
 });
+
+describe('hit dice', () => {
+  const statblock = (): HTMLElement => host(
+    '<div class="atlas-sb-property" data-hit-points><span class="atlas-sb-property-name">Hit Points</span> 7 (2d6)</div>'
+    + '<div class="atlas-sb-trait"><span class="atlas-sb-trait-name">Bite</span> 1d4+1</div>',
+  );
+
+  it('hands dice on the hit points line to the hit points handler instead of rolling', () => {
+    const rolls: Roll[] = [];
+    const hitPoints: Array<[string, string | undefined]> = [];
+    const el = statblock();
+    linkDiceIn(el);
+    const dispose = attachDiceRolling(el, fakeApp(rolls), () => ({}), (formula, ability) => hitPoints.push([formula, ability]));
+
+    const [hitDice, bite] = el.querySelectorAll<HTMLElement>('.atlas-dice-link');
+    hitDice!.click();
+    bite!.click();
+
+    expect(hitPoints).toEqual([['2d6', 'Hit Points']]);
+    expect(rolls.map((roll) => roll.formula)).toEqual(['1d4+1']);
+    dispose();
+  });
+
+  it('rolls hit dice normally when no handler is attached', () => {
+    const rolls: Roll[] = [];
+    const el = statblock();
+    linkDiceIn(el);
+    const dispose = attachDiceRolling(el, fakeApp(rolls), () => ({}));
+
+    el.querySelector<HTMLElement>('.atlas-dice-link')!.click();
+
+    expect(rolls.map((roll) => roll.formula)).toEqual(['2d6']);
+    dispose();
+  });
+});

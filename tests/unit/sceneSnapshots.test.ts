@@ -2,14 +2,16 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { TFile } from 'obsidian';
 import { SceneSnapshotService, nextSnapshotName } from '../../src/app/snapshots/SceneSnapshotService';
 import { createSnapshot, isSceneSnapshot, restoreSnapshot } from '../../src/app/snapshots/sceneSnapshotFormat';
-import { isSnapshotFilePath, snapshotFolderFor } from '../../src/app/snapshots/snapshotPaths';
+import { snapshotFolderFor } from '../../src/app/snapshots/snapshotPaths';
 import { moveSceneSnapshots, trashSceneSnapshots } from '../../src/app/snapshots/snapshotFolderSync';
 import { createInMemoryApp, type InMemoryApp } from '../mocks/inMemoryVault';
+import { isHiddenVaultPath } from '../../src/app/utils/hiddenVaultFiles';
 import { AssetService } from '../../src/app/services/AssetService';
 import { FileReferenceService } from '../../src/app/services/FileReferenceService';
 
 const MAP_PATH = 'atlas-vtt/collections/c/scenes/Cave.atlasmap';
-const FOLDER = 'atlas-vtt/collections/c/scenes/Cave.snapshots';
+const SCENES = 'atlas-vtt/collections/c/scenes';
+const FOLDER = `${SCENES}/.snapshots/Cave`;
 
 interface MapState {
   mapPath?: string;
@@ -71,10 +73,9 @@ describe('scene snapshot format', () => {
     expect(isSceneSnapshot({ format: 1, id: 'a', name: 'b', createdAt: 1, state: { objects: 'broken' } })).toBe(false);
   });
 
-  it('keeps snapshots in a folder next to the map file', () => {
+  it('keeps snapshots in a hidden folder beside the map file', () => {
     expect(snapshotFolderFor(MAP_PATH)).toBe(FOLDER);
-    expect(isSnapshotFilePath(`${FOLDER}/abc.json`)).toBe(true);
-    expect(isSnapshotFilePath(MAP_PATH)).toBe(false);
+    expect(snapshotFolderFor('Cave.atlasmap')).toBe('.snapshots/Cave');
   });
 
   it('picks the first free default name', () => {
@@ -93,10 +94,33 @@ describe('SceneSnapshotService', () => {
 
     const entries = await snapshots.list(MAP_PATH);
     expect(entries.map((entry) => entry.snapshot.name)).toEqual(['After round one', 'Before the ambush']);
-    expect(entries[1]?.file.path).toBe(`${FOLDER}/${first.id}.json`);
-    expect(entries[1]?.thumbnail?.path).toBe(`${FOLDER}/${first.id}.jpg`);
-    expect(entries[0]?.thumbnail).toBeNull();
+    expect(entries[1]?.path).toBe(`${FOLDER}/${first.id}.json`);
+    expect(entries[1]?.thumbnailPath).toBe(`${FOLDER}/${first.id}.jpg`);
+    expect(entries[0]?.thumbnailPath).toBeNull();
     expect(vault.files.get(`${FOLDER}/${first.id}.jpg`)).toBe('JPG');
+  });
+
+  it('never creates files or folders the vault indexes', async () => {
+    const { vault, snapshots, mapFile } = await seed();
+    await snapshots.create(mapFile, 'Ambush', new TextEncoder().encode('JPG').buffer);
+
+    const created = [...vault.files.keys(), ...vault.folders].filter((path) => path.includes('snapshot'));
+    expect(created.length).toBeGreaterThan(0);
+    expect(created.every(isHiddenVaultPath)).toBe(true);
+    expect(vault.folders.has(`${SCENES}/Cave.snapshots`)).toBe(false);
+  });
+
+  it('builds thumbnail URLs that change when the snapshot is overwritten', async () => {
+    const { snapshots, mapFile } = await seed();
+    await snapshots.create(mapFile, 'Ambush', new TextEncoder().encode('JPG').buffer);
+    const [entry] = await snapshots.list(MAP_PATH);
+    const before = snapshots.thumbnailUrl(entry!);
+    expect(before).toMatch(new RegExp(`^app://local/${FOLDER}/.*\\.jpg\\?v=\\d+$`));
+
+    await new Promise((resolve) => setTimeout(resolve, 2));
+    await snapshots.overwrite(entry!, mapFile, new TextEncoder().encode('NEW').buffer);
+    const [overwritten] = await snapshots.list(MAP_PATH);
+    expect(snapshots.thumbnailUrl(overwritten!)).not.toBe(before);
   });
 
   it('restores tokens, conditions and hit points into the map file', async () => {
@@ -110,6 +134,21 @@ describe('SceneSnapshotService', () => {
     expect(restored.objects.tokens.goblin).toMatchObject({ hp: 7, conditions: ['poisoned'], x: 10, y: 20 });
     expect(restored.mapPath).toBe(MAP_PATH);
     expect(restored.diceLog).toEqual(['d8: 5']);
+  });
+
+  it('overwrites a snapshot with the current map, keeping its id, name and place', async () => {
+    const { vault, snapshots, mapFile } = await seed();
+    const original = await snapshots.create(mapFile, 'Ambush', new TextEncoder().encode('OLD').buffer);
+    const [entry] = await snapshots.list(MAP_PATH);
+
+    vault.files.set(MAP_PATH, mapEnvelope({ ...encounterReady, objects: { tokens: { goblin: { id: 'goblin', x: 50, y: 60, imagePath: 'atlas-vtt/assets/goblin.webp', hp: 2 } } } }));
+    await snapshots.overwrite(entry!, mapFile, new TextEncoder().encode('NEW').buffer);
+
+    const [overwritten] = await snapshots.list(MAP_PATH);
+    expect(overwritten?.snapshot).toMatchObject({ id: original.id, name: 'Ambush', createdAt: original.createdAt });
+    expect(overwritten?.snapshot.updatedAt).toBeGreaterThanOrEqual(original.createdAt);
+    expect(overwritten?.snapshot.state.objects?.tokens?.goblin).toMatchObject({ x: 50, y: 60, hp: 2 });
+    expect(vault.files.get(`${FOLDER}/${original.id}.jpg`)).toBe('NEW');
   });
 
   it('renames a snapshot without touching its state', async () => {
@@ -132,10 +171,12 @@ describe('SceneSnapshotService', () => {
 
     await snapshots.delete(one!);
     expect(await snapshots.list(MAP_PATH)).toHaveLength(1);
-    expect(vault.files.has(one!.thumbnail!.path)).toBe(false);
+    expect(vault.files.has(one!.thumbnailPath!)).toBe(false);
 
     await snapshots.delete(two!);
     expect(vault.folders.has(FOLDER)).toBe(false);
+    expect(vault.folders.has(`${SCENES}/.snapshots`)).toBe(false);
+    expect(vault.folders.has(SCENES)).toBe(true);
   });
 
   it('skips files in the folder that are not snapshots', async () => {
@@ -150,11 +191,22 @@ describe('snapshot folder sync', () => {
   it('moves the snapshots along with a renamed map', async () => {
     const { vault, snapshots, mapFile } = await seed();
     await snapshots.create(mapFile, 'Ambush', null);
-    const renamed = 'atlas-vtt/collections/c/scenes/Goblin cave.atlasmap';
+    const renamed = `${SCENES}/Goblin cave.atlasmap`;
 
     await moveSceneSnapshots(vault.app, MAP_PATH, renamed);
     expect(await snapshots.list(renamed)).toHaveLength(1);
     expect(vault.folders.has(FOLDER)).toBe(false);
+  });
+
+  it('moves the snapshots into the hidden folder of the map\'s new folder', async () => {
+    const { vault, snapshots, mapFile } = await seed();
+    await snapshots.create(mapFile, 'Ambush', null);
+    const moved = 'atlas-vtt/collections/other/scenes/Cave.atlasmap';
+
+    await moveSceneSnapshots(vault.app, MAP_PATH, moved);
+    expect(await snapshots.list(moved)).toHaveLength(1);
+    expect(vault.folders.has('atlas-vtt/collections/other/scenes/.snapshots/Cave')).toBe(true);
+    expect(vault.folders.has(`${SCENES}/.snapshots`)).toBe(false);
   });
 
   it('trashes the snapshots of a deleted map', async () => {

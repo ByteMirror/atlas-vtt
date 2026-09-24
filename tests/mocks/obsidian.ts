@@ -303,3 +303,22 @@ export class Setting {
 }
 
 export function setIcon(_parent: HTMLElement, _iconId: string): void {}
+
+/** Case-insensitive subsequence match; Obsidian's real scoring is richer. */
+export function prepareFuzzySearch(query: string): (text: string) => { score: number; matches: [number, number][] } | null {
+  const needle = query.toLowerCase().replace(/\s+/g, '');
+  return (text: string) => {
+    const haystack = text.toLowerCase();
+    const matches: [number, number][] = [];
+    let from = 0;
+    for (const char of needle) {
+      const index = haystack.indexOf(char, from);
+      if (index === -1) return null;
+      const last = matches[matches.length - 1];
+      if (last && last[1] === index) last[1] = index + 1;
+      else matches.push([index, index + 1]);
+      from = index + 1;
+    }
+    return { score: -matches.length - (matches[0]?.[0] ?? 0) / 100, matches };
+  };
+}

@@ -11,6 +11,7 @@ import {
 import { resolveStatblockNote } from '../../services/statblockNoteSource';
 import { syncStatblockVitals, type TokenVitals } from '../../services/statblockVitalsSync';
 import { attachDiceRolling } from '../../services/statblockDiceLinks';
+import { rollHitPoints } from '../../services/statblockHitPoints';
 import { StatblockRenderer, type StatblockPortrait } from './statblock/StatblockRenderer';
 import { TokenPickerModal } from '../../packages/components/token-picker/TokenPickerModal';
 import { TokenStatblockLinkService } from '../../services/TokenStatblockLinkService';
@@ -175,15 +176,20 @@ export function FantasyStatblock({
     const el = ref.current;
     if (!el || !monster) return;
 
-    return attachDiceRolling(el, app, () => {
-      const [token] = tokensRef.current;
-      return {
-        tokenId: token?.id,
-        statblockPath: notePath,
-        tokenName: token?.name ?? (monster.name),
-        tokenImagePath: token?.imagePath,
-      };
-    });
+    return attachDiceRolling(
+      el,
+      app,
+      () => {
+        const [token] = tokensRef.current;
+        return {
+          tokenId: token?.id,
+          statblockPath: notePath,
+          tokenName: token?.name ?? (monster.name),
+          tokenImagePath: token?.imagePath,
+        };
+      },
+      (formula, abilityName) => rollHitPoints(app, formula, notePath, tokensRef.current, abilityName),
+    );
   }, [app, monster, notePath]);
 
   // Mirror token HP/stress into any vitals track the layout renders.

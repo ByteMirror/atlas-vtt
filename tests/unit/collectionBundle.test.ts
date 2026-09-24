@@ -161,14 +161,14 @@ describe('installing', () => {
   it('carries scene snapshots with their thumbnails and artwork into the installed collection', async () => {
     const creator = await creatorVault();
     const ogreImage = 'atlas-vtt/assets/ogre.webp';
-    const snapshotFolder = 'atlas-vtt/collections/source/scenes/Cave.snapshots';
+    const snapshotFolder = 'atlas-vtt/collections/source/scenes/.snapshots/Cave';
     const snapshot = createSnapshot({ version: 4, state: {
       schema: 'atlas-vtt', version: 4, background: BACKGROUND, grid: null,
       objects: { tokens: { o1: { id: 'o1', kind: 'character', x: 0, y: 0, imagePath: ogreImage, statblockPath: NOTE_PATH, name: 'Ogre', hp: 30 } } },
     } }, 'snap1', 'Ogre ambush', 1000);
     await creator.vault.app.vault.create(ogreImage, 'OGRE');
-    await creator.vault.app.vault.create(`${snapshotFolder}/snap1.json`, JSON.stringify(snapshot));
-    await creator.vault.app.vault.create(`${snapshotFolder}/snap1.jpg`, 'SNAPJPG');
+    await creator.vault.app.vault.adapter.write(`${snapshotFolder}/snap1.json`, JSON.stringify(snapshot));
+    await creator.vault.app.vault.adapter.write(`${snapshotFolder}/snap1.jpg`, 'SNAPJPG');
 
     const fan = await emptyVault();
     await importInto(fan, await exportFrom(creator));
@@ -686,13 +686,13 @@ describe('third review findings', () => {
     await fan.vault.app.vault.create(lair, 'MY LAIR');
     await creator.vault.app.vault.create(lair, '{"creator":true}');
     const snapshot = createSnapshot({ version: 4, state: { schema: 'atlas-vtt', version: 4, background: BACKGROUND, grid: null } }, 'snap1', 'Start', 1000);
-    await creator.vault.app.vault.create('atlas-vtt/collections/source/scenes/Lair.snapshots/snap1.json', JSON.stringify(snapshot));
-    await creator.vault.app.vault.create('atlas-vtt/collections/source/scenes/Lair.snapshots/snap1.jpg', 'SNAPJPG');
+    await creator.vault.app.vault.adapter.write('atlas-vtt/collections/source/scenes/.snapshots/Lair/snap1.json', JSON.stringify(snapshot));
+    await creator.vault.app.vault.adapter.write('atlas-vtt/collections/source/scenes/.snapshots/Lair/snap1.jpg', 'SNAPJPG');
     await creator.assets.addAsset({ type: 'scene', name: 'Lair', collection: 'source', tags: [], data: { mapPath: lair } });
     await importInto(fan, await exportFrom(creator));
-    expect(fan.vault.files.has('atlas-vtt/collections/source/scenes/Lair.snapshots/snap1.json')).toBe(false);
-    expect(fan.vault.files.has('atlas-vtt/collections/source/scenes/Lair-2.snapshots/snap1.json')).toBe(true);
-    expect(fan.vault.files.get('atlas-vtt/collections/source/scenes/Lair-2.snapshots/snap1.jpg')).toBe('SNAPJPG');
+    expect(fan.vault.files.has('atlas-vtt/collections/source/scenes/.snapshots/Lair/snap1.json')).toBe(false);
+    expect(fan.vault.files.has('atlas-vtt/collections/source/scenes/.snapshots/Lair-2/snap1.json')).toBe(true);
+    expect(fan.vault.files.get('atlas-vtt/collections/source/scenes/.snapshots/Lair-2/snap1.jpg')).toBe('SNAPJPG');
   });
 });
 

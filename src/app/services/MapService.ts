@@ -6,10 +6,13 @@ import type { ViewAtlasState, ViewAtlasStore } from '../storeFactory';
 import type { MapFile } from './MapPersistence';
 import { getHistoryStore } from '../stores/history';
 import { autoDetectGridOnFirstLoad } from './gridAutoDetect';
+import { backgroundTextureCache } from '../pixi/backgroundTextureCache';
 
 export class MapService {
   private currentMapFilePath: string | null = null;
   private currentMapData: MapFile | null = null;
+  /** Background texture reference held for the loaded map. */
+  private currentBackgroundUrl: string | null = null;
   private eventBus: EventEmitter;
 
   /** Map files carry no name of their own; the file name is the map name. */
@@ -39,18 +42,12 @@ export class MapService {
     // True once the store holds the cleared state of `filePath` instead of the previous map.
     let storeClearedForNewMap = false;
     try {
-      // Check if this is a map switch (not initial load)
-      const isMapSwitch = this.currentMapFilePath !== null && this.currentMapFilePath !== filePath;
-
       // Services save what belongs to the map being left while its state is still loaded
       if (this.currentMapFilePath !== null) this.eventBus.emit('map-unloading');
-      
+
       // Show loading overlay FIRST before any state changes
       this.store.getState().setMapLoading(true, 0, 'Loading map...');
-      
-      // Small delay to ensure loading state is applied before clearing
-      await new Promise(resolve => window.setTimeout(resolve, 10));
-      
+
       this.currentMapFilePath = filePath;
       
       // Get the actual renderer object from the service
@@ -72,10 +69,7 @@ export class MapService {
       } catch (flushError) {
         console.warn('[MapService] Could not flush pending saves:', flushError);
       }
-      
-      // Small delay to ensure any in-flight saves complete
-      await new Promise(resolve => window.setTimeout(resolve, 50));
-      
+
       // Set the new map path BEFORE clearing state
       // This ensures that when clearMapState triggers a save, it saves to the NEW file, not the old one
       storeState.setMapPath(filePath);
@@ -102,23 +96,16 @@ export class MapService {
       
       // Load and display the map in the renderer
       // Note: this loads the actual map image and sets up the grid
-      this.currentMapData = await MapController.loadAndDisplay(
+      const displayed = await MapController.loadAndDisplay(
         this.app,
         renderer,
         filePath,
         restoreCamera
       );
-      
+      this.holdBackground(displayed.backgroundUrl);
+      this.currentMapData = displayed.mapData;
+
       if (this.currentMapData) {
-        // Only reinitialize viewport plugins on map switch, not initial load
-        if (isMapSwitch) {
-          // Emit event that we're about to recreate the renderer
-          this.eventBus.emit('renderer-recreating');
-          
-          // We'll need to recreate the entire renderer after loading is complete
-          // This will be handled in AtlasView after map load completes
-        }
-        
         // Update loading progress
         storeState.setMapLoading(true, 60, 'Restoring map data...');
         
@@ -235,25 +222,21 @@ export class MapService {
       };
       this.eventBus.emit('map-loaded', mapInitData);
 
-      // Wait for tokens to load before hiding the loading screen
-      const hideLoadingScreen = () => {
+      // map-loaded starts every token sprite synchronously, so the wait below sees all of them
+      const hideLoadingScreen = (): void => {
         this.store.getState().setMapLoading(false);
 
         // Resume history tracking now that map load is complete
         getHistoryStore(this.store)?.getState().resume();
       };
-      
-      // Small delay to ensure renderer is ready
-      window.setTimeout(() => {
-        // Emit event to wait for tokens
-        this.eventBus.emit('wait-for-tokens-loaded', hideLoadingScreen);
-      }, 100);
-      
+      this.eventBus.emit('wait-for-tokens-loaded', hideLoadingScreen);
+
       return this.currentMapData;
     } catch (error) {
       console.error('[MapService] Error loading map:', error);
       this.currentMapFilePath = null;
       this.currentMapData = null;
+      this.holdBackground(null);
       const storeState = this.store.getState();
       // Unbind the cleared store from the file first, or the next save would replace
       // the map that failed to load with an empty one.
@@ -271,6 +254,18 @@ export class MapService {
     }
   }
   
+  /** Swaps the held background reference, releasing the previous map's one. */
+  private holdBackground(url: string | null): void {
+    const previous = this.currentBackgroundUrl;
+    this.currentBackgroundUrl = url;
+    if (previous) backgroundTextureCache.release(previous);
+  }
+
+  /** Releases resources held for the loaded map. */
+  public destroy(): void {
+    this.holdBackground(null);
+  }
+
   /**
    * Load a map from a TFile
    * @param rendererService The RendererService instance
@@ -296,6 +291,11 @@ export class MapService {
    */
   public getCurrentMapFilePath(): string | null {
     return this.currentMapFilePath;
+  }
+
+  /** Keeps the loaded map's path current when its file is renamed. */
+  public handleFileRenamed(oldPath: string, newPath: string): void {
+    if (this.currentMapFilePath === oldPath) this.currentMapFilePath = newPath;
   }
   
   /**

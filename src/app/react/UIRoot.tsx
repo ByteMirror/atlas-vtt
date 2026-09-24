@@ -14,6 +14,7 @@ import { InitiativeTracker } from './components/InitiativeTracker';
 import { DiceRollLog } from './components/dice-log/DiceRollLog';
 import { MapLoadingOverlay } from './components/MapLoadingOverlay';
 import { SceneTabBar } from './components/SceneTabBar';
+import { SceneSwitcher } from './components/scene-switcher/SceneSwitcher';
 import { presentTabInPlayerWindow } from '../services/PlayerWindowPresenter';
 import { addTokenHighlight } from '../pixi/utils/tokenHighlight';
 import { focusToken } from '../pixi/tokenFocus';
@@ -105,6 +106,13 @@ export const UIRoot: React.FC<UIRootProps> = ({ app, view, pixiApp }) => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [view, store, settings]);
 
+  const switchTab = (tabId: string): void => {
+    if (view) runInBackground(view.switchToTab(tabId), 'Switching scene tab');
+  };
+  const presentTab = (tabId: string): void => {
+    if (view) void presentTabInPlayerWindow(app, view, tabId);
+  };
+
   // Context value with all required objects
   const contextValue: AtlasUIContextValue = useMemo(
     () => ({
@@ -183,40 +191,34 @@ export const UIRoot: React.FC<UIRootProps> = ({ app, view, pixiApp }) => {
         <div className="atlas-ui" style={{ position: 'relative', width: '100%', height: '100%' }}>
           {storeBackground && <BackgroundSprite imagePath={storeBackground} />}
 
-          {/* Navigation controls - only for DM view when not loading */}
-
-          
+          {/* Map chrome stays mounted while a scene loads; the loading overlay blocks input meanwhile */}
           {/* Top row — scene tabs (DM only) and widget bar share one flex row */}
-          {!isMapLoading && (
-            <div className="atlas-top-bar-row">
-              {!isPlayerView && (
-                <SceneTabBar
-                  onSwitchTab={(tabId) => { if (view) runInBackground(view.switchToTab(tabId), 'Switching scene tab'); }}
-                  onCloseTab={(tabId) => { if (view) runInBackground(view.closeTab(tabId), 'Closing scene tab'); }}
-                  onAddTab={() => view?.openSceneBrowser()}
-                  onPresentTab={(tabId) => {
-                    if (view) void presentTabInPlayerWindow(app, view, tabId);
-                  }}
-                />
-              )}
-              <ResponsiveWidgetBar
-                isPlayerView={isPlayerView}
-                store={store}
-                viewId={view?.viewId}
+          <div className="atlas-top-bar-row">
+            {!isPlayerView && (
+              <SceneTabBar
+                onSwitchTab={switchTab}
+                onCloseTab={(tabId) => { if (view) runInBackground(view.closeTab(tabId), 'Closing scene tab'); }}
+                onAddTab={() => view?.openSceneBrowser()}
+                onPresentTab={presentTab}
               />
-            </div>
-          )}
+            )}
+            <ResponsiveWidgetBar
+              isPlayerView={isPlayerView}
+              store={store}
+              viewId={view?.viewId}
+            />
+          </div>
 
           {/* Bottom toolbar row — undo/redo docked left of main toolbar */}
-          {!isMapLoading && (
-            <div className="atlas-bottom-toolbar-row">
-              {!isPlayerView && <UndoRedoControls viewId={view?.viewId} />}
-              <MainToolbar viewId={view?.viewId} />
-            </div>
-          )}
+          <div className="atlas-bottom-toolbar-row">
+            {!isPlayerView && <UndoRedoControls viewId={view?.viewId} />}
+            <MainToolbar viewId={view?.viewId} />
+          </div>
 
           {/* View actions menu — bottom right, DM only */}
-          {!isPlayerView && !isMapLoading && <ViewActionsMenu app={app} filePath={view?.file?.path} />}
+          {!isPlayerView && <ViewActionsMenu app={app} filePath={view?.file?.path} />}
+
+          {!isPlayerView && !isMapLoading && <SceneSwitcher onSwitchTab={switchTab} onPresentTab={presentTab} />}
           
           {/* Grid Settings Modal - only render when needed */}
           {isGridSettingsOpen && (
@@ -247,15 +249,13 @@ export const UIRoot: React.FC<UIRootProps> = ({ app, view, pixiApp }) => {
           )}
 
           {/* Dice Roll Log - left side panel */}
-          {!isMapLoading && (
-            <DiceRollLog
-              isOpen={isDiceLogOpen}
-              onClose={() => setDiceLogOpen(false)}
-            />
-          )}
+          <DiceRollLog
+            isOpen={isDiceLogOpen}
+            onClose={() => setDiceLogOpen(false)}
+          />
 
           {/* Initiative Tracker - only for DM view */}
-          {!isPlayerView && !isMapLoading && <InitiativeTracker />}
+          {!isPlayerView && <InitiativeTracker />}
 
           {/* Player Character Sheet - REMOVED: Players should only edit via their character sheet file */}
           

@@ -3,7 +3,7 @@ import { Viewport } from 'pixi-viewport';
 import type { ViewAtlasState } from '../storeFactory';
 import type { StoreApi } from 'zustand';
 import { getTokenRingCenterRadius } from './token-renderer/tokenRingMetrics';
-import { computeTokenPixelSize, computeTokenStrokeWidth } from './token-renderer/tokenSizing';
+import { computeTokenPixelSize, computeTokenStrokeWidth, tokenUIScale } from './token-renderer/tokenSizing';
 import { toError } from '../utils/errors';
 import type { TokenGestureEventDetail } from '../types/atlasWindowEvents';
 import type { TokenHandleContainer } from './token-renderer/types';
@@ -200,14 +200,8 @@ export class TokenRotationUI {
       const token = this.store.getState().objects.tokens[tokenId];
       if (!token) continue;
       
-      // Get grid size for scaling
       const gridSize = this.store.getState().grid?.size || 70;
-      const baseUISize = 70;
-      const uiScale = gridSize / baseUISize;
-      
-      // Scale handle proportionally with grid size (matches TokenUIRenderer / TokenControlsUI)
-      handle.scale.set(uiScale);
-      
+
       // Get token size - check for temporary size during resize
       const tempSize = temporarySizes?.[tokenId];
       const tokenSize = tempSize !== undefined ? tempSize : (token.size || 1);
@@ -215,6 +209,8 @@ export class TokenRotationUI {
       // Calculate token ring center radius (must match SpriteFactory.createTokenRing)
       const gridStrokeWidth = computeTokenStrokeWidth(gridSize);
       const spriteSize = computeTokenPixelSize(gridSize, tokenSize);
+      // The handle keeps its proportions to the token, including while it is being resized
+      handle.scale.set(tokenUIScale(spriteSize));
       const ringScale = this.store.getState().tokenSettings?.tokenRingSize ?? 1;
       const ringTokenSize = spriteSize * ringScale;
       const ringCenterRadius = getTokenRingCenterRadius(ringTokenSize, gridStrokeWidth, ringScale);

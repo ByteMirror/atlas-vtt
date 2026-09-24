@@ -42,3 +42,16 @@ export function computeTokenPixelSize(gridSize: number, sizeInCells: number): nu
   const strokeWidth = computeTokenStrokeWidth(gridSize);
   return (gridSize - 2 * strokeWidth) * tokenDiameterInCells(sizeInCells);
 }
+
+/** Sprite diameter the token UI is designed for: a medium token on a 70px grid. */
+const TOKEN_UI_REFERENCE_SIZE = computeTokenPixelSize(REFERENCE_CELL_SIZE, 1);
+
+/**
+ * Scale of a token's UI (resource bars, nameplate, condition markers, +/- buttons,
+ * resize and rotation handles) for a sprite `spriteSize` pixels wide. The UI lives in
+ * world space and keeps its proportions to the token, so it zooms with the map and
+ * never hides a small token or shrinks to nothing on a large one.
+ */
+export function tokenUIScale(spriteSize: number): number {
+  return spriteSize / TOKEN_UI_REFERENCE_SIZE;
+}

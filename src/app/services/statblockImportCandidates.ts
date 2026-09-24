@@ -17,11 +17,22 @@ export interface StatblockImportCandidate {
   size?: number;
 }
 
+/** Fantasy Statblocks hands out bestiary creatures with links encoded as `<STATBLOCK-WIKI-LINK>path|alias<STATBLOCK-WIKI-LINK>`. */
+const ENCODED_STATBLOCK_LINK = /^<STATBLOCK-(WIKI|MARKDOWN)-LINK>([\s\S]+?)(?:\|[\s\S]*)?<STATBLOCK-\1-LINK>$/;
+
+function decodeStatblockLink(reference: string): string {
+  const [, kind, path] = ENCODED_STATBLOCK_LINK.exec(reference) ?? [];
+  if (!path) return reference;
+  if (kind === 'WIKI') return path.trim();
+  try { return decodeURI(path.trim()); } catch { return path.trim(); }
+}
+
 /** YAML interprets unquoted [[links]] as nested arrays. */
 export function imageReference(value: unknown): string | undefined {
-  if (typeof value === 'string') return value.trim() || undefined;
-  if (Array.isArray(value)) return value.flat(Infinity).find((item: unknown): item is string => typeof item === 'string' && Boolean(item.trim()))?.trim();
-  return undefined;
+  const reference = typeof value === 'string' ? value.trim()
+    : Array.isArray(value) ? value.flat(Infinity).find((item: unknown): item is string => typeof item === 'string' && Boolean(item.trim()))?.trim()
+    : undefined;
+  return reference ? decodeStatblockLink(reference) : undefined;
 }
 
 /** The vault image a frontmatter reference (wikilink or path) points at, resolved relative to `sourcePath`. */

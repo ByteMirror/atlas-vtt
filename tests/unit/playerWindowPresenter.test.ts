@@ -19,7 +19,7 @@ const serviceMock = vi.hoisted(() => ({
   holdCurrentFrame: vi.fn(),
   releaseHeldFrame: vi.fn(),
   attachToView: vi.fn(),
-  toggleCameraFreeze: vi.fn(),
+  freezeCamera: vi.fn(),
   getWindow: vi.fn(() => null),
   releaseSource: vi.fn(),
 }));
@@ -32,7 +32,7 @@ vi.mock('../../src/app/services/PlayerWindowService', async () => {
     }
     isWindowOpen = serviceMock.isWindowOpen;
     attachToView = serviceMock.attachToView;
-    toggleCameraFreeze = serviceMock.toggleCameraFreeze;
+    freezeCamera = serviceMock.freezeCamera;
     getWindow = serviceMock.getWindow;
     ownsView = () => false;
     holdCurrentFrame = serviceMock.holdCurrentFrame;
@@ -111,7 +111,7 @@ describe('PlayerWindowPresenter', () => {
     const capture = vi.fn();
     const settings = new SettingsService({} as any).getLocalPlayerViewSettings();
     source.withPlayerSafeFrame(capture, settings);
-    expect(withPlayerSafeFrame).toHaveBeenCalledWith(capture, settings);
+    expect(withPlayerSafeFrame).toHaveBeenCalledWith(capture, settings, undefined);
     expect(capture).toHaveBeenCalledTimes(1);
   });
 
@@ -142,7 +142,7 @@ describe('PlayerWindowPresenter', () => {
     const tavern = view.tabMetaStore.getState().addTab('maps/tavern.md', 'Tavern');
     const dungeon = view.tabMetaStore.getState().addTab('maps/dungeon.md', 'Dungeon');
     const player = {
-      getState: () => ({ tabId: tavern, filePath: 'maps/tavern.md', frozen: true }),
+      getState: () => ({ tabId: tavern, filePath: 'maps/tavern.md', frozen: true, camera: { centerX: 10, centerY: 20, scale: 2 } }),
       contentEl: document.createElement('div'),
       isClosed: false,
     };
@@ -152,7 +152,7 @@ describe('PlayerWindowPresenter', () => {
 
     expect(serviceMock.openPlayerWindow).not.toHaveBeenCalled();
     expect(serviceMock.attachToView).toHaveBeenCalledWith(player, frameSourceFor(canvas), tavern);
-    expect(serviceMock.toggleCameraFreeze).toHaveBeenCalledTimes(1);
+    expect(serviceMock.freezeCamera).toHaveBeenCalledWith({ centerX: 10, centerY: 20, scale: 2 });
     expect(view.tabMetaStore.getState().activeTabId).toBe(dungeon);
   });
 

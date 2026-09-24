@@ -81,9 +81,16 @@ export function referencedStrings(values: readonly unknown[], into: Set<string> 
   return into;
 }
 
-async function vaultFileHash(app: App, path: string): Promise<string | null> {
+/** Fingerprint of the vault file at `path`, or null when there is none. */
+export async function vaultFileHash(app: App, path: string): Promise<string | null> {
   const file = app.vault.getAbstractFileByPath(path);
   return file instanceof TFile ? sha256(await app.vault.readBinary(file)) : null;
+}
+
+/** The vault's record with `localId` when it belongs to the collection being updated; one in another collection is the user's own. */
+export async function ownAsset(assets: AssetService, existing: CollectionMetadata | null, localId: string): Promise<Asset | null> {
+  const local = await assets.getAssetById(localId);
+  return local && existing && local.collection === existing.id ? local : null;
 }
 
 export async function planTargets(
@@ -142,7 +149,9 @@ export async function planTargets(
   for (const [source, target] of paths) {
     // An import writes only inside Atlas's folder: the user's own notes elsewhere are read, never replaced.
     const isOutsideAtlas = !target.startsWith(`${ATLAS_VTT_DIR}/`);
-    const isSharedArtwork = !record?.files[source] && !target.startsWith(collectionPrefix) && exists(target) && !isOwnArtwork(target);
+    // Artwork this collection installed stops being its own while another collection's asset uses it, for example one the user moved.
+    const isSharedArtwork = !target.startsWith(collectionPrefix) && exists(target)
+      && (record?.files[source] ? usedElsewhere.has(target) : !isOwnArtwork(target));
     if (isOutsideAtlas || isSharedArtwork) shared.add(source);
   }
   const rewrites = new Map<string, string>();
@@ -207,14 +216,10 @@ export async function gatherImportInputs(
     items.push({ key: `file:${path}`, kind: 'file', unit: installed.unit ?? `file:${path}`, theirs: null, base: installed, mine: await vaultFileHash(app, installed.target) });
   }
 
-  const ownRecord = async (localId: string): Promise<Asset | null> => {
-    const local = await assets.getAssetById(localId);
-    return local && existing && local.collection === existing.id ? local : null;
-  };
   for (const asset of manifest.assets) {
     if (skipped.has(asset.id)) continue;
     const localId = targets.assetIds.get(asset.id)!;
-    const local = await ownRecord(localId);
+    const local = await ownAsset(assets, existing, localId);
     const installed = installedAsset(asset, targets);
     unitAssets.set(`asset:${asset.id}`, local ?? installed);
     items.push({
@@ -226,7 +231,7 @@ export async function gatherImportInputs(
   const bundledIds = new Set(manifest.assets.map((asset) => asset.id));
   for (const [bundleId, installed] of Object.entries(record?.assets ?? {})) {
     if (bundledIds.has(bundleId)) continue;
-    const local = await ownRecord(installed.localId);
+    const local = await ownAsset(assets, existing, installed.localId);
     if (local) unitAssets.set(`asset:${bundleId}`, local);
     items.push({ key: `asset:${bundleId}`, kind: 'asset', unit: `asset:${bundleId}`, theirs: null, base: installed, mine: local ? await assetFingerprint(local) : null });
   }

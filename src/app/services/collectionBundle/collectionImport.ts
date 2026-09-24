@@ -4,10 +4,10 @@ import { zipPathFor } from './bundleFormat';
 import { rewriteContent } from './bundleContent';
 import { reportFileStep, type BundleProgressListener } from './bundleProgress';
 import { openBundle, type OpenedBundle } from './bundleReader';
-import { fieldFingerprint } from './fingerprints';
-import { gatherImportInputs, installedAsset, planTargets, referencedStrings, type ImportTargets } from './importInputs';
+import { assetFingerprint, fieldFingerprint } from './fingerprints';
+import { gatherImportInputs, installedAsset, ownAsset, planTargets, referencedStrings, vaultFileHash, type ImportTargets } from './importInputs';
 import { ImportJournal, saveOpenMaps } from './importJournal';
-import { planImport, resolvePlan, type ImportAction, type ImportPlan, type Resolution } from './importPlan';
+import { planImport, resolvePlan, type ImportAction, type ImportPlan, type PlannedItem, type Resolution } from './importPlan';
 import { buildReview, type ImportReview } from './importReview';
 import { COLLECTION_FIELDS, readInstallRecord, writeInstallRecord, type CollectionField, type InstallRecord } from './installRecord';
 
@@ -104,6 +104,34 @@ async function pathsInUse(app: App, assets: AssetService, targets: ImportTargets
   return inUse;
 }
 
+/** What the vault holds now for `item`, fingerprinted like the review did. */
+async function currentFingerprint(app: App, assets: AssetService, { existing, targets }: ImportContext, item: PlannedItem): Promise<string | null> {
+  const id = idOf(item.key);
+  if (item.kind === 'file') return vaultFileHash(app, targets.targetOf(id)!);
+  if (item.kind === 'asset') {
+    const local = await ownAsset(assets, existing, targets.localIdOf(id));
+    return local ? assetFingerprint(local) : null;
+  }
+  const collection = existing ? await assets.getCollection(existing.id) : null;
+  return collection ? fieldFingerprint(collection, id as CollectionField) : null;
+}
+
+/**
+ * Refuses to apply a plan to a vault that changed after the review: an edit made
+ * while the dialog was open would otherwise be replaced without being asked about.
+ * Collection fields are all checked, since the merged record starts from the reviewed one.
+ */
+async function assertUnchangedSinceReview(app: App, assets: AssetService, context: ImportContext, actions: ReadonlyMap<string, ImportAction>): Promise<void> {
+  const items = context.plan.units.flatMap((unit) => unit.items).filter((item) => item.kind === 'field' || actions.has(item.key));
+  const files = items.filter((item) => item.kind === 'file').map((item) => context.targets.targetOf(idOf(item.key))!);
+  await saveOpenMaps(app, new Set(files));
+  for (const item of items) {
+    if (await currentFingerprint(app, assets, context, item) !== item.mine) {
+      throw new Error('Your vault changed since the review. Import the file again to see the current changes');
+    }
+  }
+}
+
 async function applyImport(
   app: App,
   assets: AssetService,
@@ -124,6 +152,7 @@ async function applyImport(
   let removed = 0;
   let collection: CollectionMetadata;
   try {
+    await assertUnchangedSinceReview(app, assets, context, actions);
     const upsert: Asset[] = [];
     const remove: string[] = [];
     for (const item of items.filter((entry) => entry.kind === 'asset' && actions.has(entry.key))) {

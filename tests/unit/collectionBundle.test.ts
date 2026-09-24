@@ -383,7 +383,8 @@ describe('updating', () => {
     });
 
     await importInto(fan, await exportFrom(creator));
-    expect(steps).toEqual(['save', 'save', 'detach', 'write']);
+    // Saved for the review, for the check that nothing changed since, and right before the write.
+    expect(steps).toEqual(['save', 'save', 'save', 'detach', 'write']);
   });
 });
 
@@ -766,6 +767,46 @@ describe('final review findings', () => {
     const [restored] = await fan.assets.getAssets('source', 'map');
     expect(restored?.id).not.toBe(fanMap!.id);
     expect(fan.vault.files.get(fan.assets.getAssetFilePath(restored!))).toBe('{"name":"Region"}');
+  });
+});
+
+describe('pull request review findings', () => {
+  it('leaves the artwork of a token the user moved to another collection alone, and updates it once nothing else uses it', async () => {
+    const creator = await creatorVault();
+    const fan = await emptyVault();
+    await importInto(fan, await exportFrom(creator));
+    await fan.assets.createCollection('Mine');
+    const [token] = await fan.assets.getAssets('source', 'token');
+    await fan.assets.updateAsset(token!.id, { collection: 'mine' });
+    creator.vault.files.set(TOKEN_IMAGE, 'NEW IMG');
+
+    const v2 = await exportFrom(creator);
+    await importInto(fan, v2);
+    expect(fan.vault.files.get(TOKEN_IMAGE)).toBe('IMG');
+
+    await fan.assets.deleteAsset(token!.id);
+    fan.vault.files.set(TOKEN_IMAGE, 'IMG');
+    await importInto(fan, v2, { restore: true });
+    expect(fan.vault.files.get(TOKEN_IMAGE)).toBe('NEW IMG');
+  });
+
+  it('refuses to apply a review when the vault changed while it was open', async () => {
+    const creator = await creatorVault();
+    const fan = await emptyVault();
+    await importInto(fan, await exportFrom(creator));
+    creator.vault.files.set(MAP_PATH, mapFile(12));
+    await creator.assets.renameCollection('source', 'Source Deluxe');
+
+    const map = await reviewImport(fan, await exportFrom(creator));
+    expect(map.review.counts.conflict).toBe(0);
+    fan.vault.files.set(MAP_PATH, 'PLAYED DURING REVIEW');
+    await expect(map.apply()).rejects.toThrow('Your vault changed since the review');
+    expect(fan.vault.files.get(MAP_PATH)).toBe('PLAYED DURING REVIEW');
+
+    const name = await reviewImport(fan, await exportFrom(creator, { kind: 'release', version: 2 }));
+    await fan.assets.renameCollection('source', 'My pack');
+    await expect(name.apply()).rejects.toThrow('Your vault changed since the review');
+    expect((await fan.assets.getCollection('source'))?.name).toBe('My pack');
   });
 });
 

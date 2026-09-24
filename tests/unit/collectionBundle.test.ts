@@ -669,6 +669,21 @@ describe('second review findings', () => {
     expect(fan.vault.files.get(scene!.data!.mapPath)).toBe('{"creator":true}');
   });
 
+  it('lists only Markdown notes as pinned notes: a pin to a scene\'s map leaves that map with its scene', async () => {
+    const creator = await creatorVault();
+    const cellar = 'atlas-vtt/collections/source/scenes/Cellar.atlasmap';
+    await pinNote(creator, 'Lore/Cave.md', '# Cave');
+    const map = JSON.parse(creator.vault.files.get(MAP_PATH)!) as { state: { objects: { pins: Record<string, unknown> } } };
+    map.state.objects.pins.p2 = { id: 'p2', kind: 'pin', x: 0, y: 0, notePath: cellar };
+    creator.vault.files.set(MAP_PATH, JSON.stringify(map));
+    await creator.vault.app.vault.create(cellar, mapFile());
+    await creator.assets.addAsset({ type: 'scene', name: 'Cellar', collection: 'source', tags: [], data: { mapPath: cellar } });
+
+    const preview = await prepareCollectionExport(creator.vault.app, creator.assets, 'source');
+    expect(preview.files.filter((file) => file.role === 'linked-note').map((file) => file.vaultPath)).toEqual(['Lore/Cave.md']);
+    expect(preview.files.find((file) => file.vaultPath === cellar)?.role).toBe('scene-map');
+  });
+
   it('copies pinned notes into the collection, and matches them when a share comes back', async () => {
     const creator = await creatorVault();
     await pinNote(creator, 'Lore/Castle.md', '# Castle');

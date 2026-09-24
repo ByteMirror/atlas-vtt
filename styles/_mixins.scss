@@ -587,24 +587,27 @@ $modal-corner-inset: calc(#{$border-width-m} + #{$spacing-l});
   }
 }
 
-/// Thin scrollbar that only shows while the pointer is over the scroll area or
-/// keyboard focus is inside it (a mouse click does not keep it visible). Its
-/// space stays reserved, so content never shifts.
-@mixin atlas-scrollbar-on-hover {
+/// Thin scrollbar that shows only while the area scrolls: it fades in at once
+/// and out a moment after scrolling stops. `useScrollActivity` marks the
+/// element with `data-scrolling`. Its space stays reserved, so content never shifts.
+/// The thumb colour `--atlas-scrollbar-thumb` is registered in `main.scss`, so it can transition.
+@mixin atlas-scrollbar-while-scrolling {
   @include atlas-scrollbar;
-  scrollbar-color: transparent transparent;
+  --atlas-scrollbar-thumb: transparent;
+  scrollbar-color: var(--atlas-scrollbar-thumb) transparent;
+  transition: --atlas-scrollbar-thumb $transition-slow $transition-ease;
 
   &::-webkit-scrollbar-thumb {
-    background: transparent;
+    background: var(--atlas-scrollbar-thumb);
   }
 
-  &:hover,
-  &:has(:focus-visible) {
-    scrollbar-color: var(--scrollbar-thumb-bg) transparent;
+  &[data-scrolling] {
+    --atlas-scrollbar-thumb: var(--scrollbar-thumb-bg);
+    transition-duration: $transition-fast;
+  }
 
-    &::-webkit-scrollbar-thumb {
-      background: var(--scrollbar-thumb-bg);
-    }
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
   }
 }
 

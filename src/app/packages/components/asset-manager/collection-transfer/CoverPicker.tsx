@@ -1,7 +1,8 @@
-import React, { useId, useRef } from 'react';
+import React, { useId, useRef, useState } from 'react';
 import { Check, ImageOff, ImagePlus } from 'lucide-react';
 import type { CoverCandidate, CoverChoice, CurrentCover } from '../../../../services/collectionBundle/collectionCover';
 import { LabelTooltip } from '../../primitives/tooltip';
+import { useScrollActivity } from '../../primitives/useScrollActivity';
 
 interface CoverPickerProps {
   value: CoverChoice;
@@ -47,6 +48,8 @@ function Card({ label, hint, selected = false, isOption = true, variant = 'art',
 export function CoverPicker({ value, current, candidates, upload, onUpload, onChange }: CoverPickerProps): React.JSX.Element {
   const inputRef = useRef<HTMLInputElement>(null);
   const titleId = useId();
+  const [list, setList] = useState<HTMLDivElement | null>(null);
+  useScrollActivity(list);
   const isArtwork = (path: string): boolean => value.kind === 'artwork' && value.path === path;
   return (
     <section className="atlas-transfer-covers" aria-labelledby={titleId}>
@@ -54,7 +57,7 @@ export function CoverPicker({ value, current, candidates, upload, onUpload, onCh
         <span id={titleId} className="atlas-transfer-eyebrow">Cover</span>
         <span className="atlas-transfer-covers__hint">Shown when people import it</span>
       </div>
-      <div className="atlas-transfer-covers__list" role="radiogroup" aria-labelledby={titleId}>
+      <div ref={setList} className="atlas-transfer-covers__list" role="radiogroup" aria-labelledby={titleId}>
         <Card label="Upload image" hint="Use an image of your own as the cover" variant="action" isOption={false} onSelect={() => inputRef.current?.click()}>
           <ImagePlus aria-hidden="true" />
         </Card>

@@ -1,6 +1,7 @@
 import React, { useId, useRef, useState } from 'react';
 import { CloseButton } from '../../primitives/CloseButton';
 import { useDialogEscape } from '../../primitives/useDialogEscape';
+import { useScrollActivity } from '../../primitives/useScrollActivity';
 import { TransferScrollContext } from './transferScroll';
 
 interface TransferDialogProps {
@@ -26,6 +27,7 @@ export function TransferDialog({ label, onClose, hero, ambientUrl, aside, summar
   // State rather than a ref: lists inside need the pane once it exists.
   const [scroller, setScroller] = useState<HTMLDivElement | null>(null);
   useDialogEscape(dialogRef, onClose);
+  useScrollActivity(scroller);
   return (
     <div className="atlas-transfer-overlay" onClick={onClose}>
       <div

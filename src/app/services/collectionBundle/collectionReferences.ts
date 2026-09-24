@@ -132,8 +132,10 @@ export class CollectionReferenceCollector {
     for (const pin of Object.values(state.objects?.pins ?? {})) this.addLinkedNote(pin.notePath);
   }
 
+  /** Only Markdown notes travel as notes; a pin may also open a scene's map, which travels with its scene. */
   private addLinkedNote(link: string | undefined): void {
-    if (link) this.add(linkedFilePath(link), 'linked-note');
+    const path = link ? linkedFilePath(link) : '';
+    if (path.toLowerCase().endsWith('.md')) this.add(path, 'linked-note');
   }
 
   private addStatblockNote(path: string | undefined): void {

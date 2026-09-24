@@ -27,7 +27,7 @@
     margin: (-$spacing-xs);
     padding: $spacing-xs;
     overflow-y: auto;
-    @include atlas-scrollbar-on-hover;
+    @include atlas-scrollbar-while-scrolling;
   }
 }
 

@@ -7,6 +7,7 @@ import type { StoreApi } from 'zustand';
 import { colors, barDimensions, getHealthColor, lightenColor, darkenColor } from '../styles/designTokens';
 import { ConditionDotsRenderer } from './token-renderer/ConditionDotsRenderer';
 import { ConditionHoverPanel } from './token-renderer/ConditionHoverPanel';
+import { isNameplateVisible } from './token-renderer/nameplateVisibility';
 import type { ConditionDefinition } from '../types/collectionSettingsTypes';
 import type { TokenGestureEventDetail } from '../types/atlasWindowEvents';
 import { resourceBarFill } from './resourceBarFill';
@@ -379,7 +380,7 @@ export class TokenUIRenderer {
     // Quick change detection without JSON stringify
     const hpString = token.hp === undefined ? 'no-hp' : (typeof token.hp === 'object' ? `${token.hp.current}/${token.hp.max}` : String(token.hp));
     const stressString = token.stress === undefined ? 'no-stress' : (typeof token.stress === 'object' ? `${token.stress.current}/${token.stress.max}` : `${token.stress}/${token.maxStress ?? 10}`);
-    const showNameplate = playerSettings ? playerSettings.showTokenNameplates : tokenSettings.showNameplates || token.showNameplate === true;
+    const showNameplate = playerSettings ? playerSettings.showTokenNameplates : isNameplateVisible(token, tokenSettings.showNameplates);
     const conditionsKey = token.conditions?.join(',') ?? '';
     const updateKey = `${hpString}_${stressString}_${spriteWidth}_${gridPx}_${this.isHovered}_${this.isSelected}_${token.name || ''}_${showNameplate}_${token.statblockName || ''}_${tokenSettings.showHPBars}_${tokenSettings.showStressBars}_${conditionsKey}`;
     
@@ -788,8 +789,8 @@ export class TokenUIRenderer {
     if (this.isEditingName || !this.currentToken || !this.store) return;
     
     // Only allow editing if nameplate is visible
-    const shouldShowNameplate = this.currentToken.showNameplate === true;
-    if (!shouldShowNameplate) return;
+    const mapShowsNameplates = this.store.getState().tokenSettings?.showNameplates ?? false;
+    if (!isNameplateVisible(this.currentToken, mapShowsNameplates)) return;
     
     this.isEditingName = true;
     this.originalName = this.currentToken.name || '';

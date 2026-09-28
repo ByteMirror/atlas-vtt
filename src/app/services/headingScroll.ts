@@ -1,16 +1,15 @@
-import { findHeadingElement } from './noteHeadings';
-
 /** Frames the heading must hold still before the scroll counts as settled. */
 const SETTLED_FRAMES = 3;
-/** About a second: a heading whose text the view renders differently is never found. */
+/** About a second: long enough for the view to draw the heading's line. */
 const MAX_FRAMES = 60;
 /** Input by which the reader takes over the scroll. */
 const READER_INPUT = ['wheel', 'pointerdown', 'keydown', 'touchstart'] as const;
 
 export interface HeadingScrollTarget {
-  /** The note view's element, holding the heading once it is drawn. */
+  /** The note view's element, where the reader's input ends the hold. */
   container: HTMLElement;
-  heading: string;
+  /** The drawn heading, or null while the view has not drawn it. */
+  findHeading: () => HTMLElement | null;
   /** Scrolls roughly to the heading's line, so the view draws it. */
   scrollToLine: () => void;
 }
@@ -36,7 +35,7 @@ export function alignHeading(heading: HTMLElement, scroller: HTMLElement): numbe
  * reader's own scrolling ends it early. Returns a function that cancels.
  */
 export function holdHeadingInView(target: HeadingScrollTarget, onSettled: (heading: HTMLElement | null) => void): () => void {
-  const { container, heading, scrollToLine } = target;
+  const { container, findHeading, scrollToLine } = target;
   let frame = 0;
   let stillFrames = 0;
   let request = 0;
@@ -51,12 +50,12 @@ export function holdHeadingInView(target: HeadingScrollTarget, onSettled: (headi
   function settle(): void {
     if (finished) return;
     finish();
-    onSettled(findHeadingElement(container, heading));
+    onSettled(findHeading());
   }
 
   const step = (): void => {
     frame++;
-    const element = findHeadingElement(container, heading);
+    const element = findHeading();
     if (!element) {
       scrollToLine();
       stillFrames = 0;

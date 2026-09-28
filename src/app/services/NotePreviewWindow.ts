@@ -6,7 +6,7 @@ import type { NoteViewState, PinnedNotePreview } from '../stores/pinnedNotePrevi
 import { PreviewWindowPlacement } from './previewWindowLayout';
 import { NOTE_PREVIEW_LAYER_CLASS } from './uiLayers';
 import { applyNoteScroll, readNoteViewState, toOpenViewState } from './noteViewState';
-import { findHeadingElement, headingLine } from './noteHeadings';
+import { findEditorHeading, findRenderedHeading, headingLine } from './noteHeadings';
 import { alignHeading, holdHeadingInView } from './headingScroll';
 
 // Styles imported via styles/main.scss → note-preview-window.scss
@@ -430,7 +430,7 @@ export class NotePreviewWindow {
   }
 
   private scrollRenderedMarkdownToHeader(container: HTMLElement, headerText: string): void {
-    const targetElement = findHeadingElement(container, headerText);
+    const targetElement = findRenderedHeading(container, headerText);
     if (!targetElement) {
       console.warn('[NotePreviewWindow] Header not found in rendered markdown:', headerText);
       return;
@@ -877,9 +877,13 @@ export class NotePreviewWindow {
     }
 
     const viewContent = view.containerEl;
+    // Only the shown mode counts: the view keeps the other one in the DOM, hidden.
+    const findHeading = view.getMode() === 'preview'
+      ? (): HTMLElement | null => findRenderedHeading(view.previewMode.containerEl, headerText)
+      : (): HTMLElement | null => findEditorHeading(viewContent, line);
     viewContent.classList.add(PENDING_SCROLL_CLASS);
     const stop = holdHeadingInView(
-      { container: viewContent, heading: headerText, scrollToLine: () => view.currentMode.applyScroll(line) },
+      { container: viewContent, findHeading, scrollToLine: () => view.currentMode.applyScroll(line) },
       (heading) => {
         viewContent.classList.remove(PENDING_SCROLL_CLASS);
         if (heading) this.flashHeading(heading);

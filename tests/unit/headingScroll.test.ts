@@ -11,6 +11,8 @@ interface FakeNote {
   draw: (offset: number) => HTMLElement;
   /** Where the drawn heading sits relative to the scroller's top. */
   headingTop: () => number;
+  /** The drawn heading, or null before `draw`. */
+  find: () => HTMLElement | null;
 }
 
 /** A note view without layout: the heading's place follows the scroll and the offset it was drawn at. */
@@ -36,6 +38,7 @@ function fakeNote(): FakeNote {
       return heading;
     },
     headingTop: () => SCROLLER_TOP + headingOffset - scrollTop - SCROLLER_TOP,
+    find: () => scroller.querySelector<HTMLElement>('.HyperMD-header'),
   };
 }
 
@@ -52,7 +55,7 @@ describe('holdHeadingInView', () => {
     const note = fakeNote();
     const heading = note.draw(5000);
     const onSettled = vi.fn();
-    holdHeadingInView({ container: note.container, heading: 'Rooms', scrollToLine: vi.fn() }, onSettled);
+    holdHeadingInView({ container: note.container, findHeading: note.find, scrollToLine: vi.fn() }, onSettled);
 
     vi.advanceTimersByTime(FRAME_MS);
     expect(note.headingTop()).toBe(0);
@@ -67,7 +70,7 @@ describe('holdHeadingInView', () => {
     const note = fakeNote();
     const scrollToLine = vi.fn();
     const onSettled = vi.fn();
-    holdHeadingInView({ container: note.container, heading: 'Rooms', scrollToLine }, onSettled);
+    holdHeadingInView({ container: note.container, findHeading: note.find, scrollToLine }, onSettled);
 
     vi.advanceTimersByTime(FRAME_MS * 2);
     expect(scrollToLine).toHaveBeenCalledTimes(3);
@@ -82,7 +85,7 @@ describe('holdHeadingInView', () => {
   it('gives up after a second when the heading is never drawn', () => {
     const note = fakeNote();
     const onSettled = vi.fn();
-    holdHeadingInView({ container: note.container, heading: 'Rooms', scrollToLine: vi.fn() }, onSettled);
+    holdHeadingInView({ container: note.container, findHeading: note.find, scrollToLine: vi.fn() }, onSettled);
 
     vi.advanceTimersByTime(FRAME_MS * 70);
     expect(onSettled).toHaveBeenCalledWith(null);
@@ -92,7 +95,7 @@ describe('holdHeadingInView', () => {
     const note = fakeNote();
     note.draw(5000);
     const onSettled = vi.fn();
-    holdHeadingInView({ container: note.container, heading: 'Rooms', scrollToLine: vi.fn() }, onSettled);
+    holdHeadingInView({ container: note.container, findHeading: note.find, scrollToLine: vi.fn() }, onSettled);
 
     note.scroller.dispatchEvent(new WheelEvent('wheel', { bubbles: true }));
     expect(onSettled).toHaveBeenCalledTimes(1);
@@ -105,7 +108,7 @@ describe('holdHeadingInView', () => {
     const note = fakeNote();
     note.draw(5000);
     const onSettled = vi.fn();
-    const cancel = holdHeadingInView({ container: note.container, heading: 'Rooms', scrollToLine: vi.fn() }, onSettled);
+    const cancel = holdHeadingInView({ container: note.container, findHeading: note.find, scrollToLine: vi.fn() }, onSettled);
 
     cancel();
     vi.advanceTimersByTime(FRAME_MS * 10);

@@ -113,9 +113,10 @@ export function createPinNoteSearch(container: HTMLElement, options: PinNoteSear
 
   const hasHeadings = (file: TFile): boolean => (app.metadataCache.getFileCache(file)?.headings?.length ?? 0) > 0;
 
-  const showHeadings = (file: TFile): void => {
+  /** Lists the headings of `file`, keeping a heading query already typed. */
+  const showHeadings = (file: TFile, headingQuery = ''): void => {
     pickedNote = file;
-    search.value = `${file.basename}#`;
+    search.value = `${file.basename}#${headingQuery}`;
     search.focus();
     search.setSelectionRange(search.value.length, search.value.length);
     render();
@@ -129,12 +130,13 @@ export function createPinNoteSearch(container: HTMLElement, options: PinNoteSear
     item.createSpan({ cls: 'pin-header-file', text: noteLabel(file) });
   };
 
-  const addFileEntry = (file: TFile): void => {
+  /** A note or map result. Picking a note with headings lists them; `choose` replaces that. */
+  const addFileEntry = (file: TFile, choose?: () => void): void => {
     const isMap = file.extension === 'atlasmap';
-    const item = addEntry(() => {
+    const item = addEntry(choose ?? (() => {
       if (hasHeadings(file)) showHeadings(file);
       else options.onPick(file.path);
-    });
+    }));
     setIcon(item.createDiv({ cls: 'pin-result-icon' }), isMap ? 'map' : 'file');
     item.createSpan({ cls: 'pin-result-name', text: file.basename });
     const folder = sharedNameFolder(file);
@@ -159,19 +161,21 @@ export function createPinNoteSearch(container: HTMLElement, options: PinNoteSear
       return;
     }
     if (targets.length > 1) {
-      targets.slice(0, RESULT_LIMIT).forEach(addFileEntry);
+      // A heading is being typed: open the picked note's headings, even when it has none
+      targets.slice(0, RESULT_LIMIT).forEach((file) => addFileEntry(file, () => showHeadings(file, headingQuery)));
       return;
     }
 
+    const needle = headingQuery.toLowerCase();
     const headings = app.metadataCache.getFileCache(targetFile)?.headings ?? [];
     if (headings.length === 0) {
       addWholeNoteEntry(targetFile, 'Pin to entire note');
       return;
     }
 
-    if (headingQuery === '') addWholeNoteEntry(targetFile, 'Entire note');
+    if (needle === '') addWholeNoteEntry(targetFile, 'Entire note');
 
-    const matching = headings.filter((h) => h.heading.toLowerCase().includes(headingQuery));
+    const matching = headings.filter((h) => h.heading.toLowerCase().includes(needle));
     if (matching.length === 0) {
       results.createDiv({ cls: 'pin-empty-state', text: 'No matching headers found' });
       return;
@@ -192,7 +196,7 @@ export function createPinNoteSearch(container: HTMLElement, options: PinNoteSear
       results.createDiv({ cls: 'pin-empty-state', text: 'No notes found' });
       return;
     }
-    matching.slice(0, RESULT_LIMIT).forEach(addFileEntry);
+    matching.slice(0, RESULT_LIMIT).forEach((file) => addFileEntry(file));
   };
 
   function render(): void {
@@ -205,7 +209,7 @@ export function createPinNoteSearch(container: HTMLElement, options: PinNoteSear
     if (hashIndex === -1) {
       pickedNote = null;
       renderFiles(query);
-    } else renderHeadings(query.substring(0, hashIndex), query.substring(hashIndex + 1).toLowerCase());
+    } else renderHeadings(query.substring(0, hashIndex), query.substring(hashIndex + 1));
 
     setActive(entries.length > 0 ? 0 : -1);
   }

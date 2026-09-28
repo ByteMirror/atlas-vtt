@@ -57,6 +57,8 @@
     "zustand": "5.0.3"
   },
   "devDependencies": {
+    "@codemirror/state": "6.5.0",
+    "@codemirror/view": "6.38.6",
     "@testing-library/react": "16.3.0",
     "@types/howler": "^2.2.12",
     "@types/node": "22.14.1",

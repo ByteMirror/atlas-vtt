@@ -137,6 +137,29 @@ describe('pin note search', () => {
     expect(onPick).toHaveBeenCalledWith('Statblocks/Alula.md#Actions');
   });
 
+  it('keeps the heading typed after a shared name once the note is picked', () => {
+    const { onPick } = setup({
+      paths: ['Places/Alula.md', 'Statblocks/Alula.md'],
+      headings: { 'Places/Alula.md': ['Market', 'Harbour'], 'Statblocks/Alula.md': ['Actions'] },
+    });
+    type('alula#Mar');
+    press('Enter');
+    expect(input().value).toBe('Alula#Mar');
+    expect(activeName()).toBe('Market');
+    press('Enter');
+    expect(onPick).toHaveBeenCalledWith('Places/Alula.md#Market');
+  });
+
+  it('offers the whole of a picked note without headings instead of pinning it while a heading is typed', () => {
+    const { onPick } = setup({ paths: ['Places/Alula.md', 'Statblocks/Alula.md'], headings: { 'Statblocks/Alula.md': ['Actions'] } });
+    type('alula#act');
+    press('Enter');
+    expect(onPick).not.toHaveBeenCalled();
+    expect(activeName()).toBe('Pin to entire note');
+    press('Enter');
+    expect(onPick).toHaveBeenCalledWith('Places/Alula.md');
+  });
+
   it('never takes a scene for the note of the same name when listing headings', () => {
     const { onPick } = setup({ paths: ['Town.atlasmap', 'Notes/Town.md'], headings: { 'Notes/Town.md': ['Gates'] } });
     type('Town#ga');

@@ -1,6 +1,8 @@
 import { waitFor } from '@testing-library/react';
 import { beforeEach, afterEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { MarkdownRenderer, MarkdownView, TFile, WorkspaceLeaf } from 'obsidian';
+import { EditorState, RangeSetBuilder } from '@codemirror/state';
+import { Decoration, EditorView } from '@codemirror/view';
 import { NotePreviewWindow } from '../../src/app/services/NotePreviewWindow';
 
 function installDomHelpers(): void {
@@ -126,12 +128,12 @@ describe('NotePreviewWindow markdown previews', () => {
     expect(harness.atlasLeafRoot.contains(preview.element!)).toBe(true);
   });
 
-  it('scrolls to a heading by its line, since the editor only draws the lines near the screen', async () => {
+  /** A note view on Tavern.md whose cache lists "Cellar" on line 3 and "Room #3" on line 12. */
+  function tavernPreview(): { view: MarkdownView; harness: PreviewHarness } {
     const previewLeaf = new WorkspaceLeaf();
     const view = new MarkdownView(previewLeaf);
     view.file = new TFile('atlas-vtt/notes/Tavern.md');
     view.contentEl.textContent = 'Tavern';
-    const headingLine = view.containerEl.createDiv({ cls: 'cm-line HyperMD-header', text: '## Rooms' });
     previewLeaf.view = view;
     Object.assign(previewLeaf, { openFile: vi.fn(async () => undefined), detach: vi.fn() });
 
@@ -139,16 +141,48 @@ describe('NotePreviewWindow markdown previews', () => {
     harness.app.metadataCache.getFileCache.mockReturnValue({
       headings: [
         { heading: 'Cellar', level: 2, position: { start: { line: 3 } } },
-        { heading: 'Rooms', level: 2, position: { start: { line: 180 } } },
+        { heading: 'Room #3', level: 2, position: { start: { line: 12 } } },
       ],
     });
-    openPreview(harness, 'atlas-vtt/notes/Tavern.md#Rooms');
+    return { view, harness };
+  }
+
+  it('scrolls the editor to a heading by its line, since the editor only draws the lines near the screen', async () => {
+    const { view, harness } = tavernPreview();
+    const lines = Array.from({ length: 20 }, (_, line) => `line ${line}`);
+    lines[3] = '## Cellar';
+    lines[12] = '## Room #3';
+    const doc = EditorState.create({ doc: lines.join('\n') }).doc;
+    const headingMarks = new RangeSetBuilder<Decoration>();
+    [3, 12].forEach((line) => headingMarks.add(doc.line(line + 1).from, doc.line(line + 1).from, Decoration.line({ class: 'HyperMD-header' })));
+    const editor = new EditorView({
+      state: EditorState.create({ doc, extensions: EditorView.decorations.of(headingMarks.finish()) }),
+      parent: view.containerEl,
+    });
+    const roomLine = editor.domAtPos(doc.line(13).from).node.parentElement!.closest<HTMLElement>('.cm-line')!;
+
+    openPreview(harness, 'atlas-vtt/notes/Tavern.md#Room #3');
 
     await waitFor(() => {
-      expect(headingLine.classList.contains('atlas-highlighted-header')).toBe(true);
+      expect(roomLine.classList.contains('atlas-highlighted-header')).toBe(true);
     });
-    expect(view.currentMode.getScroll()).toBe(180);
+    expect(view.currentMode.getScroll()).toBe(12);
     expect(view.containerEl.classList.contains('atlas-embedded-leaf-view--pending-scroll')).toBe(false);
+    editor.destroy();
+  });
+
+  it('finds the heading in reading view by its source text', async () => {
+    const { view, harness } = tavernPreview();
+    view.setMode('preview');
+    const room = view.previewMode.containerEl.createEl('h2', { text: 'Room #3' });
+    room.dataset.heading = 'Room #3';
+
+    openPreview(harness, 'atlas-vtt/notes/Tavern.md#Room #3');
+
+    await waitFor(() => {
+      expect(room.classList.contains('atlas-highlighted-header')).toBe(true);
+    });
+    expect(view.currentMode.getScroll()).toBe(12);
   });
 
   it('falls back to rendering the markdown when the workspace cannot provide a leaf', async () => {

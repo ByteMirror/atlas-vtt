@@ -74,6 +74,8 @@ export class FileView extends ItemView {
  */
 export class MarkdownView extends FileView {
   private mode: 'source' | 'preview' = 'source';
+  /** Reading view; kept in the view's DOM in both modes, as Obsidian does. */
+  previewMode = { containerEl: this.containerEl.createDiv({ cls: 'markdown-reading-view' }) };
   private eState: Record<string, unknown> = {};
   private scrollLine = 0;
   currentMode = {
@@ -157,10 +159,19 @@ interface CachedHeading {
   position: { start: { line: number } };
 }
 
-/** Resolves a `#heading` subpath against the cached headings, as Obsidian does for heading links. */
+/**
+ * Resolves a `#heading` subpath against the cached headings as Obsidian does:
+ * every `#` starts a nested heading, so `#Keep#Cellar` is the Cellar after Keep
+ * and a heading containing `#` itself is never found this way.
+ */
 export function resolveSubpath(cache: { headings?: CachedHeading[] }, subpath: string): { start: { line: number } } | null {
-  const heading = cache.headings?.find((h) => `#${h.heading}` === subpath);
-  return heading ? { start: heading.position.start } : null;
+  const headings = cache.headings ?? [];
+  let index = -1;
+  for (const part of subpath.split('#').filter(Boolean)) {
+    index = headings.findIndex((h, i) => i > index && h.heading === part);
+    if (index === -1) return null;
+  }
+  return index === -1 ? null : { start: headings[index].position.start };
 }
 
 export function normalizePath(path: string): string {

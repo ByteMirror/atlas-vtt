@@ -79,6 +79,8 @@ export class TokenRenderer {
   
   // Track loading tokens
   private tokensLoading: Set<string> = new Set();
+  /** Bumped on every map load; sprites that finish loading for an earlier one are discarded. */
+  private mapLoadGeneration = 0;
   private allTokensLoadedCallbacks: Array<() => void> = [];
   private viewId: string;
   private themeObserver: MutationObserver | null = null;
@@ -298,6 +300,10 @@ export class TokenRenderer {
 
     // Listen for map load events to properly sync tokens
     const handleMapLoaded = () => {
+      // Sprites still loading belong to the previous load and are discarded when they finish
+      this.mapLoadGeneration++;
+      this.tokensLoading = new Set();
+
       // First, clear all existing token sprites (tokenSprites is an object, not a Map)
       for (const [id, tokenGroup] of Object.entries(this.tokenSprites)) {
         if (tokenGroup) this.destroyTokenGroup(id, tokenGroup);
@@ -316,7 +322,7 @@ export class TokenRenderer {
       
       // Then sync with the new map's tokens, keeping only their art decoded
       const currentTokens = this.store.getState().objects.tokens;
-      this.textureCache.releaseUnusedImages(Object.values(currentTokens).map((token) => token.imagePath ?? ''));
+      this.evictUnusedArt();
       runInBackground(this.syncTokens(currentTokens, {}), 'Token sync after map change');
       this.onWhenAllTokensLoaded(() => this.updateAllTokenSizes());
     };
@@ -760,20 +766,8 @@ export class TokenRenderer {
     // Handle deleted tokens
     for (const id of deletedTokenIds) {
       const tokenGroup = this.tokenSprites[id];
-      const prevToken = prevTokensRecord?.[id];
 
       if (tokenGroup) {
-        // Clean up texture from cache if we have the imagePath
-        const imagePath = prevToken?.imagePath;
-        if (imagePath) {
-          // Check if any other tokens are still using this texture
-          const stillInUse = Object.values(tokensRecord).some(t => t.imagePath === imagePath);
-          if (!stillInUse) {
-            // Use TextureCache's clearTexture method which handles destruction
-            this.textureCache.clearTexture(imagePath);
-          }
-        }
-
         this.destroyTokenGroup(id, tokenGroup);
         delete this.tokenSprites[id];
         // Clean up ring tracking (ring is destroyed with tokenGroup)
@@ -782,6 +776,7 @@ export class TokenRenderer {
         this.uiManager.destroyTokenUI(id);
       }
     }
+    if (deletedTokenIds.size > 0) this.evictUnusedArt();
 
     // Process only changed and new tokens (skip unchanged tokens entirely)
     for (const token of Object.values(tokensRecord)) {
@@ -861,7 +856,7 @@ export class TokenRenderer {
 
         if (!prevToken || token.imagePath !== prevToken.imagePath) {
           try {
-            await this.updateTokenSpriteTexture(token, existingTokenGroup, prevToken?.imagePath);
+            await this.updateTokenSpriteTexture(token, existingTokenGroup);
           } catch (error) {
             console.error(`[TokenRenderer] Failed to update token texture for ${token.id}:`, error);
           }
@@ -896,9 +891,12 @@ export class TokenRenderer {
       // Mark token as loading to prevent duplicate creation
       this.tokenSprites[token.id] = null;
       this.tokensLoading.add(token.id);
+      const generation = this.mapLoadGeneration;
       
       // Create new token sprite asynchronously
       void (async () => {
+        let heldArt: string | null = null;
+        let tokenGroup: TokenGroupContainer | null = null;
         try {
           let character: TokenEntity = token;
 
@@ -926,14 +924,18 @@ export class TokenRenderer {
           // Enhance character with statblock name if needed
           character = await this.enhanceCharacterWithStatblockName(character);
           
-          // Load texture
-          const texture = await this.textureCache.loadTokenTexture(character);
+          // Load texture; the group holds it from here on
+          heldArt = character.imagePath ?? '';
+          const texture = await this.textureCache.acquire(heldArt);
           
           // Create sprite through factory
-          const tokenGroup = await this.spriteFactory.createTokenSprite(character, texture);
+          tokenGroup = await this.spriteFactory.createTokenSprite(character, texture);
 
-          if (this.isDestroyed) {
-            this.spriteFactory.destroyTokenSprite(tokenGroup);
+          // Another map loaded meanwhile (possibly this one again, with its own load of this
+          // token), so this sprite must neither show nor touch the new load's state.
+          if (this.isStaleLoad(generation)) {
+            this.destroyTokenGroup(token.id, tokenGroup);
+            this.evictUnusedArt();
             return;
           }
 
@@ -941,7 +943,8 @@ export class TokenRenderer {
           const latest = this.store.getState().objects.tokens[token.id];
           if (!latest) {
             // Removed while loading, e.g. a paste undone straight away: never show it.
-            this.spriteFactory.destroyTokenSprite(tokenGroup);
+            this.destroyTokenGroup(token.id, tokenGroup);
+            this.evictUnusedArt();
             delete this.tokenSprites[token.id];
             this.tokensLoading.delete(token.id);
             this.checkAllTokensLoaded();
@@ -986,8 +989,12 @@ export class TokenRenderer {
           }
         } catch (error) {
           console.error(`[TokenRenderer] Failed to create sprite for token ${token.id}:`, error);
-          // Clean up on error
+          // Undo what this load built: its group, which holds the art, or just the hold
+          if (tokenGroup) this.destroyTokenGroup(token.id, tokenGroup);
+          else if (heldArt !== null) this.textureCache.release(heldArt);
+          if (this.isStaleLoad(generation)) return;
           delete this.tokenSprites[token.id];
+          this.uiManager.destroyTokenUI(token.id);
           this.tokensLoading.delete(token.id);
           this.checkAllTokensLoaded();
         }
@@ -1000,25 +1007,26 @@ export class TokenRenderer {
     }
   };
 
-  private async updateTokenSpriteTexture(
-    token: TokenEntity,
-    tokenGroup: TokenGroupContainer,
-    previousImagePath?: string
-  ): Promise<void> {
+  private async updateTokenSpriteTexture(token: TokenEntity, tokenGroup: TokenGroupContainer): Promise<void> {
     const sprite = tokenGroup.getChildByLabel('tokenSprite') as Sprite | null;
     if (!sprite) {
       return;
     }
 
-    const texture = await this.textureCache.loadTokenTexture(token);
+    const artPath = token.imagePath ?? '';
+    const texture = await this.textureCache.acquire(artPath);
 
     // Abort if this sprite was replaced while awaiting texture load.
     if (this.tokenSprites[token.id] !== tokenGroup) {
+      this.textureCache.release(artPath);
+      this.evictUnusedArt();
       return;
     }
 
     sprite.texture = texture;
     tokenGroup.tokenData = token;
+    const previousArtPath = tokenGroup.artPath;
+    tokenGroup.artPath = artPath;
     const tokenSize = tokenGroup.tokenSize;
     if (Number.isFinite(tokenSize) && tokenSize > 0) {
       sprite.width = tokenSize;
@@ -1026,16 +1034,8 @@ export class TokenRenderer {
       syncTokenArtwork(tokenGroup, tokenSize);
     }
 
-    if (!previousImagePath || previousImagePath === token.imagePath) {
-      return;
-    }
-
-    const stillInUse = Object.values(this.store.getState().objects.tokens).some(
-      (otherToken) => otherToken.id !== token.id && otherToken.imagePath === previousImagePath
-    );
-    if (!stillInUse) {
-      this.textureCache.clearTexture(previousImagePath);
-    }
+    this.textureCache.release(previousArtPath);
+    this.evictUnusedArt();
   }
 
   /**
@@ -1126,11 +1126,23 @@ export class TokenRenderer {
     }
   }
 
-  /** Detaches a token group's pointer handlers and destroys it with all of its children. */
+  /** Detaches a token group's pointer handlers, destroys it with all of its children and drops its hold on its art. */
   private destroyTokenGroup(id: string, tokenGroup: TokenGroupContainer): void {
     this.interactionController.removeInteractionHandlers(id, tokenGroup);
     this.downedTokenOverlay.release(tokenGroup);
     this.spriteFactory.destroyTokenSprite(tokenGroup);
+    this.textureCache.release(tokenGroup.artPath);
+  }
+
+  /** Whether a sprite load started for map load `generation` finished after a newer load or destroy. */
+  private isStaleLoad(generation: number): boolean {
+    return this.isDestroyed || generation !== this.mapLoadGeneration;
+  }
+
+  /** Frees decoded art no token holds, keeping the art of every token on the map. */
+  private evictUnusedArt(): void {
+    const tokens = Object.values(this.store.getState().objects.tokens);
+    this.textureCache.evictUnused(tokens.map((token) => token.imagePath ?? ''));
   }
 
   public destroy(): void {

@@ -95,6 +95,26 @@ describe('backgroundTextureCache', () => {
     expect(assets.unload).toHaveBeenCalledWith('b');
   });
 
+  it('waits for an unload to finish before loading the same background again', async () => {
+    const cache = await loadCache();
+    let finishUnload!: () => void;
+    assets.unload.mockReturnValueOnce(new Promise<void>((resolve) => {
+      finishUnload = resolve;
+    }));
+    await cache.acquire('a');
+    cache.release('a');
+    expect(assets.unload).toHaveBeenCalledWith('a');
+
+    // The unload destroys the texture PIXI still caches, so a load must not reuse it
+    const reloading = cache.acquire('a');
+    await Promise.resolve();
+    expect(assets.load).toHaveBeenCalledTimes(1);
+
+    finishUnload();
+    await reloading;
+    expect(assets.load).toHaveBeenCalledTimes(2);
+  });
+
   it('retries a background whose load failed', async () => {
     const cache = await loadCache();
     assets.load.mockRejectedValueOnce(new Error('decode failed'));

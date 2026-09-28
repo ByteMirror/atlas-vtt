@@ -19,6 +19,8 @@ export interface TokenGroupContainer extends Container {
   tokenData: TokenEntity;
   /** Rendered diameter in world pixels. */
   tokenSize: number;
+  /** Image path whose texture this group holds in the `TextureCache`. */
+  artPath: string;
   strokeWidth: number;
   /** Ticker callback of the movement animation in flight, if any. */
   currentAnimation?: TickerCallback<unknown> | null;
@@ -75,54 +77,28 @@ export interface ITokenSpriteFactory {
 }
 
 /**
- * Texture loading and caching
+ * Token art, decoded once per image and shared by every token that shows it.
+ * Every user holds the art it shows, and held art is never destroyed.
  */
 export interface ITextureCache {
   /**
-   * Gets a texture from cache or loads it
-   * @param imagePath The path to the image in the vault
-   * @returns Promise resolving to the loaded texture
+   * Loads (or reuses) an image's texture and holds it until `release` is called with the same path
+   * @param imagePath The token's image path; tokens without one get the default texture
    */
-  getTexture(imagePath: string): Promise<Texture>;
-  
-  /**
-   * Load a texture for a token character object
-   * @param character The character object containing imagePath
-   * @returns Promise resolving to the loaded texture
-   */
-  loadTokenTexture(character: Pick<TokenEntity, 'imagePath'>): Promise<Texture>;
-  
-  /**
-   * Gets a ring texture from cache or generates it
-   * @param size The size of the ring
-   * @param color The color of the ring
-   * @param strokeWidth The width of the ring stroke
-   * @returns The ring texture
-   */
-  getRingTexture(size: number, color: string, strokeWidth: number): Texture;
-  
-  /**
-   * Gets a gradient texture from cache or generates it
-   * @param width The width of the gradient
-   * @param height The height of the gradient
-   * @param innerColor The inner color
-   * @param outerColor The outer color
-   * @returns The gradient texture
-   */
-  getGradientTexture(width: number, height: number, innerColor: string, outerColor: string): Texture;
-  
-  /**
-   * Clears a specific texture from cache
-   * @param key The cache key to clear
-   */
-  clearTexture(key: string): void;
+  acquire(imagePath: string): Promise<Texture>;
 
   /**
-   * Evicts every token image that is not in `usedImagePaths`
-   * @param usedImagePaths Image paths of the tokens still on the map
+   * Drops one hold taken by `acquire`
+   * @param imagePath The path passed to `acquire`
    */
-  releaseUnusedImages(usedImagePaths: Iterable<string>): void;
-  
+  release(imagePath: string): void;
+
+  /**
+   * Destroys every texture nothing holds, except those of `keepImagePaths`
+   * @param keepImagePaths Images the scene shows or is about to load, kept decoded
+   */
+  evictUnused(keepImagePaths: Iterable<string>): void;
+
   /**
    * Destroys all cached textures and clears cache
    */

@@ -35,6 +35,7 @@ export class SpriteFactory implements ITokenSpriteFactory {
       tokenId: token.id,
       tokenData: token,
       tokenSize,
+      artPath: token.imagePath ?? '',
       strokeWidth,
     });
     tokenGroup.label = 'tokenGroup';

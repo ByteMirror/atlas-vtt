@@ -187,6 +187,64 @@ describe('TokenRenderer Integration Tests', () => {
     });
   });
 
+  describe('Map loads while tokens are loading', () => {
+    const tokenGroups = (): Container[] =>
+      tokenRenderer.getTokenContainer().children.filter((child) => child.label === 'tokenGroup');
+
+    /** Holds every token image read until the returned function is called. */
+    const holdImageReads = (): { reads: ReturnType<typeof vi.fn>; release: () => void } => {
+      let release!: () => void;
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const read = obsidianApp.vault.readBinary;
+      const reads = vi.fn(async (file: Parameters<typeof read>[0]) => {
+        await gate;
+        return read(file);
+      });
+      obsidianApp.vault.readBinary = reads;
+      return { reads, release };
+    };
+
+    it('shows a token once when its map loads again before its sprite finished, and never keeps destroyed art', async () => {
+      const { reads, release } = holdImageReads();
+      store.getState().addToken(token({ id: 'goblin' }));
+      await vi.waitFor(() => expect(reads).toHaveBeenCalledTimes(1));
+
+      // The same scene loads again, e.g. when a restored player view switches scenes on startup
+      eventBus.emit('map-loaded');
+      await vi.waitFor(() => expect(reads).toHaveBeenCalledTimes(2));
+      release();
+      await waitForTokens('goblin');
+      await vi.waitFor(() => expect(tokenGroups()).toEqual([tokenGroup('goblin')]));
+
+      // Switching to a scene without the goblin frees its art, which nothing may still show
+      store.getState().clearMapState();
+      store.getState().addToken(token({ id: 'orc', imagePath: ORC_IMAGE }));
+      eventBus.emit('map-loaded');
+      await waitForTokens('orc');
+
+      expect(tokenGroups()).toEqual([tokenGroup('orc')]);
+      expect(tokenSprite('orc').texture.source).not.toBeNull();
+    });
+
+    it('discards a sprite that finishes loading after the view switched to another scene and back', async () => {
+      const { reads, release } = holdImageReads();
+      store.getState().addToken(token({ id: 'goblin' }));
+      await vi.waitFor(() => expect(reads).toHaveBeenCalledTimes(1));
+
+      store.getState().clearMapState();
+      eventBus.emit('map-loaded');
+      store.getState().addToken(token({ id: 'goblin' }));
+      eventBus.emit('map-loaded');
+      release();
+      await waitForTokens('goblin');
+
+      await vi.waitFor(() => expect(tokenGroups()).toEqual([tokenGroup('goblin')]));
+      expect(tokenSprite('goblin').texture.source).not.toBeNull();
+    });
+  });
+
   describe('Instance Badges', () => {
     const badgeOf = (id: string): Container | null => tokenGroup(id).getChildByLabel('instanceBadge');
 

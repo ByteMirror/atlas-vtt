@@ -1,4 +1,5 @@
-import { Assets, Texture } from 'pixi.js';
+import type { Texture } from 'pixi.js';
+import { loadAsset, unloadAsset } from './utils/assetLifecycle';
 
 /** Idle backgrounds kept for quick scene switches, in addition to the ones on screen. */
 const MAX_IDLE_ENTRIES = 3;
@@ -65,7 +66,7 @@ class BackgroundTextureCache {
   }
 
   private load(url: string): CacheEntry {
-    const entry: CacheEntry = { texture: Assets.load<Texture>(url), refs: 0, bytes: 0, lastUsed: 0 };
+    const entry: CacheEntry = { texture: loadAsset<Texture>(url), refs: 0, bytes: 0, lastUsed: 0 };
     entry.texture = entry.texture.then(
       (texture) => {
         configureBackgroundTexture(texture);
@@ -99,9 +100,7 @@ class BackgroundTextureCache {
 
   private evict(url: string): void {
     this.entries.delete(url);
-    Assets.unload(url).catch((error: unknown) => {
-      console.warn('[BackgroundTextureCache] Failed to unload texture:', error);
-    });
+    void unloadAsset(url);
   }
 }
 

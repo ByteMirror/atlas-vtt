@@ -1,15 +1,8 @@
-/**
- * Texture Cache Manager
- * 
- * Handles texture loading, caching, and generation for tokens.
- */
-
-import { Texture, Graphics, Assets, CanvasSource, ImageSource } from 'pixi.js';
+import { Texture, Graphics, CanvasSource, ImageSource, type Application } from 'pixi.js';
 import { App as ObsidianApp, TFile } from 'obsidian';
 import type { ITextureCache } from './types';
-import type { Application } from 'pixi.js';
-import type { TokenEntity } from '../../types';
 import { normalizeImagePath } from '../../utils/pathUtils';
+import { loadAsset, unloadAsset } from '../utils/assetLifecycle';
 
 /**
  * Longest edge of a token texture. Tokens render at roughly one grid cell, so
@@ -77,275 +70,123 @@ const MIME_MAP: Record<string, string> = {
   'tif': 'image/tiff',
 };
 
+/** Image paths PIXI's `Assets` loads by URL instead of reading them from the vault. */
+const URL_PREFIXES = ['data:', 'blob:', 'http://', 'https://', 'app://'];
+
+/**
+ * Token art, decoded once per image and shared by every token that shows it.
+ *
+ * Every user holds the art it shows: `acquire` takes a hold, `release` drops it. Only
+ * `evictUnused` destroys art, and never art that is held, so neither a token on the
+ * map nor one still loading can end up with a destroyed texture.
+ */
 export class TextureCache implements ITextureCache {
-  private textureCache: Map<string, Texture> = new Map();
-  private ringTextureCache: Map<string, Texture> = new Map();
-  private gradientTextureCache: Map<string, Texture> = new Map();
+  private readonly textures = new Map<string, Texture>();
+  private readonly holds = new Map<string, number>();
   // Textures loaded through Assets are owned by its cache and must be unloaded by URL
-  private assetUrlByKey: Map<string, string> = new Map();
+  private readonly assetUrlByKey = new Map<string, string>();
   // Decoded bitmaps backing vault-loaded textures, closed on eviction
-  private bitmapByKey: Map<string, ImageBitmap> = new Map();
-  private obsApp: ObsidianApp;
+  private readonly bitmapByKey = new Map<string, ImageBitmap>();
   private pixiApp: Application | null = null;
 
-  constructor(obsApp: ObsidianApp, pixiApp?: Application) {
-    this.obsApp = obsApp;
-    this.pixiApp = pixiApp || null;
-  }
+  constructor(private readonly obsApp: ObsidianApp) {}
 
   setPixiApp(app: Application): void {
     this.pixiApp = app;
   }
 
-  /**
-   * Load a texture for a token character object
-   * This is a compatibility method that extracts the image path and calls getTexture
-   */
-  async loadTokenTexture(character: Pick<TokenEntity, 'imagePath'>): Promise<Texture> {
-    const imagePath = character.imagePath || '';
-    return this.getTexture(imagePath);
+  acquire(imagePath: string): Promise<Texture> {
+    if (!imagePath) return Promise.resolve(this.getDefaultTokenTexture());
+    const key = normalizeImagePath(imagePath);
+    // Held from the start, so art that finishes loading after an eviction pass is still held
+    this.holds.set(key, (this.holds.get(key) ?? 0) + 1);
+    return this.load(key);
   }
 
-  async getTexture(imagePath: string): Promise<Texture> {
-    if (!imagePath) {
-      return this.getDefaultTokenTexture();
-    }
-
-    // Normalize the path
-    const normalizedPath = normalizeImagePath(imagePath);
-
-    // Check cache first
-    if (this.textureCache.has(normalizedPath)) {
-      return this.textureCache.get(normalizedPath)!;
-    }
-
-    try {
-      if (
-        normalizedPath.startsWith('data:') ||
-        normalizedPath.startsWith('blob:') ||
-        normalizedPath.startsWith('http://') ||
-        normalizedPath.startsWith('https://') ||
-        normalizedPath.startsWith('app://')
-      ) {
-        const texture = await Assets.load<Texture>({
-          src: normalizedPath,
-          loadParser: 'loadTextures',
-          data: {
-            autoGenerateMipmaps: true,
-            scaleMode: 'linear',
-          }
-        });
-        this.assetUrlByKey.set(normalizedPath, normalizedPath);
-        this.textureCache.set(normalizedPath, texture);
-        return texture;
-      }
-
-      // Try to load from Obsidian vault
-      const file = this.obsApp.vault.getAbstractFileByPath(normalizedPath);
-      
-      if (!(file instanceof TFile)) {
-        console.error(`File not found: ${normalizedPath}`);
-        return this.getDefaultTokenTexture();
-      }
-
-      const arrayBuffer = await this.obsApp.vault.readBinary(file);
-      const mimeType = MIME_MAP[file.extension.toLowerCase()] || 'image/png';
-      const decoded = await decodeTokenImage(arrayBuffer, mimeType);
-
-      // A concurrent call may have finished first; keep the existing texture.
-      const existing = this.textureCache.get(normalizedPath);
-      if (existing) {
-        if (decoded instanceof ImageBitmap) decoded.close();
-        return existing;
-      }
-
-      const sourceOptions = { autoGenerateMipmaps: true, scaleMode: 'linear' as const, label: normalizedPath };
-      const source = decoded instanceof ImageBitmap
-        ? new ImageSource({ resource: decoded, ...sourceOptions })
-        : new CanvasSource({ resource: decoded, ...sourceOptions });
-      const texture = new Texture({ source, label: normalizedPath });
-
-      if (decoded instanceof ImageBitmap) this.bitmapByKey.set(normalizedPath, decoded);
-      this.textureCache.set(normalizedPath, texture);
-      return texture;
-    } catch (error) {
-      console.error(`Failed to load texture: ${normalizedPath}`, error);
-      return this.getDefaultTokenTexture();
-    }
+  release(imagePath: string): void {
+    if (!imagePath) return;
+    const key = normalizeImagePath(imagePath);
+    const holds = (this.holds.get(key) ?? 0) - 1;
+    if (holds > 0) this.holds.set(key, holds);
+    else this.holds.delete(key);
   }
 
-  getRingTexture(size: number, color: string, strokeWidth: number): Texture {
-    const cacheKey = `${size}-${strokeWidth}-${color}`;
-    
-    if (this.ringTextureCache.has(cacheKey)) {
-      return this.ringTextureCache.get(cacheKey)!;
-    }
-
-    if (!this.pixiApp?.renderer) {
-      console.warn('[TextureCache] PIXI app not initialized for ring texture, returning empty texture');
-      return Texture.EMPTY;
-    }
-
-    // Create ring graphics
-    const graphics = new Graphics();
-    const radius = size / 2;
-    
-    // Draw circle at center of the texture bounds, not at 0,0
-    graphics.circle(radius, radius, radius);
-    // Convert color string to number for PIXI
-    const colorNum = parseInt(color.replace('#', ''), 16);
-    graphics.stroke({
-      width: strokeWidth,
-      color: colorNum,
-    });
-
-    // Generate texture - PIXI v8 syntax
-    
-    const texture = this.pixiApp.renderer.generateTexture(graphics);
-    
-
-    // Clean up graphics
-    graphics.destroy();
-
-    // Cache and return
-    this.ringTextureCache.set(cacheKey, texture);
-    return texture;
-  }
-
-  getGradientTexture(width: number, height: number, innerColor: string, outerColor: string): Texture;
-  getGradientTexture(width: number, height: number, colorStops: Array<{ offset: number; color: string }>): Texture;
-  getGradientTexture(
-    width: number, 
-    height: number, 
-    innerColorOrStops: string | Array<{ offset: number; color: string }>, 
-    outerColor?: string
-  ): Texture {
-    // Create cache key
-    const cacheKey = typeof innerColorOrStops === 'string' 
-      ? `${width}x${height}-${innerColorOrStops}-${outerColor}`
-      : `${width}x${height}-${JSON.stringify(innerColorOrStops)}`;
-    
-    if (this.gradientTextureCache.has(cacheKey)) {
-      return this.gradientTextureCache.get(cacheKey)!;
-    }
-
-    // Create gradient using Canvas API
-    const canvas = createEl('canvas');
-    canvas.width = width;
-    canvas.height = height;
-    const ctx = canvas.getContext('2d')!;
-
-    // Create radial gradient
-    const centerX = width / 2;
-    const centerY = height / 2;
-    const radius = Math.min(width, height) / 2;
-    
-    const gradient = ctx.createRadialGradient(
-      centerX, centerY, 0,
-      centerX, centerY, radius
-    );
-    
-    // Add color stops
-    if (typeof innerColorOrStops === 'string' && outerColor) {
-      // Simple two-color gradient
-      gradient.addColorStop(0, innerColorOrStops);
-      gradient.addColorStop(1, outerColor);
-    } else if (Array.isArray(innerColorOrStops)) {
-      // Multiple color stops
-      innerColorOrStops.forEach(stop => {
-        gradient.addColorStop(stop.offset, stop.color);
-      });
-    }
-    
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, width, height);
-
-    // Create texture from canvas with mipmaps for smooth scaling
-    const gradientSource = new CanvasSource({ resource: canvas, autoGenerateMipmaps: true, scaleMode: 'linear' });
-    const texture = new Texture({ source: gradientSource });
-    
-    // Cache and return
-    this.gradientTextureCache.set(cacheKey, texture);
-    return texture;
-  }
-
-
-  /**
-   * Move a cached texture from one path key to another without reloading.
-   * Used when a token image file is renamed/moved in the vault.
-   */
-  rekeyTexture(oldPath: string, newPath: string): void {
-    const oldKey = normalizeImagePath(oldPath);
-    const newKey = normalizeImagePath(newPath);
-    const texture = this.textureCache.get(oldKey);
-    if (texture) {
-      this.textureCache.delete(oldKey);
-      this.textureCache.set(newKey, texture);
-    }
-    const bitmap = this.bitmapByKey.get(oldKey);
-    if (bitmap) {
-      this.bitmapByKey.delete(oldKey);
-      this.bitmapByKey.set(newKey, bitmap);
-    }
-    const url = this.assetUrlByKey.get(oldKey);
-    if (url) {
-      this.assetUrlByKey.delete(oldKey);
-      this.assetUrlByKey.set(newKey, url);
-    }
-  }
-
-  /**
-   * Evict a texture and release its GPU memory. Callers are responsible for
-   * checking that no sprite still uses the image.
-   */
-  clearTexture(key: string): void {
-    this.releaseImageTexture(normalizeImagePath(key));
-    
-    if (this.ringTextureCache.has(key)) {
-      const texture = this.ringTextureCache.get(key);
-      texture?.destroy();
-      this.ringTextureCache.delete(key);
-    }
-    
-    if (this.gradientTextureCache.has(key)) {
-      const texture = this.gradientTextureCache.get(key);
-      texture?.destroy();
-      this.gradientTextureCache.delete(key);
-    }
-  }
-
-  /**
-   * Evicts every token image not in `usedImagePaths`. Called when a scene loads, so art
-   * from scenes visited earlier does not stay decoded for the life of the view.
-   */
-  releaseUnusedImages(usedImagePaths: Iterable<string>): void {
-    const used = new Set([DEFAULT_TOKEN_TEXTURE_KEY]);
-    for (const path of usedImagePaths) if (path) used.add(normalizeImagePath(path));
-    for (const key of Array.from(this.textureCache.keys())) {
-      if (!used.has(key)) this.releaseImageTexture(key);
+  evictUnused(keepImagePaths: Iterable<string>): void {
+    const keep = new Set([DEFAULT_TOKEN_TEXTURE_KEY]);
+    for (const path of keepImagePaths) if (path) keep.add(normalizeImagePath(path));
+    for (const key of Array.from(this.textures.keys())) {
+      if (!keep.has(key) && !this.holds.has(key)) this.destroyTexture(key);
     }
   }
 
   destroyAll(): void {
-    for (const key of Array.from(this.textureCache.keys())) {
-      this.releaseImageTexture(key);
-    }
-    this.ringTextureCache.forEach(texture => texture.destroy(true));
-    this.gradientTextureCache.forEach(texture => texture.destroy(true));
-    this.ringTextureCache.clear();
-    this.gradientTextureCache.clear();
+    for (const key of Array.from(this.textures.keys())) this.destroyTexture(key);
+    this.holds.clear();
   }
 
-  private releaseImageTexture(key: string): void {
-    const texture = this.textureCache.get(key);
+  private async load(key: string): Promise<Texture> {
+    const cached = this.textures.get(key);
+    if (cached) return cached;
+    try {
+      return URL_PREFIXES.some((prefix) => key.startsWith(prefix))
+        ? await this.loadUrl(key)
+        : await this.loadVaultImage(key);
+    } catch (error) {
+      console.error(`[TextureCache] Failed to load texture: ${key}`, error);
+      return this.getDefaultTokenTexture();
+    }
+  }
+
+  private async loadUrl(url: string): Promise<Texture> {
+    const texture = await loadAsset<Texture>({
+      src: url,
+      loadParser: 'loadTextures',
+      data: { autoGenerateMipmaps: true, scaleMode: 'linear' },
+    });
+    this.assetUrlByKey.set(url, url);
+    this.textures.set(url, texture);
+    return texture;
+  }
+
+  private async loadVaultImage(path: string): Promise<Texture> {
+    const file = this.obsApp.vault.getAbstractFileByPath(path);
+    if (!(file instanceof TFile)) {
+      console.error(`[TextureCache] File not found: ${path}`);
+      return this.getDefaultTokenTexture();
+    }
+
+    const arrayBuffer = await this.obsApp.vault.readBinary(file);
+    const mimeType = MIME_MAP[file.extension.toLowerCase()] || 'image/png';
+    const decoded = await decodeTokenImage(arrayBuffer, mimeType);
+
+    // A concurrent call may have finished first; keep the existing texture.
+    const existing = this.textures.get(path);
+    if (existing) {
+      if (decoded instanceof ImageBitmap) decoded.close();
+      return existing;
+    }
+
+    const sourceOptions = { autoGenerateMipmaps: true, scaleMode: 'linear' as const, label: path };
+    const source = decoded instanceof ImageBitmap
+      ? new ImageSource({ resource: decoded, ...sourceOptions })
+      : new CanvasSource({ resource: decoded, ...sourceOptions });
+    const texture = new Texture({ source, label: path });
+
+    if (decoded instanceof ImageBitmap) this.bitmapByKey.set(path, decoded);
+    this.textures.set(path, texture);
+    return texture;
+  }
+
+  private destroyTexture(key: string): void {
+    const texture = this.textures.get(key);
     if (!texture) return;
-    this.textureCache.delete(key);
+    this.textures.delete(key);
 
     const assetUrl = this.assetUrlByKey.get(key);
     if (assetUrl) {
       this.assetUrlByKey.delete(key);
       // Assets owns this texture; unloading destroys it and its source.
-      Assets.unload(assetUrl).catch(() => undefined);
+      void unloadAsset(assetUrl);
       return;
     }
 
@@ -357,47 +198,24 @@ export class TextureCache implements ITextureCache {
     }
   }
 
-  // Private helper methods
-
+  /** A walnut disc for tokens without art, drawn once per renderer. */
   private getDefaultTokenTexture(): Texture {
-    const cacheKey = DEFAULT_TOKEN_TEXTURE_KEY;
-    
-    if (this.textureCache.has(cacheKey)) {
-      return this.textureCache.get(cacheKey)!;
-    }
+    const cached = this.textures.get(DEFAULT_TOKEN_TEXTURE_KEY);
+    if (cached) return cached;
 
-    if (!this.pixiApp?.renderer) {
-      // Return empty texture if no renderer available
-      return Texture.EMPTY;
-    }
+    if (!this.pixiApp?.renderer) return Texture.EMPTY;
 
-    // Create a simple colored circle as default token
-    const graphics = new Graphics();
     const size = 100;
     const radius = size / 2;
-    
-    // Draw circle with gradient-like effect
-    graphics.circle(radius, radius, radius);
-    graphics.fill({
-      color: 0x8B6F47, // Dark walnut brown
-      alpha: 1,
-    });
-    
-    // Add inner highlight
-    graphics.circle(radius, radius, radius * 0.8);
-    graphics.fill({
-      color: 0xA0826D, // Lighter brown
-      alpha: 0.5,
-    });
-
-    // Generate texture - PIXI v8 syntax
+    const graphics = new Graphics()
+      .circle(radius, radius, radius)
+      .fill({ color: 0x8B6F47, alpha: 1 })
+      .circle(radius, radius, radius * 0.8)
+      .fill({ color: 0xA0826D, alpha: 0.5 });
     const texture = this.pixiApp.renderer.generateTexture(graphics);
-
-    // Clean up graphics
     graphics.destroy();
 
-    // Cache and return
-    this.textureCache.set(cacheKey, texture);
+    this.textures.set(DEFAULT_TOKEN_TEXTURE_KEY, texture);
     return texture;
   }
 }

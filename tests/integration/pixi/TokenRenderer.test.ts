@@ -83,6 +83,7 @@ describe('TokenRenderer Integration Tests', () => {
   let restoreGraphics: () => void;
   let viewportPointerDownListeners: number;
   let isRendererDestroyed: boolean;
+  let canvas: HTMLCanvasElement;
 
   const gridSystem = {
     getOptions: () => ({ type: 'square', size: gridSize, offsetX: 0, offsetY: 0 }),
@@ -102,9 +103,10 @@ describe('TokenRenderer Integration Tests', () => {
       eventBus,
       'test-view-id',
     );
+    canvas = document.createElement('canvas');
     renderer.setPixiApp({
       ticker,
-      canvas: document.createElement('canvas'),
+      canvas,
       renderer: { generateTexture: vi.fn(() => new Texture()) },
     } as unknown as Application);
     return renderer;
@@ -355,6 +357,34 @@ describe('TokenRenderer Integration Tests', () => {
       expect(store.getState().isDragging).toBe(false);
       expect(selectionOverlayUpdater).toHaveBeenCalled();
       expect(getHistoryStore(store)!.getState().pastStates).toHaveLength(undoStepsBefore + 1);
+    });
+  });
+
+  describe('Hover', () => {
+    it('should drop the statblock hover when the pointer leaves the canvas', async () => {
+      store.getState().addToken(token({ id: 'token-1', x: 105, y: 105, kind: 'character', statblockPath: 'Goblin.md' }));
+      await waitForTokens('token-1');
+      const hovered = vi.fn();
+      const left = vi.fn();
+      eventBus.on('pin-hover-preview', hovered);
+      eventBus.on('pin-hide-preview', left);
+
+      viewport.emit('pointermove', { ...pointerEvent(105, 105), clientX: 105, clientY: 105 });
+      expect(hovered).toHaveBeenCalledTimes(1);
+
+      canvas.dispatchEvent(new Event('pointerleave'));
+      expect(left).toHaveBeenCalledWith({ pin: expect.objectContaining({ id: 'token-1' }) });
+    });
+  });
+
+  describe('Canvas Listeners', () => {
+    it('should forward a double-click to the wall tool', () => {
+      const doubleClicked = vi.fn();
+      tokenRenderer.setWallDoubleClickHandler(doubleClicked);
+      store.setState({ activeTool: 'wall' }); // the tool is behind a feature flag
+
+      canvas.dispatchEvent(new MouseEvent('dblclick'));
+      expect(doubleClicked).toHaveBeenCalledTimes(1);
     });
   });
 

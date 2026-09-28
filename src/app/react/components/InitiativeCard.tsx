@@ -95,7 +95,8 @@ export const InitiativeCard: React.FC<InitiativeCardProps> = ({
 
       isModifierKeyDownRef.current = true;
 
-      if (isPointerInsideRef.current) {
+      // A card hidden with its map view (another tab took over) never got its mouseleave.
+      if (isPointerInsideRef.current && cardRef.current?.checkVisibility()) {
         triggerPreviewIfEligible();
       }
     };

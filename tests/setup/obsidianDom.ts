@@ -174,3 +174,8 @@ if (typeof window !== 'undefined' && typeof window.ResizeObserver !== 'function'
     disconnect(): void {}
   };
 }
+
+// Obsidian's Chromium has Element.checkVisibility; jsdom lays nothing out, so every element counts as visible.
+if (typeof Element !== 'undefined' && !('checkVisibility' in Element.prototype)) {
+  Object.defineProperty(Element.prototype, 'checkVisibility', { value: () => true, configurable: true, writable: true });
+}

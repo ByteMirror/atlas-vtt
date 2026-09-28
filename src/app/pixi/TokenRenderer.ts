@@ -104,7 +104,7 @@ export class TokenRenderer {
   // Pin provider pattern — wired by PixiRendererOrchestrator
   private pinHitTestProvider?: (worldX: number, worldY: number) => string | null;
   private pinClickHandler?: (pinId: string, e: FederatedPointerEvent) => void;
-  private pinHoverHandler?: (type: 'over' | 'out', pinId: string, e: FederatedPointerEvent) => void;
+  private pinHoverHandler?: (type: 'over' | 'out', pinId: string, e?: FederatedPointerEvent) => void;
   private hexLinkHandlers?: HexLinkPointerHandlers;
   private lastHoveredPinId: string | null = null;
 
@@ -1177,7 +1177,7 @@ export class TokenRenderer {
     this.viewport.off('pointermove', this.onViewportPointerMove);
     this.viewport.off('pointerup', this.onViewportPointerUp, this);
     this.viewport.off('pointerupoutside', this.onViewportPointerUp, this);
-    this.pixiApp?.canvas.removeEventListener('dblclick', this.onCanvasDoubleClick);
+    this.setCanvasListeners(false);
     
     // Destroy all UI elements through UIManager
     this.uiManager.destroyAll();
@@ -1343,7 +1343,9 @@ export class TokenRenderer {
    * Provides PIXI app reference to sync service when available
    */
   public setPixiApp(app: Application | null): void {
+    this.setCanvasListeners(false);
     this.pixiApp = app;
+    this.setCanvasListeners(true);
     this.syncService.setPixiApp(app);
     if (app) {
       this.textureCache.setPixiApp(app);
@@ -1400,7 +1402,7 @@ export class TokenRenderer {
     this.pinClickHandler = fn;
   }
 
-  public setPinHoverHandler(fn: (type: 'over' | 'out', pinId: string, e: FederatedPointerEvent) => void): void {
+  public setPinHoverHandler(fn: (type: 'over' | 'out', pinId: string, e?: FederatedPointerEvent) => void): void {
     this.pinHoverHandler = fn;
   }
 
@@ -1533,7 +1535,19 @@ export class TokenRenderer {
     this.viewport.on('pointermove', this.onViewportPointerMove);
     this.viewport.on('pointerup', this.onViewportPointerUp, this);
     this.viewport.on('pointerupoutside', this.onViewportPointerUp, this);
-    this.pixiApp?.canvas.addEventListener('dblclick', this.onCanvasDoubleClick);
+  }
+
+  /** DOM listeners on the canvas, which only exists once the PIXI app is set. */
+  private setCanvasListeners(attach: boolean): void {
+    const canvas = this.pixiApp?.canvas;
+    if (!canvas) return;
+    if (attach) {
+      canvas.addEventListener('dblclick', this.onCanvasDoubleClick);
+      canvas.addEventListener('pointerleave', this.onCanvasPointerLeave);
+    } else {
+      canvas.removeEventListener('dblclick', this.onCanvasDoubleClick);
+      canvas.removeEventListener('pointerleave', this.onCanvasPointerLeave);
+    }
   }
 
   private onViewportPointerDown = (e: FederatedPointerEvent): void => {
@@ -1675,13 +1689,29 @@ export class TokenRenderer {
   /**
    * PIXI listens for pointermove on the whole document, so moves over DOM
    * overlays (note previews, panels) still reach the viewport. Only the
-   * canvas itself may drive hover state; anything else keeps the last state.
+   * canvas itself may drive hover state; leaving the canvas clears it.
    */
   private isPointerOverCanvas(e: FederatedPointerEvent): boolean {
     const canvas = this.pixiApp?.canvas;
     const target = e.nativeEvent?.target;
     return !canvas || !(target instanceof Node) || target === canvas;
   }
+
+  /**
+   * Nothing on the map is hovered once the pointer leaves the canvas. A hover
+   * left behind would open its note or statblock preview on every later
+   * Cmd/Ctrl press, anywhere in Obsidian.
+   */
+  private onCanvasPointerLeave = (): void => {
+    if (this.interactionController.isDraggingTokens()) return;
+    if (this.lastHoveredPinId) {
+      this.pinHoverHandler?.('out', this.lastHoveredPinId);
+      this.lastHoveredPinId = null;
+    }
+    this.hexLinkHandlers?.hover(null);
+    this.interactionController.handleViewportTokenHover(null);
+    this.uiManager.setHoverState(null);
+  };
 
   private onViewportPointerMove = (e: FederatedPointerEvent): void => {
     // If dragging, InteractionController already has viewport listeners — skip hover

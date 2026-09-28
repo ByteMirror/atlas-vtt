@@ -161,4 +161,29 @@ describe('InitiativeCard statblock preview hover behavior', () => {
 
     expect(onHover).not.toHaveBeenCalled();
   });
+
+  it('ignores the modifier key once the card was hidden without a mouseleave', () => {
+    const onHover = vi.fn();
+
+    const { getByRole } = render(
+      <InitiativeCard
+        entry={createEntry()}
+        index={0}
+        isHoveredForPreview={false}
+        onDragStart={vi.fn()}
+        onDragOver={vi.fn()}
+        onDragEnd={vi.fn()}
+        onContextMenu={vi.fn()}
+        onHover={onHover}
+      />,
+    );
+
+    const card = getByRole('listitem');
+    fireEvent.mouseEnter(card);
+    // Another Obsidian tab took over and hid the map view under the resting pointer.
+    card.checkVisibility = (): boolean => false;
+
+    fireEvent.keyDown(window, { key: 'Meta', metaKey: true });
+    expect(onHover).not.toHaveBeenCalled();
+  });
 });

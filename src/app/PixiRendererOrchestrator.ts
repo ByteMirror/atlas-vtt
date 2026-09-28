@@ -845,11 +845,13 @@ export class PixiRendererOrchestrator { // Renamed class
   
 
   /** Tells the note preview a pin or linked hex is hovered, so Cmd/Ctrl previews its note. */
-  private emitNoteHover(type: 'over' | 'out', pin: NotePin, e: FederatedPointerEvent): void {
+  private emitNoteHover(type: 'over' | 'out', pin: NotePin, e?: FederatedPointerEvent): void {
     if (type === 'out') {
       this.eventBus.emit('pin-hide-preview', { pin });
       return;
     }
+    // Only a pointer event places a preview; clearing a hover passes none
+    if (!e) return;
     this.eventBus.emit('pin-hover-preview', {
       pin,
       screenX: e.clientX ?? e.global.x,

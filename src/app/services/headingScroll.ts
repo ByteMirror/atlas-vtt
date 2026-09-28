@@ -1,0 +1,87 @@
+import { findHeadingElement } from './noteHeadings';
+
+/** Frames the heading must hold still before the scroll counts as settled. */
+const SETTLED_FRAMES = 3;
+/** About a second: a heading whose text the view renders differently is never found. */
+const MAX_FRAMES = 60;
+/** Input by which the reader takes over the scroll. */
+const READER_INPUT = ['wheel', 'pointerdown', 'keydown', 'touchstart'] as const;
+
+export interface HeadingScrollTarget {
+  /** The note view's element, holding the heading once it is drawn. */
+  container: HTMLElement;
+  heading: string;
+  /** Scrolls roughly to the heading's line, so the view draws it. */
+  scrollToLine: () => void;
+}
+
+/**
+ * Scrolls `scroller` so the text of `heading` starts where its content does,
+ * as a note's first line would. Returns how far it moved.
+ */
+export function alignHeading(heading: HTMLElement, scroller: HTMLElement): number {
+  const contentTop = scroller.getBoundingClientRect().top + paddingTop(scroller);
+  const textTop = heading.getBoundingClientRect().top + paddingTop(heading);
+  const before = scroller.scrollTop;
+  scroller.scrollTop = before + textTop - contentTop;
+  return scroller.scrollTop - before;
+}
+
+/**
+ * Scrolls a note view to its heading and keeps it there while the view
+ * settles. The editor and reading view estimate the height of lines they have
+ * not drawn and correct it as they draw them, so a single scroll drifts off
+ * the heading; this aligns the drawn heading every frame until it holds
+ * still. `onSettled` gets the heading, or null when it was never drawn. The
+ * reader's own scrolling ends it early. Returns a function that cancels.
+ */
+export function holdHeadingInView(target: HeadingScrollTarget, onSettled: (heading: HTMLElement | null) => void): () => void {
+  const { container, heading, scrollToLine } = target;
+  let frame = 0;
+  let stillFrames = 0;
+  let request = 0;
+  let finished = false;
+
+  const finish = (): void => {
+    finished = true;
+    window.cancelAnimationFrame(request);
+    READER_INPUT.forEach((type) => container.removeEventListener(type, settle, true));
+  };
+
+  function settle(): void {
+    if (finished) return;
+    finish();
+    onSettled(findHeadingElement(container, heading));
+  }
+
+  const step = (): void => {
+    frame++;
+    const element = findHeadingElement(container, heading);
+    if (!element) {
+      scrollToLine();
+      stillFrames = 0;
+    } else if (Math.abs(alignHeading(element, scrollerOf(element, container))) < 1) {
+      stillFrames++;
+    } else {
+      stillFrames = 0;
+    }
+    if (stillFrames >= SETTLED_FRAMES || frame >= MAX_FRAMES) settle();
+    else request = window.requestAnimationFrame(step);
+  };
+
+  READER_INPUT.forEach((type) => container.addEventListener(type, settle, { capture: true, passive: true }));
+  scrollToLine();
+  request = window.requestAnimationFrame(step);
+  return () => {
+    if (!finished) finish();
+  };
+}
+
+/** The element that scrolls the heading: the editor's scroller or the reading view. */
+function scrollerOf(heading: HTMLElement, container: HTMLElement): HTMLElement {
+  return heading.closest<HTMLElement>('.cm-scroller, .markdown-preview-view') ?? container;
+}
+
+function paddingTop(element: HTMLElement): number {
+  return parseFloat(getComputedStyle(element).paddingTop) || 0;
+}

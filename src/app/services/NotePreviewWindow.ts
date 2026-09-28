@@ -7,10 +7,10 @@ import { PreviewWindowPlacement } from './previewWindowLayout';
 import { NOTE_PREVIEW_LAYER_CLASS } from './uiLayers';
 import { applyNoteScroll, readNoteViewState, toOpenViewState } from './noteViewState';
 import { findHeadingElement, headingLine } from './noteHeadings';
+import { alignHeading, holdHeadingInView } from './headingScroll';
 
 // Styles imported via styles/main.scss → note-preview-window.scss
 
-const HEADING_SCROLL_MARGIN = 20;
 const HEADING_FLASH_DURATION_MS = 1500;
 /** Hides an embedded note view until it has been scrolled to its heading. */
 const PENDING_SCROLL_CLASS = 'atlas-embedded-leaf-view--pending-scroll';
@@ -436,18 +436,8 @@ export class NotePreviewWindow {
       return;
     }
 
-    this.scrollElementToTop(container, targetElement);
+    alignHeading(targetElement, container);
     this.flashHeading(targetElement);
-  }
-
-  /**
-   * Scrolls `scroller` so `target` sits just below its top edge. Unlike
-   * `scrollIntoView` this only moves the given scroller, never the
-   * overflow-hidden preview window or the workspace leaf it is mounted in.
-   */
-  private scrollElementToTop(scroller: Element, target: Element): void {
-    const offset = target.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
-    scroller.scrollTop = Math.max(0, scroller.scrollTop + offset - HEADING_SCROLL_MARGIN);
   }
 
   private flashHeading(element: HTMLElement): void {
@@ -874,9 +864,8 @@ export class NotePreviewWindow {
   
   /**
    * Scrolls the note to its heading. The editor and reading view only draw the
-   * lines near the screen, so the heading is found by its line in the metadata
-   * cache rather than in the DOM. The scroll is applied again once those lines
-   * are drawn, since until then their heights are estimates.
+   * lines near the screen, so the view first scrolls to the heading's line
+   * from the metadata cache, then aligns the drawn heading until it holds still.
    */
   private scrollToHeader(headerText: string): void {
     const view = this.leaf?.view;
@@ -889,13 +878,14 @@ export class NotePreviewWindow {
 
     const viewContent = view.containerEl;
     viewContent.classList.add(PENDING_SCROLL_CLASS);
-    view.currentMode.applyScroll(line);
-    window.requestAnimationFrame(() => {
-      view.currentMode.applyScroll(line);
-      viewContent.classList.remove(PENDING_SCROLL_CLASS);
-      const heading = findHeadingElement(viewContent, headerText);
-      if (heading) this.flashHeading(heading);
-    });
+    const stop = holdHeadingInView(
+      { container: viewContent, heading: headerText, scrollToLine: () => view.currentMode.applyScroll(line) },
+      (heading) => {
+        viewContent.classList.remove(PENDING_SCROLL_CLASS);
+        if (heading) this.flashHeading(heading);
+      },
+    );
+    this.parentComponent.register(stop);
   }
 }
 

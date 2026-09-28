@@ -4,12 +4,11 @@ import { withStatblockImportLock } from '../../../../services/statblockImportLoc
 import { requireResolvedBestiary, statblockImportCandidate } from '../../../../services/statblockImportCandidates';
 import { AssetService } from '../../../../services/AssetService';
 import { AssetThumbnailService } from '../../../../services/AssetThumbnailService';
+import { writeAssetImage } from '../../../../services/assetImageFiles';
 import { transferAssets } from '../../../../services/assetTransfer/assetTransfer';
 import { optimizeImage, OPTIMIZATION_PRESETS } from '../../../../utils/imageOptimizer';
 import { bakeTokenCrop } from './bakeTokenCrop';
 import type { CreatorMode, EditTokenInput, TokenPreview } from './types';
-
-const ASSETS_DIR = 'atlas-vtt/assets';
 
 export interface SaveTokenPreviewsOptions {
   app: App;
@@ -22,20 +21,6 @@ export interface SaveTokenPreviewsOptions {
   onSaved?: (id: string) => void;
   signal?: AbortSignal;
   waitForOptimized: (id: string) => Promise<Blob | undefined>;
-}
-
-async function ensureAssetsDir(app: App): Promise<void> {
-  if (!app.vault.getAbstractFileByPath(ASSETS_DIR)) {
-    await app.vault.createFolder(ASSETS_DIR);
-  }
-}
-
-async function writeImage(app: App, name: string, blob: Blob): Promise<string> {
-  const safeName = name.replace(/[^a-zA-Z0-9]/g, '_');
-  const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  const path = `${ASSETS_DIR}/${safeName}_${suffix}.webp`;
-  await app.vault.createBinary(path, await blob.arrayBuffer());
-  return path;
 }
 
 /** Tokens are cropped as shown in the preview and re-optimized; maps use the background-optimized whole image. */
@@ -66,7 +51,6 @@ async function savePreviews(options: SaveTokenPreviewsOptions): Promise<number> 
   const meta = { collection: destination.id };
   const thumbnails = AssetThumbnailService.getInstance(app, assetService);
   if (previews.some(p => p.statblockPath)) await assetService.refreshMetadata();
-  await ensureAssetsDir(app);
   let saved = 0;
 
   if (editToken) {
@@ -80,7 +64,7 @@ async function savePreviews(options: SaveTokenPreviewsOptions): Promise<number> 
         new Notice(`Failed to optimize ${preview.name}. Cannot update ${mode}.`);
         return 0;
       }
-      imagePath = await writeImage(app, preview.name, blob);
+      imagePath = await writeAssetImage(app, preview.name, await blob.arrayBuffer());
       thumbnailPath = await thumbnails.tryCreateForImage(imagePath);
     }
     await assetService.updateAsset(editToken.id, {
@@ -110,7 +94,7 @@ async function savePreviews(options: SaveTokenPreviewsOptions): Promise<number> 
         const blob = await resolveImageBlob(preview, mode, waitForOptimized);
         if (!blob) throw new Error('Could not optimize the image. Try again with a smaller image.');
         if (options.signal?.aborted) break;
-        imagePath = await writeImage(app, preview.name, blob);
+        imagePath = await writeAssetImage(app, preview.name, await blob.arrayBuffer());
         const metadata = { ...meta, tags: preview.tags ?? tags };
         if (mode === 'map') {
           await assetService.addAsset({ type: 'map', name: preview.name, mapFilePath: imagePath, ...metadata });

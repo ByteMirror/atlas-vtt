@@ -900,8 +900,8 @@ export class AssetService {
     };
   }
 
-  /** Persists a fully built asset: data file, metadata entry and onboarding flag. */
-  private async registerAsset<A extends Asset>(newAsset: A): Promise<A> {
+  /** Persists a fully built asset: data file, metadata entry and, for a token the user imported, the onboarding flag. */
+  private async registerAsset<A extends Asset>(newAsset: A, userImport = true): Promise<A> {
     await this.ensureLoaded();
 
     if (newAsset.type !== 'token' && newAsset.type !== 'map' && newAsset.type !== 'note' && !newAsset.filePath) {
@@ -924,7 +924,7 @@ export class AssetService {
       }
     }
 
-    if (newAsset.type === 'token') SettingsService.forApp(this.app)?.markTokenImported();
+    if (newAsset.type === 'token' && userImport) SettingsService.forApp(this.app)?.markTokenImported();
     return newAsset;
   }
 
@@ -1279,8 +1279,12 @@ export class AssetService {
   }
 
   // Backward compatibility methods
-  async addTokenAsset(asset: Omit<TokenAsset, 'id' | 'createdAt' | 'modifiedAt' | 'type'>): Promise<TokenAsset> {
-    return this.registerAsset<TokenAsset>({ ...asset, type: 'token', ...this.createAssetIdentity('token') });
+  /** `userImport: false` adds a token Atlas provides, which does not count as the user's first import. */
+  async addTokenAsset(
+    asset: Omit<TokenAsset, 'id' | 'createdAt' | 'modifiedAt' | 'type'>,
+    { userImport = true }: { userImport?: boolean } = {},
+  ): Promise<TokenAsset> {
+    return this.registerAsset<TokenAsset>({ ...asset, type: 'token', ...this.createAssetIdentity('token') }, userImport);
   }
 
   async getTokenAssets(): Promise<TokenAsset[]> {

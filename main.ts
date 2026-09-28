@@ -14,7 +14,9 @@ import { ImageDisplayService } from './src/app/services/ImageDisplayService';
 import { PlayerLootDisplay } from './src/app/services/PlayerLootDisplay';
 import { LootHistoryStore } from './src/app/loot/LootHistoryStore';
 import { PlayerWindowService } from './src/app/services/PlayerWindowService';
+import { AssetService } from './src/app/services/AssetService';
 import { SettingsService } from './src/app/services/SettingsService';
+import { addStarterTokens } from './src/app/services/starterTokens';
 import type { WidgetSyncService } from './src/app/services/WidgetSyncService';
 import { AtlasSettingTab } from './src/app/settings/AtlasSettingTab';
 import { changelogSettingsSection } from './src/app/settings/changelogSettingsSection';
@@ -33,6 +35,7 @@ import { registerVaultSync } from './src/app/plugin/vaultSync';
 import { ChangelogService } from './src/app/changelog/ChangelogService';
 import { AtlasErrorLog } from './src/app/support/errorLog';
 import { IssueReporter } from './src/app/support/IssueReporter';
+import { runInBackground } from './src/app/utils/backgroundTask';
 
 declare const __ATLAS_RELEASE_BUILD__: boolean;
 
@@ -105,6 +108,7 @@ export default class AtlasVTTPlugin extends Plugin {
       this.imageDisplayService.registerContextMenu();
       registerStatusBarVisibility(this);
       this.changelogService?.showUpdates();
+      runInBackground(addStarterTokens(this.app, AssetService.getInstance(this.app), this.settingsService), 'Adding the starter tokens');
     });
   }
 

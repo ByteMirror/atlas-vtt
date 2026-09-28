@@ -152,6 +152,17 @@ export async function requestUrl(_params: RequestUrlParam): Promise<any> {
   throw new Error('requestUrl not mocked in tests');
 }
 
+interface CachedHeading {
+  heading: string;
+  position: { start: { line: number } };
+}
+
+/** Resolves a `#heading` subpath against the cached headings, as Obsidian does for heading links. */
+export function resolveSubpath(cache: { headings?: CachedHeading[] }, subpath: string): { start: { line: number } } | null {
+  const heading = cache.headings?.find((h) => `#${h.heading}` === subpath);
+  return heading ? { start: heading.position.start } : null;
+}
+
 export function normalizePath(path: string): string {
   return path.replace(/\\/g, '/').replace(/\/+/g, '/');
 }

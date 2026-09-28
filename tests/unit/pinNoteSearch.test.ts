@@ -16,7 +16,7 @@ function setup({ headings = {}, paths = ['Tavern.md', 'Temple.md', 'Town.atlasma
     vault: { getAllLoadedFiles: () => files },
     metadataCache: {
       getFileCache: (file: TFile) => ({
-        headings: (headings[file.basename] ?? []).map((heading) => ({ heading, level: 2 })),
+        headings: (headings[file.path] ?? headings[file.basename] ?? []).map((heading) => ({ heading, level: 2 })),
       }),
     },
   } as unknown as App;
@@ -30,6 +30,8 @@ function setup({ headings = {}, paths = ['Tavern.md', 'Temple.md', 'Town.atlasma
 const input = (): HTMLInputElement => container.querySelector<HTMLInputElement>('.pin-search-input')!;
 const activeName = (): string | null | undefined =>
   container.querySelector('.pin-result-item.is-active .pin-result-name')?.textContent;
+const folders = (): Array<string | null> =>
+  [...container.querySelectorAll('.pin-result-item .pin-header-file')].map((element) => element.textContent);
 const press = (key: string): void => {
   input().dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
 };
@@ -104,6 +106,43 @@ describe('pin note search', () => {
     expect(onPick).not.toHaveBeenCalled();
     press('Escape');
     expect(onCancel).toHaveBeenCalled();
+  });
+
+  it('lists the headings of the note picked, not of another note with the same name', () => {
+    const { onPick } = setup({
+      paths: ['Places/Alula.md', 'Statblocks/Alula.md'],
+      headings: { 'Places/Alula.md': ['Market'], 'Statblocks/Alula.md': ['Actions'] },
+    });
+    expect(folders()).toEqual(['Places', 'Statblocks']);
+    press('ArrowDown');
+    press('Enter');
+    expect(input().value).toBe('Alula#');
+    press('ArrowDown');
+    expect(activeName()).toBe('Actions');
+    press('Enter');
+    expect(onPick).toHaveBeenCalledWith('Statblocks/Alula.md#Actions');
+  });
+
+  it('lets a typed name shared by several notes pick the note first', () => {
+    const { onPick } = setup({
+      paths: ['Places/Alula.md', 'Statblocks/Alula.md'],
+      headings: { 'Places/Alula.md': ['Market'], 'Statblocks/Alula.md': ['Actions'] },
+    });
+    type('alula#');
+    expect(folders()).toEqual(['Places', 'Statblocks']);
+    press('ArrowDown');
+    press('Enter');
+    press('ArrowDown');
+    press('Enter');
+    expect(onPick).toHaveBeenCalledWith('Statblocks/Alula.md#Actions');
+  });
+
+  it('never takes a scene for the note of the same name when listing headings', () => {
+    const { onPick } = setup({ paths: ['Town.atlasmap', 'Notes/Town.md'], headings: { 'Notes/Town.md': ['Gates'] } });
+    type('Town#ga');
+    expect(activeName()).toBe('Gates');
+    press('Enter');
+    expect(onPick).toHaveBeenCalledWith('Notes/Town.md#Gates');
   });
 
   it('offers only scenes of the collection the map belongs to', () => {

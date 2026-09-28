@@ -2,6 +2,11 @@
   "version": "0.4.0",
   "releases": [
     {
+      "version": "0.5.0-beta.0",
+      "title": "Coming in 0.5.0",
+      "markdown": "## Fixed\n\n- Note pins linked to a heading open the note at that heading again, also for headings further down the note.\n- Picking a heading for a note pin lists the headings of the note you picked, even when another note has the same name. Notes that share a name show their folder."
+    },
+    {
       "version": "0.4.0",
       "date": "2026-09-28",
       "title": "Creature filters, hexcrawl maps, loot roller, progress clocks and moving between collections",

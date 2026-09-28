@@ -1,6 +1,6 @@
 import { waitFor } from '@testing-library/react';
 import { beforeEach, afterEach, describe, expect, it, vi, type Mock } from 'vitest';
-import { MarkdownRenderer, TFile, WorkspaceLeaf } from 'obsidian';
+import { MarkdownRenderer, MarkdownView, TFile, WorkspaceLeaf } from 'obsidian';
 import { NotePreviewWindow } from '../../src/app/services/NotePreviewWindow';
 
 function installDomHelpers(): void {
@@ -124,6 +124,31 @@ describe('NotePreviewWindow markdown previews', () => {
     expect(harness.setActiveLeaf).toHaveBeenLastCalledWith(harness.atlasLeaf, { focus: false });
     expect(renderSpy).not.toHaveBeenCalled();
     expect(harness.atlasLeafRoot.contains(preview.element!)).toBe(true);
+  });
+
+  it('scrolls to a heading by its line, since the editor only draws the lines near the screen', async () => {
+    const previewLeaf = new WorkspaceLeaf();
+    const view = new MarkdownView(previewLeaf);
+    view.file = new TFile('atlas-vtt/notes/Tavern.md');
+    view.contentEl.textContent = 'Tavern';
+    const headingLine = view.containerEl.createDiv({ cls: 'cm-line HyperMD-header', text: '## Rooms' });
+    previewLeaf.view = view;
+    Object.assign(previewLeaf, { openFile: vi.fn(async () => undefined), detach: vi.fn() });
+
+    const harness = createHarness(previewLeaf);
+    harness.app.metadataCache.getFileCache.mockReturnValue({
+      headings: [
+        { heading: 'Cellar', level: 2, position: { start: { line: 3 } } },
+        { heading: 'Rooms', level: 2, position: { start: { line: 180 } } },
+      ],
+    });
+    openPreview(harness, 'atlas-vtt/notes/Tavern.md#Rooms');
+
+    await waitFor(() => {
+      expect(headingLine.classList.contains('atlas-highlighted-header')).toBe(true);
+    });
+    expect(view.currentMode.getScroll()).toBe(180);
+    expect(view.containerEl.classList.contains('atlas-embedded-leaf-view--pending-scroll')).toBe(false);
   });
 
   it('falls back to rendering the markdown when the workspace cannot provide a leaf', async () => {

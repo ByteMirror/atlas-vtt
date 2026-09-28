@@ -1,10 +1,11 @@
 {
-  "version": "0.4.0",
+  "version": "0.4.1",
   "releases": [
     {
-      "version": "0.5.0-beta.0",
-      "title": "Coming in 0.5.0",
-      "markdown": "## Fixed\n\n- Note pins linked to a heading open the note at that heading again, also for headings further down the note.\n- Picking a heading for a note pin lists the headings of the note you picked, even when another note has the same name. Notes that share a name show their folder."
+      "version": "0.4.1",
+      "date": "2026-09-28",
+      "title": "Fixes the asset manager's menus on older Obsidian installs and note pins linked to a heading",
+      "markdown": "## Fixed\n\n- The asset manager's Create menu works again on older Obsidian installs. Only the top of Create Token reacted to clicks, and clicking Add Map or Create Collection closed the menu. The other menus and search suggestions below the asset manager's header had the same problem.\n- Note pins linked to a heading open the note at that heading again, also for headings further down the note and headings with links, formatting or a # in them.\n- Picking a heading for a note pin lists the headings of the note you picked, even when another note has the same name. Notes that share a name show their folder, and a heading you already typed is kept."
     },
     {
       "version": "0.4.0",

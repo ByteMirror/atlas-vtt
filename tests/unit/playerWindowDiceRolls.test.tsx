@@ -1,0 +1,63 @@
+import { act } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { createStore, type StoreApi } from 'zustand/vanilla';
+import type { ViewAtlasState } from '../../src/app/storeFactory';
+import type { DiceRollResult } from '../../src/app/tools/DiceTool';
+import { PlayerWindowService } from '../../src/app/services/PlayerWindowService';
+import { SettingsService } from '../../src/app/services/SettingsService';
+import { createInMemoryApp } from '../mocks/inMemoryVault';
+import { attachFakePlayerWindow } from '../mocks/playerPopout';
+
+vi.mock('../../src/app/atlas-view', () => ({ AtlasView: class {}, ATLAS_VIEW_TYPE: 'atlas-vtt' }));
+afterEach(() => { act(() => PlayerWindowService.getInstance()?.destroy()); vi.restoreAllMocks(); });
+
+function setup(): { settings: SettingsService; store: StoreApi<ViewAtlasState>; doc: Document } {
+  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
+  const { app } = createInMemoryApp();
+  const settings = new SettingsService(app);
+  const store = createStore(() => ({
+    objects: { tokens: { goblin: { id: 'goblin', kind: 'token', x: 0, y: 0, imagePath: '', isHidden: true } } },
+  })) as unknown as StoreApi<ViewAtlasState>;
+  const service = new PlayerWindowService(app, store, settings);
+  const doc = attachFakePlayerWindow(service, { canvas: createEl('canvas'), withPlayerSafeFrame: vi.fn(), store });
+  return { settings, store, doc };
+}
+
+function roll(source?: DiceRollResult['source']): void {
+  const result: DiceRollResult = {
+    id: 'roll', timestamp: 0, formula: '1d20+4', rolls: [{ die: 'd20', value: 13, max: 20 }], modifiers: 4, total: 17,
+    ...(source ? { source } : {}),
+  };
+  act(() => { document.dispatchEvent(new CustomEvent('atlas-dice-rolled', { detail: result })); });
+}
+
+const toastText = (doc: Document): string | undefined => doc.querySelector('.atlas-dice-toast')?.textContent ?? undefined;
+
+describe('player window dice rolls', () => {
+  it('shows rolls only while the DM shares them', () => {
+    const { settings, doc } = setup();
+    roll();
+    expect(toastText(doc)).toBeUndefined();
+
+    act(() => settings.setLocalPlayerViewSettings({ showDiceRolls: true }));
+    roll();
+    expect(toastText(doc)).toContain('17');
+
+    act(() => settings.setLocalPlayerViewSettings({ showDiceRolls: false }));
+    expect(toastText(doc)).toBeUndefined();
+  });
+
+  it('does not name a token that is hidden on the map', () => {
+    const { settings, store, doc } = setup();
+    act(() => settings.setLocalPlayerViewSettings({ showDiceRolls: true }));
+    const source = { type: 'statblock', tokenId: 'goblin', tokenName: 'Goblin Boss', abilityName: 'Scimitar' } as const;
+
+    roll(source);
+    expect(toastText(doc)).toContain('Scimitar');
+    expect(toastText(doc)).not.toContain('Goblin Boss');
+
+    store.setState({ objects: { tokens: { goblin: { ...store.getState().objects.tokens.goblin!, isHidden: false } } } } as Partial<ViewAtlasState>);
+    roll(source);
+    expect(doc.body.textContent).toContain('Goblin Boss');
+  });
+});

@@ -4,33 +4,15 @@
 @use '../../../../styles/mixins' as *;
 
 $widget-value-size: 28px;
-$widget-bar-offset: $spacing-l;
+$widget-bar-offset: $spacing-s;
 
+// Top right, where the DM's top row (main.scss) also places it.
 .atlas-widget-bar {
   position: fixed;
+  top: $widget-bar-offset;
+  right: $widget-bar-offset;
   z-index: 50; // below the asset manager (100)
   pointer-events: none;
-
-  &.atlas-widget-bar-top,
-  &.atlas-widget-bar-bottom {
-    left: 50%;
-    transform: translateX(-50%);
-  }
-
-  &.atlas-widget-bar-left,
-  &.atlas-widget-bar-right {
-    top: 50%;
-    transform: translateY(-50%);
-
-    .atlas-widget-container {
-      flex-direction: column;
-    }
-  }
-
-  &.atlas-widget-bar-top { top: $widget-bar-offset; }
-  &.atlas-widget-bar-bottom { bottom: $widget-bar-offset; }
-  &.atlas-widget-bar-left { left: $widget-bar-offset; }
-  &.atlas-widget-bar-right { right: $widget-bar-offset; }
 }
 
 // Lays the cards out without a panel of its own; only the cards catch the pointer,

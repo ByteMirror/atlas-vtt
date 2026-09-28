@@ -307,7 +307,7 @@ export function ResponsiveWidgetBar({ isPlayerView = false, store, viewId, widge
     <div
       onMouseEnter={() => handleInteraction()}
       onMouseLeave={resetActiveTimer}
-      className={`atlas-widget-bar atlas-widget-bar-top ${isActive ? 'active' : 'passive'}`}
+      className={`atlas-widget-bar ${isActive ? 'active' : 'passive'}`}
     >
       <div className="atlas-widget-container">
         {visibleWidgets.map((widget, index) => {

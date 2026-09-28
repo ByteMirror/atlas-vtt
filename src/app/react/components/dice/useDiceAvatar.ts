@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { TFile } from 'obsidian';
 import { useAtlasUI } from '../../root/AtlasUIContext';
-import { useAtlasStore } from '../../ViewStoreContext';
+import { useOptionalAtlasStore } from '../../ViewStoreContext';
 import type { DiceRollResult } from '../../../tools/DiceTool';
 import { AssetService } from '../../../services/AssetService';
 import { TokenStatblockLinkService } from '../../../services/TokenStatblockLinkService';
@@ -25,14 +25,18 @@ export function useDiceAvatar(source: DiceRollResult['source']): DiceAvatar | nu
   const { app } = useAtlasUI();
   const tokenId = source?.tokenId;
   // One selector per field: selecting the token itself would re-render on every move.
-  const currentImagePath = useAtlasStore((state): string | undefined =>
-    tokenId ? state.objects?.tokens?.[tokenId]?.imagePath : undefined,
+  // The player window has no view store, so its avatars come from the statblock or the roll.
+  const currentImagePath = useOptionalAtlasStore(
+    (state): string | undefined => (tokenId ? state.objects?.tokens?.[tokenId]?.imagePath : undefined),
+    undefined,
   );
-  const mapShowRing = useAtlasStore((state): boolean | undefined =>
-    tokenId ? state.objects?.tokens?.[tokenId]?.showRing : undefined,
+  const mapShowRing = useOptionalAtlasStore(
+    (state): boolean | undefined => (tokenId ? state.objects?.tokens?.[tokenId]?.showRing : undefined),
+    undefined,
   );
-  const ringColor = useAtlasStore((state): string | undefined =>
-    tokenId ? state.objects?.tokens?.[tokenId]?.ringColor : undefined,
+  const ringColor = useOptionalAtlasStore(
+    (state): string | undefined => (tokenId ? state.objects?.tokens?.[tokenId]?.ringColor : undefined),
+    undefined,
   );
   // ponytail: read per render, so a re-link shows on the next re-render (the log
   // ticks every 10 s); subscribe to metadataCache 'changed' if that is too slow.

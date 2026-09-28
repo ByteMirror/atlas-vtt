@@ -14,7 +14,14 @@ const ENTER_DURATION = 350;
 const AUTO_DISMISS = 7000;
 const EXIT_DURATION = 300;
 
-export function DiceToastContainer(): React.ReactElement | null {
+interface DiceToastContainerProps {
+  /** Element the toasts render into, e.g. in the player window. Defaults to the main window's body. */
+  container?: HTMLElement;
+  /** Adapts each roll before it is shown, e.g. to leave out who rolled it. */
+  prepare?: (result: DiceRollResult) => DiceRollResult;
+}
+
+export function DiceToastContainer({ container, prepare }: DiceToastContainerProps = {}): React.ReactElement | null {
   const [toasts, setToasts] = useState<ToastEntry[]>([]);
 
   const addToast = useCallback((result: DiceRollResult): void => {
@@ -55,13 +62,14 @@ export function DiceToastContainer(): React.ReactElement | null {
   // Single global listener — every dice roll in the app dispatches this event
   useEffect(() => {
     const handler = (e: Event): void => {
-      addToast((e as CustomEvent).detail as DiceRollResult);
+      const result = (e as CustomEvent).detail as DiceRollResult;
+      addToast(prepare ? prepare(result) : result);
     };
     document.addEventListener('atlas-dice-rolled', handler);
     return () => {
       document.removeEventListener('atlas-dice-rolled', handler);
     };
-  }, [addToast]);
+  }, [addToast, prepare]);
 
   if (toasts.length === 0) return null;
 
@@ -86,6 +94,6 @@ export function DiceToastContainer(): React.ReactElement | null {
         />
       ))}
     </div>,
-    document.body,
+    container ?? document.body,
   );
 }

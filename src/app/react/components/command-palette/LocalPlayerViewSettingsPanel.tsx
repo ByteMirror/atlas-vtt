@@ -17,6 +17,7 @@ const DEFAULT_LOCAL_PLAYER_VIEW_SETTINGS = {
   showGrid: true,
   showWidgets: true,
   showInitiative: true,
+  showDiceRolls: false,
   showCommandPalette: false,
 };
 
@@ -27,6 +28,7 @@ const UI_TOGGLES: ReadonlyArray<{ key: LocalPlayerViewToggleKey; label: string }
   { key: 'showGrid', label: 'Show grid' },
   { key: 'showWidgets', label: 'Show widgets' },
   { key: 'showInitiative', label: 'Show initiative panel' },
+  { key: 'showDiceRolls', label: 'Show dice rolls' },
 ];
 
 const TOKEN_TOGGLES: ReadonlyArray<{ key: LocalPlayerViewToggleKey; label: string }> = [

@@ -5,6 +5,17 @@ import type { AtlasSettings, SettingsService } from './SettingsService';
 
 export type PlayerSettings = AtlasSettings['localPlayerView'];
 
+/** Something drawn over the mirrored map in the player window. */
+export interface PlayerOverlay {
+  /** Draw into `parent`, the popout's content. */
+  mount(parent: HTMLElement): void;
+  /** Bind to the store of the presented scene. */
+  present(store: StoreApi<ViewAtlasState>): void;
+  /** Keep the presented scene while the DM browses other scene tabs. */
+  hold(): void;
+  destroy(): void;
+}
+
 /**
  * A player window overlay drawn from the presented scene's view store.
  *
@@ -13,7 +24,7 @@ export type PlayerSettings = AtlasSettings['localPlayerView'];
  * `present` binds the overlay to a scene again. Overlays keep only the plain data
  * `select` picks, so a held overlay never keeps the store or a closed map alive.
  */
-export abstract class PlayerSceneOverlay<Scene extends object> {
+export abstract class PlayerSceneOverlay<Scene extends object> implements PlayerOverlay {
   private container: HTMLElement | undefined;
   private scene: Scene | undefined;
   private playerSettings: PlayerSettings;

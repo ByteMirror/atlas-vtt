@@ -5,7 +5,8 @@ import type { AtlasSettings, SettingsService } from './SettingsService';
 import { playerWindowStore, resetPlayerWindowStore } from '../stores/playerWindowStore';
 import './player-window.scss';
 import { PlayerInitiativePanel } from './PlayerInitiativePanel';
-import type { PlayerSceneOverlay } from './PlayerSceneOverlay';
+import type { PlayerOverlay } from './PlayerSceneOverlay';
+import { PlayerDiceRolls } from './PlayerDiceRolls';
 import { PlayerWidgetBar } from './PlayerWidgetBar';
 import { LocalPlayerView, LOCAL_PLAYER_VIEW_TYPE, type PlayerCameraState } from '../local-player-view';
 import { freezeCanvasFrame, type SceneTransition } from '../pixi/sceneTransition';
@@ -59,8 +60,8 @@ export class PlayerWindowService {
   private mapTransition: SceneTransition | null = null;
   private static instance: PlayerWindowService | null = null;
   private settingsUnsubscribe: (() => void) | null = null;
-  /** Widget bar and initiative panel, drawn from the presented scene. */
-  private sceneOverlays: PlayerSceneOverlay<object>[] = [];
+  /** Widget bar, initiative panel and dice rolls, drawn over the presented scene. */
+  private sceneOverlays: PlayerOverlay[] = [];
   private readonly boundHandleWindowResize = (): void => {
     this.handleWindowResize();
   };
@@ -190,6 +191,7 @@ export class PlayerWindowService {
     this.sceneOverlays = [
       new PlayerWidgetBar(this.settingsService),
       new PlayerInitiativePanel(this.app, this.settingsService),
+      new PlayerDiceRolls(this.app, this.settingsService),
     ];
     this.presentScene();
     this.setupPlayerWindow();

@@ -66,6 +66,25 @@ body.atlas-player-window {
     display: none;
   }
 
+  // Dice rolls drop in at the top centre, where the whole table can read them.
+  // The window is a drag region; the toasts must still take clicks to expand or dismiss.
+  .atlas-dice-toast-container {
+    top: 1rem;
+    right: auto;
+    left: 50%;
+    transform: translateX(-50%);
+    align-items: center;
+    -webkit-app-region: no-drag;
+  }
+
+  .atlas-dice-toast--entering {
+    animation-name: atlas-player-dice-toast-enter;
+  }
+
+  .atlas-dice-toast--exiting {
+    animation-name: atlas-player-dice-toast-exit;
+  }
+
   #atlas-player-titlebar-container {
     position: absolute;
     top: 0;
@@ -115,10 +134,11 @@ body.atlas-player-window {
     display: none !important;
   }
 
+  // Top left: the widgets hold the top right corner.
   #atlas-player-freeze-indicator {
     position: absolute;
     top: 1rem;
-    right: 1rem;
+    left: 1rem;
     background: rgba(0, 0, 0, 0.6);
     color: rgba(255, 255, 255, 0.9);
     padding: 0.5rem 0.75rem;
@@ -145,4 +165,23 @@ body.atlas-player-window {
   overflow: hidden;
   padding: 0;
   background: #1a1a1a;
+}
+
+// The DM's toasts slide in from the right edge; the player's drop from the top.
+@keyframes atlas-player-dice-toast-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-48px) scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes atlas-player-dice-toast-exit {
+  to {
+    opacity: 0;
+    transform: translateY(-16px);
+  }
 }

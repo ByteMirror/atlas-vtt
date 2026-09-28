@@ -29,7 +29,7 @@ export class PlayerWidgetBar extends PlayerSceneOverlay<WidgetScene> {
       .sort((a, b) => a.order - b.order);
     if (widgets.length === 0) return;
 
-    const widgetBar = container.createDiv({ cls: `atlas-widget-bar atlas-widget-bar-${widgetSettings.position}` });
+    const widgetBar = container.createDiv({ cls: 'atlas-widget-bar' });
     const widgetContainer = widgetBar.createDiv({ cls: 'atlas-widget-container' });
     widgetContainer.style.transform = `scale(${widgetSettings.scale || 1})`;
     for (const widget of widgets) {

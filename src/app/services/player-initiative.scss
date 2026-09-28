@@ -9,7 +9,8 @@
   right: $spacing-m;
   transform: translateY(-50%);
   width: 96px;
-  max-height: calc(100% - 100px);
+  // Like the DM tracker, stays clear of the widget bar at the top right.
+  max-height: calc(100% - 2 * 160px);
   padding: $spacing-s;
   gap: $spacing-s;
   display: flex;

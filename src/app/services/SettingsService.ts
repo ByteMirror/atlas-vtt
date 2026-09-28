@@ -45,6 +45,8 @@ export interface AtlasSettings {
     showGrid: boolean;
     showWidgets: boolean;
     showInitiative: boolean;
+    /** Show the DM's dice rolls to players as toasts in the player window. */
+    showDiceRolls: boolean;
     showCommandPalette: boolean;
   };
 }
@@ -70,6 +72,7 @@ const DEFAULT_SETTINGS: AtlasSettings = {
     showGrid: true, // Show grid by default
     showWidgets: true,
     showInitiative: true,
+    showDiceRolls: false,
     showCommandPalette: false // Hide command palette
   },
 };

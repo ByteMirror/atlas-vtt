@@ -135,11 +135,10 @@
     z-index: 100;
     pointer-events: none;
 
-    // The row positions the widget bar here; the fixed variants in
-    // widget-bar.scss remain for the player window.
-    > .atlas-widget-bar.atlas-widget-bar-top {
+    // The row positions the widget bar here; its fixed placement in
+    // widget-bar.scss is for the player window.
+    > .atlas-widget-bar {
       position: static;
-      transform: none;
       flex: none;
       margin-left: auto;
     }

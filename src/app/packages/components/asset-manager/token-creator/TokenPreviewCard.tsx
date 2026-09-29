@@ -56,7 +56,7 @@ function useWellSize(ref: React.RefObject<HTMLDivElement | null>): number {
  * dimmed rather than hidden; maps show whole. Positions are fractions of the
  * well so the export can reproduce the preview exactly.
  */
-export function TokenPreviewCard({ preview, mode, index, onChange, onToggleSelected, onRemove }: TokenPreviewCardProps): React.JSX.Element {
+function TokenPreviewCardView({ preview, mode, index, onChange, onToggleSelected, onRemove }: TokenPreviewCardProps): React.JSX.Element {
   const nameLabelId = useId();
   const artRef = useRef<HTMLDivElement>(null);
   const previewRef = useRef(preview);
@@ -241,3 +241,13 @@ export function TokenPreviewCard({ preview, mode, index, onChange, onToggleSelec
     </div>
   );
 }
+
+/**
+ * Re-renders only when this card's preview changes. The callbacks are fresh
+ * closures on every parent render but only close over the preview id and the
+ * stable handlers of useTokenPreviews, so they are left out of the comparison;
+ * a large statblock import then updates one card per finished image instead of
+ * the whole grid.
+ */
+export const TokenPreviewCard = React.memo(TokenPreviewCardView, (before, after) =>
+  before.preview === after.preview && before.mode === after.mode && before.index === after.index);

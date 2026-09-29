@@ -22,6 +22,9 @@ export interface TokenPreviewsApi {
   waitForOptimized: (id: string) => Promise<Blob | undefined>;
 }
 
+/** Finished optimizations are applied to the preview list at most this often, so the grid re-renders in batches. */
+const PATCH_FLUSH_MS = 150;
+
 function revokeIfBlob(url: string): void {
   if (url.startsWith('blob:')) URL.revokeObjectURL(url);
 }
@@ -73,8 +76,13 @@ export function useTokenPreviews(mode: CreatorMode): TokenPreviewsApi {
 
   const pendingRef = useRef(new Map<string, Promise<Blob | undefined>>());
   const queueRef = useRef<Promise<unknown>>(Promise.resolve());
+  const optimizedPatchesRef = useRef(new Map<string, Partial<TokenPreview>>());
+  const flushTimerRef = useRef<number | null>(null);
 
   useEffect(() => () => {
+    if (flushTimerRef.current !== null) window.clearTimeout(flushTimerRef.current);
+    optimizedPatchesRef.current.forEach(patch => { if (patch.previewUrl) revokeIfBlob(patch.previewUrl); });
+    optimizedPatchesRef.current.clear();
     previewsRef.current.forEach(p => revokeIfBlob(p.previewUrl));
     previewsRef.current = [];
   }, []);
@@ -83,14 +91,36 @@ export function useTokenPreviews(mode: CreatorMode): TokenPreviewsApi {
     changePreviews((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)));
   }, [changePreviews]);
 
+  /** Applies every finished optimization in one list update. */
+  const flushOptimized = useCallback((): void => {
+    flushTimerRef.current = null;
+    const patches = optimizedPatchesRef.current;
+    if (patches.size === 0) return;
+    optimizedPatchesRef.current = new Map();
+    const present = new Set(previewsRef.current.map(p => p.id));
+    patches.forEach((patch, id) => { if (!present.has(id) && patch.previewUrl) revokeIfBlob(patch.previewUrl); });
+    changePreviews((prev) => prev.map((p) => {
+      const patch = patches.get(p.id);
+      if (!patch) return p;
+      if (patch.previewUrl) revokeIfBlob(p.previewUrl);
+      return { ...p, ...patch };
+    }));
+  }, [changePreviews]);
+
+  const queueOptimizedPatch = useCallback((id: string, patch: Partial<TokenPreview>): void => {
+    const earlier = optimizedPatchesRef.current.get(id);
+    if (earlier?.previewUrl && patch.previewUrl) revokeIfBlob(earlier.previewUrl);
+    optimizedPatchesRef.current.set(id, { ...earlier, ...patch });
+    if (flushTimerRef.current === null) flushTimerRef.current = window.setTimeout(flushOptimized, PATCH_FLUSH_MS);
+  }, [flushOptimized]);
+
   const optimizeOne = useCallback(async (preview: TokenPreview): Promise<Blob | undefined> => {
     if (!preview.file || !previewsRef.current.some(p => p.id === preview.id)) return undefined;
     try {
       const result = await optimizeImage(preview.file, OPTIMIZATION_PRESETS[mode]);
       const stillPresent = previewsRef.current.some((p) => p.id === preview.id);
       if (!stillPresent) return result.blob;
-      revokeIfBlob(preview.previewUrl);
-      patchPreview(preview.id, {
+      queueOptimizedPatch(preview.id, {
         optimizedFile: result.blob,
         previewUrl: URL.createObjectURL(result.blob),
         optimizationResult: result,
@@ -99,10 +129,10 @@ export function useTokenPreviews(mode: CreatorMode): TokenPreviewsApi {
       return result.blob;
     } catch (error) {
       console.error(`[TokenCreator] Failed to optimize ${preview.name}:`, error);
-      patchPreview(preview.id, { isOptimizing: false });
+      queueOptimizedPatch(preview.id, { isOptimizing: false });
       return undefined;
     }
-  }, [mode, patchPreview]);
+  }, [mode, queueOptimizedPatch]);
 
   const addImages = useCallback((images: PreviewImage[]): void => {
     const paths = new Set(previewsRef.current.flatMap(p => p.statblockPath ? [p.statblockPath] : []));

@@ -75,5 +75,3 @@ party/
 # Also ignore a worktree dependency symlink.
 /node_modules
 
-# Physical dice texture packs (large images, copied from the Physical Dice plugin)
-/dice/

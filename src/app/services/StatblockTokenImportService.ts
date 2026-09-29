@@ -4,7 +4,7 @@ import { AssetService, type TokenAsset } from './AssetService';
 import { AssetThumbnailService } from './AssetThumbnailService';
 import { AssetRegistrationUncertainError } from './assetRegistrationRecovery';
 import { requireResolvedBestiary, statblockImportCandidate, statblockLookup, type StatblockImportCandidate, type StatblockLookup } from './statblockImportCandidates';
-import { writeAssetImage } from './assetImageFiles';
+import { discardAssetFiles, writeAssetImage } from './assetImageFiles';
 import { vaultImageFile } from '../packages/components/asset-manager/token-creator/vaultImageFile';
 import type { ProcessedImage } from '../imageProcessing/imageProcessing';
 import { convertTokenArt } from '../packages/components/asset-manager/token-creator/tokenImages';
@@ -136,11 +136,7 @@ export class StatblockTokenImportService {
     } catch (error) {
       // An unconfirmed write may have committed. Never delete the image in this case.
       if (error instanceof AssetRegistrationUncertainError) return { path, name, status: 'failed', message: error.message, uncertain: true };
-      for (const orphan of [imagePath, thumbnailPath]) {
-        const file = orphan ? this.app.vault.getAbstractFileByPath(orphan) : null;
-        if (!(file instanceof TFile)) continue;
-        try { await this.app.fileManager.trashFile(file); } catch { /* Leave a safe, unlinked image if trash is unavailable. */ }
-      }
+      await discardAssetFiles(this.app, [imagePath, thumbnailPath]);
       return { path, name, status: 'failed', message: error instanceof Error ? error.message : 'Could not create this token.' };
     }
   }

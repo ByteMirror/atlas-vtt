@@ -26,18 +26,27 @@
   }
   &__selection { color: var(--text-muted); span { margin-left: auto; } }
   &__list {
+    position: relative;
     flex-shrink: 0;
+    box-sizing: content-box;
     border: $border-width-s solid var(--background-modifier-border);
     border-radius: $radius-l;
+    overflow: hidden;
   }
+  // Rows are placed by the virtual list; each but the first draws the line above it.
   &__row {
+    position: absolute;
+    top: 0;
+    left: 0;
+    box-sizing: border-box;
+    width: 100%;
     display: flex;
     align-items: center;
     padding: $spacing-m;
     gap: $spacing-m;
-    border-bottom: $border-width-s solid var(--background-modifier-border);
+    border-top: $border-width-s solid var(--background-modifier-border);
     cursor: pointer;
-    &:last-child { border-bottom: 0; }
+    &[data-index='0'] { border-top: 0; }
     &:hover { background: var(--background-modifier-hover); }
     &:focus-within { outline: 2px solid var(--interactive-accent); outline-offset: -2px; }
     input { flex-shrink: 0; }

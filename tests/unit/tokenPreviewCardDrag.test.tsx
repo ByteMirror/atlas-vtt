@@ -35,8 +35,8 @@ const initial: TokenPreview = {
 
 function Card(): React.JSX.Element {
   const [preview, setPreview] = useState(initial);
-  const onChange = (patch: TokenPreviewPatch): void => setPreview((current) => ({ ...current, ...patch }));
-  return <TokenPreviewCard preview={preview} mode="token" index={0} onChange={onChange} onToggleSelected={() => undefined} onRemove={() => undefined} />;
+  const onChange = (_id: string, patch: TokenPreviewPatch): void => setPreview((current) => ({ ...current, ...patch }));
+  return <TokenPreviewCard preview={preview} mode="token" onChange={onChange} onToggleSelected={() => undefined} onRemove={() => undefined} />;
 }
 
 it('moves the image after the ring is turned on for a token that had none', () => {

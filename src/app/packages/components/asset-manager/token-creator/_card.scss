@@ -17,6 +17,11 @@
   animation-delay: calc(var(--atlas-enter-index, 0) * 30ms);
   transition: background-color $transition-fast $transition-ease;
 
+  // Scrolled back into view: it was on screen before, so it appears as it is
+  &.atlas-token-card--settled {
+    animation: none;
+  }
+
   &:hover {
     background: var(--background-modifier-hover);
 

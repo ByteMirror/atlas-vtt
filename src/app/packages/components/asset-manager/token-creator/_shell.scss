@@ -86,6 +86,8 @@
 // ── Preview grid ────────────────────────────────────────────────────────────
 
 .atlas-token-creator__previews {
+  // The origin of the virtual lists' offsets inside it
+  position: relative;
   grid-column: 2;
   grid-row: 2;
   min-height: 0;
@@ -101,10 +103,20 @@
 }
 
 .atlas-token-creator__grid {
+  // Virtualized: rows are placed by their own transform; the gap is read to lay out columns and rows
+  position: relative;
+  column-gap: $spacing-l;
+}
+
+.atlas-token-creator__grid-row {
+  position: absolute;
+  top: 0;
+  left: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(196px, 1fr));
+  grid-template-columns: repeat(var(--atlas-grid-columns, 1), minmax(0, 1fr));
   gap: $spacing-l;
-  align-content: start;
+  align-items: start;
+  width: 100%;
 }
 
 // ── Empty state ─────────────────────────────────────────────────────────────

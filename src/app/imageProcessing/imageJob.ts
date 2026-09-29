@@ -42,6 +42,8 @@ export interface ImageJob {
   thumbnail?: ThumbnailSpec | undefined;
   /** Also render a copy to show on screen while the result is too large to display cheaply. */
   preview?: ThumbnailSpec | undefined;
+  /** Also render a copy of the whole source, e.g. for a crop editor next to a cropped result. */
+  sourcePreview?: ThumbnailSpec | undefined;
 }
 
 export interface ImageJobResult {
@@ -49,6 +51,7 @@ export interface ImageJobResult {
   image: Blob;
   thumbnail: Blob | null;
   preview: Blob | null;
+  sourcePreview: Blob | null;
 }
 
 export interface ImageJobRequest {

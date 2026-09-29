@@ -7,9 +7,9 @@ import { AtlasUIContext } from '../../src/app/react/root/AtlasUIContext';
 import { TokenCreator } from '../../src/app/packages/components/asset-manager/TokenCreator';
 import CreateSceneModal from '../../src/app/packages/components/asset-manager/CreateSceneModal';
 
-const { converted } = vi.hoisted(() => ({ converted: { image: { arrayBuffer: async () => new ArrayBuffer(1) } as Blob, thumbnail: null, preview: null } }));
+const { converted } = vi.hoisted(() => ({ converted: { image: { arrayBuffer: async () => new ArrayBuffer(1) } as Blob, thumbnail: null, preview: null, sourcePreview: null } }));
 vi.mock('../../src/app/packages/components/asset-manager/token-creator/TokenPreviewCard', () => ({ TokenPreviewCard: () => null }));
-vi.mock('../../src/app/packages/components/asset-manager/token-creator/tokenImages', () => ({ cropTokenImage: async () => converted, optimizeUpload: async () => converted }));
+vi.mock('../../src/app/packages/components/asset-manager/token-creator/tokenImages', () => ({ convertForPreview: async () => converted, cropTokenImage: async () => converted, optimizeUpload: async () => converted }));
 
 const service = {
   initialize: vi.fn().mockResolvedValue(undefined),
@@ -17,7 +17,7 @@ const service = {
   getCollection: vi.fn(async (id: string) => (await service.getCollections()).find((c: { id: string }) => c.id === id) ?? null),
   getAllTags: vi.fn().mockResolvedValue(['Existing']),
   createTag: vi.fn(async (_collection: string, _group: string, name: string) => ({ name })),
-  addTokenAsset: vi.fn().mockResolvedValue({}),
+  addAssets: vi.fn(async (assets: unknown[]) => assets),
   addAsset: vi.fn().mockResolvedValue({}),
   getAssets: vi.fn().mockResolvedValue([]),
   getCollectionSettings: vi.fn().mockReturnValue({}),
@@ -66,8 +66,7 @@ it.each(['token', 'map'] as const)('persists selected and newly created tags whe
   fireEvent.change(document.querySelector('input[type=file]')!, { target: { files: [new File(['art'], 'Test.png', { type: 'image/png' })] } });
   await selectAndCreateTags(mode === 'token' ? 'tokens' : 'maps');
   fireEvent.click(screen.getByRole('button', { name: /^Create/ }));
-  const save = mode === 'token' ? service.addTokenAsset : service.addAsset;
-  await waitFor(() => expect(save).toHaveBeenCalledWith(expect.objectContaining({ tags: ['Existing', 'New tag'] })));
+  await waitFor(() => expect(service.addAssets).toHaveBeenCalledWith([expect.objectContaining({ type: mode, tags: ['Existing', 'New tag'] })]));
 });
 
 it('persists selected and newly created tags when creating a scene', async () => {

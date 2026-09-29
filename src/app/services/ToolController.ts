@@ -9,6 +9,7 @@ import { NotePinTool } from '../tools/NotePinTool';
 import { DiceTool } from '../tools/DiceTool';
 import { AudioTool } from '../tools/AudioTool';
 import type { App } from 'obsidian';
+import type { SettingsService } from './SettingsService';
 
 export class ToolController {
   /** Delegates all fine‑grained logic to dedicated tool classes. */
@@ -21,7 +22,7 @@ export class ToolController {
   private eventBus: EventEmitter;
   private store: StoreApi<ViewAtlasState>;
   
-  constructor(eventBus: EventEmitter, app: App, store: StoreApi<ViewAtlasState>) {
+  constructor(eventBus: EventEmitter, app: App, store: StoreApi<ViewAtlasState>, settings?: SettingsService) {
     this.eventBus = eventBus;
     this.store = store;
 
@@ -30,7 +31,7 @@ export class ToolController {
     this.measureTool = new MeasureTool(eventBus);
     this.fogTool = new FogTool(eventBus);
     this.notePinTool = new NotePinTool(eventBus, app, store);
-    this.diceTool = new DiceTool(eventBus);
+    this.diceTool = new DiceTool(eventBus, settings);
     this.audioTool = new AudioTool(eventBus);
   }
   
@@ -199,5 +200,6 @@ export class ToolController {
    */
   public destroy(): void {
     this.notePinTool.destroy();
+    this.diceTool.destroy();
   }
 }

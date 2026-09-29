@@ -74,3 +74,4 @@ party/
 
 # Also ignore a worktree dependency symlink.
 /node_modules
+

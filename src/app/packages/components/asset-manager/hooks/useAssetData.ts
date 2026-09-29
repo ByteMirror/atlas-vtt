@@ -2,7 +2,8 @@ import type * as React from 'react';
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { TFolder, App as ObsidianApp } from 'obsidian';
 import type { AnyAsset, CollectionOption, Folder, Tag, Tab } from '../types';
-import { ATLAS_VTT_DIR } from '../types';
+import { ATLAS_VTT_DIR, isAssetTab } from '../types';
+import { listDicePacks } from '../../../../physical-dice/dicePackStore';
 import { AssetService } from '../../../../services/AssetService';
 import { AssetThumbnailService } from '../../../../services/AssetThumbnailService';
 import { tagGroupOfTab, type TagsByGroup } from '../utils/assetTags';
@@ -71,6 +72,7 @@ export function useAssetData(
     maps: 0,
     encounters: 0,
     tokens: 0,
+    dice: 0,
   });
   const thumbnails = useMemo(
     () => (assetService ? AssetThumbnailService.getInstance(app, assetService) : null),
@@ -81,6 +83,11 @@ export function useAssetData(
   const loadFoldersForActiveTab = useCallback(async (): Promise<void> => {
     if (!app) return;
     const col = selectedCollection || AssetService.defaultCollectionId();
+    // Dice packs are folders themselves; their tab lists them on its own.
+    if (!isAssetTab(activeTab)) {
+      setFolders([]);
+      return;
+    }
     try {
       const basePath = tabFolderPath(col, activeTab);
       const baseFolder = app.vault.getAbstractFileByPath(basePath);
@@ -120,7 +127,7 @@ export function useAssetData(
       const byTab = partitionByTab(await assetService.getAssets(col));
       const previewSources = tokenPreviewSources(byTab.tokens);
       const tabBase = `${ATLAS_VTT_DIR}/collections/${col}/${activeTab}`;
-      const tabAssets: TabServiceAsset[] = byTab[activeTab];
+      const tabAssets: TabServiceAsset[] = isAssetTab(activeTab) ? byTab[activeTab] : [];
       setAssets(tabAssets.map((a) => formatServiceAsset(a, tabBase, app, previewSources)));
       setAssetsTab(activeTab);
       // Counts cover every tab so the tab bar never reflows when switching
@@ -129,6 +136,7 @@ export function useAssetData(
         maps: byTab.maps.length,
         encounters: byTab.encounters.length,
         tokens: byTab.tokens.length,
+        dice: (await listDicePacks(app, col)).length,
       });
       thumbnails?.ensureThumbnails([...byTab.tokens, ...byTab.maps]);
     } catch (error) {

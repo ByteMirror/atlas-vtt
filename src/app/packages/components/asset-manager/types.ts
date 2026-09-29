@@ -5,7 +5,7 @@ import { ATLAS_NATIVE_MODAL_CLASSES } from '../../../ui/nativeModal';
 
 // ─── Tab / View Constants ───────────────────────────────────────────
 
-export const tabs = ['scenes', 'maps', 'encounters', 'tokens'] as const;
+export const tabs = ['scenes', 'maps', 'encounters', 'tokens', 'dice'] as const;
 export type Tab = (typeof tabs)[number];
 
 const tabDisplayNames: Record<Tab, string> = {
@@ -13,7 +13,12 @@ const tabDisplayNames: Record<Tab, string> = {
   maps: 'Maps',
   encounters: 'Encounters',
   tokens: 'Characters',
+  dice: 'Dice',
 };
+
+/** Tabs that list indexed assets in folders; the others have panes of their own. */
+export type AssetTab = Exclude<Tab, 'dice'>;
+export const isAssetTab = (tab: Tab): tab is AssetTab => tab !== 'dice';
 
 export const getTabDisplayName = (tab: Tab): string => tabDisplayNames[tab];
 

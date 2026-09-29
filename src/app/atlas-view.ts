@@ -6,6 +6,7 @@ import { createTabMetaStore, type TabMetaStore } from './stores/tabMetaStore';
 import type { SceneTab } from './types/sceneTabTypes';
 import type AtlasVTTPlugin from '../../main';
 import { claimWorkspaceLeafFocus } from './utils/activeLeafGuard';
+import { PhysicalDiceTable } from './physical-dice/PhysicalDiceTable';
 import { isScenePath } from './utils/sceneFiles';
 
 export const ATLAS_VIEW_TYPE = "atlas-vtt";
@@ -231,6 +232,14 @@ export class AtlasView extends FileView {
       // Mount UI overlay once the renderer is initialized
       const uiOverlay = this._serviceManager.getUIOverlay();
       uiOverlay.mount(containerEl, this, pixiApp);
+
+      // Physical dice are thrown on the game master's map; players see the result toasts.
+      if (!this.store.getState().isPlayerView) {
+        this._serviceManager.getToolController().getDiceTool()
+          .attachPhysicalTable(new PhysicalDiceTable(
+            this.app, containerEl, () => this.store.getState().mapPath,
+          ));
+      }
 
       // If state already has a map, trigger load now (file property provided by FileView)
       if (this.file instanceof TFile) {

@@ -1,0 +1,271 @@
+@use '../../../styles/tokens' as *;
+@use '../../../styles/mixins' as *;
+
+// ── Dice mode switch, first row of the dice panel ────────────
+// It sits $spacing-s inside the panel's border, so its top corners run
+// concentric with the panel's.
+.atlas-dice-mode {
+  @include atlas-panel-inset-radius($spacing-s, top-left, top-right);
+}
+
+// ── Physical dice table over the game master's map ────────────
+// The table lets the pointer through everywhere but on a die: the engine turns
+// its canvas on only while the pointer is over one, so the map still pans and
+// tokens still drag with dice on it.
+.atlas-physical-dice {
+  position: absolute;
+  inset: 0;
+  // Above the map canvas, below the map's bars (100) and overlays.
+  z-index: 90;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.atlas-physical-dice__stage {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+
+  canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: block;
+    background: transparent;
+    cursor: default;
+  }
+
+  canvas.atlas-physical-dice__canvas--grab {
+    cursor: grab;
+  }
+}
+
+.atlas-physical-dice__error {
+  @include atlas-flex-col($gap: $spacing-xs);
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+// The bar under the top row: what is being rolled, how far along, and the actions.
+.atlas-physical-dice__bar {
+  @include atlas-elevated-surface;
+  @include atlas-panel-radius($radius-2xl);
+  @include atlas-flex-row($gap: $spacing-s);
+  position: absolute;
+  top: calc(#{$spacing-s} + var(--input-height) + #{$spacing-l});
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: calc(100% - #{$spacing-l} * 2);
+  padding: $spacing-s;
+  pointer-events: auto;
+  animation: atlas-physical-dice-in 200ms $transition-ease-out both;
+
+  button {
+    margin: 0;
+    height: $button-height-m;
+    border-radius: $radius-l;
+    font-size: $font-ui-smaller;
+    font-weight: $font-weight-medium;
+    transition: transform $transition-press $transition-ease-out;
+
+    &:active:not(:disabled) {
+      transform: scale(0.96);
+    }
+  }
+}
+
+@keyframes atlas-physical-dice-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+.atlas-physical-dice__icon {
+  display: flex;
+  padding-left: $spacing-xs;
+  color: var(--text-muted);
+
+  svg {
+    width: $icon-s;
+    height: $icon-s;
+  }
+}
+
+.atlas-physical-dice__text {
+  @include atlas-flex-col($gap: 2px);
+  min-width: 0;
+  padding-right: $spacing-s;
+}
+
+.atlas-physical-dice__formula {
+  @include atlas-truncate;
+  font-family: var(--font-monospace);
+  font-size: $font-ui-small;
+  font-weight: $font-weight-medium;
+  color: var(--text-normal);
+}
+
+.atlas-physical-dice__status {
+  @include atlas-truncate;
+  font-size: $font-ui-smaller;
+  color: var(--text-muted);
+}
+
+.atlas-physical-dice__reroll {
+  padding: 0 $spacing-s;
+  background: color-mix(in oklch, var(--color-orange) 18%, transparent);
+  border: $border-width-s solid color-mix(in oklch, var(--color-orange) 50%, transparent);
+  color: var(--color-orange);
+  box-shadow: none;
+}
+
+.atlas-physical-dice__throw {
+  padding: 0 $spacing-m;
+}
+
+.atlas-physical-dice__cancel {
+  @include atlas-close-button;
+  // Last in the bar, so its right corners face the bar's.
+  @include atlas-panel-inset-radius($spacing-s, top-right, bottom-right);
+  align-self: center;
+  height: $button-height-m;
+  width: $button-height-m;
+}
+
+// ── Collection settings: Physical Dice tab ────────────────────
+.atlas-csm-dice-slider-head {
+  @include atlas-flex-row($gap: $spacing-s);
+  justify-content: space-between;
+}
+
+.atlas-csm-dice-slider-value {
+  font-family: var(--font-monospace);
+  font-size: $font-ui-smaller;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.atlas-csm-dice-color {
+  width: $button-height-l;
+  height: $button-height-m;
+  padding: 0;
+  border: $border-width-s solid var(--background-modifier-border);
+  border-radius: $radius-m;
+  background: none;
+  cursor: pointer;
+}
+
+// ── Asset manager: Dice tab ───────────────────────────────────
+.atlas-dice-packs {
+  @include atlas-flex-col($gap: $spacing-l);
+  height: 100%;
+  padding: $spacing-l;
+  overflow-y: auto;
+  @include atlas-scrollbar;
+}
+
+.atlas-dice-packs__head {
+  @include atlas-flex-row($gap: $spacing-l);
+  justify-content: space-between;
+  align-items: center;
+
+  .btn,
+  button {
+    flex-shrink: 0;
+  }
+}
+
+.atlas-dice-packs__title {
+  margin: 0;
+  font-size: $font-ui-medium;
+  font-weight: $font-weight-semibold;
+  color: var(--text-normal);
+}
+
+.atlas-dice-packs__empty {
+  @include atlas-help-text;
+  margin: 0;
+  max-width: 60ch;
+}
+
+.atlas-dice-packs__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: $spacing-m;
+}
+
+.atlas-dice-pack {
+  @include atlas-flex-col($gap: $spacing-s);
+  padding: $spacing-s;
+  background: var(--background-secondary);
+  border: $border-width-m solid color-mix(in oklch, var(--mono-100) $border-opacity-subtle, transparent);
+  border-radius: $radius-xl;
+  @include atlas-corner-shape;
+
+  &.atlas-active {
+    border-color: var(--interactive-accent);
+  }
+}
+
+.atlas-dice-pack__preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  background: var(--background-primary);
+  border-radius: $radius-l;
+  color: var(--text-faint);
+  font-size: $font-ui-smaller;
+
+  // Square frames, letterboxed into the card's preview area.
+  .atlas-dice-pack__die {
+    height: 100%;
+    aspect-ratio: 1;
+  }
+}
+
+.atlas-dice-pack__body {
+  @include atlas-flex-col($gap: 2px);
+  padding: 0 $spacing-xs;
+  min-width: 0;
+}
+
+.atlas-dice-pack__name {
+  @include atlas-truncate;
+  font-size: $font-ui-small;
+  font-weight: $font-weight-semibold;
+  color: var(--text-normal);
+}
+
+.atlas-dice-pack__meta {
+  font-size: $font-ui-smaller;
+  color: var(--text-muted);
+}
+
+.atlas-dice-pack__actions {
+  @include atlas-flex-row($gap: $spacing-xs);
+  justify-content: space-between;
+  min-height: $button-height-m;
+}
+
+.atlas-dice-pack__in-use {
+  @include atlas-flex-row($gap: $spacing-xs);
+  padding: 0 $spacing-xs;
+  font-size: $font-ui-smaller;
+  font-weight: $font-weight-medium;
+  color: var(--interactive-accent);
+
+  svg {
+    width: $icon-xs;
+    height: $icon-xs;
+  }
+}

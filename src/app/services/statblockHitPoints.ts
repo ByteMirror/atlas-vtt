@@ -1,7 +1,7 @@
 import type { App } from 'obsidian';
 import { ATLAS_VIEW_TYPE } from '../atlas-view';
 import type { TokenUpdates, ViewAtlasStore } from '../storeFactory';
-import { rollStatblockDice } from './statblockDiceLinks';
+import { requestStatblockRoll, rollStatblockDice } from './statblockDiceLinks';
 import type { TokenVitals } from './statblockVitalsSync';
 
 type PlacedToken = TokenVitals & { id: string };
@@ -20,7 +20,8 @@ function storeHoldingTokens(app: App, ids: readonly string[]): ViewAtlasStore | 
  * Rolls a statblock's hit dice once per token and puts each token at full
  * health with its own result. A rolled maximum is a deliberate choice, so it is
  * marked as overridden and survives later edits to the statblock. Without
- * placed tokens this is an ordinary roll.
+ * placed tokens this is an ordinary roll, in the chosen dice mode. Rolling for
+ * placed tokens always uses random numbers: one roll per token, applied at once.
  */
 export function rollHitPoints(
   app: App,
@@ -32,7 +33,7 @@ export function rollHitPoints(
   const placed = tokens.filter((token): token is PlacedToken => Boolean(token.id));
   const store = placed.length ? storeHoldingTokens(app, placed.map((token) => token.id)) : null;
   if (!store) {
-    rollStatblockDice(app, formula, { statblockPath, abilityName });
+    requestStatblockRoll(app, formula, { statblockPath, abilityName });
     return;
   }
 

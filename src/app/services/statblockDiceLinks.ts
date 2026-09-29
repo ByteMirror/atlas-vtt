@@ -48,6 +48,8 @@ export type HitPointsRollHandler = (formula: string, abilityName: string | undef
 
 interface DiceToolLike {
   rollDice(formula: string, source?: DiceRollResult['source']): DiceRollResult;
+  /** Rolls in the chosen dice mode, which may wait for physical dice. */
+  requestRoll?(formula: string, source?: DiceRollResult['source']): Promise<DiceRollResult | null>;
 }
 
 /**
@@ -72,15 +74,29 @@ function resolveDiceTool(app: App): DiceToolLike | null {
 export function rollStatblockDice(app: App, formula: string, source: DiceRollSource): DiceRollResult | null {
   const diceTool = resolveDiceTool(app);
   if (!diceTool) return null;
+  return diceTool.rollDice(formula, statblockRollSource(source));
+}
 
+/**
+ * Rolls a statblock's dice in the chosen dice mode: at once with random numbers,
+ * or once the physical dice are thrown. Does nothing when no map is open.
+ */
+export function requestStatblockRoll(app: App, formula: string, source: DiceRollSource): void {
+  const diceTool = resolveDiceTool(app);
+  if (!diceTool) return;
+  const rollSource = statblockRollSource(source);
+  if (diceTool.requestRoll) void diceTool.requestRoll(formula, rollSource);
+  else diceTool.rollDice(formula, rollSource);
+}
+
+function statblockRollSource(source: DiceRollSource): NonNullable<DiceRollResult['source']> {
   const rollSource: NonNullable<DiceRollResult['source']> = { type: 'statblock' };
   if (source.tokenId) rollSource.tokenId = source.tokenId;
   if (source.statblockPath) rollSource.statblockPath = source.statblockPath;
   if (source.tokenName) rollSource.tokenName = source.tokenName;
   if (source.tokenImagePath) rollSource.tokenImagePath = source.tokenImagePath;
   if (source.abilityName) rollSource.abilityName = source.abilityName;
-
-  return diceTool.rollDice(formula, rollSource);
+  return rollSource;
 }
 
 /** Turns matched display text into a formula the dice tool understands. */
@@ -184,7 +200,7 @@ export function attachDiceRolling(
       return;
     }
 
-    rollStatblockDice(app, formula, { ...getSource(), abilityName });
+    requestStatblockRoll(app, formula, { ...getSource(), abilityName });
   };
 
   const onClick = (event: MouseEvent): void => {

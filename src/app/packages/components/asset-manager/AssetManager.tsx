@@ -1,4 +1,5 @@
 import { Tutorial } from '../../../onboarding/Tutorial';
+import { DicePacksPane } from './components/DicePacksPane';
 import { AssetService } from '../../../services/AssetService';
 import { useAtlasSettings } from '../../../keyboard/useMapHotkeys';
 import { SettingsService } from '../../../services/SettingsService';
@@ -231,12 +232,17 @@ export default function AssetManager({ isOpen, onClose, initialTab, onExitComple
                 onDrop={(e) => { if (draggedItems && sel.selectedFolderId === null) { e.preventDefault(); crud.handleDrop(null); } }}
               >
                 <ActiveFilterBar groups={filterSearch.chips} onReset={filterSearch.reset} />
-                <Breadcrumb
-                  activeTab={shown.tab}
-                  path={shown.folderPath}
-                  onNavigateToFolder={sel.handleNavigateToFolder}
-                />
+                {shown.tab !== 'dice' && (
+                  <Breadcrumb
+                    activeTab={shown.tab}
+                    path={shown.folderPath}
+                    onNavigateToFolder={sel.handleNavigateToFolder}
+                  />
+                )}
                 <div className="atlas-asset-manager-main">
+                  {shown.tab === 'dice' ? (
+                    <DicePacksPane app={data.app} collectionId={selectedCollection ?? AssetService.defaultCollectionId()} />
+                  ) : (
                   <AssetTagMenuContext.Provider value={tagMenuActions}>
                     <Content
                       activeTab={shown.tab}
@@ -274,6 +280,7 @@ export default function AssetManager({ isOpen, onClose, initialTab, onExitComple
                       {...(creature.isActive ? { onClearFilters: filterSearch.reset } : {})}
                     />
                   </AssetTagMenuContext.Provider>
+                  )}
                 </div>
               </div>
             </motion.div>

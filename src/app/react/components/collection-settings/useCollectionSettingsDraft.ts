@@ -6,6 +6,7 @@ import type {
   CollectionGridDefaults,
   CollectionSettings,
   ConditionDefinition,
+  PhysicalDiceSettings,
   VisionSettings,
 } from '../../../types/collectionSettingsTypes';
 import type { CreatureFilterDefinition } from '../../../types/creatureFilterTypes';
@@ -33,6 +34,8 @@ export interface CollectionSettingsDraft {
   setLootBases: (lootBases: string[]) => void;
   lootCurrency: string;
   setLootCurrency: (lootCurrency: string) => void;
+  physicalDice: PhysicalDiceSettings | undefined;
+  setPhysicalDice: (physicalDice: PhysicalDiceSettings) => void;
   applyPreset: (preset: SystemPreset) => void;
   /** Leaves the collection without a game system, as if it had never been set up. */
   clearSystem: () => void;
@@ -55,6 +58,7 @@ export function useCollectionSettingsDraft(
   const [systemPresetId, setSystemPresetId] = useState<string | undefined>(undefined);
   const [lootBases, setLootBases] = useState<string[]>([]);
   const [lootCurrency, setLootCurrency] = useState('');
+  const [physicalDice, setPhysicalDice] = useState<PhysicalDiceSettings | undefined>(undefined);
   const [loadedDefaultWidgets, setLoadedDefaultWidgets] = useState<Record<string, boolean> | undefined>(undefined);
   const [customCreatureFilters, setCustomCreatureFilters] = useState<CreatureFilterDefinition[]>([]);
   const [hiddenCreatureFilters, setHiddenCreatureFilters] = useState<string[]>([]);
@@ -69,6 +73,7 @@ export function useCollectionSettingsDraft(
     setSystemPresetId(settings.systemPresetId);
     setLootBases(settings.lootBases ?? []);
     setLootCurrency(settings.lootCurrency ?? '');
+    setPhysicalDice(settings.physicalDice);
     setLoadedDefaultWidgets(settings.defaultWidgets);
     setCustomCreatureFilters(parseCreatureFilters(settings.customCreatureFilters));
     setHiddenCreatureFilters(parseHiddenCreatureFilters(settings.hiddenCreatureFilters));
@@ -101,6 +106,7 @@ export function useCollectionSettingsDraft(
     lootBases,
     lootCurrency: lootCurrency.trim() || undefined,
     ...(vision !== undefined && { vision }),
+    ...(physicalDice !== undefined && { physicalDice }),
   });
 
   return {
@@ -113,6 +119,7 @@ export function useCollectionSettingsDraft(
     systemPresetId, setSystemPresetId,
     lootBases, setLootBases,
     lootCurrency, setLootCurrency,
+    physicalDice, setPhysicalDice,
     applyPreset, clearSystem, toSettings,
     tokenBarChanges: () => changedTokenBars(tokenBarsOf(loadedDefaultWidgets), tokenBarsOf(defaultWidgets)),
   };

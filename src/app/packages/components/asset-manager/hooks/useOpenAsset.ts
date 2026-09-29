@@ -5,6 +5,7 @@ import type { AssetService } from '../../../../services/AssetService';
 import type { AtlasView } from '../../../../atlas-view';
 import type { ViewAtlasState } from '../../../../storeFactory';
 import { useStableCallback } from '../../../../react/hooks/useStableCallback';
+import { t } from '../../../../i18n';
 
 export interface OpenAssetDeps {
   app: App;
@@ -54,8 +55,8 @@ export function useOpenAsset(deps: OpenAssetDeps): OpenAsset {
         const ids = await spawnEncounterTokens(spawnCtx, asset);
         const expected = asset.tokens.length;
         new Notice(ids.length < expected
-          ? `Spawned ${ids.length} of ${expected} tokens from "${asset.name}" (some had missing images)`
-          : `Spawned ${ids.length} tokens from "${asset.name}"`);
+          ? t('am.spawnedPartial', { count: ids.length, expected, name: asset.name })
+          : t('am.spawned', { count: ids.length, name: asset.name }));
       }
     }
   });

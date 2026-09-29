@@ -5,6 +5,7 @@ import { Search, Check, Plus, Minus, Tag as TagIcon } from 'lucide-react';
 import { CloseButton } from '../primitives/CloseButton';
 import { Button } from '../primitives/button';
 import type { AnyAsset, Tag } from './types';
+import { t } from '../../../i18n';
 
 interface TagSearchModalProps {
   selectedAssets: AnyAsset[];
@@ -97,7 +98,7 @@ function TagSearchModalInner({
         {/* Header */}
         <div className="atlas-modal-header">
           <div>
-            <h3>Manage Tags</h3>
+            <h3>{t('am.tags.manage')}</h3>
             <span className="atlas-tag-search__subtitle">
               {assets.length} asset{assets.length !== 1 ? 's' : ''} selected
             </span>
@@ -112,7 +113,7 @@ function TagSearchModalInner({
             ref={inputRef}
             type="text"
             className="atlas-input"
-            placeholder="Search tags..."
+            placeholder={t('am.tags.search')}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             onKeyDown={(e) => {
@@ -155,15 +156,15 @@ function TagSearchModalInner({
 
           {sortedTags.length === 0 && !canCreate && (
             <div className="atlas-tag-search__empty">
-              {searchQuery ? 'No matching tags found' : 'No tags available'}
+              {searchQuery ? t('am.tags.noMatch') : t('am.tags.none')}
             </div>
           )}
         </div>
 
         {/* Footer */}
         <div className="atlas-modal-footer">
-          <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
-          <Button variant="default" size="sm" onClick={onClose}>Done</Button>
+          <Button variant="outline" size="sm" onClick={onClose}>{t('common.cancel')}</Button>
+          <Button variant="default" size="sm" onClick={onClose}>{t('common.done')}</Button>
         </div>
       </div>
     </div>

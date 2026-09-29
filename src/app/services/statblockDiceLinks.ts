@@ -15,6 +15,7 @@
 import type { App } from 'obsidian';
 import type { DiceRollResult } from '../tools/DiceTool';
 import { ATLAS_VIEW_TYPE } from '../atlas-view';
+import { t } from '../i18n';
 
 /**
  * Dice expressions (`2d8+3`) plus bare attack bonuses (`+4`, `ATK: +4`). A
@@ -129,7 +130,7 @@ function linkTextNode(textNode: Text): void {
     link.dataset.formula = toRollFormula(matched);
     link.setAttribute('role', 'button');
     link.setAttribute('tabindex', '0');
-    link.setAttribute('aria-label', `Roll ${link.dataset.formula}`);
+    link.setAttribute('aria-label', t('dice.rollFormula', { formula: link.dataset.formula ?? '' }));
     fragment.append(link);
 
     cursor = match.index + matched.length;
@@ -226,7 +227,7 @@ export function diceLinkProps(matched: string): {
     'data-formula': formula,
     role: 'button',
     tabIndex: 0,
-    'aria-label': `Roll ${formula}`,
+    'aria-label': t('dice.rollFormula', { formula }),
   };
 }
 

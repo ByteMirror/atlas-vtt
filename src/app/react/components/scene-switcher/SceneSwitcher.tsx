@@ -8,6 +8,7 @@ import { useSceneTabStore } from '../../hooks/useSceneTabStore';
 import { MAX_NUMBER_KEY, searchSceneTabs, splitByMatches, type SceneSwitcherResult } from './sceneSwitcherSearch';
 import { SceneSwitcherFooter } from './SceneSwitcherFooter';
 import './scene-switcher.scss';
+import { t } from '../../../i18n';
 
 interface SceneSwitcherProps {
   isOpen: boolean;
@@ -119,7 +120,7 @@ function SceneSwitcherPanel({ onSwitchTab, onPresentTab, onClose }: SceneSwitche
             aria-expanded
             aria-controls={`${idPrefix}-list`}
             aria-activedescendant={selectedResult ? optionId(selectedResult.tab.id) : undefined}
-            placeholder="Search open maps"
+            placeholder={t('switcher.search')}
             spellCheck={false}
             autoComplete="off"
             value={query}
@@ -150,7 +151,7 @@ function SceneSwitcherPanel({ onSwitchTab, onPresentTab, onClose }: SceneSwitche
                 {result.number <= MAX_NUMBER_KEY ? result.number : ''}
               </span>
               <SceneName result={result} />
-              {result.tab.id === activeTabId && <span className="atlas-scene-switcher__current">Current</span>}
+              {result.tab.id === activeTabId && <span className="atlas-scene-switcher__current">{t('switcher.current')}</span>}
             </div>
           ))}
           {!results.length && <div className="atlas-scene-switcher__empty">No open map matches “{query.trim()}”</div>}

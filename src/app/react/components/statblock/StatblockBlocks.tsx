@@ -17,6 +17,7 @@ import { EditableValue } from './EditableValue';
 import { useStatblockEdit } from './statblockEditContext';
 import { LabelTooltip } from '../../../packages/components/primitives/tooltip';
 import { isHitPointsKey } from '../../../services/statblockResources';
+import { t } from '../../../i18n';
 
 /** Values that map cleanly onto a single editable frontmatter entry. */
 function isEditableScalar(value: unknown): boolean {
@@ -263,7 +264,7 @@ export function TableBlock({ item, monster }: BlockProps): React.JSX.Element | n
                 path={[item.properties?.[0] ?? '', index]}
                 value={stringify(value)}
                 editable={isEditableScalar(value)}
-                label={headers[index] ?? `value ${index + 1}`}
+                label={headers[index] ?? t('statblock.valueN', { n: index + 1 })}
               >
                 {stringify(value)}
               </EditableField>
@@ -314,7 +315,7 @@ export function ImageBlock({
 
   return (
     <div className="atlas-sb-image">
-      <LabelTooltip label={src ? 'Change token for this statblock' : 'Assign a token to this statblock'}>
+      <LabelTooltip label={src ? t('statblock.changeToken') : t('statblock.assignTokenHint')}>
         <button
           type="button"
           className="atlas-sb-image-button"
@@ -323,7 +324,7 @@ export function ImageBlock({
           {src ? (
             <img src={src} alt={stringify(monster.name)} />
           ) : (
-            <span className="atlas-sb-image-placeholder">Assign token</span>
+            <span className="atlas-sb-image-placeholder">{t('statblock.assignToken')}</span>
           )}
         </button>
       </LabelTooltip>
@@ -355,7 +356,7 @@ export function TraitLine({
             path={[property, index as number, 'name']}
             value={name}
             editable={canEdit}
-            label="trait name"
+            label={t('statblock.traitName')}
           >
             {name}
           </EditableField>
@@ -365,7 +366,7 @@ export function TraitLine({
         path={[property, index as number, 'desc']}
         value={String(desc)}
         editable={canEdit}
-        label="trait description"
+        label={t('statblock.traitDescription')}
         multiline
       >
         <StatblockMarkdown
@@ -447,7 +448,7 @@ export function SpellsBlock({ item, monster, app, sourcePath }: BlockProps): Rea
         <React.Fragment key={block.header}>
           {blockIndex === 0 && (
             <div className="atlas-sb-section-heading">
-              {item.heading ?? 'Spellcasting'}
+              {item.heading ?? t('statblock.spellcasting')}
               <div className="atlas-sb-rule" />
             </div>
           )}

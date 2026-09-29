@@ -1,0 +1,26 @@
+import type { Translation } from '../../types';
+
+export const sceneLight: Translation = {
+  'sceneLight.day': 'День',
+  'sceneLight.dusk': 'Сумерки',
+  'sceneLight.night': 'Ночь',
+  'sceneLight.dark': 'Кромешная тьма',
+  'sceneLight.dynamic': 'Динамическое освещение',
+  'sceneLight.timeOfDay': 'Время суток',
+  'sceneLight.ambient': 'Общий свет',
+  'sceneLight.ambientColour': 'Цвет общего света',
+  'sceneLight.preview': 'Показать вид игроков',
+  'sceneLight.forgetExplored': 'Забыть исследованные области',
+  'sceneLight.openSettings': 'Настройки освещения…',
+  'sceneLight.settings': 'Настройки освещения',
+  'sceneLight.closeSettings': 'Закрыть настройки освещения',
+  'sceneLight.tokenVision': 'Зрение токенов',
+  'sceneLight.tokenVisionOn': 'Игроки видят только то, что видят их токены',
+  'sceneLight.tokenVisionOff': 'Игроки видят всё, что освещено',
+  'sceneLight.memory': 'Запоминать исследованные области',
+  'sceneLight.memoryOn': 'Увиденное токенами остаётся на карте игроков',
+  'sceneLight.memoryOff': 'Игроки видят только то, что их токены видят сейчас',
+  'sceneLight.exploredColour': 'Цвет исследованного',
+  'sceneLight.unexploredColour': 'Цвет неисследованного',
+  'sceneLight.litFrom': 'Освещено начиная с',
+};

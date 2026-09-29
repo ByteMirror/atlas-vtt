@@ -1,4 +1,5 @@
 import { App, Notice, TFile } from 'obsidian';
+import { t } from '../i18n';
 
 export interface MigrationMapping {
     oldPath: string | RegExp;
@@ -153,7 +154,7 @@ export class DataFileMigration {
      * Run the migration
      */
     async migrate(): Promise<void> {
-        new Notice('Atlas: migrating data files to hidden folders...');
+        new Notice(t('migration.running'));
 
         let migratedCount = 0;
         let errorCount = 0;
@@ -213,9 +214,9 @@ export class DataFileMigration {
         }
 
         if (errorCount > 0) {
-            new Notice(`Atlas VTT: Migration completed with ${errorCount} errors. Check console for details.`);
+            new Notice(t('migration.errors', { count: errorCount }));
         } else {
-            new Notice(`Atlas VTT: Successfully migrated ${migratedCount} data files.`);
+            new Notice(t('migration.done', { count: migratedCount }));
         }
     }
 

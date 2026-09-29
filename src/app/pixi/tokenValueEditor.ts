@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 /** Popover below a token's resource bar for editing its current and maximum values. */
 
 export interface ResourceValue {
@@ -53,11 +54,11 @@ const VIEWPORT_MARGIN = 8;
 export function openResourceEditor({ anchorEl, anchor, value, resourceLabel, onCommit, onClose }: ResourceEditorOptions): ResourceEditor {
   const root = document.body.createDiv({
     cls: 'atlas-vtt-plugin atlas-token-value-editor',
-    attr: { role: 'dialog', 'aria-label': `Edit ${resourceLabel}` },
+    attr: { role: 'dialog', 'aria-label': t('resource.edit', { label: resourceLabel }) },
   });
-  const currentInput = createField(root, 'Current', resourceLabel, value.current);
+  const currentInput = createField(root, t('resource.current', { label: resourceLabel }), value.current);
   root.createSpan({ cls: 'atlas-token-value-editor__separator', text: '/' });
-  const maxInput = createField(root, 'Maximum', resourceLabel, value.max);
+  const maxInput = createField(root, t('resource.max', { label: resourceLabel }), value.max);
 
   let closed = false;
   const close = (): void => {
@@ -122,11 +123,11 @@ export function openResourceEditor({ anchorEl, anchor, value, resourceLabel, onC
   return { close, reposition };
 }
 
-function createField(root: HTMLElement, fieldName: string, resourceLabel: string, initial: number): HTMLInputElement {
+function createField(root: HTMLElement, label: string, initial: number): HTMLInputElement {
   const input = root.createEl('input', {
     cls: 'atlas-token-value-editor__input',
     type: 'text',
-    attr: { inputmode: 'numeric', autocomplete: 'off', 'aria-label': `${fieldName} ${resourceLabel}` },
+    attr: { inputmode: 'numeric', autocomplete: 'off', 'aria-label': label },
   });
   input.value = String(initial);
   return input;

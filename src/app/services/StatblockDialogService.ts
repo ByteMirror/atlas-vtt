@@ -2,6 +2,7 @@ import { App } from 'obsidian';
 import React from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import StatblockLinkModal from '../packages/components/asset-manager/StatblockLinkModal';
+import { t } from '../i18n';
 
 export class StatblockDialogService {
   private app: App;
@@ -22,7 +23,7 @@ export class StatblockDialogService {
   public showStatblockDialog(
     currentStatblockPath: string | null,
     onLink: (statblockPath: string | null) => void,
-    assetName: string = 'Token',
+    assetName: string = t('initiative.token'),
     art: { imagePath?: string | undefined; showRing?: boolean | undefined } = {},
   ): void {
     // Clean up any existing modal

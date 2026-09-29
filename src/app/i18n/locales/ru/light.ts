@@ -1,0 +1,28 @@
+import type { Translation } from '../../types';
+
+export const light: Translation = {
+  'light.title': 'Свет',
+  'light.previewFailed': 'Не удалось воспроизвести звук',
+  'light.configure': 'Настроить свет…',
+  'light.delete': 'Удалить свет',
+  'light.preset.candle': 'Свеча',
+  'light.preset.torch': 'Факел',
+  'light.preset.lantern': 'Фонарь',
+  'light.preset.magical': 'Магический свет',
+  'light.anim.none': 'Ровный',
+  'light.anim.torch': 'Мерцание факела',
+  'light.anim.candle': 'Мерцание свечи',
+  'light.anim.pulse': 'Пульсация',
+  'light.anim.magic': 'Магическое мерцание',
+  'light.custom': 'Свой',
+  'light.settings': 'Настройки света',
+  'light.closeSettings': 'Закрыть настройки света',
+  'light.kind': 'Вид света',
+  'light.bright': 'Яркий ({unit})',
+  'light.dim': 'Тусклый ({unit})',
+  'light.intensity': 'Интенсивность',
+  'light.softness': 'Мягкость',
+  'light.animation': 'Анимация',
+  'light.turnOn': 'Включить',
+  'light.turnOff': 'Выключить',
+};

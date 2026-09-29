@@ -7,6 +7,7 @@ import { PlayerWindowService } from '../../../services/PlayerWindowService';
 import { presentActiveTabInPlayerWindow } from '../../../services/PlayerWindowPresenter';
 import { SettingsService, type AtlasSettings } from '../../../services/SettingsService';
 import { SettingRow, SettingToggleRow } from './SettingRows';
+import { t } from '../../../i18n';
 
 const DEFAULT_LOCAL_PLAYER_VIEW_SETTINGS = {
   showToolbar: false,
@@ -25,21 +26,21 @@ type LocalPlayerViewSettings = AtlasSettings['localPlayerView'];
 type LocalPlayerViewToggleKey = Exclude<keyof LocalPlayerViewSettings, 'showToolbar' | 'showCommandPalette' | 'showNotePreviews'>;
 
 const UI_TOGGLES: ReadonlyArray<{ key: LocalPlayerViewToggleKey; label: string }> = [
-  { key: 'showGrid', label: 'Show grid' },
-  { key: 'showWidgets', label: 'Show widgets' },
-  { key: 'showInitiative', label: 'Show initiative panel' },
-  { key: 'showDiceRolls', label: 'Show dice rolls' },
+  { key: 'showGrid', label: t('grid.show') },
+  { key: 'showWidgets', label: t('lpv.showWidgets') },
+  { key: 'showInitiative', label: t('lpv.showInitiative') },
+  { key: 'showDiceRolls', label: t('lpv.showDiceRolls') },
 ];
 
 const TOKEN_TOGGLES: ReadonlyArray<{ key: LocalPlayerViewToggleKey; label: string }> = [
-  { key: 'showTokenHP', label: 'Show HP bars' },
-  { key: 'showTokenStress', label: 'Show secondary resource bars' },
-  { key: 'showTokenNameplates', label: 'Show nameplates' },
+  { key: 'showTokenHP', label: t('tokens.showHP') },
+  { key: 'showTokenStress', label: t('tokens.showSecondary') },
+  { key: 'showTokenNameplates', label: t('tokens.showNameplates') },
 ];
 
 function openPlayerWindow(app: App): void {
   if (PlayerWindowService.getInstance()?.isWindowOpen()) {
-    new Notice('Player window is already open');
+    new Notice(t('lpv.alreadyOpen'));
     return;
   }
   void presentActiveTabInPlayerWindow(app);
@@ -79,18 +80,18 @@ export function LocalPlayerViewSettingsPanel(): React.ReactElement {
   return (
     <div className="atlas-command-palette-panel">
       <div className="atlas-command-palette-panel-column">
-        <h3 className="atlas-command-palette-panel-heading">Interface</h3>
+        <h3 className="atlas-command-palette-panel-heading">{t('lpv.interface')}</h3>
         {UI_TOGGLES.map(renderToggle)}
       </div>
 
       <div className="atlas-command-palette-panel-column">
-        <h3 className="atlas-command-palette-panel-heading">Tokens</h3>
+        <h3 className="atlas-command-palette-panel-heading">{t('lpv.tokens')}</h3>
         {TOKEN_TOGGLES.map(renderToggle)}
-        <SettingRow label="Note previews" hint="Note previews are not shared with the player window.">{null}</SettingRow>
+        <SettingRow label={t('lpv.notePreviews')} hint={t('lpv.notePreviewsHint')}>{null}</SettingRow>
 
         <Button variant="default" size="sm" className="atlas-command-palette-cta" onClick={() => openPlayerWindow(app)}>
           <MonitorUp />
-          Open player window
+          {t('lpv.openWindow')}
         </Button>
       </div>
     </div>

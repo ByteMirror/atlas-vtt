@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { ChevronRight } from 'lucide-react';
 import { LabelTooltip } from '../../../packages/components/primitives/tooltip';
 import { lootBaseItemCount, type LootBase } from '../../../loot/LootBaseReader';
+import { t } from '../../../i18n';
 
 type CheckState = 'on' | 'off' | 'mixed';
 
@@ -66,10 +67,10 @@ export function LootSourceTree({ bases, disabled, onChange }: LootSourceTreeProp
   return (
     <div className="atlas-loot-tree">
       <div className="atlas-loot-tree__head">
-        <span className="atlas-loot-section-label">Roll from</span>
-        <LabelTooltip describe label={allState === 'on' ? 'Untick every view.' : 'Tick every view of every base.'}>
+        <span className="atlas-loot-section-label">{t('loot.tree.rollFrom')}</span>
+        <LabelTooltip describe label={allState === 'on' ? t('loot.tree.untickAll') : t('loot.tree.tickAll')}>
           <button type="button" className="atlas-loot-text-button" onClick={() => setViews(allIds, allState !== 'on')}>
-            {allState === 'on' ? 'None' : 'All'}
+            {allState === 'on' ? t('loot.tree.none') : t('loot.tree.all')}
           </button>
         </LabelTooltip>
       </div>
@@ -80,7 +81,7 @@ export function LootSourceTree({ bases, disabled, onChange }: LootSourceTreeProp
           return (
             <li key={base.path} className={`atlas-loot-tree__base${isOpen ? ' is-open' : ''}`}>
               <div className="atlas-loot-tree__row">
-                <LabelTooltip label={`${isOpen ? 'Hide' : 'Show'} the views of ${base.name}`}>
+                <LabelTooltip label={t(isOpen ? 'loot.tree.hideViews' : 'loot.tree.showViews', { name: base.name })}>
                   <button
                     type="button"
                     className="atlas-loot-tree__toggle"

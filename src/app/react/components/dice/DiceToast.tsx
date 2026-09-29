@@ -6,6 +6,7 @@ import { getDiceCrit } from '../../../tools/diceCrit';
 import { TokenPortrait } from '../../../packages/components/shared/TokenPortrait';
 import { useDiceAvatar } from './useDiceAvatar';
 import { DICE_TOAST_KNOT_SYMBOL_ID } from './diceToastOrnament';
+import { t } from '../../../i18n';
 
 export type ToastPhase = 'entering' | 'visible' | 'exiting';
 
@@ -22,7 +23,7 @@ export function DiceToast({ result, phase, onDismiss }: DiceToastProps): React.R
 
   const crit = getDiceCrit(result);
   const source = result.source;
-  const sourceTokenName = source?.tokenName ?? 'Unknown';
+  const sourceTokenName = source?.tokenName ?? t('dice.unknown');
   const avatar = useDiceAvatar(source);
   const hasSource = source?.type === 'statblock' && Boolean(source.tokenName);
 
@@ -80,7 +81,7 @@ export function DiceToast({ result, phase, onDismiss }: DiceToastProps): React.R
         <ChevronDown
           className={cn('atlas-dice-toast__chevron', isExpanded && 'atlas-dice-toast__chevron--open')}
         />
-        <span className="atlas-dice-toast__details-label">Details</span>
+        <span className="atlas-dice-toast__details-label">{t('dice.details')}</span>
       </div>
         {isExpanded && (
           <div className="atlas-dice-toast__details">

@@ -31,6 +31,7 @@ import { useCollectionFilterDefinitions } from './hooks/useCollectionFilterDefin
 import { useFilterSearch, useSearchKeywords } from './hooks/useFilterSearch';
 import { ActiveFilterBar } from './components/search/ActiveFilterBar';
 import { DIALOG_EXIT_DURATION, dialogBackdropVariants, useDialogWindowVariants } from '../primitives/dialogMotion';
+import { t } from '../../../i18n';
 
 const wrapperVariants = {
   hidden: { opacity: 1 },
@@ -283,11 +284,11 @@ export default function AssetManager({ isOpen, onClose, initialTab, onExitComple
 
       {isOpen && !anyModalOpen && !crud.inputModalState?.isOpen && !crud.settingsModalCollectionId && !crud.isCreateSceneModalOpen && !crud.isMoveModalOpen && !tags.isTagManagerOpen && !statblock.linkingStatblockAsset && (
         settings?.shouldShowTutorial('assets') ? <Tutorial settings={settings} id="assets" steps={[
-          { title: 'Your campaign library', body: 'Keep tokens, maps, scenes, and encounters together. Use the tabs to browse, and import your images to get started.', selector: '.atlas-am-toolbar-center' },
-          { title: 'Start with a collection', body: 'Create a collection for your campaign to keep its assets together. You can switch collections here at any time.', selector: '.atlas-collections' },
-        ]} action={{ label: 'Create collection', onClick: crud.handleCreateCollection }} /> :
+          { title: t('am.tour.libraryTitle'), body: t('am.tour.libraryBody'), selector: '.atlas-am-toolbar-center' },
+          { title: t('am.tour.collectionTitle'), body: t('am.tour.collectionBody'), selector: '.atlas-collections' },
+        ]} action={{ label: t('am.tour.createCollection'), onClick: crud.handleCreateCollection }} /> :
         settings?.getSetting('onboarding').tokenImported ? <Tutorial settings={settings} id="tokenStatblocks" steps={[
-          { title: 'Give your tokens a statblock', body: 'Use Fantasy Statblocks? Right-click a token in this library and choose Link Statblock. Pick a note containing a Fantasy Statblocks statblock to connect its stats to the token.', selector: '.atlas-asset-manager-main' },
+          { title: t('am.tour.statblockTitle'), body: t('am.tour.statblockBody'), selector: '.atlas-asset-manager-main' },
         ]} /> : null
       )}
 

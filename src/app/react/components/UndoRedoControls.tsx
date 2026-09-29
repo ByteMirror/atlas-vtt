@@ -5,6 +5,7 @@ import { useMapHotkeys, useHotkeyLabels } from '../../keyboard/useMapHotkeys';
 import { ToolButton } from '../../packages/components/primitives/ToolButton';
 import { TooltipProvider } from '../../packages/components/primitives/tooltip';
 import { getHistoryStore } from '../../stores/history';
+import { t } from '../../i18n';
 
 interface UndoRedoControlsProps {
   viewId?: string;
@@ -45,7 +46,7 @@ export const UndoRedoControls: React.FC<UndoRedoControlsProps> = ({ viewId }): R
       <div className="atlas-vtt-toolbar atlas-undo-redo-controls pointer-events-auto">
         <ToolButton
           icon={Undo2}
-          label="Undo"
+          label={t('history.undo')}
           shortcut={hotkeyLabel('undo')}
           isActive={false}
           disabled={!canUndo || !store}
@@ -53,7 +54,7 @@ export const UndoRedoControls: React.FC<UndoRedoControlsProps> = ({ viewId }): R
         />
         <ToolButton
           icon={Redo2}
-          label="Redo"
+          label={t('history.redo')}
           shortcut={hotkeyLabel('redo')}
           isActive={false}
           disabled={!canRedo || !store}

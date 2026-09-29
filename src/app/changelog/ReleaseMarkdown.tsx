@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Component, MarkdownRenderer, type App } from 'obsidian';
 import { splitReleaseSections } from './releaseSections';
+import { t } from '../i18n';
 
 interface Props {
   app: App;
@@ -44,7 +45,7 @@ export function ReleaseMarkdown({ app, markdown, onRendered }: Props): React.JSX
   return <>
     <div ref={host} className="atlas-changelog-markdown" />
     {failed && <>
-      <p role="alert">Formatting could not be loaded. The release notes are shown below.</p>
+      <p role="alert">{t('changelog.formatFailed')}</p>
       <pre className="atlas-changelog-fallback">{markdown}</pre>
     </>}
   </>;

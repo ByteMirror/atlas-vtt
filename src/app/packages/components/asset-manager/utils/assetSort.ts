@@ -1,11 +1,12 @@
 import type { CreatureRating } from '../../../../creatures/creatureFacts';
 import type { AnyAsset, EncounterAsset, SortOption, SortOrder, Tab } from '../types';
+import { t } from '../../../../i18n';
 
 export const SORT_LABELS: Record<SortOption, string> = {
-  name: 'Name',
-  date: 'Date modified',
-  type: 'Type',
-  rating: 'Rating',
+  name: t('sort.name'),
+  date: t('sort.date'),
+  type: t('sort.type'),
+  rating: t('sort.rating'),
 };
 
 const ASSET_SORT_OPTIONS: readonly SortOption[] = ['name', 'date', 'type'];

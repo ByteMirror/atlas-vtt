@@ -3,6 +3,7 @@ import { FileWarning } from 'lucide-react';
 import { CoinIcon } from '../CoinIcon';
 import { Button } from '../../../packages/components/primitives/button';
 import { LoadingSpinner } from '../../../packages/components/primitives/LoadingSpinner';
+import { t } from '../../../i18n';
 
 interface LootEmptyStateProps {
   inCollection: boolean;
@@ -25,12 +26,12 @@ export function LootEmptyState({ inCollection, basesAvailable, loaded, baseCount
   }
 
   const [title, body] = !inCollection
-    ? ['This map is not in a collection', 'Loot comes from the bases of a collection. Move the map into one to roll loot on it.']
+    ? [t('loot.empty.noCollection'), t('loot.empty.noCollectionBody')]
     : !basesAvailable
-      ? ['Bases are turned off', 'The loot roller reads items from Obsidian Bases. Turn on the Bases core plugin in Obsidian’s settings, then reload Obsidian.']
+      ? [t('loot.empty.basesOff'), t('loot.empty.basesOffBody')]
       : baseCount === 0
-        ? ['No loot bases yet', 'Gather your items as notes in an Obsidian base and add it to this collection. Every note its views list becomes loot you can roll.']
-        : ['No items in the loot bases', 'The views of the collection’s loot bases list no notes. Every note a view lists is an item the roller can draw.'];
+        ? [t('loot.empty.noBases'), t('loot.empty.noBasesBody')]
+        : [t('loot.empty.noItems'), t('loot.empty.noItemsBody')];
 
   return (
     <div className="atlas-loot-empty">
@@ -39,7 +40,7 @@ export function LootEmptyState({ inCollection, basesAvailable, loaded, baseCount
       <p className="atlas-loot-empty__body">{body}</p>
       {inCollection && basesAvailable && (
         <Button variant={baseCount === 0 ? 'default' : 'outline'} className="atlas-loot-empty__action" onClick={onSetUp}>
-          {baseCount === 0 ? 'Set up loot' : 'Loot settings'}
+          {baseCount === 0 ? t('loot.empty.setUp') : t('loot.empty.settings')}
         </Button>
       )}
     </div>

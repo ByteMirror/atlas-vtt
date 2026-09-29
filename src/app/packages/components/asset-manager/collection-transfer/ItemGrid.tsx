@@ -2,6 +2,7 @@ import React from 'react';
 import type { ContentItem } from '../../../../services/collectionBundle/bundleContents';
 import { Checkbox, itemState, withKeys, type ContentSelection } from './contentSelection';
 import { VirtualGrid } from './VirtualGrid';
+import { t } from '../../../../i18n';
 
 interface ItemGridProps {
   items: readonly ContentItem[];
@@ -22,7 +23,7 @@ function ItemRow({ item, selection }: { item: ContentItem; selection?: ContentSe
           onChange={(event) => selection.onChange(withKeys(selection.excluded, [item.key], event.target.checked))}
         />
         <span className="atlas-transfer-item__name">{item.name}</span>
-        {state === 'orphaned' && <span className="atlas-transfer-item__hint">Only used by content you left out</span>}
+        {state === 'orphaned' && <span className="atlas-transfer-item__hint">{t('contents.orphaned')}</span>}
       </label>
     </div>
   );

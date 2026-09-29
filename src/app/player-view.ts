@@ -1,6 +1,7 @@
 import { WorkspaceLeaf, TFile } from "obsidian";
 import { AtlasView } from "./atlas-view";
 import type AtlasVTTPlugin from "../../main";
+import { t } from './i18n';
 
 export const PLAYER_VIEW_TYPE = "atlas-vtt-player";
 
@@ -173,7 +174,7 @@ export class PlayerView extends AtlasView {
 
   getDisplayText(): string {
     const mapFilePath = this.serviceManager.getMapService().getCurrentMapFilePath();
-    return mapFilePath ? `Player View: ${mapFilePath.split('/').pop()}` : "Player View";
+    return mapFilePath ? t('view.playerTitle', { name: mapFilePath.split('/').pop() ?? '' }) : t('view.playerDefault');
   }
   
   /** Loads the map read-only: no persistence and no camera restore. */

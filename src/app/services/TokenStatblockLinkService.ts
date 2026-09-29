@@ -7,6 +7,7 @@ import { parseResourceValue } from './statblockResources';
 import { isPersistedMapEnvelope } from './MapPersistence';
 import type { BaseToken, Character } from '../types';
 import { ATLAS_NATIVE_MODAL_CLASSES } from '../ui/nativeModal';
+import { t } from '../i18n';
 
 export interface TokenStatblockLink {
   tokenImagePath: string;
@@ -93,7 +94,7 @@ export class TokenStatblockLinkService extends EventEmitter {
     // Get the statblock file
     const statblockFile = this.app.vault.getAbstractFileByPath(statblockPath);
     if (!(statblockFile instanceof TFile)) {
-      new Notice(`Statblock not found: ${statblockPath}`);
+      new Notice(t('link.notFound', { path: statblockPath }));
       return false;
     }
     
@@ -102,8 +103,8 @@ export class TokenStatblockLinkService extends EventEmitter {
     if (existingTokenPath && existingTokenPath !== tokenImagePath) {
       if (showConfirmation) {
         const confirmed = await this.showConfirmationDialog(
-          'Statblock Already Linked',
-          `This statblock is already linked to another token. Do you want to unlink it and link to this token instead?`
+          t('link.alreadyTitle'),
+          t('link.alreadyBody')
         );
         if (!confirmed) return false;
       }
@@ -159,7 +160,7 @@ export class TokenStatblockLinkService extends EventEmitter {
     this.app.workspace.trigger('atlas-vtt:refresh-assets');
     
     // Show success notice
-    new Notice(`Token linked to statblock successfully`);
+    new Notice(t('link.linked'));
     
     return true;
   }
@@ -200,7 +201,7 @@ export class TokenStatblockLinkService extends EventEmitter {
     if (notify) this.app.workspace.trigger('atlas-vtt:refresh-assets');
     
     // Show a notice to confirm unlinking
-    new Notice(`Token unlinked from statblock`);
+    new Notice(t('link.unlinked'));
     
     // Clear the statblock's image if it still points at this token.
     if (updateStatblockAvatar) {
@@ -266,12 +267,12 @@ export class TokenStatblockLinkService extends EventEmitter {
       const item = result.items[0];
       if (item?.asset) {
         this.emit('link-changed', { type: 'linked', tokenImagePath: item.asset.imagePath, statblockPath });
-        new Notice(`Created token from ${item.name}`);
+        new Notice(t('link.created', { name: item.name }));
         return item.asset.imagePath;
       }
-      new Notice(item?.message ?? 'No token created.');
+      new Notice(item?.message ?? t('link.noneCreated'));
     } catch (error) {
-      new Notice(error instanceof Error ? error.message : 'Could not import this statblock.');
+      new Notice(error instanceof Error ? error.message : t('link.importFailed'));
     }
     return null;
   }
@@ -394,7 +395,7 @@ export class TokenStatblockLinkService extends EventEmitter {
     const stress = parseResourceValue(fm.stress, true);
     const difficulty = overrides.difficulty ?? frontmatterLabel(fm.tier) ?? frontmatterLabel(fm.difficulty);
     return {
-      name: overrides.name ?? frontmatterLabel(fm.name) ?? 'Unknown',
+      name: overrides.name ?? frontmatterLabel(fm.name) ?? t('link.unknown'),
       hp,
       ...(overrides.stress !== undefined
         ? { stress: overrides.stress, ...(overrides.maxStress !== undefined && { maxStress: overrides.maxStress }) }
@@ -422,7 +423,7 @@ export class TokenStatblockLinkService extends EventEmitter {
           contentEl.setText(message);
           
           contentEl.createDiv({ cls: "modal-button-container" }, (buttonContainer) => {
-            buttonContainer.createEl("button", { text: "Cancel" }, (btn) => {
+            buttonContainer.createEl("button", { text: t('common.cancel') }, (btn) => {
               btn.onclick = () => {
                 resolved = true;
                 this.close();
@@ -430,7 +431,7 @@ export class TokenStatblockLinkService extends EventEmitter {
               };
             });
             
-            buttonContainer.createEl("button", { text: "Confirm", cls: "mod-cta" }, (btn) => {
+            buttonContainer.createEl("button", { text: t('common.confirm'), cls: "mod-cta" }, (btn) => {
               btn.onclick = () => {
                 resolved = true;
                 this.close();

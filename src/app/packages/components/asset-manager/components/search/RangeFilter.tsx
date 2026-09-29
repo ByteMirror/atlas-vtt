@@ -4,6 +4,7 @@ import { formatRange, formatRating } from '../../../../../creatures/creatureValu
 import type { NumericRange } from '../../../../../types/creatureFilterTypes';
 import { Slider } from '../../../primitives/slider';
 import { FilterSection } from './FilterSection';
+import { t } from '../../../../../i18n';
 
 interface RangeFilterProps {
   facet: RangeFacetData;
@@ -87,7 +88,7 @@ export function RangeFilter({ facet, onChange }: RangeFilterProps): React.JSX.El
             value={[low, high]}
             onValueChange={(next) => setDragging([next[0] ?? 0, next[1] ?? last])}
             onValueCommit={commit}
-            thumbLabels={[`Lowest ${label}`, `Highest ${label}`]}
+            thumbLabels={[t('filters.lowest', { label }), t('filters.highest', { label })]}
             getValueText={(index) => formatRating(values[index] ?? 0)}
           />
         )}

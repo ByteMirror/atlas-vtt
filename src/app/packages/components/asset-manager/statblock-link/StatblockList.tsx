@@ -3,6 +3,7 @@ import { Link2 } from 'lucide-react';
 import { useScrollActivity } from '../../primitives/useScrollActivity';
 import { useScrollbarGutter } from '../../primitives/useScrollbarGutter';
 import type { StatblockEntry } from './statblockEntries';
+import { t } from '../../../../i18n';
 
 interface StatblockListProps {
   id: string;
@@ -71,7 +72,7 @@ export function StatblockList({
             <span className="atlas-statblock-link__option-detail">{entry.detail}</span>
           </span>
           {entry.path === linkedPath && (
-            <span className="atlas-statblock-link__linked"><Link2 aria-hidden />Linked</span>
+            <span className="atlas-statblock-link__linked"><Link2 aria-hidden />{t('am.link.linked')}</span>
           )}
         </div>
       ))}

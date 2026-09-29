@@ -4,6 +4,7 @@ import { generateEncounterThumbnail } from './encounterThumbnail';
 import type { EncounterFormation } from './encounterFormation';
 import './encounter-save-modal.scss';
 import { runInBackground } from '../utils/backgroundTask';
+import { getLocale, t } from '../i18n';
 
 /** One token as it will be stored inside an encounter. */
 export type EncounterTokenDraft = EncounterAsset['tokens'][number];
@@ -13,9 +14,9 @@ const THUMBNAIL_DIR = 'atlas-vtt/assets/encounter-thumbnails';
 function promptForEncounterName(app: ObsidianApp, tokens: EncounterTokenDraft[]): Promise<string | null> {
   return new Promise((resolve) => {
     const modal = new Modal(app);
-    modal.titleEl.setText('Save as encounter');
+    modal.titleEl.setText(t('encounter.saveTitle'));
     const contentEl = modal.contentEl;
-    contentEl.createEl('p', { text: `Create an encounter with ${tokens.length} tokens:` });
+    contentEl.createEl('p', { text: t('encounter.createWith', { count: tokens.length }) });
 
     const previewContainer = contentEl.createDiv({ cls: 'atlas-encounter-save-preview' });
 
@@ -26,14 +27,14 @@ function promptForEncounterName(app: ObsidianApp, tokens: EncounterTokenDraft[])
     );
 
     const list = previewContainer.createDiv();
-    list.createEl('p', { text: 'Tokens:', cls: 'setting-item-description' });
+    list.createEl('p', { text: t('encounter.tokens'), cls: 'setting-item-description' });
     const ul = list.createEl('ul', { cls: 'atlas-encounter-save-tokens' });
     tokens.forEach((t) => ul.createEl('li', { text: t.name }));
 
     const inputEl = contentEl.createEl('input', {
       type: 'text',
-      placeholder: 'Enter encounter name...',
-      value: `Encounter ${new Date().toLocaleDateString()}`,
+      placeholder: t('encounter.namePlaceholder'),
+      value: t('encounter.defaultName', { date: new Date().toLocaleDateString(getLocale()) }),
       cls: 'atlas-encounter-save-input',
     });
 
@@ -43,8 +44,8 @@ function promptForEncounterName(app: ObsidianApp, tokens: EncounterTokenDraft[])
     };
 
     const btns = contentEl.createDiv({ cls: 'atlas-encounter-save-buttons' });
-    btns.createEl('button', { text: 'Cancel' }).onclick = () => { modal.close(); resolve(null); };
-    btns.createEl('button', { text: 'Save encounter', cls: 'mod-cta' }).onclick = submit;
+    btns.createEl('button', { text: t('common.cancel') }).onclick = () => { modal.close(); resolve(null); };
+    btns.createEl('button', { text: t('encounter.save'), cls: 'mod-cta' }).onclick = submit;
     inputEl.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') submit();
       else if (e.key === 'Escape') { modal.close(); resolve(null); }
@@ -85,7 +86,7 @@ export async function saveEncounter(
   formation?: EncounterFormation,
 ): Promise<EncounterAsset | null> {
   if (tokens.length === 0) {
-    new Notice('No tokens to save as an encounter');
+    new Notice(t('encounter.noTokens'));
     return null;
   }
 
@@ -102,13 +103,13 @@ export async function saveEncounter(
       difficulty: 'medium',
       tags: [],
       thumbnailUrl,
-      data: { description: `Encounter with ${tokens.length} tokens` },
+      data: { description: t('encounter.description', { count: tokens.length }) },
     });
-    new Notice(`Encounter "${encounterName}" saved successfully!`);
+    new Notice(t('encounter.saved', { name: encounterName }));
     return encounter;
   } catch (error) {
     console.error('[encounterSaveService] Error saving encounter:', error);
-    new Notice('Failed to save encounter');
+    new Notice(t('encounter.saveFailed'));
     return null;
   }
 }

@@ -23,6 +23,7 @@ import type { LayerVisibility } from '../playerSafeFrame';
 import { destroyTree } from '../utils/destroyTree';
 import { requestRender } from '../RenderScheduler';
 import { openContextMenuGlobal } from '../../react/root/ContextMenuContext';
+import { t } from '../../i18n';
 
 const DEFAULT_BOUNDS: FogBounds = { x: -2000, y: -2000, width: 4000, height: 4000 };
 const BOUNDS_PADDING = 200;
@@ -596,7 +597,7 @@ export class FogOfWarRenderer {
     const worldPos = this.viewport.toWorld(e.global);
     openContextMenuGlobal([{
       type: 'item',
-      label: 'Delete',
+      label: t('common.delete'),
       icon: 'trash',
       destructive: true,
       onClick: () => {

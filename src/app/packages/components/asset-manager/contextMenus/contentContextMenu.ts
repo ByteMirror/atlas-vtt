@@ -1,6 +1,7 @@
 import type { ContextMenuEntry } from '../../../../react/components/context-menu/AtlasContextMenu';
 import type { SortOption, SortOrder } from '../types';
 import { SORT_LABELS } from '../utils/assetSort';
+import { t } from '../../../../i18n';
 
 export interface ContentContextMenuDeps {
   sortBy: SortOption;
@@ -19,7 +20,7 @@ export function buildContentContextMenuEntries(
 
   entries.push({
     type: 'item',
-    label: 'New Folder',
+    label: t('am.menu.newFolder'),
     icon: 'folder-plus',
     onClick: deps.handleCreateFolder,
   });
@@ -27,7 +28,7 @@ export function buildContentContextMenuEntries(
 
   entries.push({
     type: 'submenu',
-    label: 'Sort by',
+    label: t('am.menu.sortBy'),
     icon: 'arrow-up-down',
     children: [
       ...deps.sortOptions.map((option): ContextMenuEntry => ({
@@ -35,7 +36,7 @@ export function buildContentContextMenuEntries(
       })),
       {
         type: 'item',
-        label: deps.sortOrder === 'asc' ? 'Ascending' : 'Descending',
+        label: deps.sortOrder === 'asc' ? t('am.menu.ascending') : t('am.menu.descending'),
         icon: deps.sortOrder === 'asc' ? 'arrow-up' : 'arrow-down',
         onClick: () => deps.setSortOrder(deps.sortOrder === 'asc' ? 'desc' : 'asc'),
       },
@@ -45,7 +46,7 @@ export function buildContentContextMenuEntries(
 
   entries.push({
     type: 'item',
-    label: 'Refresh',
+    label: t('am.menu.refresh'),
     icon: 'refresh-cw',
     onClick: deps.handleRefresh,
   });

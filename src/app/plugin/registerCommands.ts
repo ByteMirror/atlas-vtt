@@ -2,6 +2,7 @@ import { TokenCreatorModal } from '../packages/components/asset-manager/token-cr
 import { Notice, Plugin, TFile } from 'obsidian';
 import { AtlasView } from '../atlas-view';
 import { DASHBOARD_VIEW_TYPE } from '../dashboard-view';
+import { t } from '../i18n';
 import type { GlobalAssetManagerService } from '../services/GlobalAssetManagerService';
 import type { ImageDisplayService } from '../services/ImageDisplayService';
 import { presentActiveTabInPlayerWindow } from '../services/PlayerWindowPresenter';
@@ -27,7 +28,7 @@ async function openDashboard(plugin: Plugin): Promise<void> {
     plugin.app.workspace.setActiveLeaf(leaf);
   } catch (error) {
     console.error('[Atlas] Error opening dashboard:', error);
-    new Notice('Error opening the dashboard');
+    new Notice(t('notice.dashboardOpenFailed'));
   }
 }
 
@@ -36,7 +37,7 @@ function registerPlayerViewCommands(plugin: Plugin, imageDisplay: ImageDisplaySe
 
   plugin.addCommand({
     id: 'display-image-on-player-view',
-    name: 'Display image on player view',
+    name: t('command.displayImageOnPlayerView'),
     checkCallback: (checking) => {
       const file = workspace.getActiveFile();
       if (!file || !isImageFile(file)) return false;
@@ -47,7 +48,7 @@ function registerPlayerViewCommands(plugin: Plugin, imageDisplay: ImageDisplaySe
 
   plugin.addCommand({
     id: 'dismiss-image-from-player-view',
-    name: 'Dismiss image from player view',
+    name: t('command.dismissImageFromPlayerView'),
     checkCallback: (checking) => {
       if (!imageDisplay.isImageDisplayed()) return false;
       if (!checking) imageDisplay.closeImageDisplay();
@@ -57,16 +58,16 @@ function registerPlayerViewCommands(plugin: Plugin, imageDisplay: ImageDisplaySe
 
   plugin.addCommand({
     id: 'send-map-to-player-view',
-    name: 'Send current map to player view',
+    name: t('command.sendMapToPlayerView'),
     callback: () => void presentActiveTabInPlayerWindow(plugin.app),
   });
 
-  plugin.addRibbonIcon('monitor', 'Display image on player view', () => {
+  plugin.addRibbonIcon('monitor', t('command.displayImageOnPlayerView'), () => {
     const file = workspace.getActiveFile();
     if (file && isImageFile(file)) {
       void imageDisplay.displayImageOnPlayerView(file);
     } else {
-      new Notice('Please open an image file first');
+      new Notice(t('notice.openImageFirst'));
     }
   });
 }
@@ -76,19 +77,19 @@ function registerMapCommands(plugin: Plugin, deps: CommandDependencies): void {
 
   plugin.addCommand({
     id: 'open-dashboard',
-    name: 'Open dashboard',
+    name: t('command.openDashboard'),
     callback: () => void openDashboard(plugin),
   });
 
   plugin.addCommand({
     id: 'open-scene-browser',
-    name: 'Open scene browser',
+    name: t('command.openSceneBrowser'),
     callback: () => deps.assetManager.open('scenes'),
   });
 
   plugin.addCommand({
     id: 'toggle-initiative-tracker',
-    name: 'Toggle initiative tracker',
+    name: t('command.toggleInitiativeTracker'),
     checkCallback: (checking) => {
       const view = app.workspace.getActiveViewOfType(AtlasView);
       if (!view) return false;
@@ -102,7 +103,7 @@ function registerMapCommands(plugin: Plugin, deps: CommandDependencies): void {
 
   plugin.addCommand({
     id: 'toggle-loot-roller',
-    name: 'Toggle loot roller',
+    name: t('command.toggleLootRoller'),
     checkCallback: (checking) => {
       const view = app.workspace.getActiveViewOfType(AtlasView);
       if (!view) return false;
@@ -116,7 +117,7 @@ function registerMapCommands(plugin: Plugin, deps: CommandDependencies): void {
 
   plugin.addCommand({
     id: 'toggle-dice-log',
-    name: 'Toggle dice log',
+    name: t('command.toggleDiceLog'),
     checkCallback: (checking) => {
       const view = app.workspace.getActiveViewOfType(AtlasView);
       if (!view) return false;
@@ -130,7 +131,7 @@ function registerMapCommands(plugin: Plugin, deps: CommandDependencies): void {
 
   plugin.addCommand({
     id: 'clean-up-missing-assets',
-    name: 'Clean up missing assets in current map',
+    name: t('command.cleanUpMissingAssets'),
     checkCallback: (checking) => {
       const view = app.workspace.getActiveViewOfType(AtlasView);
       if (!view) return false;
@@ -145,13 +146,13 @@ function registerStatblockCommands(plugin: Plugin): void {
 
   plugin.addCommand({
     id: 'import-statblock-tokens',
-    name: 'Import tokens from Fantasy Statblocks',
+    name: t('command.importStatblockTokens'),
     callback: () => new TokenCreatorModal(app).open(),
   });
 
   plugin.addCommand({
     id: 'create-token-from-statblock',
-    name: 'Create token from statblock image',
+    name: t('command.createTokenFromStatblock'),
     checkCallback: (checking) => {
       const file = app.workspace.getActiveFile();
       if (!file || !hasBestiaryFrontmatter(app, file)) return false;

@@ -25,6 +25,7 @@ import { LootHistory, LootResults } from './LootLists';
 import { LootEmptyState } from './LootEmptyState';
 import { LootRollerTutorials } from './LootRollerTutorials';
 import { CollectionSettingsModal } from '../CollectionSettingsModal';
+import { t } from '../../../i18n';
 
 const MARGIN = 12;
 /** Small enough for a laptop map view, big enough for the source list and one column of cards. */
@@ -34,16 +35,16 @@ const MIN_SIZE = { width: 620, height: 420 };
 const topRight = (area: PanelArea, panel: PanelArea): PanelPosition => ({ x: area.width - panel.width - MARGIN, y: 64 });
 
 function openLink(app: App, link: string): void {
-  runInBackground(app.workspace.openLinkText(link, '', true), `Opening ${link}`, 'Could not open the note');
+  runInBackground(app.workspace.openLinkText(link, '', true), `Opening ${link}`, t('loot.openFailed'));
 }
 
 function openItemNote(app: App, draw: LootDraw): void {
   const note = app.vault.getFileByPath(draw.notePath);
   if (!note) {
-    new Notice(`The note of ${draw.name} no longer exists`);
+    new Notice(t('loot.noteGone', { name: draw.name }));
     return;
   }
-  runInBackground(app.workspace.getLeaf('tab').openFile(note), `Opening ${note.path}`, 'Could not open the note');
+  runInBackground(app.workspace.getLeaf('tab').openFile(note), `Opening ${note.path}`, t('loot.openFailed'));
 }
 
 /** The loot roller window of the map view; shown for the DM while it is open. */
@@ -122,13 +123,13 @@ function LootRollerPanel(): React.ReactElement {
       initial="hidden"
       animate="visible"
       exit="exit"
-      aria-label="Loot roller"
+      aria-label={t('loot.panel')}
     >
       <header className="atlas-loot-roller__header" onPointerDown={startDrag}>
         <GripHorizontal className="atlas-loot-roller__grip" />
         <span className="atlas-loot-roller__icon"><CoinIcon /></span>
-        <h2 className="atlas-loot-roller__title">Loot</h2>
-        <CloseButton onClick={() => setOpen(false)} aria-label="Close loot roller" />
+        <h2 className="atlas-loot-roller__title">{t('loot.title')}</h2>
+        <CloseButton onClick={() => setOpen(false)} aria-label={t('loot.close')} />
       </header>
 
       {!collectionId || !basesAvailable || !loaded || !hasItems ? (

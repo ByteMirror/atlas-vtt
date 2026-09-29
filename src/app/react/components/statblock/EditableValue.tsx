@@ -1,4 +1,5 @@
 import React, { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import { t } from '../../../i18n';
 
 export interface EditableValueProps {
   /** Current display text */
@@ -115,7 +116,7 @@ export function EditableValue({
       }}
     >
       {children ?? value}
-      <span id={labelId} hidden>{ariaLabel ? `Edit ${ariaLabel}` : 'Edit value'}</span>
+      <span id={labelId} hidden>{ariaLabel ? t('statblock.editNamed', { name: ariaLabel }) : t('statblock.editValue')}</span>
     </span>
   );
 }

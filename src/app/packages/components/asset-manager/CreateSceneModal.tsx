@@ -12,6 +12,7 @@ import { Button } from '../primitives/button';
 import { dialogOverlayMotion, useDialogWindowVariants } from '../primitives/dialogMotion';
 import { TagPicker } from './token-creator/TagPicker';
 import { useAssetTags } from './token-creator/useAssetTags';
+import { t } from '../../../i18n';
 
 interface CreateSceneModalProps {
   isOpen: boolean;
@@ -148,7 +149,7 @@ export default function CreateSceneModal({
       const scenePath = normalizePath(`atlas-vtt/collections/${collectionId}/scenes/${sceneName.trim()}.atlasmap`);
 
       if (app.vault.getAbstractFileByPath(scenePath)) {
-        new Notice(`A scene named "${sceneName.trim()}" already exists`);
+        new Notice(t('am.scene.nameTaken', { name: sceneName.trim() }));
         return;
       }
 
@@ -176,7 +177,7 @@ export default function CreateSceneModal({
       onSceneCreated();
     } catch (error) {
       console.error('[CreateSceneModal] Error creating scene:', error);
-      new Notice(`Could not create scene: ${error instanceof Error ? error.message : String(error)}`);
+      new Notice(t('am.scene.createFailed', { error: error instanceof Error ? error.message : String(error) }));
     } finally {
       setIsCreating(false);
     }
@@ -237,14 +238,14 @@ export default function CreateSceneModal({
         <div className="atlas-create-scene-header">
           <h3>
             <MapIcon />
-            New scene
+            {t('am.scene.new')}
           </h3>
           <CloseButton onClick={onClose} />
         </div>
 
         <div className="atlas-create-scene-body">
           <div className="atlas-create-scene-field">
-            <label className="atlas-create-scene-label">Scene Name</label>
+            <label className="atlas-create-scene-label">{t('am.scene.name')}</label>
             <input
               ref={inputRef}
               type="text"
@@ -252,7 +253,7 @@ export default function CreateSceneModal({
               value={sceneName}
               onChange={(e) => setSceneName(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Enter scene name"
+              placeholder={t('am.scene.namePlaceholder')}
             />
           </div>
 
@@ -266,9 +267,9 @@ export default function CreateSceneModal({
         </div>
 
         <div className="atlas-create-scene-footer">
-          <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
+          <Button variant="outline" size="sm" onClick={onClose}>{t('common.cancel')}</Button>
           <Button variant="default" size="sm" onClick={() => { void handleCreate(); }} disabled={!sceneName.trim() || !assetService || isCreating || isCreatingTag}>
-            {isCreating ? 'Creating…' : 'Create scene'}
+            {isCreating ? t('am.create.creating') : t('am.scene.create')}
           </Button>
         </div>
       </motion.div>

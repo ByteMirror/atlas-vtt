@@ -11,6 +11,7 @@ import { IntersectionsTab } from './IntersectionsTab';
 import { FreehandTab } from './FreehandTab';
 import { CloseButton } from '../../packages/components/primitives/CloseButton';
 import { LabelTooltip } from '../../packages/components/primitives/tooltip';
+import { t } from '../../i18n';
 
 // ---------------------------------------------------------------------------
 // Tabs
@@ -19,8 +20,8 @@ import { LabelTooltip } from '../../packages/components/primitives/tooltip';
 type AlignmentTab = 'intersections' | 'freehand';
 
 const ALIGNMENT_TABS: ReadonlyArray<{ id: AlignmentTab; label: string }> = [
-  { id: 'intersections', label: 'Intersections' },
-  { id: 'freehand', label: 'Freehand' },
+  { id: 'intersections', label: t('align.tab.intersections') },
+  { id: 'freehand', label: t('align.tab.freehand') },
 ];
 
 const TAB_COMPONENTS: Record<AlignmentTab, (props: AlignmentTabProps) => React.ReactElement> = {
@@ -134,7 +135,7 @@ export function GridAlignmentOverlay({ onClose }: GridAlignmentOverlayProps): Re
     setResult(null);
     setResetKey(k => k + 1);
     setDetecting(true);
-    setDetectionStatus('Analysing map image…');
+    setDetectionStatus(t('align.analysing'));
 
     // Let the status paint before the CPU-bound detection runs.
     window.setTimeout(() => {
@@ -146,13 +147,13 @@ export function GridAlignmentOverlay({ onClose }: GridAlignmentOverlayProps): Re
       }
       setDetecting(false);
       if (!detected || !detected.gridType) {
-        setDetectionStatus('No grid found in the map image. Align manually instead.');
+        setDetectionStatus(t('align.noGrid'));
         return;
       }
       setResult(detected);
       controllerRef.current?.showPreview(detected.cellSize, detected.offsetX, detected.offsetY, detected.gridType);
       setDetectionStatus(
-        `Detected ${describeGridType(detected.gridType)}, ${detected.cellSize.toFixed(2)} px (found on ${Math.round((detected.confidence ?? 0) * 100)}% of the map). Check the preview, then Apply.`,
+        t('align.detectedFull', { type: describeGridType(detected.gridType), size: detected.cellSize.toFixed(2), percent: Math.round((detected.confidence ?? 0) * 100) }),
       );
     }, 30);
   }, [view, detecting]);
@@ -226,7 +227,7 @@ export function GridAlignmentOverlay({ onClose }: GridAlignmentOverlayProps): Re
         <div className="atlas-grid-alignment-header">
           <div className="atlas-grid-alignment-title">
             <Crosshair size={16} />
-            <span>Grid Alignment</span>
+            <span>{t('align.title')}</span>
           </div>
           <CloseButton onClick={handleCancel} />
         </div>
@@ -245,14 +246,14 @@ export function GridAlignmentOverlay({ onClose }: GridAlignmentOverlayProps): Re
         </div>
 
         {/* Automatic detection from the map image; the tabs below stay available as the manual path */}
-        <LabelTooltip label="Detect grid type, size and offset from the map image">
+        <LabelTooltip label={t('align.detectHint')}>
           <button
             className="atlas-grid-alignment-btn atlas-grid-alignment-btn--secondary atlas-grid-alignment-btn--wide"
             disabled={detecting}
             onClick={handleAutoDetect}
           >
             <Wand2 size={14} />
-            {detecting ? 'Detecting…' : 'Auto-detect from map image'}
+            {detecting ? t('align.detecting') : t('align.autoDetect')}
           </button>
         </LabelTooltip>
         {detectionStatus && <p className="atlas-grid-alignment-hint">{detectionStatus}</p>}
@@ -271,17 +272,17 @@ export function GridAlignmentOverlay({ onClose }: GridAlignmentOverlayProps): Re
         <div className="atlas-grid-alignment-actions">
           <button className="atlas-grid-alignment-btn atlas-grid-alignment-btn--secondary" onClick={handleReset}>
             <RotateCcw size={14} />
-            Reset
+            {t('common.reset')}
           </button>
           <button className="atlas-grid-alignment-btn atlas-grid-alignment-btn--secondary" onClick={handleCancel}>
-            Cancel
+            {t('common.cancel')}
           </button>
           <button
             className="atlas-grid-alignment-btn atlas-grid-alignment-btn--primary"
             disabled={!result}
             onClick={handleApply}
           >
-            Apply
+            {t('common.apply')}
           </button>
         </div>
       </div>

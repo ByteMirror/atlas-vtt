@@ -4,6 +4,7 @@ import { PlayerWindowService } from './PlayerWindowService';
 import { playImageEnter, playImageExit } from './imageDisplayMotion';
 import { ImageOverlayControls } from './imageOverlayControls';
 import './image-display.scss';
+import { t } from '../i18n';
 
 /** An image overlay in the player window. */
 interface ImageDisplay {
@@ -82,10 +83,10 @@ export class ImageDisplayService {
 
       this.addImageDisplayMenuItem(menu, result.file);
       menu.addItem((item) => {
-        item.setTitle('Copy image').setIcon('copy').onClick(() => this.copyImageToClipboard(result.imgElement));
+        item.setTitle(t('image.copy')).setIcon('copy').onClick(() => this.copyImageToClipboard(result.imgElement));
       });
       menu.addItem((item) => {
-        item.setTitle('Open in default app').setIcon('external-link').onClick(() => this.app.openWithDefaultApp(result.file.path));
+        item.setTitle(t('image.openDefault')).setIcon('external-link').onClick(() => this.app.openWithDefaultApp(result.file.path));
       });
     });
     this.contextMenuEventRefs.push(editorMenuRef);
@@ -185,9 +186,9 @@ export class ImageDisplayService {
 
       const file = imageFile;
       const entries: ContextMenuEntry[] = [
-        { type: 'item', label: 'Display on player view', icon: 'monitor', onClick: () => this.displayImageOnPlayerView(file) },
-        { type: 'item', label: 'Copy image', icon: 'copy', onClick: () => this.copyImageToClipboard(imgElement) },
-        { type: 'item', label: 'Open in Default App', icon: 'external-link', onClick: () => this.app.openWithDefaultApp(file.path) },
+        { type: 'item', label: t('image.display'), icon: 'monitor', onClick: () => this.displayImageOnPlayerView(file) },
+        { type: 'item', label: t('image.copy'), icon: 'copy', onClick: () => this.copyImageToClipboard(imgElement) },
+        { type: 'item', label: t('image.openDefault'), icon: 'external-link', onClick: () => this.app.openWithDefaultApp(file.path) },
       ];
 
       openContextMenuGlobal(entries, { x: event.clientX, y: event.clientY });
@@ -201,10 +202,10 @@ export class ImageDisplayService {
     try {
       const blob = await this.renderImageAsPng(imgElement.src);
       await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
-      new Notice('Image copied to clipboard');
+      new Notice(t('image.copied'));
     } catch (error) {
       console.error('Failed to copy image:', error);
-      new Notice('Failed to copy image');
+      new Notice(t('image.copyFailed'));
     }
   }
 
@@ -236,7 +237,7 @@ export class ImageDisplayService {
   private addImageDisplayMenuItem(menu: Menu, file: TFile): void {
     menu.addItem((item) => {
       item
-        .setTitle('Display on player view')
+        .setTitle(t('image.display'))
         .setIcon('monitor')
         .onClick(async () => {
           await this.displayImageOnPlayerView(file);
@@ -251,7 +252,7 @@ export class ImageDisplayService {
     const playerWindowService = PlayerWindowService.getInstance();
     
     if (!playerWindowService || !playerWindowService.isWindowOpen()) {
-      new Notice('Player window is not open. Please open it first.');
+      new Notice(t('image.windowClosed'));
       return;
     }
 
@@ -264,7 +265,7 @@ export class ImageDisplayService {
       // Get the player window
       const playerWindow = playerWindowService.getWindow();
       if (!playerWindow) {
-        new Notice('Player window is not available');
+        new Notice(t('image.windowUnavailable'));
         return;
       }
 
@@ -273,7 +274,7 @@ export class ImageDisplayService {
       
     } catch (error) {
       console.error('[ImageDisplayService] Error displaying image:', error);
-      new Notice('Failed to display image on player view');
+      new Notice(t('image.displayFailed'));
     }
   }
 
@@ -290,7 +291,7 @@ export class ImageDisplayService {
     this.currentImage.src = imageUrl;
 
     const closeButton = this.imageContainer.createEl('button', { cls: 'atlas-image-display__close', text: '×' });
-    closeButton.setAttribute('aria-label', 'Close');
+    closeButton.setAttribute('aria-label', t('common.close'));
     closeButton.addEventListener('click', () => this.closeImageDisplay());
 
     this.controls = new ImageOverlayControls(this.imageContainer, this.currentImage, playerWindow, () => this.closeImageDisplay());
@@ -308,7 +309,7 @@ export class ImageDisplayService {
   public closeImageDisplay(): void {
     const display = this.detachImageDisplay();
     if (!display) return;
-    new Notice('Image display closed');
+    new Notice(t('image.closed'));
     void this.leave(display);
   }
   

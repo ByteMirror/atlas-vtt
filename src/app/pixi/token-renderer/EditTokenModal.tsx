@@ -14,6 +14,7 @@ import { buildResourceUpdates, statblockResourceDefaults, type ResourceDefaults 
 import { TokenLightingFields, type LightChoice } from './TokenLightingFields';
 import { WALLS_AND_LIGHTING_ENABLED } from '../../featureFlags';
 import { unitLabelFor } from '../../grid/measurementFormat';
+import { t } from '../../i18n';
 import { presetOf } from '../../lighting/lightPresets';
 import { carriedLight, visionForm, visionFromForm, type VisionForm } from '../../lighting/tokenLighting';
 import { numberText } from '../../utils/numberInput';
@@ -36,7 +37,7 @@ interface EditTokenModalProps {
 }
 
 const defaultPlaceholder = (value: number | undefined): string =>
-  value === undefined ? 'None' : `Statblock default: ${value}`;
+  value === undefined ? t('editToken.none') : t('editToken.statblockDefault', { value });
 
 function EditTokenModalInner({ initial, resourceDefaults, unit, onSave, onClose }: EditTokenModalProps): React.ReactElement {
   const [name, setName] = useState(initial.name);
@@ -85,25 +86,25 @@ function EditTokenModalInner({ initial, resourceDefaults, unit, onSave, onClose 
     <div className="atlas-modal-overlay" onClick={onClose}>
       <div className="atlas-modal atlas-edit-token-modal" onClick={(e) => e.stopPropagation()}>
         <div className="atlas-modal-header">
-          <h3>Edit Token</h3>
+          <h3>{t('editToken.title')}</h3>
           <CloseButton onClick={onClose} />
         </div>
 
         <div className="atlas-modal-body">
           <div className="atlas-edit-token__field">
-            <label className="atlas-edit-token__label">Name</label>
+            <label className="atlas-edit-token__label">{t('editToken.name')}</label>
             <input
               ref={inputRef}
               type="text"
               className="atlas-input"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Token name"
+              placeholder={t('editToken.namePlaceholder')}
             />
           </div>
 
           <div className="atlas-edit-token__field atlas-edit-token__field--row">
-            <label className="atlas-edit-token__label">Show Nameplate</label>
+            <label className="atlas-edit-token__label">{t('editToken.showNameplate')}</label>
             <div className="atlas-toggle" onClick={() => setShowNameplate(!showNameplate)}>
               <div className={`atlas-toggle__switch atlas-toggle__switch--${showNameplate ? 'on' : 'off'}`}>
                 <div className={`atlas-toggle__thumb atlas-toggle__thumb--${showNameplate ? 'on' : 'off'}`}>
@@ -114,20 +115,20 @@ function EditTokenModalInner({ initial, resourceDefaults, unit, onSave, onClose 
           </div>
 
           <div className="atlas-edit-token__section-divider" />
-          <div className="atlas-edit-token__section-label">Resources</div>
+          <div className="atlas-edit-token__section-label">{t('editToken.resources')}</div>
           <NumberOverrideField
-            label="Max HP"
+            label={t('editToken.maxHp')}
             value={maxHpInput}
             onChange={setMaxHpInput}
             placeholder={defaultPlaceholder(resourceDefaults.maxHp)}
-            resetLabel="Reset to statblock default"
+            resetLabel={t('editToken.resetStatblock')}
           />
           <NumberOverrideField
-            label="Max Secondary Resource"
+            label={t('editToken.maxSecondary')}
             value={maxStressInput}
             onChange={setMaxStressInput}
             placeholder={defaultPlaceholder(resourceDefaults.maxStress)}
-            resetLabel="Reset to statblock default"
+            resetLabel={t('editToken.resetStatblock')}
           />
           {WALLS_AND_LIGHTING_ENABLED && (
             <TokenLightingFields vision={vision} onVisionChange={setVision} light={light} onLightChange={setLight} unit={unit} />
@@ -135,8 +136,8 @@ function EditTokenModalInner({ initial, resourceDefaults, unit, onSave, onClose 
         </div>
 
         <div className="atlas-modal-footer">
-          <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
-          <Button variant="default" size="sm" onClick={handleSave}>Save</Button>
+          <Button variant="outline" size="sm" onClick={onClose}>{t('common.cancel')}</Button>
+          <Button variant="default" size="sm" onClick={handleSave}>{t('common.save')}</Button>
         </div>
       </div>
     </div>

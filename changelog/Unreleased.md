@@ -13,6 +13,7 @@
 - Open and close doors by clicking the door badges, with any tool.
 - Double-click a light, or right-click it, to change its kind, colour, range, brightness, softness and flicker.
 - Cairn is a built-in game system preset, with 5-foot squares and its conditions: Deprived, Fatigue, Critical Damage, Paralyzed, Delirious and Fleeing
+- Atlas follows Obsidian's language. Set Obsidian to Russian under Settings → General → Language and Atlas' menus, dialogs, settings and notices appear in Russian; other languages fall back to English until they are translated.
 
 ## Improved
 

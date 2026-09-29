@@ -1,6 +1,7 @@
 import type { Asset } from '../AssetService';
 import type { BundleFile, BundleFileRole } from './bundleFormat';
 import { baseName } from '../../utils/pathUtils';
+import { t } from '../../i18n';
 
 export type ContentCategory = 'scenes' | 'maps' | 'tokens' | 'encounters' | 'statblocks' | 'notes';
 
@@ -38,12 +39,12 @@ const FILE_CATEGORIES: Partial<Record<BundleFileRole, ContentCategory>> = { 'sta
 
 /** In display order; the ones people look for first are listed even when empty. */
 const GROUPS: ReadonlyArray<{ category: ContentCategory; label: string; alwaysShown?: boolean }> = [
-  { category: 'scenes', label: 'Scenes', alwaysShown: true },
-  { category: 'maps', label: 'Maps', alwaysShown: true },
-  { category: 'tokens', label: 'Tokens' },
-  { category: 'encounters', label: 'Encounters' },
-  { category: 'statblocks', label: 'Statblocks', alwaysShown: true },
-  { category: 'notes', label: 'Notes', alwaysShown: true },
+  { category: 'scenes', label: t('bundle.group.scenes'), alwaysShown: true },
+  { category: 'maps', label: t('bundle.group.maps'), alwaysShown: true },
+  { category: 'tokens', label: t('bundle.group.tokens') },
+  { category: 'encounters', label: t('bundle.group.encounters') },
+  { category: 'statblocks', label: t('bundle.group.statblocks'), alwaysShown: true },
+  { category: 'notes', label: t('bundle.group.notes'), alwaysShown: true },
 ];
 
 const noteName = (path: string): string => baseName(path).replace(/\.md$/i, '');

@@ -5,6 +5,7 @@ import type { AssetCardHandlers } from '../hooks/useAssetCardHandlers';
 import { TokenPortrait } from '../../shared/TokenPortrait';
 import { LabelTooltip, Tooltip, TooltipContent, TooltipTrigger } from '../../primitives/tooltip';
 import { AssetTagMenu } from './AssetTagMenu';
+import { t } from '../../../../i18n';
 
 export interface AssetCardProps extends AssetCardHandlers {
   asset: AnyAsset;
@@ -100,7 +101,7 @@ export const AssetCard = memo(function AssetCard({
             <Artwork asset={asset} />
 
             <div className="atlas-asset-card-checkbox" onClick={(event) => { event.stopPropagation(); onSelect(asset.id, event, true); }}>
-              <LabelTooltip label={`Select ${asset.name}`}>
+              <LabelTooltip label={t('am.card.select', { name: asset.name })}>
                 <input type="checkbox" checked={isSelected} onChange={() => {}} />
               </LabelTooltip>
             </div>
@@ -108,7 +109,7 @@ export const AssetCard = memo(function AssetCard({
             <AssetTagMenu asset={asset} />
 
             {statblockPath && spawnCount <= 1 && (
-              <LabelTooltip label="Statblock linked – click to open">
+              <LabelTooltip label={t('am.card.statblockLinked')}>
                 <div
                   className="atlas-asset-statblock-indicator"
                   onClick={(event) => { event.stopPropagation(); onOpenStatblock(statblockPath); }}
@@ -120,7 +121,7 @@ export const AssetCard = memo(function AssetCard({
 
             {spawnCount > 1 && (
               <div className="atlas-asset-spawn-badge" onDoubleClick={(event) => event.stopPropagation()}>
-                <LabelTooltip label="Decrease spawn count">
+                <LabelTooltip label={t('am.card.decrease')}>
                   <button
                     type="button"
                     className="atlas-spawn-btn"
@@ -128,19 +129,19 @@ export const AssetCard = memo(function AssetCard({
                   >−</button>
                 </LabelTooltip>
                 <span className="atlas-spawn-count">×{spawnCount}</span>
-                <LabelTooltip label="Increase spawn count">
+                <LabelTooltip label={t('am.card.increase')}>
                   <button
                     type="button"
                     className="atlas-spawn-btn"
                     onClick={(event) => { event.stopPropagation(); onSpawnCountChange(asset.id, spawnCount + 1); }}
                   >+</button>
                 </LabelTooltip>
-                <LabelTooltip label={`Spawn ${spawnCount} tokens`}>
+                <LabelTooltip label={t('am.card.spawn', { count: spawnCount })}>
                   <button
                     type="button"
                     className="atlas-spawn-btn atlas-spawn-go"
                     onClick={(event) => { event.stopPropagation(); onOpen(asset, spawnCount); }}
-                  >Go</button>
+                  >{t('am.card.go')}</button>
                 </LabelTooltip>
               </div>
             )}

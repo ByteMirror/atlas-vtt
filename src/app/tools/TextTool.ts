@@ -14,6 +14,7 @@ import type { GridSystem } from '../grid/GridSystem';
 import { EventEmitter } from 'events';
 import type { TextElement } from '../types';
 import { promptForText } from '../ui/textInputDialog';
+import { t } from '../i18n';
 
 export class TextTool {
   private viewport: Viewport;
@@ -29,7 +30,7 @@ export class TextTool {
   
   // Default text properties
   private defaultTextProps = {
-    text: 'Click to add text',
+    text: t('text.default'),
     fontSize: 24,
     fontFamily: 'Arial',
     color: '#FFFFFF',
@@ -185,9 +186,9 @@ export class TextTool {
 
   private async showTextCreationDialog(x: number, y: number): Promise<void> {
     const text = await promptForText({
-      title: 'Add text',
-      confirmLabel: 'Create',
-      placeholder: 'Enter your text...',
+      title: t('text.add'),
+      confirmLabel: t('creator.create'),
+      placeholder: t('text.placeholder'),
     });
     if (!text) return;
 

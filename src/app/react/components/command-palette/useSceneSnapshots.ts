@@ -4,6 +4,7 @@ import { useAtlasUI } from '../../root/AtlasUIContext';
 import { useAtlasStore } from '../../ViewStoreContext';
 import { SceneSnapshotService, nextSnapshotName, type SceneSnapshotEntry } from '../../../snapshots/SceneSnapshotService';
 import { confirmAction } from '../../../ui/confirmDialog';
+import { t } from '../../../i18n';
 import { SNAPSHOT_THUMBNAIL_SIZE } from '../../../services/MapThumbnailService';
 
 export interface SceneSnapshotsController {
@@ -65,18 +66,18 @@ export function useSceneSnapshots(onRestore: () => void): SceneSnapshotsControll
     await run(async () => {
       await view.saveMap();
       await service.create(mapFile, name, view.serviceManager.renderMapThumbnail(SNAPSHOT_THUMBNAIL_SIZE));
-    }, 'Could not save the snapshot');
+    }, t('snapshots.saveFailed'));
   }, [entries, run, service, view]);
 
   const restore = useCallback(async (entry: SceneSnapshotEntry): Promise<void> => {
     if (!view) return;
     const confirmed = await confirmAction({
-      title: `Restore "${entry.snapshot.name}"?`,
+      title: t('snapshots.restoreTitle', { name: entry.snapshot.name }),
       message: [
-        'Tokens, pins, fog, drawings, initiative and everything else on this map return to how they were in this snapshot.',
-        'Changes made since then are lost and cannot be undone. Save a snapshot first to keep them.',
+        t('snapshots.restoreBody'),
+        t('snapshots.restoreWarning'),
       ],
-      confirmLabel: 'Restore',
+      confirmLabel: t('common.restore'),
       destructive: true,
     });
     if (!confirmed) return;
@@ -84,8 +85,8 @@ export function useSceneSnapshots(onRestore: () => void): SceneSnapshotsControll
     onRestore();
     await run(async () => {
       await view.reloadActiveScene((file) => service.restoreInto(file, entry.snapshot));
-      new Notice(`Restored "${entry.snapshot.name}"`);
-    }, 'Could not restore the snapshot');
+      new Notice(t('snapshots.restored', { name: entry.snapshot.name }));
+    }, t('snapshots.restoreFailed'));
   }, [onRestore, run, service, view]);
 
   /** An empty name keeps the old one: every snapshot has a name. */
@@ -93,11 +94,11 @@ export function useSceneSnapshots(onRestore: () => void): SceneSnapshotsControll
     const mapFile = view?.file;
     if (!view || !(mapFile instanceof TFile)) return;
     const confirmed = await confirmAction({
-      title: `Overwrite "${entry.snapshot.name}"?`,
+      title: t('snapshots.overwriteTitle', { name: entry.snapshot.name }),
       message: [
-        'The snapshot is replaced with the map as it is now. Its previous state is lost.',
+        t('snapshots.overwriteBody'),
       ],
-      confirmLabel: 'Overwrite',
+      confirmLabel: t('common.overwrite'),
       destructive: true,
     });
     if (!confirmed) return;
@@ -105,7 +106,7 @@ export function useSceneSnapshots(onRestore: () => void): SceneSnapshotsControll
     await run(async () => {
       await view.saveMap();
       await service.overwrite(entry, mapFile, view.serviceManager.renderMapThumbnail(SNAPSHOT_THUMBNAIL_SIZE));
-    }, 'Could not overwrite the snapshot');
+    }, t('snapshots.overwriteFailed'));
   }, [run, service, view]);
 
   const rename = useCallback(async (entry: SceneSnapshotEntry, requestedName: string): Promise<void> => {
@@ -113,18 +114,18 @@ export function useSceneSnapshots(onRestore: () => void): SceneSnapshotsControll
     if (!name || name === entry.snapshot.name) return;
     // Show the new name at once, like a file rename; the refresh after writing confirms it.
     setEntries((current) => current.map((item) => (item === entry ? { ...item, snapshot: { ...item.snapshot, name } } : item)));
-    await run(() => service.rename(entry, name), 'Could not rename the snapshot');
+    await run(() => service.rename(entry, name), t('snapshots.renameFailed'));
   }, [run, service]);
 
   const remove = useCallback(async (entry: SceneSnapshotEntry): Promise<void> => {
     const confirmed = await confirmAction({
-      title: `Delete "${entry.snapshot.name}"?`,
-      message: ['The snapshot is removed from this map. The map itself does not change.'],
-      confirmLabel: 'Delete',
+      title: t('snapshots.deleteTitle', { name: entry.snapshot.name }),
+      message: [t('snapshots.deleteBody')],
+      confirmLabel: t('common.delete'),
       destructive: true,
     });
     if (!confirmed) return;
-    await run(() => service.delete(entry), 'Could not delete the snapshot');
+    await run(() => service.delete(entry), t('snapshots.deleteFailed'));
   }, [run, service]);
 
   const thumbnailUrl = useCallback((entry: SceneSnapshotEntry): string | null => service.thumbnailUrl(entry), [service]);

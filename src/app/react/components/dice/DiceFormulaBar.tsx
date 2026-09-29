@@ -2,6 +2,7 @@ import React from 'react';
 import { Dices, X } from 'lucide-react';
 import { Button } from '../../../packages/components/primitives/button';
 import { LabelTooltip } from '../../../packages/components/primitives/tooltip';
+import { t } from '../../../i18n';
 
 interface DiceSelection {
   [die: string]: number;
@@ -27,10 +28,10 @@ export function DiceFormulaBar({ selection, onClear, onRoll }: DiceFormulaBarPro
   return (
     <div className="atlas-dice-formula-bar">
       <span className="atlas-dice-formula-text">
-        {hasSelection ? formula : 'Select dice to roll'}
+        {hasSelection ? formula : t('dice.selectToRoll')}
       </span>
       <div className="atlas-dice-formula-actions">
-        <LabelTooltip label="Clear selection">
+        <LabelTooltip label={t('dice.clearSelection')}>
           <Button
             variant="ghost"
             size="sm"
@@ -40,7 +41,7 @@ export function DiceFormulaBar({ selection, onClear, onRoll }: DiceFormulaBarPro
             <X size={14} />
           </Button>
         </LabelTooltip>
-        <LabelTooltip label="Roll dice">
+        <LabelTooltip label={t('dice.roll')}>
           <Button
             variant="default"
             size="sm"
@@ -48,7 +49,7 @@ export function DiceFormulaBar({ selection, onClear, onRoll }: DiceFormulaBarPro
             disabled={!hasSelection}
           >
             <Dices size={14} />
-            Roll
+            {t('dice.rollShort')}
           </Button>
         </LabelTooltip>
       </div>

@@ -3,6 +3,7 @@ import { formatRating } from '../../../../creatures/creatureValues';
 import { matchingKeywords, queryContextAt, quoteValue, type QueryContext } from '../../../../search/querySyntax';
 import type { Tag } from '../types';
 import { suggestedKeywords, type FilterKeyword } from './filterKeywords';
+import { t } from '../../../../i18n';
 
 export type FilterSuggestion =
   /** `negated`: typed after a `-`, so it completes to `-prefix:`. */
@@ -77,7 +78,7 @@ export function filterSuggestions(text: string, cursor: number, sources: Suggest
     const offered = (fragment ? sources.keywords : suggestedKeywords(sources.keywords, sources.facets, sources.tags.length > 0))
       .filter((keyword) => !negated || keyword.negatable);
     const items = matchingKeywords(offered, fragment).map((keyword): FilterSuggestion => ({ kind: 'keyword', keyword, negated }));
-    return items.length > 0 ? { mode: 'keyword', heading: negated ? 'Exclude' : 'Filter by', items, context } : null;
+    return items.length > 0 ? { mode: 'keyword', heading: negated ? t('filters.exclude') : t('filters.filterBy'), items, context } : null;
   }
   const { keyword } = context;
   // A value typed in full comes first, so Enter takes it rather than a longer one ("1", not "1/4").
@@ -88,7 +89,7 @@ export function filterSuggestions(text: string, cursor: number, sources: Suggest
   const label = keyword.description.split(':')[0]!;
   return {
     mode: 'value',
-    heading: context.negated ? `Exclude ${label.toLowerCase()}` : label,
+    heading: context.negated ? t('filters.excludeField', { field: label.toLocaleLowerCase() }) : label,
     items,
     ...(typedFreely && { hint: keyword.description }),
     context,

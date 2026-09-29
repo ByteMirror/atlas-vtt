@@ -2,9 +2,9 @@ import React from 'react';
 import { Dices, Minus, Plus } from 'lucide-react';
 import { Button } from '../../../packages/components/primitives/button';
 import { LabelTooltip } from '../../../packages/components/primitives/tooltip';
-import { plural } from '../../../utils/plural';
 import { RARITY_LABELS, RARITY_TONES, type RarityTone } from '../../../loot/lootRarity';
 import { LOOT_MAX_COUNT } from '../../../stores/lootRollerSlice';
+import { t } from '../../../i18n';
 
 interface LootRollBarProps {
   /** Items of each rarity in the ticked views; empty when no item names its rarity. */
@@ -29,13 +29,13 @@ export function LootRollBar({ rarityCounts, excluded, onExcludedChange, count, a
   return (
     <div className="atlas-loot-rollbar">
       {rarityCounts.size > 0 && (
-        <div className="atlas-loot-rarities" role="group" aria-label="Rarities to roll">
+        <div className="atlas-loot-rarities" role="group" aria-label={t('loot.rarities')}>
           {RARITY_TONES.map((tone) => {
             const on = !excluded.has(tone);
             const toneCount = rarityCounts.get(tone) ?? 0;
-            const items = plural(toneCount, `${RARITY_LABELS[tone].toLowerCase()} item`);
+            const values = { count: toneCount, rarity: RARITY_LABELS[tone] };
             return (
-              <LabelTooltip key={tone} describe label={on ? `${items} in the ticked views. Click to leave them out of rolls.` : `${items} left out of rolls. Click to roll them again.`}>
+              <LabelTooltip key={tone} describe label={on ? t('loot.rarityOn', values) : t('loot.rarityOff', values)}>
                 <button
                   type="button"
                   className={`atlas-loot-rarity${on ? ' is-on' : ''}`}
@@ -53,8 +53,8 @@ export function LootRollBar({ rarityCounts, excluded, onExcludedChange, count, a
         </div>
       )}
       <div className="atlas-loot-rollbar__actions">
-        <div className="atlas-loot-stepper" role="group" aria-label="Number of items">
-          <LabelTooltip label="Roll fewer items">
+        <div className="atlas-loot-stepper" role="group" aria-label={t('loot.count')}>
+          <LabelTooltip label={t('loot.fewer')}>
             <Button
               variant="ghost"
               size="icon"
@@ -69,7 +69,7 @@ export function LootRollBar({ rarityCounts, excluded, onExcludedChange, count, a
             {count}
             <span className="atlas-loot-stepper__unit">{count === 1 ? 'item' : 'items'}</span>
           </span>
-          <LabelTooltip label="Roll more items">
+          <LabelTooltip label={t('loot.more')}>
             <Button
               variant="ghost"
               size="icon"
@@ -83,13 +83,13 @@ export function LootRollBar({ rarityCounts, excluded, onExcludedChange, count, a
         </div>
         <LabelTooltip
           describe
-          label={available === 0 ? 'Tick a view, or switch a rarity back on, to have items to roll.' : `Draws ${plural(count, 'item')} from ${plural(available, 'item')}, each with the same chance.`}
+          label={available === 0 ? t('loot.nothingToRoll') : t('loot.draws', { items: t('loot.items', { count }), count: available })}
         >
           {/* The span takes the hover while the button is disabled, so the hint still shows. */}
           <span className="atlas-loot-roll-trigger">
             <Button variant="default" className="atlas-loot-roll-button" disabled={available === 0} onClick={onRoll}>
               <Dices />
-              Roll loot
+              {t('loot.roll')}
             </Button>
           </span>
         </LabelTooltip>

@@ -16,6 +16,7 @@ import { computeTokenStrokeWidth, restingTokenUIScale, selectedTokenUIScale } fr
 import { getTokenRingCenterRadius } from './token-renderer/tokenRingMetrics';
 import { ValueTransition } from './utils/ValueTransition';
 import { MOTION_SLOW_MS, prefersReducedMotion } from '../utils/motion';
+import { t } from '../i18n';
 
 /**
  * Text is drawn at scale 0.333 and the viewport zooms to at most 5x, so a
@@ -496,7 +497,7 @@ export class TokenUIRenderer {
       displayName = token.statblockName;
     } else if (hasStatblock) {
       // Token has a statblock but no name was loaded - show placeholder
-      displayName = 'Unknown Creature';
+      displayName = t('token.unknownCreature');
     }
     // If no statblock and no name, displayName stays null - don't show nameplate
 
@@ -1002,7 +1003,7 @@ export class TokenUIRenderer {
     };
     
     const inputHandler = () => {
-      const displayText = input.value || 'Click to name';
+      const displayText = input.value || t('token.clickToName');
       this.nameText.text = displayText;
       // Set text opacity based on whether it's a placeholder (same as normal)
       this.nameText.alpha = input.value ? 0.6 : 0.3;

@@ -3,6 +3,7 @@ import { ChevronDown } from 'lucide-react';
 import type { Tab } from '../types';
 import { tabs, getTabDisplayName } from '../types';
 import { HeaderMenu } from './HeaderMenu';
+import { t } from '../../../../i18n';
 
 export interface TabSwitcherProps {
   activeTab: Tab;
@@ -22,7 +23,7 @@ export function TabSwitcher({ activeTab, onTabChange, assetCounts }: TabSwitcher
   return (
     <>
       <nav className="atlas-asset-manager-tabs" aria-labelledby={labelId}>
-        <span id={labelId} hidden>Asset type</span>
+        <span id={labelId} hidden>{t('am.tabs.assetType')}</span>
         {tabs.map((tab) => (
           <button
             key={tab}
@@ -39,7 +40,7 @@ export function TabSwitcher({ activeTab, onTabChange, assetCounts }: TabSwitcher
 
       <HeaderMenu
         className="atlas-am-tab-menu"
-        label={`Asset type: ${activeName}`}
+        label={t('am.tabs.current', { name: activeName })}
         triggerClassName="atlas-am-tab-menu-trigger"
         align="center"
         triggerContent={

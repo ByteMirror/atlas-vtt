@@ -8,6 +8,7 @@ import { STORED_IMAGE_SCALE } from './cropMath';
 import { prepareSaveImage, type SaveImageContext } from './prepareSaveImages';
 import { overwriteStoredImage, storedImageFile } from './storedTokenImage';
 import type { EditTokenInput, TokenPreview } from './types';
+import { t } from '../../../../i18n';
 
 export interface EditedPreviewSave extends SaveImageContext {
   app: App;
@@ -44,7 +45,7 @@ export async function saveEditedPreview(save: EditedPreviewSave): Promise<number
       prepared = await prepareSaveImage(source, preview, save);
     } catch (error) {
       console.error(`[TokenCreator] Failed to optimize ${preview.name}:`, error);
-      new Notice(`Failed to optimize ${preview.name}. Cannot update ${mode}.`);
+      new Notice(t(`creator.${mode}.optimizeFailed`, { name: preview.name }));
       return 0;
     }
     const data = await prepared.image.arrayBuffer();

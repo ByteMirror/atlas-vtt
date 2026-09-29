@@ -3,6 +3,7 @@ import { Check, ImageOff, ImagePlus } from 'lucide-react';
 import type { CoverCandidate, CoverChoice, CurrentCover } from '../../../../services/collectionBundle/collectionCover';
 import { LabelTooltip } from '../../primitives/tooltip';
 import { useScrollActivity } from '../../primitives/useScrollActivity';
+import { t } from '../../../../i18n';
 
 interface CoverPickerProps {
   value: CoverChoice;
@@ -54,20 +55,20 @@ export function CoverPicker({ value, current, candidates, upload, onUpload, onCh
   return (
     <section className="atlas-transfer-covers" aria-labelledby={titleId}>
       <div className="atlas-transfer-covers__header">
-        <span id={titleId} className="atlas-transfer-eyebrow">Cover</span>
-        <span className="atlas-transfer-covers__hint">Shown when people import it</span>
+        <span id={titleId} className="atlas-transfer-eyebrow">{t('cover.title')}</span>
+        <span className="atlas-transfer-covers__hint">{t('cover.hint')}</span>
       </div>
       <div ref={setList} className="atlas-transfer-covers__list" role="radiogroup" aria-labelledby={titleId}>
-        <Card label="Upload image" hint="Use an image of your own as the cover" variant="action" isOption={false} onSelect={() => inputRef.current?.click()}>
+        <Card label={t('cover.upload')} hint={t('cover.uploadHint')} variant="action" isOption={false} onSelect={() => inputRef.current?.click()}>
           <ImagePlus aria-hidden="true" />
         </Card>
         {upload && (
-          <Card label="Uploaded image" selected={value.kind === 'upload'} onSelect={() => onChange({ kind: 'upload', image: upload.image })}>
+          <Card label={t('cover.uploaded')} selected={value.kind === 'upload'} onSelect={() => onChange({ kind: 'upload', image: upload.image })}>
             <img src={upload.url} alt="" draggable={false} />
           </Card>
         )}
         {current && (
-          <Card label="Current cover" selected={value.kind === 'current'} onSelect={() => onChange({ kind: 'current' })}>
+          <Card label={t('cover.current')} selected={value.kind === 'current'} onSelect={() => onChange({ kind: 'current' })}>
             <img src={current.url} alt="" draggable={false} decoding="async" />
           </Card>
         )}
@@ -76,7 +77,7 @@ export function CoverPicker({ value, current, candidates, upload, onUpload, onCh
             <img src={candidate.previewUrl} alt="" draggable={false} loading="lazy" decoding="async" />
           </Card>
         ))}
-        <Card label="No cover" hint="Export without a cover image" variant="action" selected={value.kind === 'none'} onSelect={() => onChange({ kind: 'none' })}>
+        <Card label={t('cover.none')} hint={t('cover.noneHint')} variant="action" selected={value.kind === 'none'} onSelect={() => onChange({ kind: 'none' })}>
           <ImageOff aria-hidden="true" />
         </Card>
       </div>

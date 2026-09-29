@@ -1,3 +1,4 @@
+import { t } from '../../../i18n';
 import type React from "react"
 import { Circle, Cloud, Eraser, Flashlight, Hand, Lightbulb, Pencil, Ruler, Stamp, Triangle, Type } from "lucide-react"
 import type { AtlasState } from "../../../atlasStore"
@@ -32,7 +33,7 @@ export function moveToolFace(activeTool: Tool): ToolFace {
   const laser = activeTool === "laser-pointer"
   return {
     icon: laser ? Flashlight : Hand,
-    label: laser ? "Laser Pointer" : "Move/Select",
+    label: laser ? t('toolbar.laser') : t('toolbar.moveSelect'),
     tool: laser ? "laser-pointer" : "move",
     isActive: laser || activeTool === "move",
   }
@@ -42,22 +43,22 @@ export function fogToolFace(activeTool: Tool): ToolFace {
   const eraser = activeTool === "eraser"
   return {
     icon: eraser ? Eraser : Cloud,
-    label: eraser ? "Fog Eraser" : "Fog Tool",
+    label: eraser ? t('toolbar.fogEraser') : t('toolbar.fogTool'),
     tool: eraser ? "eraser" : "fog",
     isActive: eraser || activeTool === "fog",
   }
 }
 
 export function drawToolFace(activeTool: Tool): ToolFace {
-  if (activeTool === "draw-eraser") return { icon: Eraser, label: "Drawing Eraser", tool: activeTool, isActive: true }
-  if (activeTool === "draw-icon") return { icon: Stamp, label: "Icon Stamp", tool: activeTool, isActive: true }
-  return { icon: Pencil, label: "Draw Tool", tool: "draw-pen", isActive: activeTool === "draw-pen" }
+  if (activeTool === "draw-eraser") return { icon: Eraser, label: t('toolbar.drawingEraser'), tool: activeTool, isActive: true }
+  if (activeTool === "draw-icon") return { icon: Stamp, label: t('toolbar.iconStamp'), tool: activeTool, isActive: true }
+  return { icon: Pencil, label: t('toolbar.drawTool'), tool: "draw-pen", isActive: activeTool === "draw-pen" }
 }
 
 export function measureToolFace(activeTool: Tool): ToolFace {
-  if (activeTool === "measure-circle") return { icon: Circle, label: "Measure Circle", tool: activeTool, isActive: true }
-  if (activeTool === "measure-cone") return { icon: Triangle, label: "Measure Cone", tool: activeTool, isActive: true }
-  return { icon: Ruler, label: "Measure Line", tool: "measure", isActive: activeTool === "measure" }
+  if (activeTool === "measure-circle") return { icon: Circle, label: t('toolbar.measureCircle'), tool: activeTool, isActive: true }
+  if (activeTool === "measure-cone") return { icon: Triangle, label: t('toolbar.measureCone'), tool: activeTool, isActive: true }
+  return { icon: Ruler, label: t('toolbar.measureLine'), tool: "measure", isActive: activeTool === "measure" }
 }
 
 /** Face of a tool without family members. */
@@ -66,7 +67,7 @@ export function singleToolFace(tool: Tool, icon: ToolFace["icon"], label: string
 }
 
 export function textToolFace(activeTool: Tool): ToolFace {
-  return singleToolFace("text", Type, "Text Tool", activeTool)
+  return singleToolFace("text", Type, t('toolbar.textTool'), activeTool)
 }
 
 export function lightingToolFace(activeTool: Tool): ToolFace {

@@ -57,8 +57,3 @@ export const ZOOM_STEP = 0.1;
 export function clampZoom(scale: number): number {
   return Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, scale));
 }
-
-export function modeNoun(mode: CreatorMode, count: number): string {
-  const singular = mode === 'map' ? 'map' : 'token';
-  return count === 1 ? singular : `${singular}s`;
-}

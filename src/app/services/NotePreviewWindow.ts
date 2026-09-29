@@ -6,6 +6,7 @@ import type { NoteViewState, PinnedNotePreview } from '../stores/pinnedNotePrevi
 import { PreviewWindowPlacement } from './previewWindowLayout';
 import { NOTE_PREVIEW_LAYER_CLASS } from './uiLayers';
 import { applyNoteScroll, readNoteViewState, toOpenViewState } from './noteViewState';
+import { t } from '../i18n';
 import { findEditorHeading, findRenderedHeading, headingLine } from './noteHeadings';
 import { alignHeading, holdHeadingInView } from './headingScroll';
 
@@ -125,24 +126,24 @@ export class NotePreviewWindow {
 
     const header = this.element.createDiv({ cls: 'atlas-note-preview-header' });
     header.addEventListener('mousedown', this.onDragStart.bind(this));
-    this.titleElement = header.createSpan({ cls: 'atlas-note-preview-title', text: 'Loading...' });
+    this.titleElement = header.createSpan({ cls: 'atlas-note-preview-title', text: t('preview.loading') });
     const controlsDiv = header.createDiv({ cls: 'atlas-note-preview-controls' });
     // Pin Button
     this.pinButton = controlsDiv.createEl('button', { cls: 'atlas-note-preview-pin-btn' });
     setIcon(this.pinButton, 'pin');
-    this.pinButton.setAttribute('aria-label', 'Pin window');
+    this.pinButton.setAttribute('aria-label', t('preview.pin'));
     this.pinButton.onclick = () => this.togglePin();
     
     // Open File Button
     const openFileBtn = controlsDiv.createEl('button', { cls: 'atlas-note-preview-open-btn' });
     setIcon(openFileBtn, 'file-text');
-    openFileBtn.setAttribute('aria-label', 'Open file');
+    openFileBtn.setAttribute('aria-label', t('preview.openFile'));
     openFileBtn.onclick = () => this.openFile();
     
     // Close Button
     const closeBtn = controlsDiv.createEl('button', { cls: 'atlas-note-preview-close-btn' });
     setIcon(closeBtn, 'x');
-    closeBtn.setAttribute('aria-label', 'Close window');
+    closeBtn.setAttribute('aria-label', t('preview.close'));
     closeBtn.onclick = () => this.close();
 
     // Content area for the leaf
@@ -234,7 +235,7 @@ export class NotePreviewWindow {
   private async openNoteInLeaf() {
     const file = this.app.vault.getAbstractFileByPath(this.notePath);
     if (!(file instanceof TFile)) {
-      if (this.titleElement) this.titleElement.setText('Error: File not found');
+      if (this.titleElement) this.titleElement.setText(t('preview.notFound'));
       console.error(`[NotePreviewWindow] File not found: ${this.notePath}`);
       return;
     }
@@ -242,7 +243,7 @@ export class NotePreviewWindow {
     if (this.titleElement) {
       const displayTitle = this.headerToScrollTo 
         ? `${file.basename} > ${this.headerToScrollTo}`
-        : file.basename || 'Loading...';
+        : file.basename || t('preview.loading');
       this.titleElement.setText(displayTitle);
     }
     
@@ -464,7 +465,7 @@ export class NotePreviewWindow {
           // Open the link in the main workspace, not in the preview
           // This preserves the map view context
           const newLeaf = e.metaKey || e.ctrlKey;
-          runInBackground(this.app.workspace.openLinkText(href, '', newLeaf), `Opening link ${href}`, 'Could not open the linked note');
+          runInBackground(this.app.workspace.openLinkText(href, '', newLeaf), `Opening link ${href}`, t('preview.openLinkFailed'));
         }
       });
     };
@@ -691,7 +692,7 @@ export class NotePreviewWindow {
       setIcon(this.pinButton, this.isPinned ? 'pin-off' : 'pin');
       
       // Update label and class
-      this.pinButton.setAttribute('aria-label', this.isPinned ? 'Unpin window' : 'Pin window');
+      this.pinButton.setAttribute('aria-label', this.isPinned ? t('preview.unpin') : t('preview.pin'));
       
       // Toggle the pinned class
       if (this.isPinned) {
@@ -815,7 +816,7 @@ export class NotePreviewWindow {
       // If we have a header to scroll to, handle it
       if (this.headerToScrollTo) {
         // Use openLinkText which handles headers properly
-        runInBackground(this.app.workspace.openLinkText(this.originalNotePath, '', false), `Opening ${this.originalNotePath}`, 'Could not open the note');
+        runInBackground(this.app.workspace.openLinkText(this.originalNotePath, '', false), `Opening ${this.originalNotePath}`, t('loot.openFailed'));
       }
       this.close(); // Close the preview after opening the file
     }

@@ -63,7 +63,10 @@ function createNoteLeaf(noteViews: MarkdownView[]): WorkspaceLeaf {
 
 /** Without `noteLeaves` the workspace has no leaf to spare and previews render plain markdown. */
 function createHarness({ noteLeaves = false } = {}): Harness {
-  const { app } = createInMemoryApp({ files: { 'notes/tavern.md': 'Tavern notes' } });
+  const { app } = createInMemoryApp({ files: {
+    'notes/tavern.md': 'Tavern notes',
+    'notes/journal.md': 'Journal notes',
+  } });
   app.vault.getFileByPath = app.vault.getAbstractFileByPath;
 
   const atlasLeafRoot = document.body.createDiv({ cls: 'workspace-leaf mod-active' });
@@ -162,6 +165,96 @@ describe('NotePreviewUIManager pinned previews', () => {
     harness.manager.destroy();
     document.body.empty();
     vi.unstubAllGlobals();
+  });
+
+  it('retargets a hovered token on Shift changes without another pointer event', () => {
+    const show = vi.spyOn(harness.manager, 'showOrCreatePreview').mockResolvedValue();
+    const listeners = harness.eventBus.listenerCount('pin-hover-preview');
+    harness.eventBus.emit('pin-hover-preview', {
+      pin: {
+        id: 'token-1', type: 'token', notePath: 'notes/tavern.md',
+        linkedNotePath: 'notes/tavern.md', statblockPath: 'creature.md',
+        x: 0, y: 0,
+      },
+      screenX: 100, screenY: 100,
+      pixiEvent: { metaKey: true, ctrlKey: true, shiftKey: false },
+    });
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Shift', ctrlKey: true, shiftKey: true }));
+    document.dispatchEvent(new KeyboardEvent('keyup', { key: 'Shift', ctrlKey: true, shiftKey: false }));
+    expect(show.mock.calls.map(([pin]) => pin.notePath)).toEqual([
+      'creature.md', 'notes/tavern.md', 'creature.md',
+    ]);
+    expect(harness.eventBus.listenerCount('pin-hover-preview')).toBe(listeners);
+  });
+
+  it('replaces the unpinned token preview when Shift changes', async () => {
+    harness.eventBus.emit('pin-hover-preview', {
+      pin: {
+        id: 'token-1', type: 'token', notePath: 'notes/tavern.md',
+        linkedNotePath: 'notes/journal.md', statblockPath: 'notes/tavern.md',
+        x: 0, y: 0,
+      },
+      screenX: 100, screenY: 100,
+      pixiEvent: { metaKey: true, ctrlKey: true, shiftKey: false },
+    });
+    await findPreview();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Shift', ctrlKey: true, shiftKey: true }));
+    await waitFor(() => {
+      const previews = document.querySelectorAll('.atlas-note-preview-window');
+      expect(previews).toHaveLength(1);
+      expect(previews[0]?.textContent).toContain('Journal notes');
+    });
+    document.dispatchEvent(new KeyboardEvent('keyup', { key: 'Shift', ctrlKey: true, shiftKey: false }));
+    await waitFor(() => {
+      const previews = document.querySelectorAll('.atlas-note-preview-window');
+      expect(previews).toHaveLength(1);
+      expect(previews[0]?.textContent).toContain('Tavern notes');
+    });
+  });
+
+  it('closes an unpinned preview when the selected token note is missing', async () => {
+    harness.eventBus.emit('pin-hover-preview', {
+      pin: {
+        id: 'token-1', type: 'token', notePath: 'notes/tavern.md',
+        linkedNotePath: 'notes/deleted.md', statblockPath: 'notes/tavern.md',
+        x: 0, y: 0,
+      },
+      screenX: 100, screenY: 100,
+      pixiEvent: { metaKey: true, ctrlKey: true, shiftKey: false },
+    });
+    await findPreview();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Shift', ctrlKey: true, shiftKey: true }));
+    await waitFor(() => expect(document.querySelector('.atlas-note-preview-window')).toBeNull());
+  });
+
+  it('hides a linked token note when GM view is turned off', async () => {
+    harness.eventBus.emit('pin-hover-preview', {
+      pin: { id: 'token-1', type: 'token', notePath: 'notes/journal.md',
+        linkedNotePath: 'notes/journal.md', ordinaryNote: true, x: 0, y: 0 },
+      screenX: 100, screenY: 100,
+      pixiEvent: { metaKey: true, ctrlKey: true, shiftKey: false },
+    });
+    await waitFor(() => expect(document.querySelector('.atlas-note-preview-window')?.textContent).toContain('Journal notes'));
+    harness.store.getState().setGMView(false);
+    await waitFor(() => expect(document.querySelector('.atlas-note-preview-window')).toBeNull());
+  });
+
+  it('closes a pinned token note preview when its link is removed', async () => {
+    harness.eventBus.emit('pin-hover-preview', {
+      pin: { id: 'token-1', type: 'token', notePath: 'notes/journal.md',
+        linkedNotePath: 'notes/journal.md', ordinaryNote: true, x: 0, y: 0 },
+      screenX: 100, screenY: 100,
+      pixiEvent: { metaKey: true, ctrlKey: true, shiftKey: false },
+    });
+    const preview = await waitFor(() => {
+      const element = document.querySelector<HTMLElement>('.atlas-note-preview-window');
+      expect(element?.textContent).toContain('Journal notes');
+      return element!;
+    });
+    click(preview, 'pin');
+    harness.eventBus.emit('close-active-preview', 'notes/journal.md::token-1');
+    expect(document.querySelector('.atlas-note-preview-window')).toBeNull();
+    expect(harness.store.getState().pinnedNotePreviews['token-1']).toBeUndefined();
   });
 
   it('reopens a pinned preview where it was left after switching to another scene and back', async () => {

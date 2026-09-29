@@ -13,12 +13,17 @@ import { findAtlasLeafByViewId } from '../utils/atlasLeafLookup';
 import { readPinnedNotePreviews } from '../stores/pinnedNotePreviewSlice';
 import { isModHeld } from '../keyboard/modKey';
 import type { ViewAtlasStore } from '../storeFactory';
+import { isLinkedNotePreview, linkedPreviewPath } from '../pixi/token-renderer/tokenNoteLink';
 
 /**
  * A hovered token presented to the preview system like a pin on its linked
  * statblock note. The vitals travel with it so the statblock preview can mirror them.
  */
 export interface TokenPreviewAnchor extends TokenVitals {
+  /** Explicit note links use the Markdown preview even when the note is a creature. */
+  ordinaryNote?: boolean;
+  linkedNotePath?: string;
+  statblockPath?: string;
   id: string;
   notePath: string;
   x: number;
@@ -62,7 +67,9 @@ export class NotePreviewUIManager {
    */
   private mapUnloading = false;
   private activePreviews: Map<string, IPreviewWindow> = new Map();
+  private linkedTokenPreviews = new WeakSet<IPreviewWindow>();
   private isModifierKeyDown = false;
+  private isShiftKeyDown = false;
   private lastHoveredPinId: string | null = null;
   /** Element under the pointer, kept until it leaves; replayed on each CMD/Ctrl press. */
   private currentHover: {
@@ -76,6 +83,7 @@ export class NotePreviewUIManager {
   private boundHandleKeyUp!: (e: KeyboardEvent) => void;
   private boundHandleFocus!: () => void;
   private activeLeafChangeRef: EventRef | null = null;
+  private unsubscribeGMView: (() => void) | null = null;
   private zIndexCounter = 5; // stay below asset manager (50) and Obsidian overlays (~1000)
 
   constructor(app: App, eventBus: EventEmitter, store: ViewAtlasStore, viewId: string) {
@@ -87,6 +95,15 @@ export class NotePreviewUIManager {
     // Styles are loaded via styles/main.scss → note-preview-window.scss
     this.boundHideAllUnpinnedPreviewsOnBlur = () => this.hideAllUnpinnedPreviews();
     this.initializeGlobalListeners();
+    this.unsubscribeGMView = this.store.subscribe((state) => state.isGMView, (isGMView) => {
+      if (!isGMView) this.forgetHover();
+      for (const preview of this.activePreviews.values()) {
+        if (!this.linkedTokenPreviews.has(preview)) continue;
+        if (!isGMView && !preview.getIsPinned()) preview.hide(true);
+        else if (!isGMView) preview.element?.hide();
+        else if (!this.suspended) preview.element?.show();
+      }
+    });
   }
 
   private initializeGlobalListeners(): void {
@@ -104,6 +121,7 @@ export class NotePreviewUIManager {
       let modifierKeyDown = this.isModifierKeyDown;
       if (data.pixiEvent) {
         modifierKeyDown = isModHeld(data.pixiEvent);
+        this.isShiftKeyDown = data.pixiEvent.shiftKey;
       }
       
       // Hover events only fire when the hovered element changes, so remember
@@ -133,6 +151,7 @@ export class NotePreviewUIManager {
     this.boundHandleKeyUp = this.handleKeyUp.bind(this);
     this.boundHandleFocus = () => {
       this.isModifierKeyDown = false;
+      this.isShiftKeyDown = false;
     };
     
     document.addEventListener('keydown', this.boundHandleKeyDown);
@@ -205,8 +224,9 @@ export class NotePreviewUIManager {
         sourceLeaf,
         saved,
       );
+      if (state.objects.tokens[saved.anchorId]?.notePath === saved.notePath) this.linkedTokenPreviews.add(preview);
       this.trackNotePreview(preview);
-      if (this.suspended) preview.element?.hide();
+      if (this.suspended || (!state.isGMView && this.linkedTokenPreviews.has(preview))) preview.element?.hide();
     }
   }
 
@@ -240,17 +260,38 @@ export class NotePreviewUIManager {
   }
 
   private showPreviewFor(hover: NonNullable<typeof this.currentHover>): void {
+    if ('type' in hover.pin && hover.pin.type === 'token') {
+      const state = this.store.getState();
+      if (state.isPlayerView) return;
+    }
+    const pin = this.previewAnchorFor(hover.pin);
+    if (!pin) return;
+    if ('type' in pin && pin.type === 'token' && pin.ordinaryNote
+      && !(this.app.vault.getAbstractFileByPath(pin.notePath) instanceof TFile)) {
+      this.hideAllUnpinnedPreviews();
+      return;
+    }
     runInBackground(
-      this.showOrCreatePreview(hover.pin, hover.screenX, hover.screenY, hover.sourceLeaf),
+      this.showOrCreatePreview(pin, hover.screenX, hover.screenY, hover.sourceLeaf),
       'Showing note preview',
     );
   }
 
+  private previewAnchorFor(pin: PreviewAnchor): PreviewAnchor | null {
+    if (!('type' in pin) || pin.type !== 'token') return pin;
+    const notePath = this.store.getState().isGMView ? pin.linkedNotePath : undefined;
+    const path = linkedPreviewPath(pin.statblockPath, notePath, this.isShiftKeyDown)
+      ?? (!pin.linkedNotePath && !pin.statblockPath ? pin.notePath : undefined);
+    if (!path) return null;
+    return { ...pin, notePath: path, ordinaryNote: isLinkedNotePreview(pin.statblockPath, notePath, this.isShiftKeyDown) };
+  }
+
   private handleKeyDown(e: KeyboardEvent): void {
     if (isModHeld(e)) {
-      const justPressed = !this.isModifierKeyDown;
+      const changed = !this.isModifierKeyDown || this.isShiftKeyDown !== e.shiftKey;
       this.isModifierKeyDown = true;
-      if (justPressed && this.currentHover) {
+      this.isShiftKeyDown = e.shiftKey;
+      if (changed && this.currentHover) {
         this.showPreviewFor(this.currentHover);
       }
     } else if (e.key === 'Escape') {
@@ -259,10 +300,14 @@ export class NotePreviewUIManager {
   }
 
   private handleKeyUp(e: KeyboardEvent): void {
+    const shiftChanged = this.isShiftKeyDown !== e.shiftKey;
+    this.isShiftKeyDown = e.shiftKey;
     if (!isModHeld(e)) {
       this.isModifierKeyDown = false;
       // Always hide all unpinned previews when modifier is released
       this.hideAllUnpinnedPreviews();
+    } else if (shiftChanged && this.currentHover) {
+      this.showPreviewFor(this.currentHover);
     }
   }
   
@@ -284,8 +329,19 @@ export class NotePreviewUIManager {
   ): Promise<void> {
 
     // First, check if we already have a preview for this exact pin
+    const expectsStatblock = 'type' in pin && pin.type === 'token' && !pin.ordinaryNote
+      && findCreatureForNotePath(pin.notePath) !== null;
+    if ('type' in pin && pin.type === 'token') {
+      for (const preview of this.activePreviews.values()) {
+        if (preview.originatingPin?.id !== pin.id || preview.getIsPinned()) continue;
+        if (preview.notePath === pin.notePath && (preview instanceof StatblockPreviewWindow) === expectsStatblock) continue;
+        preview.hide(true);
+        this.handlePreviewClosed(preview);
+      }
+    }
     const existingPreviewForPin = Array.from(this.activePreviews.values()).find(
-      p => p.originatingPin?.id === pin.id
+      p => p.originatingPin?.id === pin.id && p.notePath === pin.notePath
+        && (p instanceof StatblockPreviewWindow) === expectsStatblock
     );
     
     if (existingPreviewForPin) {
@@ -300,7 +356,8 @@ export class NotePreviewUIManager {
       return;
     }
 
-    // Hide all unpinned previews before creating a new one
+    // A mode switch replaces the previous unpinned window for this token.
+    // Pinned windows remain where the GM placed them.
     this.hideAllUnpinnedPreviews();
     
     // Scene links → lightweight tooltip with thumbnail + "Open Map" button; nothing for a scene not in this collection
@@ -321,7 +378,7 @@ export class NotePreviewUIManager {
       // Notes backed by a Fantasy Statblocks creature → rich statblock preview for tokens
       const isStatblock = findCreatureForNotePath(file.path) !== null;
 
-      if (isStatblock && 'type' in pin && pin.type === 'token') {
+      if (isStatblock && 'type' in pin && pin.type === 'token' && !pin.ordinaryNote) {
         const statblockPreview = new StatblockPreviewWindow(
           this.app, 
           pin.notePath, 
@@ -331,7 +388,7 @@ export class NotePreviewUIManager {
         );
         
         if (statblockPreview.element) {
-          const previewKey = `${pin.notePath}::${pin.id}`;
+          const previewKey = `${pin.notePath}::${pin.id}::statblock`;
           this.activePreviews.set(previewKey, statblockPreview);
           this.raiseZIndex(statblockPreview);
           statblockPreview.element.addEventListener('mousedown', () => this.raiseZIndex(statblockPreview));
@@ -343,14 +400,16 @@ export class NotePreviewUIManager {
     }
     
     // Create a normal note preview window
-    this.trackNotePreview(new NotePreviewWindow(
+    const preview = new NotePreviewWindow(
       this.app,
       pin.notePath,
       pin,
       this,
       { x: screenX, y: screenY },
       sourceLeaf ?? null,
-    ));
+    );
+    if ('type' in pin && pin.type === 'token' && pin.ordinaryNote) this.linkedTokenPreviews.add(preview);
+    this.trackNotePreview(preview);
   }
 
   private trackNotePreview(preview: NotePreviewWindow): void {
@@ -421,10 +480,14 @@ export class NotePreviewUIManager {
   /** Shows the pinned previews hidden by `suspendPreviews` again. */
   public resumePreviews(): void {
     this.suspended = false;
-    this.activePreviews.forEach((preview) => preview.element?.show());
+    this.activePreviews.forEach((preview) => {
+      if (this.store.getState().isGMView || !this.linkedTokenPreviews.has(preview)) preview.element?.show();
+    });
   }
 
   public destroy(): void {
+    this.unsubscribeGMView?.();
+    this.unsubscribeGMView = null;
     document.removeEventListener('keydown', this.boundHandleKeyDown);
     document.removeEventListener('keyup', this.boundHandleKeyUp);
     window.removeEventListener('blur', this.boundHideAllUnpinnedPreviewsOnBlur);

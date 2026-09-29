@@ -109,9 +109,13 @@ export class StatblockPreviewWindow {
     });
   }
 
-  hide(_force?: boolean): void {
+  hide(force?: boolean): void {
     if (this.closing) return;
     this.closing = true;
+    if (force) {
+      this.destroy();
+      return;
+    }
     if (this.element) {
       this.element.classList.add('atlas-statblock-preview-window--closing');
       window.setTimeout(() => {

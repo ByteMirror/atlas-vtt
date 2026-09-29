@@ -262,6 +262,13 @@ export class Modal {
   onClose(): void {}
 }
 
+export class FuzzySuggestModal<T> extends Modal {
+  setPlaceholder(_placeholder: string): void {}
+  getItems(): T[] { return []; }
+  getItemText(_item: T): string { return ''; }
+  onChooseItem(_item: T): void {}
+}
+
 export const Platform = {
   isMacOS: false,
   isWin: false,

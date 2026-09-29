@@ -78,4 +78,22 @@ describe('NotePreviewUIManager statblock previews', () => {
     vi.advanceTimersByTime(FADE_MS);
     expect(openWindows()).toBe(0);
   });
+
+  it('switches between statblock and Markdown previews for the same note path', () => {
+    eventBus.emit('pin-hover-preview', {
+      pin: { id: 'token-1', notePath: NOTE_PATH, linkedNotePath: NOTE_PATH,
+        statblockPath: NOTE_PATH, x: 0, y: 0, type: 'token', name: 'Goblin' },
+      screenX: 100, screenY: 100,
+      pixiEvent: { metaKey: true, ctrlKey: false, shiftKey: false },
+    });
+    expect(openWindows()).toBe(1);
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Shift', metaKey: true, shiftKey: true }));
+    expect(openWindows()).toBe(0);
+    expect(document.querySelectorAll('.atlas-note-preview-window')).toHaveLength(1);
+
+    document.dispatchEvent(new KeyboardEvent('keyup', { key: 'Shift', metaKey: true }));
+    expect(openWindows()).toBe(1);
+    expect(document.querySelectorAll('.atlas-note-preview-window')).toHaveLength(0);
+  });
 });

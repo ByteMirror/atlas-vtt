@@ -1,5 +1,5 @@
 import { App, TFile } from 'obsidian';
-import { AssetService, Asset } from './AssetService';
+import { AssetService, Asset, type EncounterAssetData } from './AssetService';
 import { isPersistedMapEnvelope } from './MapPersistence';
 import { normalizeImagePath } from '../utils/pathUtils';
 import { mapThumbnailPath } from '../utils/dataFileMigration';
@@ -64,6 +64,7 @@ export class FileReferenceService {
   private async updateAssetMetadata(moved: MovedPath): Promise<boolean> {
     const assetService = AssetService.getInstance(this.app);
     await assetService.initialize();
+    const encounterRecords: Array<{ id: string; data: EncounterAssetData }> = [];
 
     /** Sets `record[key]` to the moved path; returns whether it moved. */
     const follow = <K extends string>(record: Partial<Record<K, string | null | undefined>>, key: K): boolean => {
@@ -73,7 +74,7 @@ export class FileReferenceService {
       return true;
     };
 
-    return assetService.rewriteAssets((asset: Asset): boolean => {
+    const changed = await assetService.rewriteAssets((asset: Asset): boolean => {
       let changed = follow(asset, 'filePath');
       switch (asset.type) {
         case 'token':
@@ -81,14 +82,24 @@ export class FileReferenceService {
           changed = follow(asset, 'statblockPath') || changed;
           break;
         case 'encounter':
-        case 'player':
+        case 'player': {
+          let encounterNoteMoved = false;
           for (const list of [asset.tokens, asset.data?.tokens]) {
             for (const token of list ?? []) {
               changed = follow(token, 'imagePath') || changed;
               changed = follow(token, 'statblockPath') || changed;
+              if ('state' in token && token.state) {
+                const noteMoved = follow(token.state, 'notePath');
+                encounterNoteMoved = noteMoved || encounterNoteMoved;
+                changed = noteMoved || changed;
+              }
             }
           }
+          if (asset.type === 'encounter' && encounterNoteMoved && asset.data?.tokens) {
+            encounterRecords.push({ id: asset.id, data: asset.data });
+          }
           break;
+        }
         case 'map':
           changed = follow(asset, 'mapFilePath') || changed;
           break;
@@ -98,6 +109,9 @@ export class FileReferenceService {
       }
       return changed;
     });
+    // Encounter JSON repeats token snapshots; keep it aligned with the index.
+    for (const encounter of encounterRecords) await assetService.updateAsset(encounter.id, { data: encounter.data });
+    return changed;
   }
 
   // ---------------------------------------------------------------------------

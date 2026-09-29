@@ -17,6 +17,7 @@ import { EditableValue } from './EditableValue';
 import { useStatblockEdit } from './statblockEditContext';
 import { LabelTooltip } from '../../../packages/components/primitives/tooltip';
 import { isHitPointsKey } from '../../../services/statblockResources';
+import { diceLinkProps } from '../../../services/statblockDiceLinks';
 
 /** Values that map cleanly onto a single editable frontmatter entry. */
 function isEditableScalar(value: unknown): boolean {
@@ -238,6 +239,23 @@ export function SavesBlock({ item, monster, app, sourcePath }: BlockProps): Reac
   );
 }
 
+/** A derived modifier, rolled as a d20 check titled with its column. */
+function ModifierLink({
+  modifier,
+  abilityName,
+}: {
+  modifier: string;
+  abilityName: string | undefined;
+}): React.JSX.Element {
+  return (
+    <span className="atlas-sb-modifier">
+      {' ('}
+      <span {...diceLinkProps(modifier, abilityName)}>{modifier}</span>
+      {')'}
+    </span>
+  );
+}
+
 /** `table` — ability scores and similar grids, with derived modifiers. */
 export function TableBlock({ item, monster }: BlockProps): React.JSX.Element | null {
   const raw = monster[item.properties?.[0] ?? ''];
@@ -268,10 +286,10 @@ export function TableBlock({ item, monster }: BlockProps): React.JSX.Element | n
                 {stringify(value)}
               </EditableField>
               {item.calculate && typeof value === 'number' && (
-                <span className="atlas-sb-modifier">
-                  {' '}
-                  ({abilityModifier(value, item, monster)})
-                </span>
+                <ModifierLink
+                  modifier={abilityModifier(value, item, monster)}
+                  abilityName={headers[index]}
+                />
               )}
             </td>
           ))}

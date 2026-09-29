@@ -2,6 +2,11 @@
   "version": "0.5.0-beta.1",
   "releases": [
     {
+      "version": "0.5.0-beta.1",
+      "title": "Coming in 0.5.0",
+      "markdown": "## Fixed\n\n- Ability modifiers in statblocks can be clicked to roll a d20 check, like other bonuses. The roll is titled with the ability, for example STR"
+    },
+    {
       "version": "0.4.2",
       "date": "2026-09-29",
       "title": "Faster imports with progress bars, a toolbar that fits small windows, and scene and map fixes",

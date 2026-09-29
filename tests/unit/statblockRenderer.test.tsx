@@ -96,6 +96,37 @@ describe('StatblockRenderer', () => {
     expect(cells[1]?.textContent).toContain('-1');
   });
 
+  it('makes only the ability modifier rollable, titled with its column', () => {
+    const { container } = renderStatblock(
+      layoutOf({
+        type: 'table',
+        id: 'tb',
+        properties: ['stats'],
+        headers: ['STR', 'DEX'],
+        calculate: true,
+      }),
+      { stats: [16, 8] },
+    );
+
+    const links = container.querySelectorAll<HTMLElement>('td .atlas-dice-link');
+    expect(links).toHaveLength(2);
+    expect(links[0]?.textContent).toBe('+3');
+    expect(links[0]?.dataset.formula).toBe('1d20+3');
+    expect(links[0]?.dataset.abilityName).toBe('STR');
+    expect(links[1]?.dataset.formula).toBe('1d20-1');
+    expect(links[1]?.dataset.abilityName).toBe('DEX');
+    expect(container.querySelector('td')?.textContent).toBe('16 (+3)');
+  });
+
+  it('leaves tables without derived modifiers unlinked', () => {
+    const { container } = renderStatblock(
+      layoutOf({ type: 'table', id: 'tb', properties: ['stats'], headers: ['STR'] }),
+      { stats: [16] },
+    );
+
+    expect(container.querySelector('.atlas-dice-link')).toBeNull();
+  });
+
   it('renders only the matching branch of an ifelse block', () => {
     const { container } = renderStatblock(
       layoutOf({

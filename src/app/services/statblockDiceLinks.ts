@@ -178,7 +178,7 @@ export function attachDiceRolling(
     const formula = link.dataset.formula;
     if (!formula) return;
 
-    const abilityName = abilityNameFor(link);
+    const abilityName = link.dataset.abilityName ?? abilityNameFor(link);
     if (onRollHitPoints && /d\d/i.test(formula) && link.closest(HIT_POINTS_SELECTOR)) {
       onRollHitPoints(formula, abilityName);
       return;
@@ -212,10 +212,18 @@ export function attachDiceRolling(
   };
 }
 
-/** Shared attributes for a clickable dice span, used by DOM and React paths. */
-export function diceLinkProps(matched: string): {
+/**
+ * Shared attributes for a clickable dice span, used by DOM and React paths.
+ * `abilityName` titles the roll where no label sits beside it, such as a
+ * modifier in an ability score table.
+ */
+export function diceLinkProps(
+  matched: string,
+  abilityName?: string,
+): {
   className: string;
   'data-formula': string;
+  'data-ability-name'?: string;
   role: string;
   tabIndex: number;
   'aria-label': string;
@@ -224,6 +232,7 @@ export function diceLinkProps(matched: string): {
   return {
     className: LINK_CLASS,
     'data-formula': formula,
+    ...(abilityName ? { 'data-ability-name': abilityName } : {}),
     role: 'button',
     tabIndex: 0,
     'aria-label': `Roll ${formula}`,

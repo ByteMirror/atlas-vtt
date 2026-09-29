@@ -109,11 +109,11 @@ export class DicePackPreviews {
 
   private start(): void {
     if (this.frame !== null) return;
-    this.frame = requestAnimationFrame(this.tick);
+    this.frame = window.requestAnimationFrame(this.tick);
   }
 
   private stop(): void {
-    if (this.frame !== null) cancelAnimationFrame(this.frame);
+    if (this.frame !== null) window.cancelAnimationFrame(this.frame);
     this.frame = null;
     // Nothing to show: give the contexts back until a card asks again.
     this.renderer?.dispose();
@@ -149,7 +149,7 @@ export class DicePackPreviews {
       context.drawImage(renderer.domElement, 0, 0, canvas.width, canvas.height);
     }
 
-    if (drawing) this.frame = requestAnimationFrame(this.tick);
+    if (drawing) this.frame = window.requestAnimationFrame(this.tick);
   };
 }
 

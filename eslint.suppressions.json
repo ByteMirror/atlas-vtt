@@ -1,4 +1,39 @@
 {
+  "src/app/physical-dice/engine/DiceEngine.ts": {
+    "@typescript-eslint/ban-ts-comment": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-argument": {
+      "count": 11
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 3
+    },
+    "@typescript-eslint/no-unsafe-call": {
+      "count": 14
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 13
+    },
+    "@typescript-eslint/no-unsafe-return": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-unary-minus": {
+      "count": 1
+    },
+    "@typescript-eslint/prefer-promise-reject-errors": {
+      "count": 1
+    },
+    "no-case-declarations": {
+      "count": 29
+    },
+    "obsidianmd/no-static-styles-assignment": {
+      "count": 5
+    },
+    "obsidianmd/rule-custom-message": {
+      "count": 3
+    }
+  },
   "src/app/react/components/statblock/layoutCallbacks.ts": {
     "@typescript-eslint/no-implied-eval": {
       "count": 1

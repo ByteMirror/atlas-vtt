@@ -586,7 +586,7 @@ export class DiceEngine {
         if (cached) return cached;
 
         const size = BLOB_TEXTURE_SIZE;
-        const canvas = document.createElement('canvas');
+        const canvas = createEl('canvas');
         canvas.width = canvas.height = size;
         const ctx = canvas.getContext('2d');
         if (!ctx) throw new Error('blob shadow: no 2d context');
@@ -732,7 +732,7 @@ export class DiceEngine {
         return;
 
         // Create a basic fallback material with all configured properties
-        const fallbackMaterialProps: any = {
+        const fallbackMaterialProps: unknown = {
             color: this.colorFor(this.settings.diceType),
             ...this.packFinish()
         };
@@ -1156,7 +1156,6 @@ export class DiceEngine {
 
             // Calculate cell center and size
             const cellCenterX = (cellLeft + cellRight) / 2;
-            const cellCenterY = (cellTop + cellBottom) / 2;
             const cellW = cellRight - cellLeft;
             const cellH = cellBottom - cellTop;
 
@@ -2125,7 +2124,7 @@ export class DiceEngine {
     }
 
     private createMaterialForDiceType(diceType: string): THREE.MeshPhongMaterial {
-        const materialProps: any = {
+        const materialProps: unknown = {
             color: this.colorFor(diceType),
             ...this.packFinish()
         };
@@ -2213,7 +2212,7 @@ export class DiceEngine {
     ): void {
         if (!rimUV) return;
 
-        const scratch = document.createElement('canvas');
+        const scratch = createEl('canvas');
         scratch.width = img.width;
         scratch.height = img.height;
         const sheet = scratch.getContext('2d', { willReadFrequently: true });
@@ -2282,7 +2281,7 @@ export class DiceEngine {
         const cached = this.textureCache.get(key);
         if (cached) return cached;
 
-        const canvas = document.createElement('canvas');
+        const canvas = createEl('canvas');
         const ctx = canvas.getContext('2d');
         if (!ctx) return this.loadCachedTexture(textureData, 'dice texture');
 
@@ -2486,7 +2485,7 @@ export class DiceEngine {
         this.originalMaterials.clear();
 
         for (const type of Object.keys(this.settings.diceCounts)) {
-            (this.settings.diceCounts as any)[type] = 0;
+            (this.settings.diceCounts as unknown)[type] = 0;
         }
 
         this.wake();
@@ -2556,20 +2555,20 @@ export class DiceEngine {
             this.completeSingleDiceRoll(diceIndex);
         } else {
             // Check again in 100ms
-            setTimeout(() => this.checkSingleDiceSettling(diceIndex), 100);
+            window.setTimeout(() => this.checkSingleDiceSettling(diceIndex), 100);
         }
     }
 
     private completeSingleDiceRoll(diceIndex: number): void {
         if (this.rollTimeout) {
-            clearTimeout(this.rollTimeout);
+            window.clearTimeout(this.rollTimeout);
             this.rollTimeout = null;
         }
 
         const diceType = this.diceTypeArray[diceIndex];
 
         // Wait 2 seconds before checking result to match multi-dice behavior
-        setTimeout(() => {
+        window.setTimeout(() => {
             // Check if dice can be properly detected
             const checkResult = this.checkDiceResult(diceIndex);
 
@@ -2631,14 +2630,14 @@ export class DiceEngine {
             this.completeMultiRoll();
         } else {
             // Check again in 100ms
-            setTimeout(() => this.checkMultiDiceSettling(), 100);
+            window.setTimeout(() => this.checkMultiDiceSettling(), 100);
         }
     }
 
     private completeMultiRoll(): void {
         // Clear timeout if it exists
         if (this.rollTimeoutId) {
-            clearTimeout(this.rollTimeoutId);
+            window.clearTimeout(this.rollTimeoutId);
             this.rollTimeoutId = null;
         }
 
@@ -2668,7 +2667,7 @@ export class DiceEngine {
 
         this.isRolling = false;
         if (this.rollTimeout) {
-            clearTimeout(this.rollTimeout);
+            window.clearTimeout(this.rollTimeout);
             this.rollTimeout = null;
         }
 
@@ -3095,7 +3094,6 @@ export class DiceEngine {
 
         this.faceNormals = [];
         const positionAttribute = this.diceGeometry.attributes.position;
-        const faceCount = this.getFaceCount();
 
         // Handle different dice types
         switch (this.settings.diceType) {
@@ -3281,7 +3279,7 @@ export class DiceEngine {
         }
 
         // Create material with all configurable properties
-        const materialProperties: any = {
+        const materialProperties: unknown = {
             // Textured dice carry their colour in the composite instead; see
             // loadTextureFromData.
             color: customTexture ? 0xffffff : this.colorFor(this.settings.diceType),
@@ -3308,7 +3306,7 @@ export class DiceEngine {
 
     // Method to generate UV mapping template (for development/reference)
     public generateUVTemplate(): string {
-        const canvas = document.createElement('canvas');
+        const canvas = createEl('canvas');
         const ctx = canvas.getContext('2d');
         if (!ctx) return '';
 
@@ -3798,7 +3796,7 @@ export class DiceEngine {
         // Dispose geometry and material
         this.diceArray[index].geometry.dispose();
         if (this.diceArray[index].material && !Array.isArray(this.diceArray[index].material)) {
-            (this.diceArray[index].material as THREE.Material).dispose();
+            (this.diceArray[index].material).dispose();
         }
 
         // Remove from arrays
@@ -3807,7 +3805,7 @@ export class DiceEngine {
         this.diceTypeArray.splice(index, 1);
 
         // Update dice count in settings
-        (this.settings.diceCounts as any)[diceType]--;
+        (this.settings.diceCounts as unknown)[diceType]--;
 
         this.wake();
     }
@@ -3840,7 +3838,7 @@ export class DiceEngine {
 
         // Stop any current rolling
         if (this.rollTimeout) {
-            clearTimeout(this.rollTimeout);
+            window.clearTimeout(this.rollTimeout);
             this.rollTimeout = null;
         }
         this.isRolling = false;
@@ -3865,7 +3863,7 @@ export class DiceEngine {
 
         // Stop any current rolling
         if (this.rollTimeout) {
-            clearTimeout(this.rollTimeout);
+            window.clearTimeout(this.rollTimeout);
             this.rollTimeout = null;
         }
         this.isRolling = false;
@@ -4101,7 +4099,7 @@ export class DiceEngine {
                     // The force-stop timeout would report this throw a second
                     // time, with whatever faces are up by then.
                     if (this.rollTimeout) {
-                        clearTimeout(this.rollTimeout);
+                        window.clearTimeout(this.rollTimeout);
                         this.rollTimeout = null;
                     }
                     // On completion, trigger callback
@@ -4123,7 +4121,7 @@ export class DiceEngine {
 
         this.wake();
 
-        this.rollTimeout = setTimeout(() => {
+        this.rollTimeout = window.setTimeout(() => {
             if (rollingSingleDice) {
                 this.completeSingleDiceRoll(rolledDiceIndex);
             } else {
@@ -4134,7 +4132,7 @@ export class DiceEngine {
 
     private forceStop() {
         if (this.rollTimeout) {
-            clearTimeout(this.rollTimeout);
+            window.clearTimeout(this.rollTimeout);
             this.rollTimeout = null;
         }
 
@@ -4157,7 +4155,7 @@ export class DiceEngine {
         this.needsRender = true;
         if (this.animationId === null && this.isViewActive && this.renderer) {
             this.lastFrameTime = 0;
-            this.animationId = requestAnimationFrame(this.animateBound);
+            this.animationId = window.requestAnimationFrame(this.animateBound);
         }
     }
 
@@ -4168,13 +4166,13 @@ export class DiceEngine {
                 const dice = this.diceArray[i];
                 const body = this.diceBodyArray[i];
                 if (!dice || !body) continue;
-                dice.position.copy(body.position as any);
+                dice.position.copy(body.position as unknown);
                 // updateDicePosition() spins the held die by hand; copying the
                 // body quaternion over it would erase that spin every frame.
                 const isHeld = this.isDragging &&
                     (this.draggedDiceIndex === -1 || this.draggedDiceIndex === i);
                 if (!isHeld) {
-                    dice.quaternion.copy(body.quaternion as any);
+                    dice.quaternion.copy(body.quaternion as unknown);
                 }
             }
         }
@@ -4234,7 +4232,7 @@ export class DiceEngine {
 
         // Nothing moving and nothing pending: let the loop die.
         const keepGoing = anyAwake || this.showingResult || this.needsRender || this.isDragging;
-        this.animationId = keepGoing ? requestAnimationFrame(this.animateBound) : null;
+        this.animationId = keepGoing ? window.requestAnimationFrame(this.animateBound) : null;
         if (!keepGoing) {
             this.lastFrameTime = 0;
         }
@@ -4773,7 +4771,7 @@ export class DiceEngine {
         }
 
         if (this.rollTimeout) {
-            clearTimeout(this.rollTimeout);
+            window.clearTimeout(this.rollTimeout);
         }
 
         // Clean up hover circle
@@ -4785,7 +4783,6 @@ export class DiceEngine {
 
         // Remove event listeners
         if (this.renderer) {
-            const canvas = this.renderer.domElement;
 
             this.container.removeChild(this.renderer.domElement);
             this.renderer.dispose();
@@ -5007,7 +5004,7 @@ export class DiceEngine {
         this.wake();
     }
 
-    private startIndividualDiceMonitoring(resolve: (value: string) => void, reject: (reason?: any) => void) {
+    private startIndividualDiceMonitoring(resolve: (value: string) => void, reject: (reason?: unknown) => void) {
         const startTime = Date.now();
         const maxWaitTime = 15000; // Maximum 15 seconds
         const checkInterval = 100; // Check every 100ms
@@ -5024,7 +5021,6 @@ export class DiceEngine {
 
                 const now = Date.now();
                 let allComplete = true;
-                let statusUpdate = '';
 
                 // Check each die individually
                 for (let i = 0; i < this.diceStates.length; i++) {
@@ -5104,11 +5100,9 @@ export class DiceEngine {
                 }
 
                 // Update status
-                const completed = this.diceStates.filter(d => d.isComplete).length;
                 const caught = this.diceStates.filter(d => d.isCaught && !d.isComplete).length;
                 const rolling = this.diceStates.filter(d => d.isRolling && !d.isCaught && !d.isComplete).length;
 
-                statusUpdate = `Rolling: ${rolling}, Caught: ${caught}, Complete: ${completed}/${this.diceStates.length}`;
 
 
                 // If there are caught dice, DON'T show results yet - wait for reroll
@@ -5116,7 +5110,7 @@ export class DiceEngine {
                     // All dice have settled, but some are caught - wait for user to reroll
                     // Continue monitoring but don't resolve (only if view is still active)
                     if (this.isViewActive) {
-                        setTimeout(monitor, checkInterval);
+                        window.setTimeout(monitor, checkInterval);
                     } else {
                         log('🛑 Monitoring stopped - view is no longer active');
                         this.currentMonitor = null;
@@ -5129,7 +5123,7 @@ export class DiceEngine {
                 if (allComplete && caught === 0) {
                     // All dice have valid results - show final result
                     const results = this.diceStates.map(d => d.result).filter(r => r !== null);
-                    const total = results.reduce((sum, val) => sum + val!, 0);
+                    const total = results.reduce((sum, val) => sum + val, 0);
 
                     const breakdown = this.diceStates
                         .map((state, i) => `${state.type}=${state.result}`)
@@ -5178,7 +5172,7 @@ export class DiceEngine {
 
                 // Continue monitoring (only if view is still active)
                 if (this.isViewActive) {
-                    setTimeout(monitor, checkInterval);
+                    window.setTimeout(monitor, checkInterval);
                 } else {
                     log('🛑 Monitoring stopped - view is no longer active');
                     this.currentMonitor = null;

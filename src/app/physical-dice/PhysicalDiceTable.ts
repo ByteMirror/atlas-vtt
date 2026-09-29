@@ -178,7 +178,7 @@ export class PhysicalDiceTable {
     });
 
     if (pending.readings.every((value) => value !== null)) {
-      this.finish(pending.readings as number[]);
+      this.finish(pending.readings);
     } else {
       this.showProgress();
     }

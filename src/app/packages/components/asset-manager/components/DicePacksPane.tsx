@@ -37,7 +37,6 @@ function usePackInUse(app: App, collectionId: string): string {
       if (changed === collectionId) setInUse(read());
     });
     return () => app.workspace.offref(ref);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- `read` only closes over these two
   }, [app, collectionId]);
   return inUse;
 }

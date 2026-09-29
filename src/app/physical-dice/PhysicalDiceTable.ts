@@ -1,9 +1,14 @@
-import { setIcon, type App } from 'obsidian';
+import { Notice, setIcon, type App } from 'obsidian';
 import { DiceEngine } from './engine/DiceEngine';
 import { createDiceSettings } from './engine/diceSettings';
 import { loadDicePack } from './dicePack';
 
 const SETTLED_DICE_LINGER_MS = 1500;
+
+function reportDiceError(what: string, error: unknown): void {
+  console.error(`[Atlas physical dice] ${what}:`, error);
+  new Notice(`${what}: ${error instanceof Error ? error.message : String(error)}`);
+}
 
 /**
  * The 3D dice table over a game master's map. A roll puts the requested dice on
@@ -64,13 +69,19 @@ export class PhysicalDiceTable {
    */
   async roll(types: string[], formula: string): Promise<number[] | null> {
     this.finish(null);
-    const engine = await this.ensureEngine();
-
-    this.root.show();
-    this.layout();
-    engine.isViewActive = true;
-    engine.clearAllDice();
-    for (const type of types) engine.createSingleDice(type);
+    let engine: DiceEngine;
+    try {
+      engine = await this.ensureEngine();
+      this.root.show();
+      this.layout();
+      engine.isViewActive = true;
+      engine.clearAllDice();
+      for (const type of types) engine.createSingleDice(type);
+    } catch (error) {
+      reportDiceError('Could not set up the physical dice', error);
+      this.clearTable();
+      return null;
+    }
 
     this.label.setText(formula);
     this.throwButton.disabled = false;
@@ -123,8 +134,8 @@ export class PhysicalDiceTable {
       // A button throw resolves here rather than through onRollComplete.
       await this.engine.roll();
       this.takeReadings();
-    } catch {
-      // No dice left to throw: nothing to read.
+    } catch (error) {
+      reportDiceError('Could not throw the dice', error);
     } finally {
       this.throwButton.disabled = false;
     }

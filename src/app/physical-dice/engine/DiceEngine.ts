@@ -2356,7 +2356,7 @@ export class DiceEngine {
 
         const body = new CANNON.Body({
             mass: 1,
-            material: D20Dice.bodyMaterial
+            material: DiceEngine.bodyMaterial
         });
 
         body.addShape(shape);
@@ -2376,7 +2376,7 @@ export class DiceEngine {
         // Every die of a given type and size has the same hull, and building one
         // costs a whole throwaway BufferGeometry, so keep them.
         const cacheKey = `${diceType}:${size.toFixed(4)}`;
-        const cached = D20Dice.shapeCache.get(cacheKey);
+        const cached = DiceEngine.shapeCache.get(cacheKey);
         if (cached) return cached;
 
         let shape: CANNON.Shape;
@@ -2406,8 +2406,8 @@ export class DiceEngine {
 
         // The size comes off a slider, so the key space is not bounded. Dropping
         // the whole map is fine — it only costs the next build.
-        if (D20Dice.shapeCache.size > 24) D20Dice.shapeCache.clear();
-        D20Dice.shapeCache.set(cacheKey, shape);
+        if (DiceEngine.shapeCache.size > 24) DiceEngine.shapeCache.clear();
+        DiceEngine.shapeCache.set(cacheKey, shape);
         return shape;
     }
 
@@ -2747,10 +2747,10 @@ export class DiceEngine {
      * time was pure garbage.
      */
     private getFaceNormalsForDiceType(diceType: string): THREE.Vector3[] {
-        let normals = D20Dice.faceNormalCache.get(diceType);
+        let normals = DiceEngine.faceNormalCache.get(diceType);
         if (!normals) {
             normals = this.computeFaceNormalsForDiceType(diceType);
-            D20Dice.faceNormalCache.set(diceType, normals);
+            DiceEngine.faceNormalCache.set(diceType, normals);
         }
         return normals;
     }

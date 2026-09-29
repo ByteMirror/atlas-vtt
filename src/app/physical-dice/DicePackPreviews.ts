@@ -5,16 +5,21 @@ import { createDiceSettings } from './engine/diceSettings';
 import { loadDicePack } from './dicePack';
 
 const PREVIEW_PIXELS = 256;
-const TURN_PER_SECOND = 0.5;
+/** Long enough for the face sheets to load; after that a still die needs no more frames. */
+const DRAW_FOR_MS = 3000;
+const TOWARD_CAMERA = new THREE.Vector3(0, 0, 1);
+/** A little turn off square, so the die reads as a solid rather than a flat triangle. */
+const TILT = new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.32, 0.28, 0));
 
 interface Preview {
   canvas: HTMLCanvasElement;
   mesh: THREE.Mesh | null;
-  phase: number;
+  /** When the die was built; it is drawn until DRAW_FOR_MS after. */
+  builtAt: number;
 }
 
 /**
- * Turning d20s for the asset manager's dice packs. Every card has a plain 2D
+ * A d20 with its 20 face up for each of the asset manager's dice packs. Every card has a plain 2D
  * canvas; one WebGL renderer draws each pack's die in turn and copies the frame
  * across, so a long list of packs costs a single rendering context. The dice
  * are built by a hidden dice engine, the same way the table builds them.
@@ -38,7 +43,6 @@ export class DicePackPreviews {
   private readonly scene = new THREE.Scene();
   private readonly camera = new THREE.PerspectiveCamera(30, 1, 0.1, 100);
   private frame: number | null = null;
-  private lastTime = 0;
   /** The engine holds one pack at a time, so dice are built one after another. */
   private building: Promise<void> = Promise.resolve();
 
@@ -51,12 +55,12 @@ export class DicePackPreviews {
     this.scene.add(key);
   }
 
-  /** Shows the d20 of the pack at `root` on `canvas`, turning until released. */
+  /** Shows the d20 of the pack at `root` on `canvas`, until released. */
   attach(canvas: HTMLCanvasElement, root: string): void {
     this.release(canvas);
     canvas.width = PREVIEW_PIXELS;
     canvas.height = PREVIEW_PIXELS;
-    const preview: Preview = { canvas, mesh: null, phase: this.previews.size * 0.9 };
+    const preview: Preview = { canvas, mesh: null, builtAt: 0 };
     this.previews.set(canvas, preview);
 
     this.building = this.building.then(async () => {
@@ -67,7 +71,10 @@ export class DicePackPreviews {
       engine.setPackTextures(loaded?.textures ?? {}, loaded?.normals ?? {});
       const mesh = engine.createDieMesh('d20');
       fitToView(mesh);
+      const twenty = engine.faceNormalOf('d20', 20);
+      if (twenty) mesh.quaternion.setFromUnitVectors(twenty.normalize(), TOWARD_CAMERA).premultiply(TILT);
       preview.mesh = mesh;
+      preview.builtAt = performance.now();
       this.start();
     }).catch((error: unknown) => console.error('[Atlas dice packs] Preview failed:', error));
   }
@@ -102,7 +109,6 @@ export class DicePackPreviews {
 
   private start(): void {
     if (this.frame !== null) return;
-    this.lastTime = performance.now();
     this.frame = requestAnimationFrame(this.tick);
   }
 
@@ -120,17 +126,18 @@ export class DicePackPreviews {
   }
 
   private readonly tick = (now: number): void => {
-    this.frame = requestAnimationFrame(this.tick);
-    const dt = Math.min((now - this.lastTime) / 1000, 0.1);
-    this.lastTime = now;
+    this.frame = null;
+    let drawing = false;
     const renderer = this.ensureRenderer();
 
     for (const preview of this.previews.values()) {
       const { mesh, canvas } = preview;
-      // Off-screen cards (scrolled away, hidden tab) are skipped.
-      if (!mesh || !canvas.isConnected || canvas.offsetParent === null) continue;
-      preview.phase += dt * TURN_PER_SECOND;
-      mesh.rotation.set(0.45 + Math.sin(preview.phase * 0.6) * 0.25, preview.phase, 0.15);
+      if (!mesh) {
+        drawing = true; // still being built
+        continue;
+      }
+      if (now - preview.builtAt > DRAW_FOR_MS || !canvas.isConnected) continue;
+      drawing = true;
 
       this.scene.add(mesh);
       renderer.render(this.scene, this.camera);
@@ -141,6 +148,8 @@ export class DicePackPreviews {
       context.clearRect(0, 0, canvas.width, canvas.height);
       context.drawImage(renderer.domElement, 0, 0, canvas.width, canvas.height);
     }
+
+    if (drawing) this.frame = requestAnimationFrame(this.tick);
   };
 }
 

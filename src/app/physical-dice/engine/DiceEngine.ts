@@ -1475,6 +1475,15 @@ export class DiceEngine {
      * without adding it to the scene, for showing a pack elsewhere. The caller
      * owns the mesh and disposes of it.
      */
+    /** Outward normal of the face showing `number`, in the die's own space; null if no face shows it. */
+    public faceNormalOf(diceType: string, number: number): THREE.Vector3 | null {
+        const normals = this.getFaceNormalsForDiceType(diceType);
+        for (let i = 0; i < normals.length; i++) {
+            if (this.mapFaceIndexToNumber(i, diceType) === number) return normals[i].clone();
+        }
+        return null;
+    }
+
     public createDieMesh(diceType: string): THREE.Mesh {
         const geometry = this.createGeometryForDiceType(diceType);
         this.applyUVMappingForDiceType(geometry, diceType);

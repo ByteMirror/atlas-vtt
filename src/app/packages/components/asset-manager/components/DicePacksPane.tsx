@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Notice, type App } from 'obsidian';
 import { Check, FolderInput, Trash2 } from 'lucide-react';
 import { Button } from '../../primitives/button';
@@ -7,6 +7,20 @@ import { confirmAction } from '../../../../ui/confirmDialog';
 import { deleteDicePack, importDicePack, type DicePackInfo } from '../../../../physical-dice/dicePackStore';
 import { resolvePhysicalDice } from '../../../../physical-dice/physicalDiceSettings';
 import { useDicePacks } from '../../../../physical-dice/useDicePacks';
+import { DicePackPreviews } from '../../../../physical-dice/DicePackPreviews';
+
+/** The pack's d20, turning. */
+function DicePackPreview({ app, root }: { app: App; root: string }): React.ReactElement {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const previews = DicePackPreviews.forApp(app);
+    previews.attach(canvas, root);
+    return () => previews.release(canvas);
+  }, [app, root]);
+  return <canvas ref={canvasRef} className="atlas-dice-pack__die" aria-label="The pack's d20" />;
+}
 
 interface DicePacksPaneProps {
   app: App;
@@ -88,10 +102,7 @@ export function DicePacksPane({ app, collectionId }: DicePacksPaneProps): React.
   return (
     <div className="atlas-dice-packs">
       <div className="atlas-dice-packs__head">
-        <p className="atlas-dice-packs__hint">
-          Packs the physical dice can wear. A pack is a folder with a <code>pack.json</code> and the face
-          sheets it names. Choose one for this collection, then set the dice panel to Physical.
-        </p>
+        <h3 className="atlas-dice-packs__title">Dice</h3>
         <Button variant="outline" onClick={importPack} disabled={busy}>
           <FolderInput /> {busy ? 'Importing…' : 'Import pack folder'}
         </Button>
@@ -107,7 +118,7 @@ export function DicePacksPane({ app, collectionId }: DicePacksPaneProps): React.
           return (
             <div key={pack.id || 'built-in'} className={`atlas-dice-pack${active ? ' atlas-active' : ''}`}>
               <div className="atlas-dice-pack__preview">
-                {pack.previewUrl ? <img src={pack.previewUrl} alt="" loading="lazy" /> : <span>No preview</span>}
+                <DicePackPreview app={app} root={pack.root} />
               </div>
               <div className="atlas-dice-pack__body">
                 <div className="atlas-dice-pack__name">{pack.name}</div>

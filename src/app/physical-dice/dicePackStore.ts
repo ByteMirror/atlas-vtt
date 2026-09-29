@@ -16,8 +16,6 @@ export interface DicePackInfo {
   /** Vault path of the pack's folder. */
   root: string;
   builtIn: boolean;
-  /** A face sheet to show as the pack's picture, when it has one. */
-  previewUrl: string | null;
 }
 
 const PACK_FILE_TYPES = /\.(json|png|jpe?g|webp)$/i;
@@ -68,20 +66,13 @@ export async function listDicePacks(app: App, collectionId: string | null): Prom
 
 async function describePack(app: App, id: string, root: string, builtIn: boolean, fallbackName: string): Promise<DicePackInfo> {
   let name = fallbackName;
-  let sheet = 'd20_Numbers.png';
   try {
-    const pack = JSON.parse(await app.vault.adapter.read(`${root}/pack.json`)) as {
-      name?: string;
-      dice?: Record<string, { texture?: string }>;
-    };
+    const pack = JSON.parse(await app.vault.adapter.read(`${root}/pack.json`)) as { name?: string };
     if (pack.name && !builtIn) name = pack.name;
-    sheet = pack.dice?.d20?.texture ?? sheet;
   } catch {
     // Listed by folder name; the table falls back to plain dice.
   }
-  const preview = `${root}/${sheet}`;
-  const previewUrl = await app.vault.adapter.exists(preview) ? app.vault.adapter.getResourcePath(preview) : null;
-  return { id, name, root, builtIn, previewUrl };
+  return { id, name, root, builtIn };
 }
 
 /**

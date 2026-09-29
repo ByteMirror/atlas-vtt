@@ -175,7 +175,7 @@
 .atlas-dice-packs__head {
   @include atlas-flex-row($gap: $spacing-l);
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: center;
 
   .btn,
   button {
@@ -183,7 +183,13 @@
   }
 }
 
-.atlas-dice-packs__hint,
+.atlas-dice-packs__title {
+  margin: 0;
+  font-size: $font-ui-medium;
+  font-weight: $font-weight-semibold;
+  color: var(--text-normal);
+}
+
 .atlas-dice-packs__empty {
   @include atlas-help-text;
   margin: 0;
@@ -220,10 +226,10 @@
   color: var(--text-faint);
   font-size: $font-ui-smaller;
 
-  img {
-    width: 100%;
+  // Square frames, letterboxed into the card's preview area.
+  .atlas-dice-pack__die {
     height: 100%;
-    object-fit: cover;
+    aspect-ratio: 1;
   }
 }
 

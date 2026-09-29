@@ -1470,6 +1470,17 @@ export class DiceEngine {
         }
     }
 
+    /**
+     * A die as the table would build it - its geometry, face art and finish -
+     * without adding it to the scene, for showing a pack elsewhere. The caller
+     * owns the mesh and disposes of it.
+     */
+    public createDieMesh(diceType: string): THREE.Mesh {
+        const geometry = this.createGeometryForDiceType(diceType);
+        this.applyUVMappingForDiceType(geometry, diceType);
+        return new THREE.Mesh(geometry, this.createMaterialForDiceType(diceType));
+    }
+
     createSingleDice(diceType: string): void {
         // Create geometry based on dice type
         const geometry = this.createGeometryForDiceType(diceType);

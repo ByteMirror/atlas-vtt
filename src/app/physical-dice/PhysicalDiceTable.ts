@@ -2,6 +2,9 @@ import { Notice, setIcon, type App } from 'obsidian';
 import { DiceEngine } from './engine/DiceEngine';
 import { createDiceSettings } from './engine/diceSettings';
 import { loadDicePack } from './dicePack';
+import { resolvePackRoot } from './dicePackStore';
+import { engineSettingsFor, resolvePhysicalDice } from './physicalDiceSettings';
+import { AssetService } from '../services/AssetService';
 
 const SETTLED_DICE_LINGER_MS = 1500;
 
@@ -36,7 +39,18 @@ export class PhysicalDiceTable {
     resolve: (faces: number[] | null) => void;
   } | null = null;
 
-  constructor(private readonly app: App, host: HTMLElement, private readonly pluginDir: string | undefined) {
+  /** The pack the engine holds, so a roll reloads it only when the collection chose another. */
+  private packRoot: string | null | undefined = undefined;
+
+  /**
+   * @param getMapPath The open map's path; its collection decides how the dice
+   *   look and read, and which pack they wear.
+   */
+  constructor(
+    private readonly app: App,
+    host: HTMLElement,
+    private readonly getMapPath: () => string | null | undefined,
+  ) {
     this.root = host.createDiv('atlas-physical-dice');
     this.root.hide();
     this.stage = this.root.createDiv('atlas-physical-dice__stage');
@@ -72,6 +86,7 @@ export class PhysicalDiceTable {
     let engine: DiceEngine;
     try {
       engine = await this.ensureEngine();
+      await this.applyCollection(engine);
       this.root.show();
       this.layout();
       engine.isViewActive = true;
@@ -112,14 +127,24 @@ export class PhysicalDiceTable {
 
     this.resizeObserver = new ResizeObserver(() => this.layout());
     this.resizeObserver.observe(this.root);
-
-    const loaded = await loadDicePack(this.app, this.pluginDir);
-    if (loaded) {
-      engine.setPack(loaded.pack);
-      engine.setPackTextures(loaded.textures, loaded.normals);
-      engine.rebuildDice();
-    }
     return engine;
+  }
+
+  /** Takes the settings and pack of the map's collection, read afresh for every roll. */
+  private async applyCollection(engine: DiceEngine): Promise<void> {
+    const mapPath = this.getMapPath();
+    const assets = AssetService.getInstance(this.app);
+    const collectionId = mapPath ? assets.getCollectionForMap(mapPath) : null;
+    const dice = resolvePhysicalDice(collectionId ? assets.getCollectionSettings(collectionId).physicalDice : undefined);
+
+    const root = await resolvePackRoot(this.app, collectionId, dice.pack);
+    if (root !== this.packRoot) {
+      const loaded = await loadDicePack(this.app, root);
+      engine.setPack(loaded?.pack ?? {});
+      engine.setPackTextures(loaded?.textures ?? {}, loaded?.normals ?? {});
+      this.packRoot = root;
+    }
+    engine.updateSettings(engineSettingsFor(dice));
   }
 
   private layout(): void {

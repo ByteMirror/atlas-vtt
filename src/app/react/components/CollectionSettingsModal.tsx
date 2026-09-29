@@ -10,7 +10,7 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
-import { Dices, Grid3X3, LayoutGrid, ListFilter, ShieldAlert, Eye } from 'lucide-react';
+import { Dices, Dice5, Grid3X3, LayoutGrid, ListFilter, ShieldAlert, Eye } from 'lucide-react';
 import { CoinIcon } from './CoinIcon';
 import { Button } from '../../packages/components/primitives/button';
 import { useAtlasUI } from '../root/AtlasUIContext';
@@ -27,6 +27,7 @@ import { DefaultWidgetsTab } from './collection-settings/DefaultWidgetsTab';
 import { ConditionsTab } from './collection-settings/ConditionsTab';
 import { VisionTab } from './collection-settings/VisionTab';
 import { LootTab } from './collection-settings/LootTab';
+import { DiceTab } from './collection-settings/DiceTab';
 import { SystemTab } from './collection-settings/SystemTab';
 import { CreatureFiltersTab } from './collection-settings/CreatureFiltersTab';
 import { useCollectionCreatures } from './collection-settings/useCollectionCreatures';
@@ -47,7 +48,7 @@ interface CollectionSettingsModalProps {
   initialTab?: CollectionSettingsTab;
 }
 
-export type CollectionSettingsTab = 'system' | 'grid' | 'widgets' | 'conditions' | 'creatureFilters' | 'loot' | 'vision';
+export type CollectionSettingsTab = 'system' | 'grid' | 'widgets' | 'conditions' | 'creatureFilters' | 'loot' | 'dice' | 'vision';
 
 interface TabDef {
   id: CollectionSettingsTab;
@@ -62,6 +63,7 @@ const TABS: TabDef[] = [
   { id: 'conditions', label: 'Conditions', icon: <ShieldAlert size={16} /> },
   { id: 'creatureFilters', label: 'Creature Filters', icon: <ListFilter size={16} /> },
   { id: 'loot', label: 'Loot', icon: <CoinIcon size={16} /> },
+  { id: 'dice', label: 'Physical Dice', icon: <Dice5 size={16} /> },
   ...(WALLS_AND_LIGHTING_ENABLED ? [{ id: 'vision' as const, label: 'Vision', icon: <Eye size={16} /> }] : []),
 ];
 
@@ -230,6 +232,14 @@ export function CollectionSettingsModal({
                 onBasesChange={draft.setLootBases}
                 currency={draft.lootCurrency}
                 onCurrencyChange={draft.setLootCurrency}
+              />
+            )}
+            {activeTab === 'dice' && app && (
+              <DiceTab
+                app={app}
+                collectionId={collectionId}
+                value={draft.physicalDice}
+                onChange={draft.setPhysicalDice}
               />
             )}
             {activeTab === 'vision' && (

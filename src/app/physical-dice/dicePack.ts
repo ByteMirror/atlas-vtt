@@ -15,11 +15,10 @@ export interface LoadedDicePack {
 /**
  * Reads a dice pack: `pack.json` describes the set, and each die's face sheet
  * sits beside it (`<type>_Numbers.png` unless the manifest names another).
- * Returns null when the plugin has no such pack; the dice then render plain.
+ * Returns null when there is no pack at `root`; the dice then render plain.
  */
-export async function loadDicePack(app: App, pluginDir: string | undefined, name = DEFAULT_DICE_PACK): Promise<LoadedDicePack | null> {
-  if (!pluginDir) return null;
-  const root = `${pluginDir}/dice/${name}`;
+export async function loadDicePack(app: App, root: string | null): Promise<LoadedDicePack | null> {
+  if (!root) return null;
   const adapter = app.vault.adapter;
 
   let pack: DicePack;

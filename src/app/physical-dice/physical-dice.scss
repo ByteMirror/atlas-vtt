@@ -139,3 +139,127 @@
   height: $button-height-m;
   width: $button-height-m;
 }
+
+// ── Collection settings: Physical Dice tab ────────────────────
+.atlas-csm-dice-slider-head {
+  @include atlas-flex-row($gap: $spacing-s);
+  justify-content: space-between;
+}
+
+.atlas-csm-dice-slider-value {
+  font-family: var(--font-monospace);
+  font-size: $font-ui-smaller;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.atlas-csm-dice-color {
+  width: $button-height-l;
+  height: $button-height-m;
+  padding: 0;
+  border: $border-width-s solid var(--background-modifier-border);
+  border-radius: $radius-m;
+  background: none;
+  cursor: pointer;
+}
+
+// ── Asset manager: Dice tab ───────────────────────────────────
+.atlas-dice-packs {
+  @include atlas-flex-col($gap: $spacing-l);
+  height: 100%;
+  padding: $spacing-l;
+  overflow-y: auto;
+  @include atlas-scrollbar;
+}
+
+.atlas-dice-packs__head {
+  @include atlas-flex-row($gap: $spacing-l);
+  justify-content: space-between;
+  align-items: flex-start;
+
+  .btn,
+  button {
+    flex-shrink: 0;
+  }
+}
+
+.atlas-dice-packs__hint,
+.atlas-dice-packs__empty {
+  @include atlas-help-text;
+  margin: 0;
+  max-width: 60ch;
+}
+
+.atlas-dice-packs__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: $spacing-m;
+}
+
+.atlas-dice-pack {
+  @include atlas-flex-col($gap: $spacing-s);
+  padding: $spacing-s;
+  background: var(--background-secondary);
+  border: $border-width-m solid color-mix(in oklch, var(--mono-100) $border-opacity-subtle, transparent);
+  border-radius: $radius-xl;
+  @include atlas-corner-shape;
+
+  &.atlas-active {
+    border-color: var(--interactive-accent);
+  }
+}
+
+.atlas-dice-pack__preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  background: var(--background-primary);
+  border-radius: $radius-l;
+  color: var(--text-faint);
+  font-size: $font-ui-smaller;
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+}
+
+.atlas-dice-pack__body {
+  @include atlas-flex-col($gap: 2px);
+  padding: 0 $spacing-xs;
+  min-width: 0;
+}
+
+.atlas-dice-pack__name {
+  @include atlas-truncate;
+  font-size: $font-ui-small;
+  font-weight: $font-weight-semibold;
+  color: var(--text-normal);
+}
+
+.atlas-dice-pack__meta {
+  font-size: $font-ui-smaller;
+  color: var(--text-muted);
+}
+
+.atlas-dice-pack__actions {
+  @include atlas-flex-row($gap: $spacing-xs);
+  justify-content: space-between;
+  min-height: $button-height-m;
+}
+
+.atlas-dice-pack__in-use {
+  @include atlas-flex-row($gap: $spacing-xs);
+  padding: 0 $spacing-xs;
+  font-size: $font-ui-smaller;
+  font-weight: $font-weight-medium;
+  color: var(--interactive-accent);
+
+  svg {
+    width: $icon-xs;
+    height: $icon-xs;
+  }
+}

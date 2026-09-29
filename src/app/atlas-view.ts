@@ -233,7 +233,9 @@ export class AtlasView extends FileView {
       // Physical dice are thrown on the game master's map; players see the result toasts.
       if (!this.store.getState().isPlayerView) {
         this._serviceManager.getToolController().getDiceTool()
-          .attachPhysicalTable(new PhysicalDiceTable(this.app, containerEl, this.plugin?.manifest.dir));
+          .attachPhysicalTable(new PhysicalDiceTable(
+            this.app, containerEl, () => this.store.getState().mapPath,
+          ));
       }
 
       // If state already has a map, trigger load now (file property provided by FileView)

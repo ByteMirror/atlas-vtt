@@ -1,4 +1,4 @@
-import { App, TFile } from 'obsidian';
+import { App, Notice, TFile } from 'obsidian';
 import { MapController } from '../MapController';
 import { EventEmitter } from 'events';
 import { RendererService } from './RendererService';
@@ -7,6 +7,7 @@ import type { MapFile } from './MapPersistence';
 import { getHistoryStore } from '../stores/history';
 import { autoDetectGridOnFirstLoad } from './gridAutoDetect';
 import { backgroundTextureCache } from '../pixi/backgroundTextureCache';
+import { describeError } from '../utils/errors';
 
 export class MapService {
   private currentMapFilePath: string | null = null;
@@ -234,6 +235,9 @@ export class MapService {
       return this.currentMapData;
     } catch (error) {
       console.error('[MapService] Error loading map:', error);
+      // Without this the view only shows an empty canvas
+      const reason = describeError(error).replace(/^\[\w+\]\s*/, '');
+      new Notice(`Atlas VTT could not open the scene ${this.resolveMapName(filePath)} (${reason}).`, 0);
       this.currentMapFilePath = null;
       this.currentMapData = null;
       this.holdBackground(null);

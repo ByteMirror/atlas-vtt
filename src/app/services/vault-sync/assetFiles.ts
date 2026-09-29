@@ -1,4 +1,4 @@
-import type { Asset, AssetMetadata, GroupAsset, GroupTokenRef } from '../AssetService';
+import type { Asset, AssetMetadata, AssetUpdates, GroupAsset, GroupTokenRef } from '../AssetService';
 import { collectionFolderPath } from '../assetPaths';
 
 type JsonBackedType = Exclude<Asset['type'], 'token' | 'note'>;
@@ -20,12 +20,10 @@ export function defaultJsonPath(type: JsonBackedType, collectionId: string, id: 
 
 /**
  * The JSON file Atlas keeps for an asset in its collection folder; tokens and
- * notes have none. A map's always follows from its id, other types may record
- * their own place.
+ * notes have none. Records without a place of their own find it by their id.
  */
 export function assetJsonPath(asset: Asset): string | null {
   if (asset.type === 'token' || asset.type === 'note') return null;
-  if (asset.type === 'map') return defaultJsonPath('map', asset.collection, asset.id);
   return asset.filePath || defaultJsonPath(asset.type, asset.collection, asset.id);
 }
 
@@ -51,15 +49,20 @@ export function primaryPath(asset: Asset): string | null {
   }
 }
 
+/** The update that points an asset at its primary file's new place. */
+export function primaryPathUpdate(asset: Asset, path: string): AssetUpdates {
+  switch (asset.type) {
+    case 'token': return { imagePath: path };
+    case 'map': return { mapFilePath: path };
+    case 'scene': return { data: { ...asset.data, mapPath: path } };
+    case 'note': return { notePath: path };
+    default: return { filePath: path };
+  }
+}
+
 /** Points the asset at its primary file's new place. */
 export function setPrimaryPath(asset: Asset, path: string): void {
-  switch (asset.type) {
-    case 'token': asset.imagePath = path; break;
-    case 'map': asset.mapFilePath = path; break;
-    case 'scene': asset.data = { ...asset.data, mapPath: path }; break;
-    case 'note': asset.notePath = path; break;
-    default: asset.filePath = path;
-  }
+  Object.assign(asset, primaryPathUpdate(asset, path));
 }
 
 /** The JSON of maps and scenes, which follows the asset instead of deciding about it. */

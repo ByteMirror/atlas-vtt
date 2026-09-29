@@ -12,6 +12,8 @@
   z-index: 999;
   pointer-events: auto;
   font-family: var(--font-interface);
+  // The palette's size limits below read the view's size from here.
+  container-type: size;
 }
 
 .atlas-command-palette-backdrop {
@@ -47,6 +49,9 @@
   flex-direction: column;
   width: 600px;
   height: 450px;
+  // A small view shrinks the palette instead of cutting it off.
+  max-width: calc(100cqw - #{2 * $spacing-l});
+  max-height: calc(100cqh - var(--atlas-palette-bottom, 0px) - #{$spacing-l});
   overflow: hidden;
   transform-origin: bottom center;
   transition: width $transition-normal $transition-ease-out,

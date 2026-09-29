@@ -9,6 +9,7 @@ import { ResponsiveWidgetBar } from './components/ResponsiveWidgetBar';
 import { useViewStoreHook, useAtlasStore } from './ViewStoreContext';
 import { ViewActionsMenu } from './components/ViewActionsMenu';
 import { UndoRedoControls } from './components/UndoRedoControls';
+import { BottomToolbarRow } from './components/BottomToolbarRow';
 import DMDashboard from './components/DMDashboard';
 import { InitiativeTracker } from './components/InitiativeTracker';
 import { DiceRollLog } from './components/dice-log/DiceRollLog';
@@ -212,14 +213,13 @@ export const UIRoot: React.FC<UIRootProps> = ({ app, view, pixiApp }) => {
             />
           </div>
 
-          {/* Bottom toolbar row — undo/redo docked left of main toolbar */}
-          <div className="atlas-bottom-toolbar-row">
-            {!isPlayerView && <UndoRedoControls viewId={view?.viewId} />}
+          {/* Bottom row — undo/redo docked left of the main toolbar, view actions (DM only) at the right edge */}
+          <BottomToolbarRow
+            start={!isPlayerView && <UndoRedoControls viewId={view?.viewId} />}
+            end={!isPlayerView && <ViewActionsMenu app={app} filePath={view?.file?.path} />}
+          >
             <MainToolbar viewId={view?.viewId} />
-          </div>
-
-          {/* View actions menu — bottom right, DM only */}
-          {!isPlayerView && <ViewActionsMenu app={app} filePath={view?.file?.path} />}
+          </BottomToolbarRow>
 
           {!isPlayerView && !isMapLoading && (
             <SceneSwitcher

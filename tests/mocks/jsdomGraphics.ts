@@ -63,6 +63,8 @@ export function stubJsdomGraphics(): () => void {
   if (!hadDecode) HTMLImageElement.prototype.decode = async (): Promise<void> => undefined;
 
   if (typeof Path2D === 'undefined') vi.stubGlobal('Path2D', class {});
+  // PIXI reads the prototype to detect letter-spacing support.
+  if (typeof CanvasRenderingContext2D === 'undefined') vi.stubGlobal('CanvasRenderingContext2D', class {});
   vi.stubGlobal('ImageBitmap', FakeImageBitmap);
   vi.stubGlobal('createImageBitmap', vi.fn(async () => new FakeImageBitmap()));
 

@@ -10,7 +10,8 @@ import { GridManager } from './GridManager';
 import { NotePreviewUIManager } from './NotePreviewUIManager';
 import { AssetService } from './AssetService';
 import { SettingsService } from './SettingsService';
-import { MapThumbnailService, dataUrlToBytes } from './MapThumbnailService';
+import { MapThumbnailService, dataUrlToBytes, type ThumbnailSize } from './MapThumbnailService';
+import { SceneThumbnailUpdater } from './SceneThumbnailUpdater';
 import { WidgetSyncService } from './WidgetSyncService';
 import { SoundEffectService } from './SoundEffectService';
 import { DiceToastObserver } from './DiceToastObserver';
@@ -36,8 +37,7 @@ export class ServiceManager {
   private soundEffectService: SoundEffectService;
   private diceToastObserver: DiceToastObserver;
   private viewId: string;
-  private thumbnailUnsubs: Array<() => void> = [];
-  private thumbnailGenerationTimeout: number | null = null;
+  private sceneThumbnails: SceneThumbnailUpdater;
   
   constructor(private app: App, private store: ViewAtlasStore, private plugin?: AtlasVTTPlugin, viewId?: string) {
     // Create event bus for inter-service communication
@@ -71,8 +71,11 @@ export class ServiceManager {
 
     void Promise.all([this.settingsService.initialize(), this.assetService.initialize()]);
     
-    // Set up thumbnail generation on map save
-    this.setupThumbnailGeneration();
+    this.sceneThumbnails = new SceneThumbnailUpdater(store, {
+      render: () => this.renderMapThumbnail(),
+      save: (mapPath, bytes) => this.mapThumbnailService.saveThumbnail(mapPath, bytes),
+      hasThumbnail: (mapPath) => this.mapThumbnailService.hasThumbnail(mapPath),
+    });
     
     // Initialize widget sync service if plugin is available
     if (plugin) {
@@ -150,13 +153,6 @@ export class ServiceManager {
   }
   
   /**
-   * Get the map thumbnail service
-   */
-  public getMapThumbnailService(): MapThumbnailService {
-    return this.mapThumbnailService;
-  }
-  
-  /**
    * Get the sound effect service
    */
   public getSoundEffectService(): SoundEffectService {
@@ -181,101 +177,22 @@ export class ServiceManager {
     return this.store;
   }
   
-  /**
-   * Generate and save a thumbnail for the current map
-   */
-  public async generateMapThumbnail(): Promise<void> {
-    const mapPath = this.store.getState().mapPath;
-    if (!mapPath) {
-      console.warn('[ServiceManager] Cannot generate thumbnail: no map path set');
-      return;
-    }
-    
-    const renderer = this.rendererService.getRenderer();
-    if (!renderer) {
-      console.warn('[ServiceManager] Cannot generate thumbnail: renderer not available');
-      return;
-    }
-    
-    const pixiApp = renderer.getAppInstance();
-    const viewport = renderer.getViewportInstance();
-    
-    if (!pixiApp || !viewport) {
-      console.warn('[ServiceManager] Cannot generate thumbnail: PIXI app or viewport not available');
-      return;
-    }
-    
-    try {
-      await this.mapThumbnailService.generateThumbnail(pixiApp, viewport, mapPath, renderer.getBackgroundSprite());
-    } catch (error) {
-      console.error('[ServiceManager] Error generating map thumbnail:', error);
-    }
-  }
-  
-  /** The map as it looks now, as 16:9 JPEG bytes sharp enough for a scene snapshot card. */
-  public renderMapThumbnail(): ArrayBuffer | null {
+  /** The map as it looks now as JPEG bytes: a scene card thumbnail by default, or `size`, e.g. 16:9 for a snapshot card. */
+  public renderMapThumbnail(size?: ThumbnailSize): ArrayBuffer | null {
     const renderer = this.rendererService.getRenderer();
     const pixiApp = renderer?.getAppInstance();
     const viewport = renderer?.getViewportInstance();
     if (!renderer || !pixiApp || !viewport) return null;
 
-    const dataUrl = this.mapThumbnailService.renderThumbnail(pixiApp, viewport, renderer.getBackgroundSprite(), { width: 640, height: 360 });
+    const dataUrl = this.mapThumbnailService.renderThumbnail(pixiApp, viewport, renderer.getBackgroundSprite(), size);
     return dataUrl ? dataUrlToBytes(dataUrl) : null;
   }
 
-  /**
-   * Set up automatic thumbnail generation when map state changes
-   */
-  private setupThumbnailGeneration(): void {
-    this.subscribeThumbnailGeneration();
+  /** Writes the scene's thumbnail now if an edit left it out of date; call before the view shows another scene. */
+  public flushSceneThumbnail(): void {
+    this.sceneThumbnails.flush();
   }
 
-  private clearThumbnailGenerationSubscriptions(): void {
-    for (const unsubscribe of this.thumbnailUnsubs) {
-      unsubscribe();
-    }
-    this.thumbnailUnsubs = [];
-  }
-
-  private scheduleThumbnailGeneration(): void {
-    const state = this.store.getState();
-    if (!state.persistenceEnabled || !state.mapPath || state.isMapLoading || state.isPlayerView) {
-      return;
-    }
-
-    if (this.thumbnailGenerationTimeout) {
-      window.clearTimeout(this.thumbnailGenerationTimeout);
-    }
-
-    this.thumbnailGenerationTimeout = window.setTimeout(() => {
-      this.generateMapThumbnail().catch(error => {
-        console.error('[ServiceManager] Failed to generate thumbnail:', error);
-      });
-    }, 3000);
-  }
-
-  private subscribeThumbnailGeneration(): void {
-    this.clearThumbnailGenerationSubscriptions();
-
-    if (this.thumbnailGenerationTimeout) {
-      window.clearTimeout(this.thumbnailGenerationTimeout);
-      this.thumbnailGenerationTimeout = null;
-    }
-
-    // React only to persisted map-content signals instead of every store change.
-    this.thumbnailUnsubs.push(this.store.subscribe((state, prevState) => {
-      if (
-        state.persistenceEnabled !== prevState.persistenceEnabled ||
-        state.mapPath !== prevState.mapPath ||
-        state.background !== prevState.background ||
-        state.grid !== prevState.grid ||
-        state.objects !== prevState.objects
-      ) {
-        this.scheduleThumbnailGeneration();
-      }
-    }));
-  }
-  
   /**
    * Cleanup all services
    * This should be called when the view is closed
@@ -286,6 +203,9 @@ export class ServiceManager {
       this.widgetSyncService.unregisterStore(this.viewId);
     }
     
+    // Writes a pending thumbnail, so it must run while the renderer still shows the scene
+    this.sceneThumbnails.destroy();
+
     // Destroy services in reverse order of dependency
     this.diceToastObserver.destroy();
     this.soundEffectService.destroy();
@@ -295,13 +215,6 @@ export class ServiceManager {
     this.uiOverlay.unmount();
     this.mapService.destroy();
     this.notePreviewUIManager.destroy();
-
-    // Clean up thumbnail generation subscription
-    this.clearThumbnailGenerationSubscriptions();
-    if (this.thumbnailGenerationTimeout) {
-      window.clearTimeout(this.thumbnailGenerationTimeout);
-      this.thumbnailGenerationTimeout = null;
-    }
 
     // Remove all event listeners
     this.eventBus.removeAllListeners();

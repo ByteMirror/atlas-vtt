@@ -5,7 +5,9 @@ import { LASER_FADE_TIME, type LaserPointerSettings } from '../tools/laserPointe
 import { setCanvasCursor } from './utils/canvasCursor';
 import { destroyTree } from './utils/destroyTree';
 import { MAX_TRAIL_SAMPLES, type BeamPoint } from './laser/laserBeamGeometry';
-import { LaserBeam, beamWidth } from './laser/LaserBeam';
+import { LaserBeam, beamWidth, type LaserBeamView } from './laser/LaserBeam';
+import { CanvasLaserBeam } from './laser/CanvasLaserBeam';
+import { usesCanvasRenderer } from './utils/rendererType';
 
 interface TrailPoint {
   x: number;
@@ -36,7 +38,7 @@ export class LaserPointerRenderer {
   private canvasEl: HTMLCanvasElement;
 
   private container: Container;
-  private beam: LaserBeam;
+  private beam: LaserBeamView;
 
   private trailPoints: TrailPoint[] = [];
   /** Where the pointer is on the map, or null while it is off the canvas. */
@@ -79,7 +81,7 @@ export class LaserPointerRenderer {
     this.container.interactive = false;
     this.container.interactiveChildren = false;
 
-    this.beam = new LaserBeam();
+    this.beam = usesCanvasRenderer(pixiApp.renderer) ? new CanvasLaserBeam() : new LaserBeam();
     this.container.addChild(this.beam.view);
 
     // Store subscription for tool activation (follows MeasureRenderer pattern)

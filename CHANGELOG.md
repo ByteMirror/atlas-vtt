@@ -2,6 +2,40 @@
 
 <!-- Generated from changelog/*.md. Run npm run changelog:generate. -->
 
+## 0.4.2 — Faster imports with progress bars, a toolbar that fits small windows, and scene and map fixes
+
+2026-09-29
+
+### Improved
+
+- The map toolbar fits any window size. Tools that don't fit move into a "More tools" menu
+- Menus, the dice tray and the command palette stay inside small map views
+- Importing tokens and maps is now roughly 2.5x faster and images that are already small enough won't get re-compressed any longer
+- Importing tokens/maps now shows a progress bar
+- The Fantasy Statblocks import opens much faster in large vaults
+- Create token from statblock image now saves a small, optimized thumbnail instead of a full size copy
+
+### Fixed
+
+- Maps and scenes can be moved into folders in the asset manager again
+- Scenes keep their background when the map image is renamed or moved
+- Fixed bug where the dashboard would open map images as a black canvas. It now lists only scenes again
+- Scenes that can't be opened now show an error instead of a black canvas
+- Token images can be moved and zoomed again after turning on the ring. Edit token now saves the new framing
+- Maps now show up when Obsidian can't use the graphics card, for example on some Linux systems
+- The laser pointer works again after closing a map view
+- Fixed an issue where recently created scenes wouldn't show their thumbnail in the asset manager
+
+## 0.4.1 — Fixes the asset manager's menus on older Obsidian installs and note pins linked to a heading
+
+2026-09-28
+
+### Fixed
+
+- The asset manager's Create menu works again on older Obsidian installs. Only the top of Create Token reacted to clicks, and clicking Add Map or Create Collection closed the menu. The other menus and search suggestions below the asset manager's header had the same problem.
+- Note pins linked to a heading open the note at that heading again, also for headings further down the note and headings with links, formatting or a # in them.
+- Picking a heading for a note pin lists the headings of the note you picked, even when another note has the same name. Notes that share a name show their folder, and a heading you already typed is kept.
+
 ## 0.4.0 — Creature filters, hexcrawl maps, loot roller, progress clocks and moving between collections
 
 2026-09-28

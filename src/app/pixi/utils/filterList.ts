@@ -1,7 +1,7 @@
 import type { Container, Filter } from 'pixi.js';
 
 /** PIXI types `filters` as a single filter or an array; normalise to an array. */
-function toFilterArray(filters: Filter | Filter[] | null | undefined): Filter[] {
+function toFilterArray(filters: Filter | readonly Filter[] | null | undefined): Filter[] {
   return filters ? [filters].flat() : [];
 }
 

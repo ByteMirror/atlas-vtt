@@ -7,6 +7,7 @@ import type { SceneTab } from './types/sceneTabTypes';
 import type AtlasVTTPlugin from '../../main';
 import { claimWorkspaceLeafFocus } from './utils/activeLeafGuard';
 import { PhysicalDiceTable } from './physical-dice/PhysicalDiceTable';
+import { isScenePath } from './utils/sceneFiles';
 
 export const ATLAS_VIEW_TYPE = "atlas-vtt";
 
@@ -27,10 +28,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+/** Tabs of other files (older versions opened map images as scenes) are dropped on restore. */
 function isSceneTab(value: unknown): value is SceneTab {
   return isRecord(value)
     && typeof value.id === 'string'
     && typeof value.filePath === 'string'
+    && isScenePath(value.filePath)
     && typeof value.displayName === 'string';
 }
 
@@ -552,6 +555,12 @@ export class AtlasView extends FileView {
 
   /** Obsidian will call this each time a file is loaded into this view (including first open). */
   public async onLoadFile(file: TFile): Promise<void> {
+    if (!isScenePath(file.path)) {
+      new Notice(`"${file.name}" is not an Atlas scene. To play on a map image, create a scene from it in the asset manager.`, 5000);
+      // onOpen shows the loading overlay before it gets here; nothing else will hide it
+      if (!this.currentMapFilePath) this.store.getState().setMapLoading(false);
+      return;
+    }
     const tabState = this.tabMetaStore.getState();
     const existingTab = tabState.getTabByFilePath(file.path);
 
@@ -592,6 +601,8 @@ export class AtlasView extends FileView {
    * store, so switching maps never rebuilds the PIXI application.
    */
   private async performSceneLoad(file: TFile): Promise<void> {
+    // The renderer still shows the previous scene; its pending thumbnail is taken now or never
+    this._serviceManager.flushSceneThumbnail();
     this.store.getState().setMapLoading(true, 0, 'Preparing...');
     this.currentMapFilePath = file.path;
 

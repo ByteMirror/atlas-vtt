@@ -1,6 +1,6 @@
 import type * as React from 'react';
 import { useState } from 'react';
-import { TFolder, TFile, App as ObsidianApp } from 'obsidian';
+import { TFolder, App as ObsidianApp } from 'obsidian';
 import type { AnyAsset, CollectionOption, TokenAsset, Folder, Tab, InputModalState } from '../types';
 import { ATLAS_VTT_DIR } from '../types';
 import { saveEncounter, type EncounterTokenDraft } from '../../../../encounters/encounterSaveService';
@@ -8,7 +8,8 @@ import { AssetService } from '../../../../services/AssetService';
 import { showAtlasToast } from '../../../../react/components/AtlasToast';
 import { ensureFolder } from '../../../../plugin/vaultFolders';
 import { useCollectionTransfer, type CollectionTransferActions } from './useCollectionTransfer';
-import { folderIdOf, tabFolderPath, vaultPathOfFolder } from '../utils/assetFolders';
+import { folderIdOf, tabFolderPath } from '../utils/assetFolders';
+import { folderMoveProblem, moveAssetsIntoFolder } from '../utils/assetFolderMove';
 
 /** Background and name carried over when a scene is created from a map asset. */
 export interface CreateScenePrefill {
@@ -69,10 +70,8 @@ export function useAssetCrud(
   selectedCollection: string | null,
   selectedFolderId: string | null,
   folders: Folder[],
-  assets: AnyAsset[],
   collections: CollectionOption[],
   setFolders: React.Dispatch<React.SetStateAction<Folder[]>>,
-  setAssets: React.Dispatch<React.SetStateAction<AnyAsset[]>>,
   reloadCollections: () => Promise<void>,
   setSelectedCollection: (c: string | null) => void,
   loadFoldersForActiveTab: () => Promise<void>,
@@ -180,45 +179,11 @@ export function useAssetCrud(
 
   const moveAssetsToFolder = async (assetIds: string[], targetFolderId: string | null): Promise<void> => {
     if (!app || !assetService) return;
-    const col = selectedCollection || AssetService.defaultCollectionId();
-    const tabBase = tabFolderPath(col, activeTab);
-    const targetDir = targetFolderId ? vaultPathOfFolder(targetFolderId) : tabBase;
-    const movedPathById: Record<string, string> = {};
-
-    for (const id of assetIds) {
-      const asset = assets.find((a) => a.id === id);
-      // Only tokens (their image) and encounters (their JSON file) live in folders.
-      if (!asset || (asset.type !== 'tokens' && asset.type !== 'encounters')) continue;
-
-      const sourcePath = asset.type === 'tokens'
-        ? asset.imagePath
-        : asset.filePath ?? `${tabBase}/${asset.id}.json`;
-      if (!sourcePath) continue;
-
-      const fileName = sourcePath.substring(sourcePath.lastIndexOf('/') + 1);
-      const newPath = `${targetDir}/${fileName}`;
-      if (newPath === sourcePath) continue;
-
-      try {
-        const file = app.vault.getAbstractFileByPath(sourcePath);
-        if (!(file instanceof TFile)) continue;
-        await app.vault.rename(file, newPath);
-        movedPathById[id] = newPath;
-        await assetService.updateAsset(id, asset.type === 'tokens' ? { imagePath: newPath } : { filePath: newPath });
-      } catch (error) {
-        console.error(`[useAssetCrud] Failed to move asset ${id}:`, error);
-      }
-    }
-
-    setAssets((prev) =>
-      prev.map((a) => {
-        const movedPath = movedPathById[a.id];
-        if (movedPath === undefined) return a;
-        return a.type === 'tokens'
-          ? { ...a, folderId: targetFolderId, imagePath: movedPath }
-          : { ...a, folderId: targetFolderId, filePath: movedPath };
-      })
-    );
+    const tabBase = tabFolderPath(selectedCollection, activeTab);
+    const result = await moveAssetsIntoFolder(app, assetService, assetIds, tabBase, targetFolderId);
+    const problem = folderMoveProblem(result);
+    if (problem) showAtlasToast(problem);
+    if (result.moved.length > 0) await loadAssetsForActiveTab();
   };
 
   const handleDrop = (targetFolderId: string | null): void => {

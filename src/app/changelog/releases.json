@@ -1,10 +1,22 @@
 {
-  "version": "0.5.0-beta.0",
+  "version": "0.5.0-beta.1",
   "releases": [
     {
-      "version": "0.5.0-beta.0",
+      "version": "0.5.0-beta.1",
       "title": "Coming in 0.5.0",
       "markdown": "## New\n\n**Physical Dice**\n- Roll real 3D dice on your map. Switch the dice panel from RNG to Physical, pick your dice and press Roll, then drag a die to throw it or press Throw. The result appears like any other roll, with modifiers.\n- Statblock dice, the roll log and hit points without placed tokens roll physical dice too when Physical is on.\n- Dress your dice with dice packs: import a pack folder in the asset manager's new Dice tab and choose it for the collection.\n- Tune how the dice look and read in Collection Settings → Physical Dice: pack, size, shadows, light, how long they settle and how squarely a face must land.\n\n## Fixed\n\n- A formula like `d6+2d8` no longer adds the 2 as a modifier."
+    },
+    {
+      "version": "0.4.2",
+      "date": "2026-09-29",
+      "title": "Faster imports with progress bars, a toolbar that fits small windows, and scene and map fixes",
+      "markdown": "## Improved\n\n- The map toolbar fits any window size. Tools that don't fit move into a \"More tools\" menu\n- Menus, the dice tray and the command palette stay inside small map views\n- Importing tokens and maps is now roughly 2.5x faster and images that are already small enough won't get re-compressed any longer\n- Importing tokens/maps now shows a progress bar\n- The Fantasy Statblocks import opens much faster in large vaults\n- Create token from statblock image now saves a small, optimized thumbnail instead of a full size copy\n\n## Fixed\n\n- Maps and scenes can be moved into folders in the asset manager again\n- Scenes keep their background when the map image is renamed or moved\n- Fixed bug where the dashboard would open map images as a black canvas. It now lists only scenes again\n- Scenes that can't be opened now show an error instead of a black canvas\n- Token images can be moved and zoomed again after turning on the ring. Edit token now saves the new framing\n- Maps now show up when Obsidian can't use the graphics card, for example on some Linux systems\n- The laser pointer works again after closing a map view\n- Fixed an issue where recently created scenes wouldn't show their thumbnail in the asset manager"
+    },
+    {
+      "version": "0.4.1",
+      "date": "2026-09-28",
+      "title": "Fixes the asset manager's menus on older Obsidian installs and note pins linked to a heading",
+      "markdown": "## Fixed\n\n- The asset manager's Create menu works again on older Obsidian installs. Only the top of Create Token reacted to clicks, and clicking Add Map or Create Collection closed the menu. The other menus and search suggestions below the asset manager's header had the same problem.\n- Note pins linked to a heading open the note at that heading again, also for headings further down the note and headings with links, formatting or a # in them.\n- Picking a heading for a note pin lists the headings of the note you picked, even when another note has the same name. Notes that share a name show their folder, and a heading you already typed is kept."
     },
     {
       "version": "0.4.0",

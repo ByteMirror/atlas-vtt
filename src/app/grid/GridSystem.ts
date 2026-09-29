@@ -1,6 +1,6 @@
 import { Application, Container, Graphics, Sprite } from 'pixi.js';
 import { Viewport } from 'pixi-viewport';
-import type { IRenderLayer } from 'pixi.js';
+import type { RenderLayer } from 'pixi.js';
 import { drawSquareGrid } from './squareGridDrawer';
 import { drawHexGrid } from './hexGridDrawer';
 import type { GridBounds, GridLineType } from './gridLineStyle';
@@ -69,7 +69,7 @@ export class GridSystem {
   private viewport: Viewport;
   private app: Application;
   private options: GridOptions;
-  private layer: IRenderLayer | null = null;
+  private layer: RenderLayer | null = null;
   private _updateDebounceTimer: number | null = null;
   private _gridSpriteInitialWorldX: number = 0;
   private _gridSpriteInitialWorldY: number = 0;
@@ -397,7 +397,7 @@ export class GridSystem {
   }
 
   /** Provide a render layer so the grid sprite can automatically be attached */
-  public setRenderLayer(layer: IRenderLayer | null): void {
+  public setRenderLayer(layer: RenderLayer | null): void {
     this.layer = layer;
     if (this.gridSprite && layer) {
       layer.attach(this.gridSprite);

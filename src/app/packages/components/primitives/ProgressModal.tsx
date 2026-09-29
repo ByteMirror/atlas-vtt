@@ -1,5 +1,6 @@
 import React, { useId, useRef } from 'react';
 import { Button } from './button';
+import { ProgressBar } from './ProgressBar';
 import { useDialogEscape } from './useDialogEscape';
 
 export interface ProgressModalAction {
@@ -46,9 +47,7 @@ export function ProgressModal({ title, message, fraction, prompt }: ProgressModa
             ))}
           </div>
         ) : (
-          <div className="atlas-progress-modal__bar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent}>
-            <div className="atlas-progress-modal__fill" style={{ width: `${percent}%` }} />
-          </div>
+          <ProgressBar value={percent} max={100} label={title} valueText={`${percent}%`} className="atlas-progress-modal__bar" />
         )}
       </div>
     </div>

@@ -1,6 +1,9 @@
 import { EventEmitter } from 'events';
 import { describe, expect, it, vi } from 'vitest';
+import { Notice } from 'obsidian';
 import { createInMemoryApp } from '../mocks/inMemoryVault';
+
+vi.mock('obsidian', async (importOriginal) => ({ ...(await importOriginal<typeof import('obsidian')>()), Notice: vi.fn() }));
 
 vi.mock('../../src/app/MapController', () => ({
   MapController: { loadAndDisplay: vi.fn().mockRejectedValue(new Error('[MapLoader] Failed to parse map JSON')) },
@@ -50,5 +53,13 @@ describe('MapService.loadMap failure', () => {
 
     expect(await service.loadMap(rendererService, BROKEN_MAP)).toBeNull();
     expect(store.getState().mapPath).toBe('maps/previous.atlasmap');
+  });
+
+  it('tells the user which scene failed and why, instead of leaving an empty canvas', async () => {
+    const { service, rendererService } = setup({});
+
+    await service.loadMap(rendererService, BROKEN_MAP);
+
+    expect(Notice).toHaveBeenCalledWith('Atlas VTT could not open the scene broken (Failed to parse map JSON).', 0);
   });
 });

@@ -9,7 +9,7 @@ vi.mock('../../src/app/packages/components/asset-manager/token-creator/useAssetC
 vi.mock('../../src/app/packages/components/asset-manager/token-creator/useAssetTags', () => ({ useAssetTags: () => ({ tags: ['Enemy'], createTag: vi.fn(), isCreatingTag: false }) }));
 vi.mock('../../src/app/services/StatblockTokenImportService', () => ({ StatblockTokenImportService: class { scan = fake.scan; } }));
 vi.mock('../../src/app/packages/components/asset-manager/token-creator/saveTokenPreviews', () => ({ saveTokenPreviews: fake.save }));
-vi.mock('../../src/app/utils/imageOptimizer', () => ({ optimizeImage: async () => ({ blob: new Blob(['art']), compressionRatio: 20 }), OPTIMIZATION_PRESETS: { token: {} } }));
+vi.mock('../../src/app/packages/components/asset-manager/token-creator/tokenImages', () => ({ optimizeUpload: async () => ({ image: new Blob(['art']), thumbnail: null, preview: null }) }));
 afterEach(cleanup);
 beforeEach(() => {
   vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} });

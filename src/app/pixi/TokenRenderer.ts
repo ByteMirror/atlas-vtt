@@ -1,4 +1,4 @@
-import { syncTokenArtwork } from './token-renderer/tokenArtwork';
+import { fitTokenArtwork, syncTokenArtwork } from './token-renderer/tokenArtwork';
 import type { AtlasSettings } from '../services/SettingsService';
 import { hiddenTokenLayers, type LayerVisibility } from './playerSafeFrame';
 import { Sprite, Container, Graphics, Application, FederatedPointerEvent } from "pixi.js";
@@ -28,6 +28,7 @@ import { HiddenTokenIcon } from './token-renderer/HiddenTokenIcon';
 import { DownedTokenOverlay } from './token-renderer/DownedTokenOverlay';
 import { isTokenDowned } from './token-renderer/isTokenDowned';
 import { requestRender } from './RenderScheduler';
+import { normalizeImagePath } from '../utils/pathUtils';
 import { prefersReducedMotion } from '../utils/motion';
 import { destroyTree } from './utils/destroyTree';
 import { buildStatblockLinkUpdates, readStatblockVitals, STATBLOCK_UNLINK_UPDATES } from './token-renderer/statblockFrontmatter';
@@ -414,6 +415,9 @@ export class TokenRenderer {
       if (mapPath && this.assetService.getCollectionForMap(mapPath) === collectionId) this.uiManager.refreshConditions();
     });
 
+    // Tokens show the new content of an edited image file, e.g. a re-cropped token
+    const handleFileModified = this.obsApp.vault.on('modify', (file) => { void this.refreshArt(file.path); });
+
     // Listen to statblock metadata changes
     const handleMetadataChange = this.obsApp.metadataCache.on('changed', async (file: TFile) => {
       // Check if this is a statblock file being edited
@@ -530,6 +534,7 @@ export class TokenRenderer {
       this.eventBus.off('map-loaded', handleMapLoaded);
       // Clean up metadata change listener
       this.obsApp.metadataCache.offref(handleMetadataChange);
+      this.obsApp.vault.offref(handleFileModified);
       this.obsApp.workspace.offref(handleCollectionSettingsChange);
       // Clean up link change listener
       if (this.tokenStatblockLinkService && typeof this.tokenStatblockLinkService.off === 'function') {
@@ -1007,6 +1012,20 @@ export class TokenRenderer {
     }
   };
 
+  /** Shows the new content of a changed image file on every token that uses it. */
+  private async refreshArt(path: string): Promise<void> {
+    const key = normalizeImagePath(path);
+    const reloaded = await this.textureCache.reload(path, (texture) => {
+      for (const tokenGroup of Object.values(this.tokenSprites)) {
+        if (!tokenGroup || normalizeImagePath(tokenGroup.artPath) !== key) continue;
+        const sprite = tokenGroup.getChildByLabel('tokenSprite');
+        if (sprite instanceof Sprite) sprite.texture = texture;
+        fitTokenArtwork(tokenGroup);
+      }
+    });
+    if (reloaded && this.pixiApp) requestRender(this.pixiApp);
+  }
+
   private async updateTokenSpriteTexture(token: TokenEntity, tokenGroup: TokenGroupContainer): Promise<void> {
     const sprite = tokenGroup.getChildByLabel('tokenSprite') as Sprite | null;
     if (!sprite) {
@@ -1027,12 +1046,7 @@ export class TokenRenderer {
     tokenGroup.tokenData = token;
     const previousArtPath = tokenGroup.artPath;
     tokenGroup.artPath = artPath;
-    const tokenSize = tokenGroup.tokenSize;
-    if (Number.isFinite(tokenSize) && tokenSize > 0) {
-      sprite.width = tokenSize;
-      sprite.height = tokenSize;
-      syncTokenArtwork(tokenGroup, tokenSize);
-    }
+    fitTokenArtwork(tokenGroup);
 
     this.textureCache.release(previousArtPath);
     this.evictUnusedArt();

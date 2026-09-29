@@ -1,4 +1,3 @@
-import type { OptimizedImageResult } from '../../../../utils/imageOptimizer';
 
 export type CreatorMode = 'token' | 'map';
 
@@ -36,14 +35,14 @@ export interface TokenPreview {
   id: string;
   /** Original upload; null when editing an existing asset without replacing its image. */
   file: File | null;
-  optimizedFile?: Blob;
+  /** Percentage by which the background conversion shrank the upload. */
+  compressionRatio?: number;
   previewUrl: string;
   name: string;
   imageScale: number;
   imagePosition: ImagePosition;
   isSelected: boolean;
   isOptimizing: boolean;
-  optimizationResult?: OptimizedImageResult;
 }
 
 export type TokenPreviewPatch = Partial<Pick<TokenPreview, 'name' | 'imageScale' | 'imagePosition' | 'showRing' | 'size' | 'tags'>>;

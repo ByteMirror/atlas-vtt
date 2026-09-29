@@ -18,7 +18,7 @@ export function loadTokenRingTexture(): Promise<Texture | null> {
     try {
       const texture = await Assets.load<Texture>({
         src: tokenRingImageUrl,
-        loadParser: 'loadTextures',
+        parser: 'texture',
         data: {
           autoGenerateMipmaps: true,
           scaleMode: 'linear',

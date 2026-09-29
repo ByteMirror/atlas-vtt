@@ -132,8 +132,8 @@ export default function AssetManager({ isOpen, onClose, initialTab, onExitComple
 
   const crud = useAssetCrud(
     data.app, data.assetService, activeTab, selectedCollection,
-    sel.selectedFolderId, data.folders, data.assets, data.collections,
-    data.setFolders, data.setAssets, data.reloadCollections, setSelectedCollection,
+    sel.selectedFolderId, data.folders, data.collections,
+    data.setFolders, data.reloadCollections, setSelectedCollection,
     data.loadFoldersForActiveTab, data.loadAssetsForActiveTab,
     draggedItems, setDraggedItems, setDropTarget,
   );

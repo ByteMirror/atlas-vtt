@@ -5,6 +5,11 @@ import { AssetService } from '../../src/app/services/AssetService';
 import { TokenStatblockLinkService } from '../../src/app/services/TokenStatblockLinkService';
 import { createInMemoryApp } from '../mocks/inMemoryVault';
 
+// Workers and canvases do not exist in jsdom; the conversion itself is covered by the image pipeline's tests.
+const bytes = (text: string): Blob => ({ arrayBuffer: async () => new TextEncoder().encode(text).buffer } as Blob);
+const convert = vi.hoisted(() => vi.fn());
+vi.mock('../../src/app/packages/components/asset-manager/token-creator/tokenImages', () => ({ convertTokenArt: convert }));
+
 const note = 'Bestiary/Goblin.md';
 const image = 'Artwork/goblin.webp';
 function setup() {
@@ -27,6 +32,8 @@ function setup() {
   return { ...state, frontmatter, assets: AssetService.getInstance(state.app) };
 }
 beforeEach(() => {
+  convert.mockReset();
+  convert.mockImplementation(async (file: File) => ({ image: bytes(`webp:${file.name}`), thumbnail: bytes('thumbnail'), preview: null }));
   Reflect.set(AssetService, 'instance', null);
   Reflect.set(TokenStatblockLinkService, 'instance', null);
 });
@@ -84,7 +91,9 @@ describe('bulk importing recognized statblock notes', () => {
     const tokens = await assets.getTokenAssets();
     expect(tokens).toHaveLength(2);
     expect(new Set(tokens.map(t => t.imagePath)).size).toBe(2);
-    expect(tokens.every(t => t.imagePath.startsWith('atlas-vtt/assets/'))).toBe(true);
+    expect(tokens.every(t => t.imagePath.startsWith('atlas-vtt/assets/') && t.imagePath.endsWith('.webp'))).toBe(true);
+    expect(tokens.map(t => files.get(t.imagePath))).toEqual(['webp:goblin.webp', 'webp:goblin.webp']);
+    expect(tokens.every(t => t.thumbnailPath && files.get(t.thumbnailPath) === 'thumbnail')).toBe(true);
     expect(tokens.map(t => t.statblockPath)).toEqual([note, 'Other/Goblin.md']);
     expect(files.get(note)).toBe('Original note');
     expect(files.get(image)).toBe('image-bytes');
@@ -159,7 +168,7 @@ describe('bulk importing recognized statblock notes', () => {
     expect(result.uncertain).toBe(true);
     expect(result.items).toHaveLength(1);
     expect(result.items[0]?.status).toBe('failed');
-    expect([...files.keys()].filter(p => p.startsWith('atlas-vtt/assets/'))).toHaveLength(1);
+    expect([...files.keys()].filter(p => p.startsWith('atlas-vtt/assets/') && !p.startsWith('atlas-vtt/assets/thumbnails/'))).toHaveLength(1);
     expect(files.get(image)).toBe('image-bytes');
   });
 
@@ -198,6 +207,7 @@ describe('bulk importing recognized statblock notes', () => {
     expect((await importer.scan()).map(r => r.layoutName)).toEqual(['Basic 5e Layout', 'Daggerheart Adversary']);
     const result = await importer.import([note, 'Ogre.md'], 'Default', { ringByPath: { [note]: false, 'Ogre.md': true } });
     expect(result.items.map(i => i.asset?.showRing)).toEqual([false, true]);
+    expect(convert.mock.calls.map(([, framed]) => framed)).toEqual([false, true]);
     expect((await assets.getTokenAssets()).map(t => t.showRing)).toEqual([false, true]);
   });
 

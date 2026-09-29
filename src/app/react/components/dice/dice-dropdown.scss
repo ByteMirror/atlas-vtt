@@ -36,6 +36,7 @@
   z-index: 99999;
   pointer-events: auto;
   animation: atlas-dice-slide-up 0.2s ease-out both;
+  @include atlas-keep-in-view;
 }
 
 // ── Panel ────────────────────────────────────

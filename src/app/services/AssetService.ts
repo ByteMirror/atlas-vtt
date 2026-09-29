@@ -904,7 +904,7 @@ export class AssetService {
   private async registerAsset<A extends Asset>(newAsset: A, userImport = true): Promise<A> {
     await this.ensureLoaded();
 
-    if (newAsset.type !== 'token' && newAsset.type !== 'map' && newAsset.type !== 'note' && !newAsset.filePath) {
+    if (newAsset.type !== 'token' && newAsset.type !== 'note' && !newAsset.filePath) {
       newAsset.filePath = this.getAssetPath(newAsset);
     }
 

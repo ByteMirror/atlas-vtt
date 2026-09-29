@@ -60,11 +60,6 @@
     font-size: $font-ui-small;
     color: var(--text-muted);
     font-variant-numeric: tabular-nums;
-
-    svg {
-      width: $icon-xs;
-      height: $icon-xs;
-    }
   }
 
   .atlas-token-creator__actions {

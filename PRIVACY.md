@@ -9,8 +9,6 @@ Atlas VTT works offline. Maps, tokens, notes, audio and settings stay in your va
 
 If you set a token or map background to an `http://` or `https://` image URL, or copy an image that a note embeds from an external URL, that image is downloaded from the address in question. Images stored in your vault cause no network traffic.
 
-PixiJS, the bundled rendering library, contains download URLs for optional texture transcoders (`files.pixijs.download`). They are only requested for KTX or Basis compressed textures, which Atlas VTT does not use.
-
 ## Files outside the vault
 
 Atlas VTT does not read or write files outside your vault.
@@ -18,6 +16,8 @@ Atlas VTT does not read or write files outside your vault.
 ## Code execution
 
 When the optional [Fantasy Statblocks](https://github.com/javalent/fantasy-statblocks) plugin is installed, Atlas VTT renders creature statblocks with that plugin's layouts. Layouts can contain small JavaScript callbacks (for example to format a modifier). Atlas VTT runs those callbacks exactly as Fantasy Statblocks does. They come only from Fantasy Statblocks' own layout data on your computer — never from note content or the internet. That includes layouts you imported from someone else, so only import layouts you trust, as you would for Fantasy Statblocks itself. Without Fantasy Statblocks installed, no such code runs.
+
+Atlas VTT converts imported images in background workers so Obsidian stays responsive. The workers run code bundled in the plugin's `main.js`, started from a local blob URL; nothing is downloaded, and they only receive the images you import.
 
 ## Issue reports
 

@@ -3,6 +3,8 @@ import { App as ObsidianApp, TFile } from 'obsidian';
 import type { ITextureCache } from './types';
 import { normalizeImagePath } from '../../utils/pathUtils';
 import { loadAsset, unloadAsset } from '../utils/assetLifecycle';
+import { withDecodedImage } from '../../imageProcessing/imageElement';
+import { fitWithin } from '../../imageProcessing/imageLayout';
 
 /**
  * Longest edge of a token texture. Tokens render at roughly one grid cell, so
@@ -11,11 +13,6 @@ import { loadAsset, unloadAsset } from '../utils/assetLifecycle';
 const MAX_TOKEN_TEXTURE_SIZE = 1024;
 /** Cache key of the placeholder used for tokens without art. */
 const DEFAULT_TOKEN_TEXTURE_KEY = 'default-token';
-
-function fitWithin(width: number, height: number, max: number): { width: number; height: number } {
-  const scale = Math.min(1, max / Math.max(width, height));
-  return { width: Math.max(1, Math.round(width * scale)), height: Math.max(1, Math.round(height * scale)) };
-}
 
 /**
  * Decode an image off the main thread and downscale it to the token budget.
@@ -27,7 +24,7 @@ async function decodeTokenImage(buffer: ArrayBuffer, mimeType: string): Promise<
   if (mimeType !== 'image/svg+xml') {
     try {
       const full = await createImageBitmap(blob);
-      const target = fitWithin(full.width, full.height, MAX_TOKEN_TEXTURE_SIZE);
+      const target = fitWithin(full, MAX_TOKEN_TEXTURE_SIZE, MAX_TOKEN_TEXTURE_SIZE);
       if (target.width === full.width && target.height === full.height) return full;
       const scaled = await createImageBitmap(full, {
         resizeWidth: target.width,
@@ -40,20 +37,14 @@ async function decodeTokenImage(buffer: ArrayBuffer, mimeType: string): Promise<
       // Fall through to the <img> path
     }
   }
-  const url = URL.createObjectURL(blob);
-  try {
-    const img = new Image();
-    img.src = url;
-    await img.decode();
-    const target = fitWithin(img.naturalWidth || 512, img.naturalHeight || 512, MAX_TOKEN_TEXTURE_SIZE);
+  return withDecodedImage(blob, (img) => {
+    const target = fitWithin({ width: img.naturalWidth || 512, height: img.naturalHeight || 512 }, MAX_TOKEN_TEXTURE_SIZE, MAX_TOKEN_TEXTURE_SIZE);
     const canvas = createEl('canvas');
     canvas.width = target.width;
     canvas.height = target.height;
     canvas.getContext('2d')!.drawImage(img, 0, 0, target.width, target.height);
     return canvas;
-  } finally {
-    URL.revokeObjectURL(url);
-  }
+  });
 }
 
 // MIME type mapping
@@ -87,6 +78,8 @@ export class TextureCache implements ITextureCache {
   private readonly assetUrlByKey = new Map<string, string>();
   // Decoded bitmaps backing vault-loaded textures, closed on eviction
   private readonly bitmapByKey = new Map<string, ImageBitmap>();
+  /** Latest reload started per art path; only it may replace the texture. */
+  private readonly reloadGenerations = new Map<string, number>();
   private pixiApp: Application | null = null;
 
   constructor(private readonly obsApp: ObsidianApp) {}
@@ -140,7 +133,7 @@ export class TextureCache implements ITextureCache {
   private async loadUrl(url: string): Promise<Texture> {
     const texture = await loadAsset<Texture>({
       src: url,
-      loadParser: 'loadTextures',
+      parser: 'texture',
       data: { autoGenerateMipmaps: true, scaleMode: 'linear' },
     });
     this.assetUrlByKey.set(url, url);
@@ -155,9 +148,7 @@ export class TextureCache implements ITextureCache {
       return this.getDefaultTokenTexture();
     }
 
-    const arrayBuffer = await this.obsApp.vault.readBinary(file);
-    const mimeType = MIME_MAP[file.extension.toLowerCase()] || 'image/png';
-    const decoded = await decodeTokenImage(arrayBuffer, mimeType);
+    const decoded = await this.decodeVaultImage(file);
 
     // A concurrent call may have finished first; keep the existing texture.
     const existing = this.textures.get(path);
@@ -166,15 +157,58 @@ export class TextureCache implements ITextureCache {
       return existing;
     }
 
-    const sourceOptions = { autoGenerateMipmaps: true, scaleMode: 'linear' as const, label: path };
-    const source = decoded instanceof ImageBitmap
-      ? new ImageSource({ resource: decoded, ...sourceOptions })
-      : new CanvasSource({ resource: decoded, ...sourceOptions });
-    const texture = new Texture({ source, label: path });
-
-    if (decoded instanceof ImageBitmap) this.bitmapByKey.set(path, decoded);
+    const texture = new Texture({ source: this.createSource(path, decoded), label: path });
     this.textures.set(path, texture);
     return texture;
+  }
+
+  /**
+   * Re-reads art whose file changed into a new texture, which `show` puts on every sprite
+   * with the old one before that is destroyed. Returns false when the art is not cached
+   * from the vault, when a newer change to the same file overtook this one, or when the
+   * file cannot be decoded (a half-written file keeps the art it had).
+   */
+  async reload(imagePath: string, show: (texture: Texture) => void): Promise<boolean> {
+    const key = normalizeImagePath(imagePath);
+    const previous = this.textures.get(key);
+    const file = this.obsApp.vault.getAbstractFileByPath(key);
+    if (!previous || this.assetUrlByKey.has(key) || !(file instanceof TFile)) return false;
+
+    const generation = (this.reloadGenerations.get(key) ?? 0) + 1;
+    this.reloadGenerations.set(key, generation);
+    let decoded: ImageBitmap | HTMLCanvasElement;
+    try {
+      decoded = await this.decodeVaultImage(file);
+    } catch (error) {
+      console.warn(`[TextureCache] Could not reload ${key}:`, error);
+      return false;
+    }
+    // A newer reload read the file later, and eviction or a rebuild replaced the texture
+    if (this.reloadGenerations.get(key) !== generation || this.textures.get(key) !== previous) {
+      if (decoded instanceof ImageBitmap) decoded.close();
+      return false;
+    }
+    this.reloadGenerations.delete(key);
+    const previousBitmap = this.bitmapByKey.get(key);
+    this.bitmapByKey.delete(key);
+    const texture = new Texture({ source: this.createSource(key, decoded), label: key });
+    this.textures.set(key, texture);
+    show(texture);
+    previous.destroy(true);
+    previousBitmap?.close();
+    return true;
+  }
+
+  private async decodeVaultImage(file: TFile): Promise<ImageBitmap | HTMLCanvasElement> {
+    const mimeType = MIME_MAP[file.extension.toLowerCase()] || 'image/png';
+    return decodeTokenImage(await this.obsApp.vault.readBinary(file), mimeType);
+  }
+
+  private createSource(path: string, decoded: ImageBitmap | HTMLCanvasElement): ImageSource | CanvasSource {
+    const sourceOptions = { autoGenerateMipmaps: true, scaleMode: 'linear' as const, label: path };
+    if (!(decoded instanceof ImageBitmap)) return new CanvasSource({ resource: decoded, ...sourceOptions });
+    this.bitmapByKey.set(path, decoded);
+    return new ImageSource({ resource: decoded, ...sourceOptions });
   }
 
   private destroyTexture(key: string): void {

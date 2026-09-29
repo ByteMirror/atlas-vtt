@@ -7,7 +7,7 @@ import { createInMemoryApp } from '../mocks/inMemoryVault';
 
 const note = 'Bestiary/Goblin.md';
 const image = 'Artwork/goblin.webp';
-const blob = { arrayBuffer: async () => new Uint8Array([1, 2]).buffer } as Blob;
+const converted = { image: { arrayBuffer: async () => new Uint8Array([1, 2]).buffer } as Blob, thumbnail: null, preview: null };
 beforeEach(() => Reflect.set(AssetService, 'instance', null));
 afterEach(() => Reflect.deleteProperty(window, 'FantasyStatblocks'));
 function setup() {
@@ -20,7 +20,7 @@ function setup() {
   Object.assign(window, { FantasyStatblocks: { isResolved: () => true, getBestiaryCreatures: () => [] } });
   const assetService = AssetService.getInstance(app);
   const preview: TokenPreview = { id: 'goblin', name: 'Custom Goblin', statblockPath: note, tags: ['Enemy'], showRing: false, size: 2, file: new File(['art'], 'goblin.webp'), previewUrl: 'blob:art', imageScale: 1, imagePosition: { x: 0, y: 0 }, isSelected: false, isOptimizing: false };
-  const options = { app, assetService, mode: 'token' as const, previews: [preview], collection: 'Default', tags: [], waitForOptimized: async () => blob, onSaved: vi.fn() };
+  const options = { app, assetService, mode: 'token' as const, previews: [preview], collection: 'Default', tags: [], waitForOptimized: async () => converted, onSaved: vi.fn() };
   return { app, files, assetService, preview, options };
 }
 

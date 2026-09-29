@@ -1,6 +1,8 @@
 import React, { useEffect, useRef } from "react"
 import { Button } from "./button"
 import { ChevronDown } from "lucide-react"
+import { cn } from "src/utils/cn"
+import { useKeepInView } from "./useKeepInView"
 
 // Extend HTMLAttributes for the root div element to allow standard HTML props like onClick, className etc.
 interface DropdownMenuProps extends React.HTMLAttributes<HTMLDivElement> {
@@ -59,6 +61,7 @@ export const DropdownMenu: React.FC<DropdownMenuProps> = ({
   
   const containerRef = useRef<HTMLDivElement>(null);
   const dropdownContentRef = useRef<HTMLDivElement>(null);
+  const keepInView = useKeepInView(dropdownContentRef, isOpen, position);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -117,8 +120,14 @@ export const DropdownMenu: React.FC<DropdownMenuProps> = ({
       {isOpen && (
         <div
           ref={dropdownContentRef}
-          className={`atlas-dropdown-content atlas-dropdown-content--${position} atlas-dropdown-content--${align} ${menuClassName}`.trim()}
-          style={menuStyle} // This is for the inner content box
+          className={cn(
+            "atlas-dropdown-content",
+            `atlas-dropdown-content--${position}`,
+            `atlas-dropdown-content--${align}`,
+            keepInView.capped && "atlas-keep-in-view--capped",
+            menuClassName,
+          )}
+          style={{ ...keepInView.style, ...menuStyle }}
         >
           {children}
         </div>

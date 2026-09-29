@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { optimizeImage, OPTIMIZATION_PRESETS } from '../../../../utils/imageOptimizer';
+import type { ProcessedImage } from '../../../../imageProcessing/imageProcessing';
+import { optimizeUpload } from './tokenImages';
 import type { CreatorMode, EditTokenInput, PreviewImage, TokenPreview, TokenPreviewPatch } from './types';
+import { cropReset } from './cropMath';
+import { useBatchProgress } from './useBatchProgress';
+import type { ProgressCount } from '../../primitives/useLingeringTask';
 
 export interface TokenPreviewsApi {
   previews: TokenPreview[];
@@ -18,23 +22,25 @@ export interface TokenPreviewsApi {
   toggleSelected: (id: string) => void;
   update: (id: string, patch: TokenPreviewPatch) => void;
   updateSelected: (patch: TokenPreviewPatch) => void;
-  /** Resolves with the optimized blob once background optimization for this preview settles. */
-  waitForOptimized: (id: string) => Promise<Blob | undefined>;
+  /** Resolves with the converted upload once background optimization for this preview settles. */
+  waitForOptimized: (id: string) => Promise<ProcessedImage | undefined>;
+  /** How far the conversion of the images added last is, or null when none runs. */
+  optimization: ProgressCount | null;
 }
 
 function revokeIfBlob(url: string): void {
   if (url.startsWith('blob:')) URL.revokeObjectURL(url);
 }
 
+/** Cards show the converted image once it is ready, never the upload itself, which may be far too large to paint cheaply. */
 function previewFromFile(file: File): TokenPreview {
   const baseName = file.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim();
   return {
     id: `token-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
     file,
-    previewUrl: URL.createObjectURL(file),
+    previewUrl: '',
     name: baseName || 'Untitled',
-    imageScale: 1,
-    imagePosition: { x: 0, y: 0 },
+    ...cropReset({ file }),
     isSelected: true,
     isOptimizing: true,
   };
@@ -49,17 +55,23 @@ function previewFromEdit(token: EditTokenInput): TokenPreview {
     file: null,
     previewUrl: token.imageUrl,
     name: token.name,
-    imageScale: 1,
-    imagePosition: { x: 0, y: 0 },
+    ...cropReset({ file: null }),
     isSelected: true,
     isOptimizing: false,
   };
 }
 
+interface PendingOptimization {
+  result: Promise<ProcessedImage | undefined>;
+  controller: AbortController;
+  settled: boolean;
+}
+
 /**
  * Owns the preview list of the token creator: file intake, background
- * optimization, selection and per-preview edits. Blob URLs are revoked when a
- * preview is removed, replaced by its optimized version, or on unmount.
+ * optimization, selection and per-preview edits. Uploads are converted in
+ * parallel by the image workers; removing a preview cancels its conversion.
+ * Blob URLs are revoked when a preview is removed or on unmount.
  */
 export function useTokenPreviews(mode: CreatorMode): TokenPreviewsApi {
   const [defaultRing, setDefaultRing] = useState(true);
@@ -71,35 +83,52 @@ export function useTokenPreviews(mode: CreatorMode): TokenPreviewsApi {
     setPreviews(next);
   }, []);
 
-  const pendingRef = useRef(new Map<string, Promise<Blob | undefined>>());
-  const queueRef = useRef<Promise<unknown>>(Promise.resolve());
+  const pendingRef = useRef(new Map<string, PendingOptimization>());
+  const { progress: optimization, start: startOptimizations, finish: finishOptimization, drop: dropOptimization, clear: clearOptimizations } = useBatchProgress();
+  const cancelOptimization = useCallback((id: string): void => {
+    const pending = pendingRef.current.get(id);
+    pendingRef.current.delete(id);
+    if (!pending || pending.settled) return;
+    pending.controller.abort();
+    dropOptimization();
+  }, [dropOptimization]);
+  const cancelAllOptimizations = useCallback((): void => {
+    pendingRef.current.forEach(pending => pending.controller.abort());
+    pendingRef.current.clear();
+    clearOptimizations();
+  }, [clearOptimizations]);
 
   useEffect(() => () => {
+    cancelAllOptimizations();
     previewsRef.current.forEach(p => revokeIfBlob(p.previewUrl));
     previewsRef.current = [];
-  }, []);
+  }, [cancelAllOptimizations]);
 
   const patchPreview = useCallback((id: string, patch: Partial<TokenPreview>): void => {
     changePreviews((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)));
   }, [changePreviews]);
 
-  const optimizeOne = useCallback(async (preview: TokenPreview): Promise<Blob | undefined> => {
-    if (!preview.file || !previewsRef.current.some(p => p.id === preview.id)) return undefined;
+  const optimizeOne = useCallback(async (preview: TokenPreview, signal: AbortSignal): Promise<ProcessedImage | undefined> => {
+    if (!preview.file) return undefined;
     try {
-      const result = await optimizeImage(preview.file, OPTIMIZATION_PRESETS[mode]);
+      // The thumbnail is only saved from this result for maps and unframed tokens; framed ones are cropped at save.
+      const thumbnail = mode === 'map' || preview.showRing === false;
+      const result = await optimizeUpload(preview.file, mode, { signal, thumbnail, background: true });
       const stillPresent = previewsRef.current.some((p) => p.id === preview.id);
-      if (!stillPresent) return result.blob;
-      revokeIfBlob(preview.previewUrl);
+      if (!stillPresent) return result;
       patchPreview(preview.id, {
-        optimizedFile: result.blob,
-        previewUrl: URL.createObjectURL(result.blob),
-        optimizationResult: result,
+        compressionRatio: Math.round((1 - result.image.size / preview.file.size) * 100),
+        previewUrl: URL.createObjectURL(result.preview ?? result.image),
         isOptimizing: false,
       });
-      return result.blob;
+      return result;
     } catch (error) {
+      if (signal.aborted) return undefined;
       console.error(`[TokenCreator] Failed to optimize ${preview.name}:`, error);
-      patchPreview(preview.id, { isOptimizing: false });
+      // Show the upload itself so the user can see which image failed.
+      if (previewsRef.current.some((p) => p.id === preview.id)) {
+        patchPreview(preview.id, { previewUrl: URL.createObjectURL(preview.file), isOptimizing: false });
+      }
       return undefined;
     }
   }, [mode, patchPreview]);
@@ -113,37 +142,42 @@ export function useTokenPreviews(mode: CreatorMode): TokenPreviewsApi {
     }).map(image => ({ ...previewFromFile(image.file), ...image, tags: image.tags ?? [], showRing: image.showRing ?? defaultRing }));
     if (fresh.length === 0) return;
     changePreviews((prev) => [...prev, ...fresh]);
+    startOptimizations(fresh.length);
     for (const preview of fresh) {
-      const task = queueRef.current.then(() => optimizeOne(preview));
-      pendingRef.current.set(preview.id, task);
-      queueRef.current = task;
+      const controller = new AbortController();
+      const pending: PendingOptimization = { controller, settled: false, result: optimizeOne(preview, controller.signal) };
+      void pending.result.finally(() => {
+        pending.settled = true;
+        if (!controller.signal.aborted) finishOptimization();
+      });
+      pendingRef.current.set(preview.id, pending);
     }
-  }, [optimizeOne, defaultRing, changePreviews]);
+  }, [optimizeOne, defaultRing, changePreviews, startOptimizations, finishOptimization]);
 
   const reset = useCallback((editToken?: EditTokenInput | null): void => {
     previewsRef.current.forEach((p) => revokeIfBlob(p.previewUrl));
-    pendingRef.current.clear();
+    cancelAllOptimizations();
     setDefaultRing(editToken?.showRing ?? true);
     changePreviews(() => editToken?.imageUrl ? [previewFromEdit(editToken)] : []);
-  }, [changePreviews]);
+  }, [changePreviews, cancelAllOptimizations]);
 
   const remove = useCallback((id: string): void => {
     changePreviews((prev) => {
       prev.filter((p) => p.id === id).forEach((p) => revokeIfBlob(p.previewUrl));
       return prev.filter((p) => p.id !== id);
     });
-    pendingRef.current.delete(id);
-  }, [changePreviews]);
+    cancelOptimization(id);
+  }, [changePreviews, cancelOptimization]);
 
   const removeSelected = useCallback((): void => {
     changePreviews((prev) => {
       prev.filter((p) => p.isSelected).forEach((p) => {
         revokeIfBlob(p.previewUrl);
-        pendingRef.current.delete(p.id);
+        cancelOptimization(p.id);
       });
       return prev.filter((p) => !p.isSelected);
     });
-  }, [changePreviews]);
+  }, [changePreviews, cancelOptimization]);
 
   const setAllSelected = useCallback((isSelected: boolean): void => {
     changePreviews((prev) => prev.map((p) => ({ ...p, isSelected })));
@@ -157,11 +191,7 @@ export function useTokenPreviews(mode: CreatorMode): TokenPreviewsApi {
     changePreviews((prev) => prev.map((p) => (p.isSelected ? { ...p, ...patch } : p)));
   }, [changePreviews]);
 
-  const waitForOptimized = useCallback(async (id: string): Promise<Blob | undefined> => {
-    const pending = pendingRef.current.get(id);
-    if (pending) return pending;
-    return previewsRef.current.find((p) => p.id === id)?.optimizedFile;
-  }, []);
+  const waitForOptimized = useCallback(async (id: string): Promise<ProcessedImage | undefined> => pendingRef.current.get(id)?.result, []);
 
   const selectedIds = useMemo(() => previews.filter((p) => p.isSelected).map((p) => p.id), [previews]);
 
@@ -185,5 +215,6 @@ export function useTokenPreviews(mode: CreatorMode): TokenPreviewsApi {
     update: patchPreview,
     updateSelected,
     waitForOptimized,
+    optimization,
   };
 }

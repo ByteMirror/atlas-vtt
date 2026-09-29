@@ -40,7 +40,7 @@ export function transferredRecord(asset: Asset, { targetCollectionId, newIds, pl
     createdAt: newId ? now : asset.createdAt,
     modifiedAt: now,
   };
-  if (record.type !== 'token' && record.type !== 'map' && record.type !== 'note') {
+  if (record.type !== 'token' && record.type !== 'note') {
     const recordPath = plan.recordPaths.get(asset.id);
     // Without a file to carry over, the record gets a new one at the default place.
     if (recordPath) record.filePath = recordPath;

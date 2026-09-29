@@ -7,10 +7,9 @@ import { AtlasUIContext } from '../../src/app/react/root/AtlasUIContext';
 import { TokenCreator } from '../../src/app/packages/components/asset-manager/TokenCreator';
 import CreateSceneModal from '../../src/app/packages/components/asset-manager/CreateSceneModal';
 
-const { blob } = vi.hoisted(() => ({ blob: { arrayBuffer: async () => new ArrayBuffer(1) } }));
+const { converted } = vi.hoisted(() => ({ converted: { image: { arrayBuffer: async () => new ArrayBuffer(1) } as Blob, thumbnail: null, preview: null } }));
 vi.mock('../../src/app/packages/components/asset-manager/token-creator/TokenPreviewCard', () => ({ TokenPreviewCard: () => null }));
-vi.mock('../../src/app/packages/components/asset-manager/token-creator/bakeTokenCrop', () => ({ bakeTokenCrop: async () => blob }));
-vi.mock('../../src/app/utils/imageOptimizer', () => ({ optimizeImage: async () => ({ blob }), OPTIMIZATION_PRESETS: { token: {} } }));
+vi.mock('../../src/app/packages/components/asset-manager/token-creator/tokenImages', () => ({ cropTokenImage: async () => converted, optimizeUpload: async () => converted }));
 
 const service = {
   initialize: vi.fn().mockResolvedValue(undefined),

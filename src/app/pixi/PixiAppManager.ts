@@ -3,6 +3,8 @@ import { Viewport } from "pixi-viewport";
 import { SmoothDecelerate } from "./SmoothDecelerate";
 import { RenderScheduler } from "./RenderScheduler";
 import { destroyTree } from "./utils/destroyTree";
+import { usesCanvasRenderer } from "./utils/rendererType";
+import { showSoftwareRenderingNotice } from "./softwareRenderingNotice";
 
 export class PixiAppManager {
   private _isDestroyed: boolean = false;
@@ -29,6 +31,8 @@ export class PixiAppManager {
     }
     try {
       await this.app.init({
+        // Atlas ships GLSL shaders only; without WebGL it draws with Canvas 2D instead of WebGPU
+        preference: ['webgl', 'canvas'],
         canvas: this.canvasEl,
         width: this.width,
         height: this.height,
@@ -38,6 +42,7 @@ export class PixiAppManager {
         autoDensity: true,
         resolution: window.devicePixelRatio || 1,
       });
+      if (usesCanvasRenderer(this.app.renderer)) showSoftwareRenderingNotice();
 
       this.app.stage.eventMode = 'static'; // Or 'passive'. 'static' means it can be an event target.
       this.app.stage.interactiveChildren = true;
@@ -210,9 +215,11 @@ export class PixiAppManager {
       } catch(e) { console.warn('[PixiAppManager] Error stopping ticker:', e); }
     }
 
-    if (this.app) {
+    // An app whose init failed has no renderer or resize plugin to tear down
+    if (this.app?.renderer) {
       try {
-        this.app.destroy(true, { children: true, texture: true }); 
+        // `true` would also release PIXI's shared pools, which other open map views still use
+        this.app.destroy({ removeView: true }, { children: true, texture: true });
       } catch (e) {
         console.warn('[PixiAppManager] Error destroying Pixi app:', e);
       }

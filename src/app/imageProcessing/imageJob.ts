@@ -1,0 +1,62 @@
+/**
+ * Messages between the main thread and the image workers. Everything here is
+ * structured-cloneable: Blobs are passed by reference, ImageBitmaps are
+ * transferred.
+ */
+
+/**
+ * Where an image sits in a square output frame, in frame units (1 = frame
+ * width), origin at the frame's top-left. The height follows from the image's
+ * aspect ratio, which only the worker knows once it has decoded the image.
+ */
+export interface FramePlacement {
+  centerX: number;
+  centerY: number;
+  width: number;
+}
+
+export type ImageLayout =
+  /** The whole image, scaled down (never up) to fit within the bounds. */
+  | { kind: 'fit'; maxWidth: number; maxHeight: number }
+  /**
+   * A square frame showing the image at `placement`; areas the image does not
+   * cover stay transparent. The frame gets as many pixels as the source has
+   * across it, clamped to `minSize`..`maxSize`.
+   */
+  | { kind: 'frame'; placement: FramePlacement; minSize: number; maxSize: number };
+
+/** A smaller copy of the result. */
+export interface ThumbnailSpec {
+  /** Longer side in pixels; smaller images are not scaled up. */
+  size: number;
+  quality: number;
+}
+
+export interface ImageJob {
+  /** Encoded image bytes, or a bitmap the main thread decoded for formats workers cannot read (SVG). */
+  source: Blob | ImageBitmap;
+  layout: ImageLayout;
+  /** WebP quality, 0–1. */
+  quality: number;
+  /** Also render a thumbnail of the result, sparing a second decode later. */
+  thumbnail?: ThumbnailSpec | undefined;
+  /** Also render a copy to show on screen while the result is too large to display cheaply. */
+  preview?: ThumbnailSpec | undefined;
+}
+
+export interface ImageJobResult {
+  /** WebP bytes. A WebP source that needs no scaling is returned as it is, avoiding a lossy re-encode. */
+  image: Blob;
+  thumbnail: Blob | null;
+  preview: Blob | null;
+}
+
+export interface ImageJobRequest {
+  id: number;
+  job: ImageJob;
+}
+
+export type ImageJobResponse =
+  | { id: number; ok: true; result: ImageJobResult }
+  /** `decodeFailed` means the worker could not read the source format; the main thread may decode it instead. */
+  | { id: number; ok: false; message: string; decodeFailed: boolean };

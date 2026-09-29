@@ -5,6 +5,8 @@ import { TFile, type App } from 'obsidian';
 import { ImageOff, Search } from 'lucide-react';
 import { ObsidianMenuDropdown } from '../../shared/ObsidianMenuDropdown';
 import { Button } from '../../primitives/button';
+import { ProgressStatus } from '../../primitives/ProgressStatus';
+import { useFrameProgress } from '../../primitives/useFrameProgress';
 import { LabelTooltip } from '../../primitives/tooltip';
 import { StatblockTokenImportService } from '../../../../services/StatblockTokenImportService';
 import { statblockPreviewImages } from '../token-creator/statblockPreviewImages';
@@ -38,6 +40,8 @@ export function StatblockImportContent({ app, queuedPaths, onAdd, onClose, contr
   const [running, setRunning] = useState(false);
   const [error, setError] = useState('');
   const [scanVersion, setScanVersion] = useState(0);
+  const { progress: scanned, report: reportScan, clear: clearScan } = useFrameProgress();
+  const { progress: loadedImages, report: reportImages, clear: clearImages } = useFrameProgress();
   const layoutId = useId();
   const queuedPathsRef = useRef(queuedPaths);
   queuedPathsRef.current = queuedPaths;
@@ -46,7 +50,8 @@ export function StatblockImportContent({ app, queuedPaths, onAdd, onClose, contr
     let mounted = true;
     setLoading(true);
     setError('');
-    void importer.scan(controller.signal).then(next => {
+    clearScan();
+    void importer.scan(controller.signal, reportScan).then(next => {
       if (!mounted || controller.signal.aborted) return;
       setRows(next);
       setLayout('');
@@ -55,7 +60,7 @@ export function StatblockImportContent({ app, queuedPaths, onAdd, onClose, contr
       if (mounted) setError(reason instanceof Error ? reason.message : 'Could not scan statblocks.');
     }).finally(() => { if (mounted) setLoading(false); });
     return () => { mounted = false; };
-  }, [app, importer, controller, scanVersion]);
+  }, [app, importer, controller, scanVersion, clearScan, reportScan]);
 
   const scopedRows = rows.filter(row => !layout || (row.layoutName ?? 'Unspecified') === layout);
   const selectedRows = scopedRows.filter(row => selected.has(row.path) && !queuedPaths.includes(row.path));
@@ -70,8 +75,9 @@ export function StatblockImportContent({ app, queuedPaths, onAdd, onClose, contr
     setRunning(true);
     onRunningChange?.(true);
     setError('');
+    clearImages();
     try {
-      const images = await statblockPreviewImages(app, selectedRows, controller.signal);
+      const images = await statblockPreviewImages(app, selectedRows, controller.signal, reportImages);
       if (!controller.signal.aborted) onAdd(images);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Could not load statblock images.');
@@ -83,7 +89,11 @@ export function StatblockImportContent({ app, queuedPaths, onAdd, onClose, contr
       <div className="atlas-token-creator__previews atlas-statblock-import">
         <p className="atlas-statblock-import__intro">Choose a system or layout, then add creatures to your import. Edit their tags, crop and rings in the preview cards.</p>
         {error && <p role="alert" className="atlas-statblock-import__error">{error}</p>}
-        {loading ? <p role="status">Scanning statblocks…</p> : (
+        {loading ? (
+          <div className="atlas-statblock-import__scanning">
+            <ProgressStatus task={{ label: 'Scanning notes', done: scanned?.done ?? 0, total: scanned?.total ?? 0 }} />
+          </div>
+        ) : (
           <>
             <div className="atlas-statblock-import__summary" role="status">
               <strong>{ready.length} ready</strong><span>{scopedRows.filter(r => r.status === 'imported').length} already imported</span><span>{scopedRows.length - ready.length - scopedRows.filter(r => r.status === 'imported').length} need attention</span>
@@ -127,7 +137,9 @@ export function StatblockImportContent({ app, queuedPaths, onAdd, onClose, contr
         )}
       </div>
       <footer className="atlas-token-creator__footer atlas-statblock-import__footer">
-        <Button variant="ghost" disabled={disabled} onClick={() => setScanVersion(v => v + 1)}>Scan again</Button>
+        <ProgressStatus task={running ? { label: 'Loading images', done: loadedImages?.done ?? 0, total: loadedImages?.total ?? selectedRows.length } : null}>
+          <Button variant="ghost" disabled={disabled} onClick={() => setScanVersion(v => v + 1)}>Scan again</Button>
+        </ProgressStatus>
         <div className="atlas-token-creator__actions">
           <Button variant="outline" onClick={onClose}>Back to previews</Button>
           <Button disabled={disabled || selectedRows.length === 0 || Boolean(error)} onClick={() => { void startImport(); }}>{running ? 'Loading images…' : `Add ${selectedRows.length} to import`}</Button>

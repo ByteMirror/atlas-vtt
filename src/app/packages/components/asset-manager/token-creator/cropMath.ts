@@ -1,7 +1,23 @@
-import type { ImagePosition } from './types';
+import type { FramePlacement } from '../../../../imageProcessing/imageProcessing';
+import type { ImagePosition, TokenPreview, TokenPreviewPatch } from './types';
 
 /** Diameter of the circular token crop as a fraction of the well. Mirrors the 10% mask inset in _card.scss. */
 export const TOKEN_CROP_FRACTION = 0.8;
+
+/**
+ * Zoom at which a whole image spans the crop circle. A ringed token shows its stored
+ * image that way on the map, so editing one starts here.
+ */
+export const STORED_IMAGE_SCALE = TOKEN_CROP_FRACTION;
+
+/**
+ * The framing a preview starts at and resets to: a new upload fills the well, an edited
+ * token's stored image shows as it is. Resetting an edit to any other zoom would count as
+ * a new crop and overwrite the token's own image on save.
+ */
+export function cropReset(preview: Pick<TokenPreview, 'file'>): Required<Pick<TokenPreviewPatch, 'imageScale' | 'imagePosition'>> {
+  return { imageScale: preview.file ? 1 : STORED_IMAGE_SCALE, imagePosition: { x: 0, y: 0 } };
+}
 
 export interface ImageAspect {
   width: number;
@@ -34,4 +50,18 @@ export function renderedImageRect(scale: number, position: ImagePosition, aspect
 export function clampImagePosition(position: ImagePosition, scale: number, aspect: ImageAspect | null): ImagePosition {
   const { width, height } = renderedImageRect(scale, position, aspect);
   return { x: clamp(position.x, width / 2), y: clamp(position.y, height / 2) };
+}
+
+/**
+ * Where the image sits in the square around the token circle, the area a
+ * token image keeps: `renderedImageRect` expressed in units of that square.
+ */
+export function tokenCropPlacement(scale: number, position: ImagePosition): FramePlacement {
+  const cropOrigin = (1 - TOKEN_CROP_FRACTION) / 2;
+  const { left, top, width, height } = renderedImageRect(scale, position, null);
+  return {
+    centerX: (left + width / 2 - cropOrigin) / TOKEN_CROP_FRACTION,
+    centerY: (top + height / 2 - cropOrigin) / TOKEN_CROP_FRACTION,
+    width: width / TOKEN_CROP_FRACTION,
+  };
 }

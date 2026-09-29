@@ -42,6 +42,7 @@
   border: $border-width-m solid color-mix(in oklch, var(--mono-100) $border-opacity-default, transparent);
   @include atlas-panel-radius($radius-2xl);
   box-shadow: $shadow-elevated;
+  @include atlas-keep-in-view;
 
   // Every item runs concentric with the menu's corners, so all items match.
   .btn {

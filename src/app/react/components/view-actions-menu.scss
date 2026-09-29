@@ -1,12 +1,6 @@
-// View actions button that appears on hover, docked bottom right
-@use '../../../../styles/tokens' as *;
-
+// View actions button that appears on hover, at the right end of the bottom toolbar row
 .atlas-view-actions {
-  position: fixed;
-  bottom: $spacing-l;
-  right: $spacing-l;
   display: flex;
-  z-index: $z-dropdown;
   pointer-events: auto;
 }
 

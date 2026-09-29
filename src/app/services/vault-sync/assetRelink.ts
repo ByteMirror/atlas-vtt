@@ -80,9 +80,8 @@ export function relinkAssets(
     const sidecar = sidecarPath(asset);
     let sidecarAt = sidecar && files.has(sidecar) ? sidecar : null;
     if (sidecar && !sidecarAt) {
-      // A map's JSON place follows from its id, so only a scene records where its JSON went.
       sidecarAt = unowned.claim(sidecar);
-      if (sidecarAt && asset.type === 'scene') {
+      if (sidecarAt) {
         asset.filePath = sidecarAt;
         changed = true;
       }
@@ -117,8 +116,8 @@ export function relinkAssets(
 function followCollection(asset: Asset, sidecarAt: string | null, files: ReadonlySet<string>, ops: VaultFileOps): boolean {
   if (asset.type !== 'scene' && asset.type !== 'map') return false;
   if (!sidecarAt) {
-    // A scene without a JSON copy keeps no stale place in another collection's folder.
-    if (asset.type !== 'scene' || !asset.filePath || collectionIdOfPath(asset.filePath) === asset.collection) return false;
+    // A record without a JSON copy keeps no stale place in another collection's folder.
+    if (!asset.filePath || collectionIdOfPath(asset.filePath) === asset.collection) return false;
     delete asset.filePath;
     return true;
   }
@@ -126,6 +125,6 @@ function followCollection(asset: Asset, sidecarAt: string | null, files: Readonl
   const target = defaultJsonPath(asset.type, asset.collection, asset.id);
   if (files.has(target)) return false;
   ops.moves.push({ from: sidecarAt, to: target });
-  if (asset.type === 'scene') asset.filePath = target;
-  return asset.type === 'scene';
+  asset.filePath = target;
+  return true;
 }

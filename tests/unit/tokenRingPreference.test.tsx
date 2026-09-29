@@ -11,8 +11,7 @@ import { AssetService } from '../../src/app/services/AssetService';
 import type { TokenPreview } from '../../src/app/packages/components/asset-manager/token-creator/types';
 import type { TokenGroupContainer } from '../../src/app/pixi/token-renderer/types';
 const crop = vi.hoisted(() => vi.fn());
-vi.mock('../../src/app/packages/components/asset-manager/token-creator/bakeTokenCrop', () => ({ bakeTokenCrop: crop }));
-vi.mock('../../src/app/utils/imageOptimizer', () => ({ optimizeImage: vi.fn(async () => ({ blob: new Blob(['cropped']) })), OPTIMIZATION_PRESETS: { token: {} } }));
+vi.mock('../../src/app/packages/components/asset-manager/token-creator/tokenImages', () => ({ cropTokenImage: crop, optimizeUpload: vi.fn() }));
 afterEach(cleanup);
 
 it('preserves legacy portraits and removes the frame for an explicit opt-out', () => {
@@ -51,7 +50,7 @@ it('saves an unframed upload without baking a circular crop and persists the cho
   const assets = AssetService.getInstance(app);
   const bytes = new Uint8Array([1, 2, 3]).buffer;
   const preview: TokenPreview = { id: 'one', name: 'Goblin', file: new File(['art'], 'goblin.png'), previewUrl: 'blob:art', showRing: false, imageScale: 1, imagePosition: { x: 0, y: 0 }, isSelected: true, isOptimizing: false };
-  await saveTokenPreviews({ app, assetService: assets, mode: 'token', previews: [preview], collection: 'Default', tags: [], waitForOptimized: async () => ({ arrayBuffer: async () => bytes } as Blob) });
+  await saveTokenPreviews({ app, assetService: assets, mode: 'token', previews: [preview], collection: 'Default', tags: [], waitForOptimized: async () => ({ image: { arrayBuffer: async () => bytes } as Blob, thumbnail: null, preview: null }) });
   expect(crop).not.toHaveBeenCalled();
   expect((await assets.getTokenAssets())[0]?.showRing).toBe(false);
 });

@@ -2,7 +2,7 @@ import { App, ItemView, WorkspaceLeaf, TFile, Notice } from "obsidian";
 import type AtlasVTTPlugin from '../../main';
 import { createRoot, Root } from 'react-dom/client';
 import React, { useState, useEffect } from 'react';
-import { AssetService, Asset } from './services/AssetService';
+import { AssetService } from './services/AssetService';
 import { GlobalAssetManagerService } from './services/GlobalAssetManagerService';
 import { Button } from './packages/components/primitives/button';
 import {
@@ -16,6 +16,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { runInBackground } from './utils/backgroundTask';
+import { mapThumbnailPath } from './utils/dataFileMigration';
 
 export const DASHBOARD_VIEW_TYPE = "atlas-vtt-dashboard";
 
@@ -36,28 +37,10 @@ interface DashboardProps {
   onOpenAssetManager: () => void;
 }
 
-/** Get the .atlasmap file path from a scene or map asset. */
-function getAssetMapPath(asset: Asset): string {
-  if (asset.type === 'scene') {
-    return asset.data?.mapPath ?? '';
-  }
-  if (asset.type === 'map') {
-    return asset.mapFilePath ?? '';
-  }
-  return '';
-}
-
-/** Resolve an asset's thumbnail to a vault resource URL. */
-function resolveAssetThumbnail(app: App, asset: Asset): string | null {
-  const mapPath = getAssetMapPath(asset);
-  if (!mapPath) return null;
-
-  const thumbPath = mapPath.replace('.atlasmap', '.thumb.jpg');
-  const thumbFile = app.vault.getAbstractFileByPath(thumbPath);
-  if (thumbFile instanceof TFile) {
-    return app.vault.getResourcePath(thumbFile);
-  }
-  return null;
+/** Resolve a scene's thumbnail to a vault resource URL. */
+function resolveSceneThumbnail(app: App, mapPath: string): string | null {
+  const thumbFile = app.vault.getAbstractFileByPath(mapThumbnailPath(mapPath));
+  return thumbFile instanceof TFile ? app.vault.getResourcePath(thumbFile) : null;
 }
 
 const Dashboard: React.FC<DashboardProps> = ({
@@ -72,7 +55,11 @@ const Dashboard: React.FC<DashboardProps> = ({
   useEffect(() => {
     void loadRecentScenes();
     const refreshRef = app.workspace.on('atlas-vtt:refresh-assets', () => { void loadRecentScenes(); });
-    return () => app.workspace.offref(refreshRef);
+    const thumbnailRef = app.workspace.on('atlas-vtt:scene-thumbnail-updated', () => { void loadRecentScenes(); });
+    return () => {
+      app.workspace.offref(refreshRef);
+      app.workspace.offref(thumbnailRef);
+    };
   }, []);
 
   const loadRecentScenes = async (): Promise<void> => {
@@ -80,21 +67,22 @@ const Dashboard: React.FC<DashboardProps> = ({
       const assetService = AssetService.getInstance(app);
       const collections = await assetService.getCollections();
 
-      // Load both 'scene' and 'map' asset types from every collection
-      const scenePromises = collections.flatMap((col) =>
-        (['scene', 'map'] as const).map(async (type) => {
-          const assets = await assetService.getAssets(col.id, type);
-          return assets.map((asset) => ({
+      // Only scenes open in the Atlas view; a map asset is an image to build a scene from
+      const scenePromises = collections.map(async (col) => {
+        const assets = await assetService.getAssets(col.id, 'scene');
+        return assets.map((asset) => {
+          const path = asset.data?.mapPath ?? '';
+          return {
             id: asset.id,
-            path: getAssetMapPath(asset),
+            path,
             name: asset.name,
             collectionName: col.name,
             collectionId: col.id,
             modifiedAt: asset.modifiedAt,
-            thumbnailUrl: resolveAssetThumbnail(app, asset),
-          } satisfies RecentScene));
-        })
-      );
+            thumbnailUrl: path ? resolveSceneThumbnail(app, path) : null,
+          } satisfies RecentScene;
+        });
+      });
 
       const allScenes = (await Promise.all(scenePromises))
         .flat()

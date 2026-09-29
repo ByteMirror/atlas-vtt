@@ -23,11 +23,25 @@ export interface BeamWidth {
   bodyShare: number;
 }
 
+/** Longest straight step of the smoothed beam in world units, so the curve stays round at any zoom. */
+export function beamSmoothingSpacing(halfWidth: number, zoom: number): number {
+  return Math.max(SMOOTHING_SPACING / zoom, halfWidth * SMOOTHING_SPACING_PER_WIDTH);
+}
+
 /** How wide the beam is for the size setting, which is in screen pixels at any zoom. */
 export function beamWidth(size: number, zoom: number): BeamWidth {
   const body = size * BODY_PER_SIZE;
   const radius = body + Math.min(GLOW_MAX, size * GLOW_PER_SIZE);
   return { halfWidth: radius / zoom, bodyShare: body / radius };
+}
+
+/** Draws the laser beam; `LaserBeam` on the GPU, `CanvasLaserBeam` without one. */
+export interface LaserBeamView {
+  /** Add this to the scene. */
+  readonly view: Container;
+  draw(frame: LaserBeamFrame): void;
+  /** Frees what destroying the view with its parent leaves alive. */
+  destroy(): void;
 }
 
 export interface LaserBeamFrame {
@@ -49,8 +63,7 @@ export interface LaserBeamFrame {
  * works on an empty surface, so the beam renders into its own layer (a pass-through filter)
  * that is then blended onto the map as a whole.
  */
-export class LaserBeam {
-  /** Add this to the scene. */
+export class LaserBeam implements LaserBeamView {
   readonly view: Container;
   private readonly mesh: Mesh<Geometry, Shader>;
   private readonly geometry: Geometry;
@@ -88,8 +101,7 @@ export class LaserBeam {
   /** Rebuilds the beam; the buffer updates tell PIXI to render the frame. */
   draw({ trail, dot, pointer, color, width, zoom }: LaserBeamFrame): void {
     const { halfWidth, bodyShare } = width;
-    const spacing = Math.max(SMOOTHING_SPACING / zoom, halfWidth * SMOOTHING_SPACING_PER_WIDTH);
-    const bounds = writeLaserBeam(this.buffers, smoothBeam(trail, spacing), dot, halfWidth);
+    const bounds = writeLaserBeam(this.buffers, smoothBeam(trail, beamSmoothingSpacing(halfWidth, zoom)), dot, halfWidth);
     this.view.visible = bounds !== null;
     if (!bounds) return;
     for (const buffer of this.vertexBuffers) buffer.update();
@@ -99,10 +111,14 @@ export class LaserBeam {
     this.view.boundsArea = new Rectangle(bounds.minX, bounds.minY, bounds.maxX - bounds.minX, bounds.maxY - bounds.minY);
   }
 
-  /** Frees the geometry, shader and filter, which a destroyed mesh leaves alive. Destroy the view with its parent first. */
+  /**
+   * Frees the geometry, shader and filter, which a destroyed mesh leaves alive. Destroy the view with its parent first.
+   * The GL program stays: `Shader.from` shares it through PIXI's program cache, and destroying it
+   * would leave every later beam compiling a program without source.
+   */
   destroy(): void {
     this.geometry.destroy(true);
-    this.shader.shader.destroy(true);
+    this.shader.shader.destroy();
     this.layer.destroy();
   }
 }

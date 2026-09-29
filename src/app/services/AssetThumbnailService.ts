@@ -1,11 +1,12 @@
 import { TFile, type App } from 'obsidian';
 import { AssetService, type MapAsset, type TokenAsset } from './AssetService';
 import { ensureFolder } from '../plugin/vaultFolders';
-import { renderThumbnail } from '../utils/imageThumbnail';
+import { renderThumbnail, type ThumbnailSpec } from '../imageProcessing/imageProcessing';
 
 export const THUMBNAIL_DIR = 'atlas-vtt/assets/thumbnails';
 /** Longer side of a thumbnail; asset cards are about half this size on a 2x display. */
 export const THUMBNAIL_SIZE = 256;
+export const THUMBNAIL_SPEC: ThumbnailSpec = { size: THUMBNAIL_SIZE, quality: 0.8 };
 const MAX_CONCURRENT = 2;
 const FLUSH_DELAY_MS = 300;
 
@@ -61,7 +62,7 @@ export class AssetThumbnailService {
   constructor(
     private readonly app: App,
     private readonly assets: AssetService,
-    private readonly render: ThumbnailRenderer = renderThumbnail,
+    private readonly render: ThumbnailRenderer = (source, size) => renderThumbnail(source, { ...THUMBNAIL_SPEC, size }),
   ) {}
 
   /** Vault path of the thumbnail that belongs to `imagePath`, whether or not it exists yet. */
@@ -81,10 +82,40 @@ export class AssetThumbnailService {
     const image = this.app.vault.getAbstractFileByPath(imagePath);
     if (!(image instanceof TFile)) throw new Error(`Image not found: ${imagePath}`);
     const source = new Blob([await this.app.vault.readBinary(image)]);
-    const thumbnail = await this.render(source, THUMBNAIL_SIZE);
+    return this.storeForImage(imagePath, await this.render(source, THUMBNAIL_SIZE));
+  }
+
+  /** Writes the thumbnail of the image at `imagePath`, returning the thumbnail's path. */
+  private async storeForImage(imagePath: string, thumbnail: ArrayBuffer): Promise<string> {
     const thumbnailPath = this.thumbnailPathFor(imagePath);
     await this.writeThumbnail(thumbnailPath, thumbnail);
     return thumbnailPath;
+  }
+
+  /**
+   * Stores the `thumbnail` rendered along with the image, sparing another
+   * decode of it, or renders one from the image when none came with it. A
+   * failure is logged and leaves the asset for the background pass.
+   */
+  async tryThumbnailForImage(imagePath: string, thumbnail: Blob | null): Promise<string | undefined> {
+    if (!thumbnail) return this.tryCreateForImage(imagePath);
+    try {
+      return await this.storeForImage(imagePath, await thumbnail.arrayBuffer());
+    } catch (error) {
+      console.error('[AssetThumbnailService] Could not store thumbnail for', imagePath, error);
+      return undefined;
+    }
+  }
+
+  /** Moves a thumbnail its asset no longer uses to the trash; a failure is logged and leaves the file. */
+  async tryDiscard(thumbnailPath: string): Promise<void> {
+    const file = this.app.vault.getAbstractFileByPath(thumbnailPath);
+    if (!(file instanceof TFile)) return;
+    try {
+      await this.app.fileManager.trashFile(file);
+    } catch (error) {
+      console.error('[AssetThumbnailService] Could not remove the old thumbnail', thumbnailPath, error);
+    }
   }
 
   /** Like `createForImage`, but a failure is logged and leaves the asset for the background pass. */

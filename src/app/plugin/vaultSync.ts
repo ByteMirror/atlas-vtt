@@ -1,11 +1,13 @@
 import { debounce, TFile, TFolder, type App, type Plugin } from 'obsidian';
 import { ATLAS_VTT_DIR, AssetService, type VaultReconciliation } from '../services/AssetService';
 import { FileReferenceService } from '../services/FileReferenceService';
+import { MapThumbnailService } from '../services/MapThumbnailService';
 import type { PathMove } from '../services/renamedPaths';
 import { stemOf } from '../services/vault-sync/recoveredIds';
 import { moveSceneSnapshots, trashSceneSnapshots } from '../snapshots/snapshotFolderSync';
 import { runInBackground } from '../utils/backgroundTask';
-import { closeMapTab, EXTENSION_ATLASMAP, getLoadedAtlasView } from './atlasLeaves';
+import { EXTENSION_ATLASMAP, isScenePath } from '../utils/sceneFiles';
+import { closeMapTab, getLoadedAtlasView } from './atlasLeaves';
 
 /**
  * How long the vault has to stay quiet before Atlas checks its index against
@@ -13,8 +15,6 @@ import { closeMapTab, EXTENSION_ATLASMAP, getLoadedAtlasView } from './atlasLeav
  * of many files; the check has to see both halves to recognise the move.
  */
 const SETTLE_MS = 1000;
-
-const isMapPath = (path: string): boolean => path.endsWith(`.${EXTENSION_ATLASMAP}`);
 
 /** The files of moved folders, each with the path it had before. */
 function filesOfMovedFolders(app: App, folderMoves: readonly PathMove[]): PathMove[] {
@@ -34,13 +34,14 @@ export function registerVaultSync(plugin: Plugin): void {
   const { app } = plugin;
   const assets = AssetService.getInstance(app);
   const fileReferences = new FileReferenceService(app);
+  const sceneThumbnails = new MapThumbnailService(app);
 
   /** Moves that reach the rest of the vault's references; one pass for every file of a renamed folder. */
   let pendingMoves: PathMove[] = [];
   const propagateMoves = async (moves: readonly PathMove[]): Promise<void> => {
     await fileReferences.handleFilesMoved(moves);
     for (const { from, to } of moves) {
-      if (isMapPath(from) && isMapPath(to)) await moveSceneSnapshots(app, from, to);
+      if (isScenePath(from) && isScenePath(to)) await moveSceneSnapshots(app, from, to);
     }
   };
   const flushMoves = (): void => {
@@ -49,7 +50,7 @@ export function registerVaultSync(plugin: Plugin): void {
     runInBackground(propagateMoves(moves), 'Updating references to moved files');
   };
 
-  // Files deleted since the last check; a deleted map's snapshots wait for it, since the map may have only moved.
+  // Files deleted since the last check; a deleted map's snapshots and thumbnail wait for it, since the map may have only moved.
   const deleted = new Set<string>();
   const deletedMaps = new Set<string>();
   const check = async (): Promise<void> => {
@@ -61,7 +62,9 @@ export function registerVaultSync(plugin: Plugin): void {
     const result = await assets.reconcileWithVault(seen);
     const moved = new Set([...result.fileMoves, ...filesOfMovedFolders(app, result.folderMoves)].map(({ from }) => from));
     for (const map of maps) {
-      if (!moved.has(map) && !app.vault.getFileByPath(map)) await trashSceneSnapshots(app, map);
+      if (moved.has(map) || app.vault.getFileByPath(map)) continue;
+      await trashSceneSnapshots(app, map);
+      await sceneThumbnails.trashThumbnail(map);
     }
   };
   const scheduleCheck = debounce(() => runInBackground(check(), 'Checking Atlas files against the vault'), SETTLE_MS, true);
@@ -109,7 +112,7 @@ export function registerVaultSync(plugin: Plugin): void {
     runInBackground(assets.initialize(), 'Checking Atlas files against the vault');
     plugin.registerEvent(
       app.vault.on('create', (file) => {
-        if (file.path.startsWith(`${ATLAS_VTT_DIR}/`) || file.path.endsWith(`.${EXTENSION_ATLASMAP}`)) scheduleCheck();
+        if (file.path.startsWith(`${ATLAS_VTT_DIR}/`) || isScenePath(file.path)) scheduleCheck();
       })
     );
   });

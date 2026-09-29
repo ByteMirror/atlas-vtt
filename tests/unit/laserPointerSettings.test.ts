@@ -36,7 +36,7 @@ interface RendererInternals {
 function rendererAtZoom(zoom: number, settings: SettingsService): RendererInternals & LaserPointerRenderer {
   const viewport = { on: vi.fn(), off: vi.fn(), scale: { x: zoom } } as unknown as Viewport;
   const store = { subscribe: vi.fn(() => () => {}) } as unknown as ViewAtlasStore;
-  const pixiApp = { ticker: { add: vi.fn(), remove: vi.fn() } } as unknown as Application;
+  const pixiApp = { ticker: { add: vi.fn(), remove: vi.fn() }, renderer: { name: 'webgl' } } as unknown as Application;
   const readSettings = (): ReturnType<SettingsService['getLaserPointerSettings']> => settings.getLaserPointerSettings();
   const renderer = new LaserPointerRenderer(viewport, pixiApp, store, createEl('canvas'), readSettings) as unknown as RendererInternals & LaserPointerRenderer;
   Object.assign(renderer, { isToolActive: true, pointer: { x: 0, y: 0 } });

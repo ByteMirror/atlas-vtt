@@ -122,8 +122,11 @@ export class FileReferenceService {
     if (!oldPath.endsWith('.atlasmap') || !newPath.endsWith('.atlasmap')) return;
     const thumbnail = this.app.vault.getAbstractFileByPath(mapThumbnailPath(oldPath));
     const target = mapThumbnailPath(newPath);
-    if (!(thumbnail instanceof TFile) || this.app.vault.getAbstractFileByPath(target)) return;
+    if (!(thumbnail instanceof TFile)) return;
     try {
+      // A thumbnail at the new path is a leftover of a deleted scene: no scene can be renamed onto a living one
+      const leftover = this.app.vault.getAbstractFileByPath(target);
+      if (leftover instanceof TFile) await this.app.fileManager.trashFile(leftover);
       await this.app.vault.rename(thumbnail, target);
     } catch (error) {
       console.error(`[FileReferenceService] Error renaming thumbnail ${thumbnail.path}:`, error);

@@ -2,7 +2,7 @@ import React, { useId, useMemo, useState } from 'react';
 import { groupContents, selectContent, selectedKeys } from '../../../../services/collectionBundle/bundleContents';
 import type { CoverChoice } from '../../../../services/collectionBundle/collectionCover';
 import type { ExportChoice, ExportPreview } from '../../../../services/collectionBundle/collectionExport';
-import { formatFileSize } from '../../../../utils/imageOptimizer';
+import { formatFileSize } from '../../../../utils/fileSize';
 import { baseName } from '../../../../utils/pathUtils';
 import { plural } from '../../../../utils/plural';
 import { Button } from '../../primitives/button';

@@ -35,7 +35,12 @@ const MAX_BEAM_POINTS = (MAX_TRAIL_SAMPLES + 1) * MAX_SUBDIVISIONS + 1;
 /** A capsule per segment, plus one for the hovering pointer's dot. */
 const MAX_CAPSULES = MAX_BEAM_POINTS;
 /** The hovering pointer's dot is a little wider than the beam, so it reads as the laser's spot. */
-const DOT_SCALE = 1.25;
+export const DOT_SCALE = 1.25;
+
+/** The beam's half width at `point`, narrowing as the point ages. */
+export function beamRadius(point: BeamPoint, halfWidth: number): number {
+  return halfWidth * Math.sqrt(Math.max(0, point.life));
+}
 
 export function createLaserBeamBuffers(): LaserBeamBuffers {
   return {
@@ -83,7 +88,7 @@ export function smoothBeam(points: readonly BeamPoint[], spacing: number): BeamP
 export function writeLaserBeam(buffers: LaserBeamBuffers, trail: readonly BeamPoint[], dot: BeamPoint | null, halfWidth: number): BeamBounds | null {
   const writer = new CapsuleWriter(buffers);
   const points = trail.slice(-MAX_BEAM_POINTS);
-  const radius = (point: BeamPoint): number => halfWidth * Math.sqrt(Math.max(0, point.life));
+  const radius = (point: BeamPoint): number => beamRadius(point, halfWidth);
 
   if (points.length === 1) writer.capsule(points[0]!, points[0]!, radius(points[0]!), radius(points[0]!));
   for (let i = 1; i < points.length; i++) {

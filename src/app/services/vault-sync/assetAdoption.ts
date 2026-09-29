@@ -4,7 +4,7 @@ import { isRecord, parseGroupTokenRefs } from '../assetMetadataGuards';
 import { prettifyIdentifier } from '../collectionRecords';
 import { recoveredId, stemOf } from './recoveredIds';
 
-const MAP_JSON = /^atlas-vtt\/collections\/([^/]+)\/maps\/([^/]+)\.json$/;
+const MAP_JSON = /^atlas-vtt\/collections\/([^/]+)\/maps\/(.+)\.json$/;
 const TYPED_JSON = /^atlas-vtt\/collections\/([^/]+)\/(scenes|encounters|players|characters|statblocks)\/(.+)\.json$/;
 
 /** Whether `path` can hold the JSON of an asset that Atlas takes into its index. */
@@ -54,7 +54,7 @@ class Adoption {
     this.changed = true;
   }
 
-  /** A map record from `maps/<id>.json`. The index already knowing the id means the file is a stray copy. */
+  /** A map record from its JSON below `maps/`. The index already knowing the id means the file is a stray copy. */
   adoptMapJson(path: string, collection: string, payload: Record<string, unknown>): void {
     const id = stringOr(payload.id, stemOf(path));
     const mapFilePath = typeof payload.mapFilePath === 'string' ? payload.mapFilePath : '';
@@ -62,6 +62,7 @@ class Adoption {
     const map: MapAsset = {
       ...baseOf(payload, id, collection, stringOr(payload.name, stemOf(mapFilePath)), this.now),
       type: 'map',
+      filePath: path,
       mapFilePath,
     };
     this.add(map, path);

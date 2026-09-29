@@ -8,6 +8,7 @@ import { PlayerView, PLAYER_VIEW_TYPE } from './src/app/player-view';
 import { DashboardView, DASHBOARD_VIEW_TYPE } from './src/app/dashboard-view';
 import { initializeAtlasStorage } from './src/app/atlasStorageInit';
 import { CreatureIndex } from './src/app/creatures/CreatureIndex';
+import { disposeImageProcessing } from './src/app/imageProcessing/imageProcessing';
 import { registerLootQueryView } from './src/app/loot/lootQueryView';
 import { GlobalAssetManagerService } from './src/app/services/GlobalAssetManagerService';
 import { ImageDisplayService } from './src/app/services/ImageDisplayService';
@@ -23,7 +24,8 @@ import { changelogSettingsSection } from './src/app/settings/changelogSettingsSe
 import { hotkeySettingsSection, onboardingSettingsSection } from './src/app/settings/hotkeySettingsSection';
 import { navigationSettingsSection } from './src/app/settings/navigationSettingsSection';
 import { supportSettingsSection } from './src/app/settings/supportSettingsSection';
-import { EXTENSION_ATLASMAP, registerAtlasLeafSync } from './src/app/plugin/atlasLeaves';
+import { registerAtlasLeafSync } from './src/app/plugin/atlasLeaves';
+import { EXTENSION_ATLASMAP } from './src/app/utils/sceneFiles';
 import { registerColorSwatchIcons } from './src/app/plugin/colorSwatchIcons';
 import { HeaderAutocompleteSuggest } from './src/app/plugin/HeaderAutocompleteSuggest';
 import { registerCommands } from './src/app/plugin/registerCommands';
@@ -124,6 +126,7 @@ export default class AtlasVTTPlugin extends Plugin {
     PlayerWindowService.getInstance()?.destroy(false);
     this.globalAssetManager?.close();
     CreatureIndex.release(this.app);
+    disposeImageProcessing();
   }
 
   private registerAtlasViews(): void {

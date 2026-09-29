@@ -4,6 +4,15 @@ import { getLoadedAtlasView } from '../plugin/atlasLeaves';
 import { INVALID_NAME_CHARACTERS } from './assetPaths';
 
 /**
+ * Writes the pending changes of an open scene before its file moves;
+ * afterwards they would recreate the file at its old path.
+ */
+export async function saveOpenScene(app: App, mapPath: string): Promise<void> {
+  const view = getLoadedAtlasView(app);
+  if (view?.getTabMetaStore().getState().getTabByFilePath(mapPath)) await view.saveMap();
+}
+
+/**
  * Renames a scene and the .atlasmap file behind it, because the tab bar, pins
  * and links all identify a scene by its file. Returns whether it was renamed.
  * The vault rename event carries the new path to tabs, pins and thumbnails.
@@ -30,9 +39,7 @@ export async function renameScene(app: App, assetService: AssetService, sceneId:
       new Notice(`A scene named "${name}" already exists`);
       return false;
     }
-    // Write pending changes to the old file first; afterwards they would recreate it.
-    const view = getLoadedAtlasView(app);
-    if (view?.getTabMetaStore().getState().getTabByFilePath(mapFile.path)) await view.saveMap();
+    await saveOpenScene(app, mapFile.path);
     await app.fileManager.renameFile(mapFile, mapPath);
   }
 

@@ -3,20 +3,20 @@ import { AssetService } from '../../../services/AssetService';
 import { StatblockImportContent } from './statblock-import/StatblockImportContent';
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import { ImageIcon, Loader2, Save, Upload } from 'lucide-react';
-import { Platform } from 'obsidian';
+import { ImageIcon, Upload } from 'lucide-react';
 import { cn } from '../../../../utils/cn';
 import { useAtlasUI } from '../../../react/root/AtlasUIContext';
 import { isShortcutScopeActive } from '../../../utils/activeLeafGuard';
 import { CloseButton } from '../primitives/CloseButton';
-import { Button } from '../primitives/button';
 import { dialogOverlayMotion, useDialogWindowVariants } from '../primitives/dialogMotion';
+import { TokenCreatorFooter } from './token-creator/TokenCreatorFooter';
 import { TokenCreatorRail } from './token-creator/TokenCreatorRail';
 import { TokenPreviewCard } from './token-creator/TokenPreviewCard';
 import { saveTokenPreviews } from './token-creator/saveTokenPreviews';
 import { useAssetCatalog } from './token-creator/useAssetCatalog';
 import { useAssetTags } from './token-creator/useAssetTags';
 import { useTokenPreviews } from './token-creator/useTokenPreviews';
+import type { ProgressCount } from '../primitives/useLingeringTask';
 import { modeNoun } from './token-creator/types';
 import type { CreatorMode, EditTokenInput } from './token-creator/types';
 
@@ -50,7 +50,8 @@ export function TokenCreator({ isOpen, onClose, mode = 'token', selectedCollecti
   const queuedPaths = useMemo(() => previews.previews.flatMap(p => p.statblockPath ? [p.statblockPath] : []), [previews.previews]);
   const [saveError, setSaveError] = useState('');
   const [saveBlocked, setSaveBlocked] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [saveProgress, setSaveProgress] = useState<ProgressCount | null>(null);
+  const isSubmitting = saveProgress !== null;
   const [isDragging, setIsDragging] = useState(false);
   const dragDepthRef = useRef(0);
   const titleId = useId();
@@ -65,7 +66,7 @@ export function TokenCreator({ isOpen, onClose, mode = 'token', selectedCollecti
     if (!isOpen) return;
     const token = editTokenRef.current;
     setCollection(selectedCollection);
-    setIsSubmitting(false);
+    setSaveProgress(null);
     setImportController(new AbortController());
     setSaveError('');
     setSaveBlocked(false);
@@ -97,7 +98,8 @@ export function TokenCreator({ isOpen, onClose, mode = 'token', selectedCollecti
 
   const handleSubmit = useCallback(async (): Promise<void> => {
     if (usingStatblocks || !canSubmit || !assetService || !app) return;
-    setIsSubmitting(true);
+    const total = previews.previews.length;
+    setSaveProgress({ done: 0, total });
     setSaveError('');
     try {
       const saved = await saveTokenPreviews({
@@ -111,16 +113,16 @@ export function TokenCreator({ isOpen, onClose, mode = 'token', selectedCollecti
         signal: importController.signal,
         editToken: editToken ?? null,
         waitForOptimized: previews.waitForOptimized,
+        onProgress: (done, count) => setSaveProgress({ done, total: count }),
       });
-      if (saved > 0) {
-        app.workspace.trigger('atlas-vtt:refresh-assets');
-        if (saved === previews.previews.length) onClose();
-      }
+      if (saved > 0) app.workspace.trigger('atlas-vtt:refresh-assets');
+      if (saved === total) onClose();
+      else if (saved > 0) setSaveError(`Saved ${saved} of ${total}. The others stay here so you can try again.`);
     } catch (error) {
       setSaveError(error instanceof Error ? error.message : 'Could not save previews.');
       if (error instanceof AssetRegistrationUncertainError) setSaveBlocked(true);
     } finally {
-      setIsSubmitting(false);
+      setSaveProgress(null);
     }
   }, [usingStatblocks, app, assetService, canSubmit, collection, editToken, mode, onClose, previews, importController]);
 
@@ -168,10 +170,7 @@ export function TokenCreator({ isOpen, onClose, mode = 'token', selectedCollecti
   if (!isOpen) return null;
 
   const count = previews.previews.length;
-  const noun = modeNoun(mode, count);
   const title = editToken ? `Edit ${modeNoun(mode, 1)}` : `Create ${modeNoun(mode, 2)}`;
-  const isOptimizing = previews.previews.some((p) => p.isOptimizing);
-  const submitLabel = editToken ? 'Update' : 'Create';
 
   return (
     <motion.div {...dialogOverlayMotion} className="atlas-vtt-plugin atlas-vtt-root atlas-token-creator" data-token-creator="true" onClick={() => { if (!isSubmitting) onClose(); }}>
@@ -211,7 +210,7 @@ export function TokenCreator({ isOpen, onClose, mode = 'token', selectedCollecti
         <header className="atlas-token-creator__header">
           <h2>
             <span id={titleId}>{title}</span>
-            {!usingStatblocks && count > 0 && <span className="atlas-token-creator__subtitle">{count} {noun}</span>}
+            {!usingStatblocks && count > 0 && <span className="atlas-token-creator__subtitle">{count} {modeNoun(mode, count)}</span>}
           </h2>
           <CloseButton onClick={() => { if (!isSubmitting) onClose(); }} />
         </header>
@@ -242,20 +241,19 @@ export function TokenCreator({ isOpen, onClose, mode = 'token', selectedCollecti
           )}
         </div>}
 
-        {!usingStatblocks && <footer className="atlas-token-creator__footer">
-          <span className="atlas-token-creator__status">
-            {isOptimizing && <Loader2 className="atlas-spin" />}
-            {saveError || (count === 0 ? `No ${modeNoun(mode, 2)} to create` : isOptimizing ? 'Optimizing images…' : `${count} ${noun} ready`)}
-          </span>
-          <div className="atlas-token-creator__actions">
-            <Button variant="outline" size="sm" onClick={() => { if (!isSubmitting) onClose(); }}>Cancel</Button>
-            <Button variant="default" size="sm" onClick={() => { void handleSubmit(); }} disabled={!canSubmit}>
-              {isSubmitting ? <Loader2 className="atlas-spin" /> : <Save />}
-              <span>{isSubmitting ? `${submitLabel.replace(/e$/, '')}ing…` : submitLabel}</span>
-              {!isSubmitting && <kbd className="atlas-token-creator__kbd">{Platform.isMacOS ? '⌘' : 'Ctrl'}↵</kbd>}
-            </Button>
-          </div>
-        </footer>}
+        {!usingStatblocks && (
+          <TokenCreatorFooter
+            mode={mode}
+            isEditing={Boolean(editToken)}
+            count={count}
+            saveError={saveError}
+            optimization={previews.optimization}
+            saving={saveProgress}
+            canSubmit={canSubmit}
+            onCancel={onClose}
+            onSubmit={() => { void handleSubmit(); }}
+          />
+        )}
 
         {isDragging && (
           <div className="atlas-token-creator__drop-overlay">

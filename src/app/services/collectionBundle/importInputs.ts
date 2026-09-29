@@ -140,7 +140,7 @@ export async function planTargets(
     const localId = local && local.collection !== collectionId ? AssetService.newAssetId(asset.type) : candidate;
     assetIds.set(asset.id, localId);
     // Records without an explicit file path find their file by id, so a renamed record takes its file along.
-    const derivesFile = asset.type === 'map' || (asset.type !== 'token' && asset.type !== 'note' && !asset.filePath);
+    const derivesFile = asset.type !== 'token' && asset.type !== 'note' && !asset.filePath;
     const bundleFile = assets.getAssetFilePath({ ...asset, collection: manifest.collection.id });
     if (derivesFile && localId !== asset.id) {
       paths.set(bundleFile, assets.getAssetFilePath({ ...asset, id: localId, collection: collectionId }));

@@ -18,9 +18,8 @@ vi.mock('../../src/app/atlas-view', () => ({
 }));
 
 // Covers are drawn on a canvas, which Node lacks.
-vi.mock('../../src/app/utils/imageOptimizer', async (importOriginal) => ({
-  ...await importOriginal<typeof import('../../src/app/utils/imageOptimizer')>(),
-  optimizeImage: vi.fn(async (file: File) => ({ blob: new Blob([`COVER:${await file.text()}`]), width: 1, height: 1, originalSize: 1, optimizedSize: 1, compressionRatio: 0 })),
+vi.mock('../../src/app/imageProcessing/imageProcessing', () => ({
+  optimizeImage: vi.fn(async (source: Blob) => ({ image: new Blob([`COVER:${await source.text()}`]), thumbnail: null, preview: null })),
 }));
 
 const MAP_PATH = 'atlas-vtt/collections/source/scenes/Cave.atlasmap';

@@ -13,6 +13,10 @@
 .atlas-asset-manager-header {
   container: atlas-am-header / inline-size;
   position: relative;
+  // Above the body (z-index 1), so the menus and search popovers that drop
+  // below the header take clicks. Before Chromium 129 (Obsidian's Electron 28)
+  // a query container is its own stacking context, which trapped them under it.
+  z-index: 2;
   padding: $spacing-m;
   border-bottom: $border-width-s solid var(--divider-color);
   min-height: 0;

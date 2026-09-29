@@ -56,6 +56,8 @@
   @import '../src/app/packages/components/primitives/input-modal.scss';
   @import '../src/app/packages/components/primitives/select.scss';
   @import '../src/app/packages/components/primitives/progress-modal.scss';
+  @import '../src/app/packages/components/primitives/progress-bar.scss';
+  @import '../src/app/packages/components/primitives/progress-status.scss';
   @import '../src/app/packages/components/primitives/segmented-control.scss';
   @import '../src/app/packages/components/primitives/close-button.scss';
   @import '../src/app/react/components/dice/dice-dropdown.scss';
@@ -145,25 +147,42 @@
     }
   }
 
-  // Center the main toolbar independently of the undo/redo controls.
+  // The main toolbar sits centred on the view, undo/redo docked to its left and
+  // the view actions at the right edge. The side columns share the free space
+  // equally, so the toolbar stays centred while they fit; once the undo/redo
+  // column needs more than its half, the toolbar slides right. BottomToolbarRow
+  // tells the toolbar the width of its column, and MainToolbar moves controls
+  // into its overflow menu when they do not fit.
   .atlas-bottom-toolbar-row {
     position: fixed;
     bottom: $spacing-l;
-    left: 0;
-    right: 0;
-    width: max-content;
-    margin-inline: auto;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: $spacing-s;
+    left: $spacing-l;
+    right: $spacing-l;
+    display: grid;
+    grid-template-columns: minmax(max-content, 1fr) auto minmax(max-content, 1fr);
+    align-items: end;
+    column-gap: $spacing-s;
     z-index: $z-dropdown;
     pointer-events: none;
 
-    > .atlas-undo-redo-controls {
-      position: absolute;
-      right: calc(100% + #{$spacing-s});
+    > .atlas-vtt-toolbar {
+      grid-area: 1 / 2;
     }
+  }
+
+  .atlas-bottom-toolbar-row__start,
+  .atlas-bottom-toolbar-row__end {
+    grid-row: 1;
+    justify-self: end;
+    display: flex;
+  }
+
+  .atlas-bottom-toolbar-row__start {
+    grid-column: 1;
+  }
+
+  .atlas-bottom-toolbar-row__end {
+    grid-column: 3;
   }
 
   // Main toolbar and undo/redo bar - uses elevated surface pattern
@@ -178,9 +197,10 @@
 
     // The end controls sit $spacing-s inside the border, so their outer corners
     // run concentric with the bar's. Tool buttons, tool groups and the toggle
-    // read these; the corners between controls keep their own radius.
-    > :first-child { --atlas-bar-start-radius: #{atlas-panel-inset-radius-value($spacing-s)}; }
-    > :last-child { --atlas-bar-end-radius: #{atlas-panel-inset-radius-value($spacing-s)}; }
+    // read these; the corners between controls keep their own radius. Controls
+    // in the overflow menu are hidden, so the ends are the first and last shown.
+    > :nth-child(1 of :not([hidden])) { --atlas-bar-start-radius: #{atlas-panel-inset-radius-value($spacing-s)}; }
+    > :nth-last-child(1 of :not([hidden])) { --atlas-bar-end-radius: #{atlas-panel-inset-radius-value($spacing-s)}; }
 
     // Menus opened from an end control are not part of the bar's outline.
     .atlas-dropdown-content {
@@ -193,10 +213,34 @@
         var(--atlas-bar-end-radius, #{$radius-l}) var(--atlas-bar-start-radius, #{$radius-l});
     }
 
-    > .atlas-toggle > .atlas-toggle__switch {
+    .atlas-toolbar-end > .atlas-toggle > .atlas-toggle__switch {
       @include atlas-corner-shape;
       border-radius: var(--atlas-bar-start-radius, 10px) var(--atlas-bar-end-radius, 10px)
         var(--atlas-bar-end-radius, 10px) var(--atlas-bar-start-radius, 10px);
+    }
+  }
+
+  // One control of the main toolbar; hidden while it is in the overflow menu.
+  // The end control (GM view switch) never is.
+  .atlas-toolbar-item,
+  .atlas-toolbar-end {
+    display: flex;
+    align-items: center;
+
+    &[hidden] {
+      display: none;
+    }
+  }
+
+  // "More tools": the menu opens above the button, flush with its right edge.
+  .atlas-toolbar-overflow {
+    position: relative;
+    display: flex;
+    align-items: center;
+
+    // Shows the menu as open; it has to outrank the `!important` that makes every toolbar button transparent
+    .atlas-tool-button button.btn[aria-expanded="true"] {
+      background: var(--background-modifier-hover) !important;
     }
   }
 } // End of .atlas-vtt-plugin block

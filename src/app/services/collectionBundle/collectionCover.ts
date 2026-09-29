@@ -2,7 +2,7 @@ import { TFile, type App } from 'obsidian';
 import { COLLECTIONS_DIR, type Asset, type CollectionMetadata } from '../AssetService';
 import { isPersistedMapEnvelope } from '../MapPersistence';
 import { readVaultBinary } from '../../utils/hiddenVaultFiles';
-import { optimizeImage } from '../../utils/imageOptimizer';
+import { optimizeImage } from '../../imageProcessing/imageProcessing';
 import { baseName } from '../../utils/pathUtils';
 import { sceneThumbnailPath } from './collectionReferences';
 
@@ -88,9 +88,8 @@ export async function coverCandidates(app: App, assets: readonly Asset[]): Promi
 
 /** `image` scaled to fit the cover size and encoded as WebP. */
 async function renderCover(image: Blob): Promise<ArrayBuffer> {
-  const file = image instanceof File ? image : new File([image], 'cover');
-  const { blob } = await optimizeImage(file, { maxWidth: COVER_MAX_SIZE, maxHeight: COVER_MAX_SIZE, quality: 0.85, format: 'webp' });
-  return blob.arrayBuffer();
+  const { image: cover } = await optimizeImage(image, { maxWidth: COVER_MAX_SIZE, maxHeight: COVER_MAX_SIZE, quality: 0.85 });
+  return cover.arrayBuffer();
 }
 
 /** The cover file an export of `collection` carries for `choice`, or null for none. */

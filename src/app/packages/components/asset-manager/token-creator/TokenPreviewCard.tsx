@@ -7,7 +7,7 @@ import { cn } from '../../../../../utils/cn';
 import { Button } from '../../primitives/button';
 import { Slider } from '../../primitives/slider';
 import { LabelTooltip } from '../../primitives/tooltip';
-import { clampImagePosition } from './cropMath';
+import { clampImagePosition, cropReset } from './cropMath';
 import type { ImageAspect } from './cropMath';
 import { clampZoom, ZOOM_MAX, ZOOM_MIN, ZOOM_STEP } from './types';
 import type { CreatorMode, ImagePosition, TokenPreview, TokenPreviewPatch } from './types';
@@ -28,6 +28,7 @@ const ENTER_STAGGER_CAP = 12;
 function useImageAspect(url: string): ImageAspect | null {
   const [aspect, setAspect] = useState<ImageAspect | null>(null);
   useEffect(() => {
+    if (!url) return;
     let cancelled = false;
     const image = new Image();
     image.onload = () => { if (!cancelled) setAspect({ width: image.naturalWidth, height: image.naturalHeight }); };
@@ -37,16 +38,19 @@ function useImageAspect(url: string): ImageAspect | null {
   return aspect;
 }
 
-/** Tracks the rendered width of the art well so fractional offsets map to pixels. */
-function useWellSize(ref: React.RefObject<HTMLDivElement | null>): number {
+/**
+ * Tracks the rendered width of the art well so fractional offsets map to pixels.
+ * Takes the element itself: toggling the ring remounts the well, and an observer
+ * left on the detached one would report 0 and pin the image in place.
+ */
+function useWellSize(element: HTMLDivElement | null): number {
   const [size, setSize] = useState(0);
   useEffect(() => {
-    const element = ref.current;
     if (!element) return;
     const observer = new ResizeObserver(([entry]) => { if (entry) setSize(entry.contentRect.width); });
     observer.observe(element);
     return () => observer.disconnect();
-  }, [ref]);
+  }, [element]);
   return size;
 }
 
@@ -58,7 +62,7 @@ function useWellSize(ref: React.RefObject<HTMLDivElement | null>): number {
  */
 export function TokenPreviewCard({ preview, mode, index, onChange, onToggleSelected, onRemove }: TokenPreviewCardProps): React.JSX.Element {
   const nameLabelId = useId();
-  const artRef = useRef<HTMLDivElement>(null);
+  const [artElement, setArtElement] = useState<HTMLDivElement | null>(null);
   const previewRef = useRef(preview);
   previewRef.current = preview;
   const onChangeRef = useRef(onChange);
@@ -66,7 +70,7 @@ export function TokenPreviewCard({ preview, mode, index, onChange, onToggleSelec
 
   const isCropEditable = mode === 'token' && preview.showRing !== false;
   const aspect = useImageAspect(preview.previewUrl);
-  const wellSize = useWellSize(artRef);
+  const wellSize = useWellSize(artElement);
 
   const clampPosition = useCallback(
     (position: ImagePosition, scale: number): ImagePosition => clampImagePosition(position, scale, aspect),
@@ -81,19 +85,19 @@ export function TokenPreviewCard({ preview, mode, index, onChange, onToggleSelec
   }, [isCropEditable, preview.imageScale, clampPosition]);
 
   useEffect(() => {
-    const art = artRef.current;
-    if (!art || !isCropEditable) return;
+    if (!artElement || !isCropEditable) return;
     const handleWheel = (e: WheelEvent): void => {
       e.preventDefault();
       const next = previewRef.current.imageScale * Math.exp(-e.deltaY * WHEEL_ZOOM_SENSITIVITY);
       onChangeRef.current({ imageScale: clampZoom(next) });
     };
-    art.addEventListener('wheel', handleWheel, { passive: false });
-    return () => art.removeEventListener('wheel', handleWheel);
-  }, [isCropEditable]);
+    artElement.addEventListener('wheel', handleWheel, { passive: false });
+    return () => artElement.removeEventListener('wheel', handleWheel);
+  }, [artElement, isCropEditable]);
 
   const setScale = (scale: number): void => onChange({ imageScale: clampZoom(scale) });
-  const resetCrop = (): void => onChange({ imageScale: 1, imagePosition: { x: 0, y: 0 } });
+  const initialCrop = cropReset(preview);
+  const resetCrop = (): void => onChange(initialCrop);
 
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>): void => {
     if (e.button !== 0) return;
@@ -122,19 +126,19 @@ export function TokenPreviewCard({ preview, mode, index, onChange, onToggleSelec
     target.addEventListener('pointercancel', handleUp);
   };
 
-  const imageStyle: React.CSSProperties = isCropEditable
+  const placement: React.CSSProperties = isCropEditable
     ? {
-        backgroundImage: `url(${preview.previewUrl})`,
         backgroundSize: `${preview.imageScale * 100}%`,
         backgroundPosition: `calc(50% + ${preview.imagePosition.x * wellSize}px) calc(50% + ${preview.imagePosition.y * wellSize}px)`,
       }
-    : { backgroundImage: `url(${preview.previewUrl})`, backgroundSize: 'contain', backgroundPosition: 'center' };
+    : { backgroundSize: 'contain', backgroundPosition: 'center' };
+  const imageStyle: React.CSSProperties = preview.previewUrl ? { backgroundImage: `url(${preview.previewUrl})`, ...placement } : {};
 
   const zoomPercent = Math.round(preview.imageScale * 100);
 
   const art = (
     <div
-      ref={artRef}
+      ref={setArtElement}
       className="atlas-token-card__art"
       onDoubleClick={isCropEditable ? resetCrop : undefined}
     >
@@ -173,10 +177,10 @@ export function TokenPreviewCard({ preview, mode, index, onChange, onToggleSelec
           <span>Optimizing</span>
         </div>
       )}
-      {preview.optimizationResult && (
+      {preview.compressionRatio !== undefined && preview.compressionRatio > 0 && (
         <LabelTooltip label="Size reduction from optimization">
           <div className="atlas-token-card__badge">
-            −{preview.optimizationResult.compressionRatio}%
+            −{preview.compressionRatio}%
           </div>
         </LabelTooltip>
       )}
@@ -227,11 +231,11 @@ export function TokenPreviewCard({ preview, mode, index, onChange, onToggleSelec
               <ZoomIn />
             </Button>
           </LabelTooltip>
-          <LabelTooltip label="Reset zoom to 100%">
+          <LabelTooltip label={`Reset zoom to ${Math.round(initialCrop.imageScale * 100)}%`}>
             <button
               type="button"
               className="atlas-token-card__zoom-value"
-              onClick={() => setScale(1)}
+              onClick={() => setScale(initialCrop.imageScale)}
             >
               {zoomPercent}%
             </button>

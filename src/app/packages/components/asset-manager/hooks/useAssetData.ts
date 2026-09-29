@@ -151,6 +151,13 @@ export function useAssetData(
     return thumbnails.onUpdated(() => { void loadAssetsForActiveTab(); });
   }, [thumbnails, loadAssetsForActiveTab]);
 
+  // Scene thumbnails are rendered by open map views, e.g. right after a new scene opens
+  useEffect(() => {
+    if (!app || activeTab !== 'scenes') return;
+    const ref = app.workspace.on('atlas-vtt:scene-thumbnail-updated', () => { void loadAssetsForActiveTab(); });
+    return () => { app.workspace.offref(ref); };
+  }, [app, activeTab, loadAssetsForActiveTab]);
+
   // ── Tags ──────────────────────────────────────────────────────
   const reloadGlobalTags = useCallback(async (): Promise<void> => {
     if (!assetService) return;

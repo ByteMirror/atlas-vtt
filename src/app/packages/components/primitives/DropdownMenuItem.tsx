@@ -8,6 +8,8 @@ export interface DropdownMenuItemProps {
   shortcut?: string
   isActive?: boolean
   destructive?: boolean
+  /** Set inside a `role="menu"` container, which arrow keys move through. */
+  role?: "menuitem"
   onClick: () => void
 }
 
@@ -17,6 +19,7 @@ export const DropdownMenuItem: FC<DropdownMenuItemProps> = ({
   shortcut,
   isActive = false,
   destructive = false,
+  role,
   onClick,
 }) => {
   if (destructive) {
@@ -38,6 +41,7 @@ export const DropdownMenuItem: FC<DropdownMenuItemProps> = ({
       variant="ghost"
       size="sm"
       className="atlas-dropdown-menu-item"
+      role={role}
       onClick={onClick}
     >
       <span className="atlas-dropdown-menu-item__check">

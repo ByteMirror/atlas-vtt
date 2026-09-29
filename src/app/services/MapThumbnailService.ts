@@ -2,6 +2,7 @@ import { App, TFile } from 'obsidian';
 import { Application, Container, Rectangle, type Texture } from 'pixi.js';
 import { mapThumbnailPath } from '../utils/dataFileMigration';
 import { requestRender } from '../pixi/RenderScheduler';
+import { trashHiddenPath } from '../utils/hiddenVaultFiles';
 
 /** The bytes of a base64 data URL, such as the JPEG `renderThumbnail` returns. */
 export function dataUrlToBytes(dataUrl: string): ArrayBuffer | null {
@@ -23,42 +24,12 @@ export interface ThumbnailSize {
 
 /** Map cards in the asset manager and dashboard. */
 const MAP_THUMBNAIL_SIZE: ThumbnailSize = { width: 400, height: 300 };
+/** Scene snapshot cards: 16:9 and sharp enough for their larger preview. */
+export const SNAPSHOT_THUMBNAIL_SIZE: ThumbnailSize = { width: 640, height: 360 };
 
+/** Renders a map view into a thumbnail and stores it next to the scene's map file. */
 export class MapThumbnailService {
-  private app: App;
-  private thumbnailCache: Map<string, string> = new Map(); // Map path -> data URL
-  private static readonly MAX_CACHE_ENTRIES = 8;
-  
-  constructor(app: App) {
-    this.app = app;
-  }
-  
-  /**
-   * Generates a thumbnail for the current map state
-   * @param pixiApp The PIXI application instance
-   * @param viewport The viewport container
-   * @param mapPath The path to the map file
-   * @param background The map image sprite, used to exclude outlying overlays from framing
-   * @returns Data URL of the thumbnail image
-   */
-  async generateThumbnail(
-    pixiApp: Application,
-    viewport: Container,
-    mapPath: string,
-    background?: Container | null
-  ): Promise<string | null> {
-    try {
-      const dataUrl = this.renderThumbnail(pixiApp, viewport, background);
-      if (!dataUrl) return null;
-
-      this.rememberThumbnail(mapPath, dataUrl);
-      await this.saveThumbnailToVault(mapPath, dataUrl);
-      return dataUrl;
-    } catch (error) {
-      console.error('[MapThumbnailService] Error generating thumbnail:', error);
-      return null;
-    }
-  }
+  constructor(private readonly app: App) {}
 
   /**
    * Renders the map as it looks now into a JPEG data URL of `size` (400×300 by
@@ -165,128 +136,35 @@ export class MapThumbnailService {
     );
   }
   
-  /**
-   * Save thumbnail to vault as a file
-   */
-  private async saveThumbnailToVault(mapPath: string, dataUrl: string): Promise<void> {
-    try {
-      const bytes = dataUrlToBytes(dataUrl);
-      if (!bytes) return;
-
-      // Create thumbnail path (same directory as map, with .thumb.jpg extension)
-      const mapFile = this.app.vault.getAbstractFileByPath(mapPath);
-      if (!mapFile || !(mapFile instanceof TFile)) return;
-      
-      const thumbnailPath = mapThumbnailPath(mapPath);
-      
-      // Ensure directory exists for the thumbnail
-      const dir = thumbnailPath.substring(0, thumbnailPath.lastIndexOf('/'));
-      if (!await this.app.vault.adapter.exists(dir)) {
-        await this.app.vault.adapter.mkdir(dir);
-      }
-      
-      // Save thumbnail file
-      const existingThumb = this.app.vault.getAbstractFileByPath(thumbnailPath);
-      if (existingThumb instanceof TFile) {
-        await this.app.vault.modifyBinary(existingThumb, bytes);
-      } else {
-        await this.app.vault.createBinary(thumbnailPath, bytes);
-      }
-      
-    } catch (error) {
-      console.error('[MapThumbnailService] Error saving thumbnail:', error);
-    }
-  }
-  
-  /**
-   * Get thumbnail for a map file
-   */
-  async getThumbnail(mapPath: string): Promise<string | null> {
-    // Check cache first
-    if (this.thumbnailCache.has(mapPath)) {
-      const cached = this.thumbnailCache.get(mapPath)!;
-      this.rememberThumbnail(mapPath, cached);
-      return cached;
-    }
-    
-    // Try to load from vault - new location first
+  /** Writes `bytes` as the thumbnail of the scene at `mapPath` and tells open asset lists. */
+  async saveThumbnail(mapPath: string, bytes: ArrayBuffer): Promise<void> {
+    if (!(this.app.vault.getAbstractFileByPath(mapPath) instanceof TFile)) return;
     const thumbnailPath = mapThumbnailPath(mapPath);
-    let thumbFile = this.app.vault.getAbstractFileByPath(thumbnailPath);
-    
-    // If not found in new location, try old location
-    if (!thumbFile) {
-      const oldThumbnailPath = mapPath.replace('.atlasmap', '.thumb.jpg');
-      thumbFile = this.app.vault.getAbstractFileByPath(oldThumbnailPath);
-      
-      if (thumbFile instanceof TFile) {
-        // Migrate to new location
-        try {
-          const data = await this.app.vault.readBinary(thumbFile);
-          
-          // Ensure new directory exists
-          const dir = thumbnailPath.substring(0, thumbnailPath.lastIndexOf('/'));
-          if (!await this.app.vault.adapter.exists(dir)) {
-            await this.app.vault.adapter.mkdir(dir);
-          }
-          
-          // Create in new location
-          await this.app.vault.createBinary(thumbnailPath, data);
-          
-          await this.app.fileManager.trashFile(thumbFile);
-          // Update thumbFile reference
-          thumbFile = this.app.vault.getAbstractFileByPath(thumbnailPath);
-        } catch (migrationError) {
-          console.error('[MapThumbnailService] Failed to migrate thumbnail:', migrationError);
-        }
-      }
-    }
-    
-    if (thumbFile instanceof TFile) {
-      try {
-        const data = await this.app.vault.readBinary(thumbFile);
-        const blob = new Blob([data], { type: 'image/jpeg' });
-        const dataUrl = await new Promise<string>((resolve) => {
-          const reader = new FileReader();
-          reader.onloadend = () => resolve(reader.result as string);
-          reader.readAsDataURL(blob);
-        });
-        
-        // Cache it
-        this.rememberThumbnail(mapPath, dataUrl);
-        return dataUrl;
-      } catch (error) {
-        console.error('[MapThumbnailService] Error loading thumbnail:', error);
-      }
-    }
-    
-    return null;
-  }
-  
-  /**
-   * Clear thumbnail cache for a specific map or all maps
-   */
-  clearCache(mapPath?: string): void {
-    if (mapPath) {
-      this.thumbnailCache.delete(mapPath);
+    const existing = this.app.vault.getAbstractFileByPath(thumbnailPath);
+    const { adapter } = this.app.vault;
+    // Thumbnails of scenes in a collection's maps folder live in the hidden data folder, which only the adapter sees.
+    if (existing instanceof TFile) {
+      await this.app.vault.modifyBinary(existing, bytes);
+    } else if (await adapter.exists(thumbnailPath)) {
+      await adapter.writeBinary(thumbnailPath, bytes);
     } else {
-      this.thumbnailCache.clear();
+      const folder = thumbnailPath.substring(0, thumbnailPath.lastIndexOf('/'));
+      if (!await adapter.exists(folder)) await adapter.mkdir(folder);
+      await this.app.vault.createBinary(thumbnailPath, bytes);
     }
+    this.app.workspace.trigger('atlas-vtt:scene-thumbnail-updated', mapPath);
   }
 
-  private rememberThumbnail(mapPath: string, dataUrl: string): void {
-    if (this.thumbnailCache.has(mapPath)) {
-      this.thumbnailCache.delete(mapPath);
-    }
+  /** Moves a deleted scene's thumbnail to the trash, so a later scene of the same name does not show it. */
+  async trashThumbnail(mapPath: string): Promise<void> {
+    const thumbnailPath = mapThumbnailPath(mapPath);
+    const file = this.app.vault.getAbstractFileByPath(thumbnailPath);
+    if (file instanceof TFile) await this.app.fileManager.trashFile(file);
+    else await trashHiddenPath(this.app, thumbnailPath);
+  }
 
-    this.thumbnailCache.set(mapPath, dataUrl);
-
-    while (this.thumbnailCache.size > MapThumbnailService.MAX_CACHE_ENTRIES) {
-      const oldestKey = this.thumbnailCache.keys().next().value;
-      if (!oldestKey) {
-        break;
-      }
-
-      this.thumbnailCache.delete(oldestKey);
-    }
+  /** Whether the scene at `mapPath` has a thumbnail, wherever it is stored. */
+  hasThumbnail(mapPath: string): Promise<boolean> {
+    return this.app.vault.adapter.exists(mapThumbnailPath(mapPath));
   }
 }

@@ -44,6 +44,7 @@ import { TokenSettingsPanel } from './command-palette/TokenSettingsPanel';
 import { WidgetSettingsPanel } from './command-palette/WidgetSettingsPanel';
 import { LocalPlayerViewSettingsPanel } from './command-palette/LocalPlayerViewSettingsPanel';
 import { SceneSnapshotsPanel } from './command-palette/SceneSnapshotsPanel';
+import { placePalette, type PalettePosition } from './command-palette/palettePlacement';
 import { isSettingsPanelId, type CommandOption, type SettingsPanelId } from './command-palette/types';
 
 interface CommandPaletteProps {
@@ -52,15 +53,7 @@ interface CommandPaletteProps {
   toolbarRef?: React.RefObject<HTMLDivElement | null>;
 }
 
-/** Offsets in the overlay's own coordinate frame, not the viewport's. */
-interface PalettePosition {
-  width: number;
-  left: number;
-  bottom: number;
-}
-
 const DEFAULT_PALETTE_WIDTH = 600;
-const TOOLBAR_GAP = 8;
 
 // The palette opens by hotkey many times per session, so it rises out of the
 // toolbar quickly and over a short distance, and leaves quicker still. Full
@@ -403,12 +396,7 @@ export function CommandPalette({ isOpen, onClose, toolbarRef }: CommandPalettePr
     const toolbar = toolbarRef?.current;
 
     if (toolbar) {
-      const rect = toolbar.getBoundingClientRect();
-      setPosition({
-        width: rect.width,
-        left: rect.left - frame.left,
-        bottom: frame.bottom - rect.top + TOOLBAR_GAP,
-      });
+      setPosition(placePalette(toolbar.getBoundingClientRect(), frame));
     } else {
       setPosition({
         width: DEFAULT_PALETTE_WIDTH,
@@ -795,8 +783,8 @@ export function CommandPalette({ isOpen, onClose, toolbarRef }: CommandPalettePr
   const anchorStyle: React.CSSProperties = !position
     ? {}
     : activePanel
-      ? { left: '50%', transform: 'translateX(-50%)', bottom: `${position.bottom}px` }
-      : { left: `${position.left}px`, transform: 'none', bottom: `${position.bottom}px` };
+      ? { left: '50%', transform: 'translateX(-50%)', bottom: `${position.bottom}px`, '--atlas-palette-bottom': `${position.bottom}px` } as React.CSSProperties
+      : { left: `${position.left}px`, transform: 'none', bottom: `${position.bottom}px`, '--atlas-palette-bottom': `${position.bottom}px` } as React.CSSProperties;
   const containerStyle = position && !activePanel ? { width: `${position.width}px` } : {};
 
   return (

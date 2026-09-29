@@ -4,6 +4,7 @@ import { useAtlasUI } from '../../root/AtlasUIContext';
 import { useAtlasStore } from '../../ViewStoreContext';
 import { SceneSnapshotService, nextSnapshotName, type SceneSnapshotEntry } from '../../../snapshots/SceneSnapshotService';
 import { confirmAction } from '../../../ui/confirmDialog';
+import { SNAPSHOT_THUMBNAIL_SIZE } from '../../../services/MapThumbnailService';
 
 export interface SceneSnapshotsController {
   entries: SceneSnapshotEntry[];
@@ -63,7 +64,7 @@ export function useSceneSnapshots(onRestore: () => void): SceneSnapshotsControll
 
     await run(async () => {
       await view.saveMap();
-      await service.create(mapFile, name, view.serviceManager.renderMapThumbnail());
+      await service.create(mapFile, name, view.serviceManager.renderMapThumbnail(SNAPSHOT_THUMBNAIL_SIZE));
     }, 'Could not save the snapshot');
   }, [entries, run, service, view]);
 
@@ -103,7 +104,7 @@ export function useSceneSnapshots(onRestore: () => void): SceneSnapshotsControll
 
     await run(async () => {
       await view.saveMap();
-      await service.overwrite(entry, mapFile, view.serviceManager.renderMapThumbnail());
+      await service.overwrite(entry, mapFile, view.serviceManager.renderMapThumbnail(SNAPSHOT_THUMBNAIL_SIZE));
     }, 'Could not overwrite the snapshot');
   }, [run, service, view]);
 

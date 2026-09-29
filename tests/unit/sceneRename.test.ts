@@ -72,6 +72,17 @@ describe('renaming a map file in the vault', () => {
     expect(pins.note.notePath).toBe('Notes/Tavern.md');
   });
 
+  it('replaces a thumbnail a deleted scene left at the new path', async () => {
+    const { app, files } = await setup();
+    files.set(`${scenes}/New Keep.thumb.jpg`, 'stale jpeg');
+    await app.vault.rename(app.vault.getFileByPath(`${scenes}/Old Keep.atlasmap`)!, `${scenes}/New Keep.atlasmap`);
+
+    await new FileReferenceService(app).handleFileRenamed(`${scenes}/Old Keep.atlasmap`, `${scenes}/New Keep.atlasmap`);
+
+    expect(files.get(`${scenes}/New Keep.thumb.jpg`)).toBe('jpeg');
+    expect(files.has(`${scenes}/Old Keep.thumb.jpg`)).toBe(false);
+  });
+
   it('keeps a scene name the user chose instead of the file name', async () => {
     const { app, assets, scene, read } = await setup();
     await assets.updateAsset(scene.id, { name: 'The Keep at Dawn' });
@@ -99,14 +110,16 @@ describe('rewriteMapReferences', () => {
     expect(rewriteMapReferences({ objects }, movedPathOf([{ from: 'Nowhere.md', to: 'Elsewhere.md' }]))).toBe(false);
   });
 
-  it('retargets the map\'s own path and the portraits of initiative entries and dice rolls', () => {
+  it('retargets the map\'s own path, its background and the portraits of initiative entries and dice rolls', () => {
     const map = {
       mapPath: 'Camp/Cave.atlasmap',
+      background: 'Camp/cave.webp',
       initiative: { entries: [{ imagePath: 'Camp/goblin.webp', statblockPath: 'Camp/Goblin.md' }] },
       diceLog: [{ source: { tokenImagePath: 'Camp/goblin.webp', statblockPath: 'Camp/Goblin.md' } }, {}],
     };
     const moved = movedPathOf([
       { from: 'Camp/Cave.atlasmap', to: 'Keep/Cave.atlasmap' },
+      { from: 'Camp/cave.webp', to: 'Keep/cave.webp' },
       { from: 'Camp/goblin.webp', to: 'Keep/goblin.webp' },
       { from: 'Camp/Goblin.md', to: 'Keep/Goblin.md' },
     ]);
@@ -114,6 +127,7 @@ describe('rewriteMapReferences', () => {
     expect(rewriteMapReferences(map, moved)).toBe(true);
     expect(map).toEqual({
       mapPath: 'Keep/Cave.atlasmap',
+      background: 'Keep/cave.webp',
       initiative: { entries: [{ imagePath: 'Keep/goblin.webp', statblockPath: 'Keep/Goblin.md' }] },
       diceLog: [{ source: { tokenImagePath: 'Keep/goblin.webp', statblockPath: 'Keep/Goblin.md' } }, {}],
     });

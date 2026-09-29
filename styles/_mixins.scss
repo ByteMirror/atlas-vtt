@@ -475,6 +475,24 @@
   }
 }
 
+/// A popover positioned by `useKeepInView`: shifted sideways off the view's
+/// edge, and scrolling when the view is too short for it. Without the hook's
+/// variables it stays put (no `translate`, so no new containing block).
+@mixin atlas-keep-in-view {
+  translate: var(--atlas-keep-in-view-x);
+
+  &.atlas-keep-in-view--capped {
+    box-sizing: border-box;
+    max-height: var(--atlas-keep-in-view-max-height);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+
+    > * {
+      flex-shrink: 0;
+    }
+  }
+}
+
 /// The close button itself, for CloseButton and Obsidian's native modal control.
 @mixin atlas-close-button {
   display: flex;

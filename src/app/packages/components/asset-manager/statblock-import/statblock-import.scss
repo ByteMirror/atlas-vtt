@@ -63,6 +63,6 @@
   }
   &__status { font-size: $font-ui-smaller; color: var(--text-muted); text-align: right; }
   &__status--ready { color: var(--text-success); }
-  &__progress, &__result { display: flex; flex-direction: column; gap: $spacing-s; progress { width: 100%; } }
-  &__intro, &__error, &__summary, &__controls, &__selection { flex-shrink: 0; }
+  &__scanning { display: flex; }
+  &__intro, &__error, &__summary, &__controls, &__selection, &__scanning { flex-shrink: 0; }
 }

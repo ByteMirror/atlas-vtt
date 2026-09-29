@@ -19,3 +19,9 @@ export function syncTokenArtwork(container: TokenGroupContainer, size: number): 
   sprite.width = framed ? size : size * width / Math.max(width, height);
   sprite.height = framed ? size : size * height / Math.max(width, height);
 }
+
+/** Fits the artwork to the token again after its texture changed. */
+export function fitTokenArtwork(container: TokenGroupContainer): void {
+  const size = container.tokenSize;
+  if (Number.isFinite(size) && size > 0) syncTokenArtwork(container, size);
+}

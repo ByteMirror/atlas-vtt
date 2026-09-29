@@ -13,6 +13,8 @@ interface ToolButtonProps {
   onClick: () => void
   className?: string
   disabled?: boolean
+  /** Set for a button that opens a menu: whether that menu is open. */
+  menuExpanded?: boolean
   // Dropdown support
   showChevron?: boolean
   onChevronClick?: () => void
@@ -30,6 +32,7 @@ export const ToolButton: React.FC<ToolButtonProps> = ({
   onClick,
   className,
   disabled = false,
+  menuExpanded,
   // dropdown props
   showChevron = false,
   onChevronClick,
@@ -47,6 +50,7 @@ export const ToolButton: React.FC<ToolButtonProps> = ({
               size="icon"
               onClick={disabled ? undefined : onClick}
               aria-disabled={disabled || undefined}
+              {...(menuExpanded !== undefined && { "aria-haspopup": "menu" as const, "aria-expanded": menuExpanded })}
               className={cn(
                 "btn--toolbar",
                 isActive && "is-active",

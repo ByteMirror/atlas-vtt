@@ -1,4 +1,4 @@
-import { App, WorkspaceLeaf, TFile, ItemView, MarkdownRenderer, Component, setIcon } from 'obsidian';
+import { App, WorkspaceLeaf, TFile, ItemView, MarkdownRenderer, MarkdownView, Component, setIcon } from 'obsidian';
 import { getActiveWorkspaceLeaf, suppressActiveLeaf } from '../utils/embeddedLeafFocus';
 import { runInBackground } from '../utils/backgroundTask';
 import type { NotePreviewUIManager, PreviewAnchorRef } from './NotePreviewUIManager';
@@ -6,10 +6,11 @@ import type { NoteViewState, PinnedNotePreview } from '../stores/pinnedNotePrevi
 import { PreviewWindowPlacement } from './previewWindowLayout';
 import { NOTE_PREVIEW_LAYER_CLASS } from './uiLayers';
 import { applyNoteScroll, readNoteViewState, toOpenViewState } from './noteViewState';
+import { findEditorHeading, findRenderedHeading, headingLine } from './noteHeadings';
+import { alignHeading, holdHeadingInView } from './headingScroll';
 
 // Styles imported via styles/main.scss → note-preview-window.scss
 
-const HEADING_SCROLL_MARGIN = 20;
 const HEADING_FLASH_DURATION_MS = 1500;
 /** Hides an embedded note view until it has been scrolled to its heading. */
 const PENDING_SCROLL_CLASS = 'atlas-embedded-leaf-view--pending-scroll';
@@ -429,33 +430,14 @@ export class NotePreviewWindow {
   }
 
   private scrollRenderedMarkdownToHeader(container: HTMLElement, headerText: string): void {
-    const headingCandidates = Array.from(
-      container.querySelectorAll('h1, h2, h3, h4, h5, h6, [data-heading]')
-    );
-
-    const targetElement = headingCandidates.find((element) => {
-      const text = element.textContent?.trim();
-      const dataHeading = element.getAttribute('data-heading')?.trim();
-      return text === headerText || dataHeading === headerText || text?.startsWith(headerText);
-    }) as HTMLElement | undefined;
-
+    const targetElement = findRenderedHeading(container, headerText);
     if (!targetElement) {
       console.warn('[NotePreviewWindow] Header not found in rendered markdown:', headerText);
       return;
     }
 
-    this.scrollElementToTop(container, targetElement);
+    alignHeading(targetElement, container);
     this.flashHeading(targetElement);
-  }
-
-  /**
-   * Scrolls `scroller` so `target` sits just below its top edge. Unlike
-   * `scrollIntoView` this only moves the given scroller, never the
-   * overflow-hidden preview window or the workspace leaf it is mounted in.
-   */
-  private scrollElementToTop(scroller: Element, target: Element): void {
-    const offset = target.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
-    scroller.scrollTop = Math.max(0, scroller.scrollTop + offset - HEADING_SCROLL_MARGIN);
   }
 
   private flashHeading(element: HTMLElement): void {
@@ -880,84 +862,34 @@ export class NotePreviewWindow {
     });
   }
   
-  private scrollToHeader(headerText: string) {
-    if (!this.leaf?.view) {
-      console.warn('[NotePreviewWindow] No leaf view available for scrolling to header');
+  /**
+   * Scrolls the note to its heading. The editor and reading view only draw the
+   * lines near the screen, so the view first scrolls to the heading's line
+   * from the metadata cache, then aligns the drawn heading until it holds still.
+   */
+  private scrollToHeader(headerText: string): void {
+    const view = this.leaf?.view;
+    if (!(view instanceof MarkdownView) || !view.file) return;
+    const line = headingLine(this.app, view.file, headerText);
+    if (line === null) {
+      console.warn('[NotePreviewWindow] Heading not found in note:', headerText);
       return;
     }
-    
-    // Hide content initially to prevent flash
-    const viewContent = this.leaf.view.containerEl;
-    viewContent?.classList.add(PENDING_SCROLL_CLASS);
-    
-    // Simple approach: Just find the header in the DOM and scroll to it
-    const doScroll = () => {
-      if (!this.leaf?.view) return;
-      
-      // Find the scrollable container
-      const container = this.leaf.view.containerEl;
-      const scroller = container.querySelector('.cm-scroller') || 
-                      container.querySelector('.markdown-preview-view') ||
-                      container.querySelector('.markdown-source-view .cm-editor') ||
-                      container;
-      
-      if (!scroller) {
-        console.warn('[NotePreviewWindow] No scrollable container found');
-        return;
-      }
-      
-      // Find all possible header elements
-      const allElements = scroller.querySelectorAll('*');
-      let targetElement: Element | null = null;
-      
-      // Search through all elements for the header text
-      for (const el of allElements) {
-        const text = el.textContent?.trim();
-        if (!text) continue;
-        
-        // Check if this element contains our header text
-        if (text === headerText || text.startsWith(headerText)) {
-          // Make sure it's a header element or contains header formatting
-          const tagName = el.tagName.toLowerCase();
-          const className = el.className || '';
-          
-          if (tagName.match(/^h[1-6]$/) || 
-              className.includes('cm-header') || 
-              el.getAttribute('data-heading') === headerText ||
-              (el.parentElement && el.parentElement.className.includes('cm-header'))) {
-            targetElement = el;
-            break;
-          }
-        }
-      }
-      
-      if (targetElement) {
-        // In source mode scroll the CodeMirror line that holds the heading.
-        const cmScroller = container.querySelector('.cm-scroller');
-        const scrollTarget = cmScroller ? (targetElement.closest('.cm-line') ?? targetElement) : targetElement;
-        this.scrollElementToTop(cmScroller ?? scroller, scrollTarget);
-        this.flashHeading(targetElement as HTMLElement);
-      } else {
-        console.warn('[NotePreviewWindow] Header not found in DOM:', headerText);
-      }
-      
-      // Show content after scrolling
-      viewContent?.classList.remove(PENDING_SCROLL_CLASS);
-    };
-    
-    // Use requestAnimationFrame to ensure DOM is ready
-    window.requestAnimationFrame(() => {
-      doScroll();
-      
-      // If still hidden, try again after a short delay
-      if (viewContent?.classList.contains(PENDING_SCROLL_CLASS)) {
-        window.setTimeout(() => {
-          doScroll();
-          // Always show content after second attempt
-          viewContent.classList.remove(PENDING_SCROLL_CLASS);
-        }, 100);
-      }
-    });
+
+    const viewContent = view.containerEl;
+    // Only the shown mode counts: the view keeps the other one in the DOM, hidden.
+    const findHeading = view.getMode() === 'preview'
+      ? (): HTMLElement | null => findRenderedHeading(view.previewMode.containerEl, headerText)
+      : (): HTMLElement | null => findEditorHeading(viewContent, line);
+    viewContent.classList.add(PENDING_SCROLL_CLASS);
+    const stop = holdHeadingInView(
+      { container: viewContent, findHeading, scrollToLine: () => view.currentMode.applyScroll(line) },
+      (heading) => {
+        viewContent.classList.remove(PENDING_SCROLL_CLASS);
+        if (heading) this.flashHeading(heading);
+      },
+    );
+    this.parentComponent.register(stop);
   }
 }
 

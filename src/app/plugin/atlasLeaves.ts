@@ -1,8 +1,6 @@
 import { App, Plugin, TFile, WorkspaceLeaf } from 'obsidian';
 import { AtlasView, ATLAS_VIEW_TYPE } from '../atlas-view';
 
-export const EXTENSION_ATLASMAP = 'atlasmap';
-
 function getExistingAtlasLeaf(app: App): WorkspaceLeaf | null {
   return app.workspace.getLeavesOfType(ATLAS_VIEW_TYPE)[0] ?? null;
 }

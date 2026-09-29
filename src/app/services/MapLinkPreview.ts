@@ -2,6 +2,7 @@ import { App, TFile, setIcon } from 'obsidian';
 import type { NotePreviewUIManager, PreviewAnchor } from './NotePreviewUIManager';
 import './map-link-preview.scss';
 import { runInBackground } from '../utils/backgroundTask';
+import { mapThumbnailPath } from '../utils/dataFileMigration';
 
 /**
  * Lightweight tooltip-style preview for .atlasmap files linked via note pins.
@@ -106,7 +107,7 @@ export class MapLinkPreview {
   private buildContent(): void {
     if (!this.cardEl) return;
 
-    const thumbnailPath = this.file.path.replace('.atlasmap', '.thumb.jpg');
+    const thumbnailPath = mapThumbnailPath(this.file.path);
     const thumbnailFile = this.app.vault.getAbstractFileByPath(thumbnailPath);
 
     if (thumbnailFile instanceof TFile) {

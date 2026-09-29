@@ -21,8 +21,8 @@ function setup(width = 1200, height = 600) {
   vi.spyOn(HTMLCanvasElement.prototype, 'toDataURL').mockReturnValue('data:image/jpeg;base64,AA==');
   const app = { renderer: { generateTexture, extract: { canvas: vi.fn(() => source) } } };
   const service = new MapThumbnailService({ vault: { getAbstractFileByPath: () => null } } as any);
-  const capture = (mapBackground?: Container) => service.generateThumbnail(
-    app as unknown as Application, viewport, 'scene.atlasmap', mapBackground,
+  const capture = async (mapBackground?: Container): Promise<string | null> => service.renderThumbnail(
+    app as unknown as Application, viewport, mapBackground,
   );
   const frame = () => generateTexture.mock.calls.at(-1)![0].frame as Rectangle;
   return { viewport, background, app, capture, frame, generateTexture, destroy, source, drawImage };
@@ -84,8 +84,7 @@ describe('scene thumbnail framing', () => {
     viewport.position.set(30, 80);
     viewport.scale.set(0.25);
     app.renderer.extract.canvas.mockImplementation(() => { throw new Error('Extraction failed'); });
-    vi.spyOn(console, 'error').mockImplementation(() => {});
-    expect(await capture()).toBeNull();
+    await expect(capture()).rejects.toThrow('Extraction failed');
     expect(destroy).toHaveBeenCalledWith(true);
     expect(viewport.position).toMatchObject({ x: 30, y: 80 });
     expect(viewport.scale).toMatchObject({ x: 0.25, y: 0.25 });

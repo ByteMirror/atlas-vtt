@@ -1,0 +1,32 @@
+@use '../../../../../styles/tokens' as *;
+
+// Capsule track; the fill is a full-width capsule slid in from the start, so its
+// leading edge stays round at every value (scaling it would flatten the cap).
+.atlas-progress-bar {
+  --atlas-progress-bar-height: 4px;
+  position: relative;
+  height: var(--atlas-progress-bar-height);
+  border-radius: $radius-full;
+  background: color-mix(in oklch, var(--text-normal) 10%, transparent);
+  overflow: hidden;
+}
+
+.atlas-progress-bar__fill {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--interactive-accent);
+  transform: translateX(calc((var(--atlas-progress, 0) - 1) * 100%));
+  transition: transform $transition-slow $transition-ease-out;
+
+  [dir='rtl'] & {
+    transform: translateX(calc((1 - var(--atlas-progress, 0)) * 100%));
+  }
+}
+
+// Progress is essential feedback: keep it, just without the glide
+@media (prefers-reduced-motion: reduce) {
+  .atlas-progress-bar__fill {
+    transition-duration: $transition-fast;
+  }
+}

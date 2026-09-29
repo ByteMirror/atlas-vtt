@@ -100,6 +100,13 @@ export interface ITextureCache {
   evictUnused(keepImagePaths: Iterable<string>): void;
 
   /**
+   * Re-reads art whose file changed into a new texture and destroys the old one
+   * @param show Puts the new texture on every sprite that shows the old one
+   * @returns False when the art is not cached from the vault
+   */
+  reload(imagePath: string, show: (texture: Texture) => void): Promise<boolean>;
+
+  /**
    * Destroys all cached textures and clears cache
    */
   destroyAll(): void;

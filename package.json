@@ -1,6 +1,6 @@
 {
   "name": "atlas-vtt",
-  "version": "0.5.0-beta.0",
+  "version": "0.5.0-beta.1",
   "main": "dist/main.js",
   "scripts": {
     "dev": "cross-env COPY_ON_CHANGE=true vite build --watch",
@@ -49,7 +49,7 @@
     "lucide-react": "^0.503.0",
     "pixi-filters": "^6.1.2",
     "pixi-viewport": "^6.0.3",
-    "pixi.js": "^8.9.1",
+    "pixi.js": "^8.21.0",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "tailwind-merge": "^3.2.0",
@@ -59,6 +59,8 @@
     "zustand": "5.0.3"
   },
   "devDependencies": {
+    "@codemirror/state": "6.5.0",
+    "@codemirror/view": "6.38.6",
     "@testing-library/react": "16.3.0",
     "@types/howler": "^2.2.12",
     "@types/node": "22.14.1",

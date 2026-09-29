@@ -45,6 +45,8 @@ type Collection<T> = Record<string, T> | readonly T[] | null | undefined;
 export interface MapReferences {
   /** The map's own file, which the saved state repeats. */
   mapPath?: string | null | undefined;
+  /** The map image the scene is drawn on. */
+  background?: string | null | undefined;
   objects?: {
     tokens?: Collection<TokenPaths>;
     pins?: Collection<PinPaths>;
@@ -63,13 +65,14 @@ function follow<K extends string>(record: Partial<Record<K, string | null | unde
 
 /**
  * Points everything a map refers to at the new places of moved files, in
- * place: its own path, token art and statblocks, pin targets, and the
- * portraits and statblocks of initiative entries and dice rolls. Returns
- * whether anything changed.
+ * place: its own path, its background, token art and statblocks, pin
+ * targets, and the portraits and statblocks of initiative entries and dice
+ * rolls. Returns whether anything changed.
  */
 export function rewriteMapReferences(map: MapReferences | null | undefined, moved: MovedPath): boolean {
   if (!map) return false;
   let changed = follow(map, 'mapPath', moved);
+  changed = follow(map, 'background', moved) || changed;
   const tokenLike = [...Object.values(map.objects?.tokens ?? {}), ...Object.values(map.initiative?.entries ?? {})];
   for (const token of tokenLike) {
     changed = follow(token, 'imagePath', moved) || changed;

@@ -2,6 +2,11 @@
   "version": "0.5.0-beta.1",
   "releases": [
     {
+      "version": "0.5.0-beta.1",
+      "title": "Coming in 0.5.0",
+      "markdown": "## New\n\n- Link any Markdown note to an individual map token from its GM context menu. Open, change, or unlink it there. Hold Ctrl/Cmd while hovering to preview the statblock first, or Ctrl/Cmd + Shift to preview the linked note."
+    },
+    {
       "version": "0.4.2",
       "date": "2026-09-29",
       "title": "Faster imports with progress bars, a toolbar that fits small windows, and scene and map fixes",

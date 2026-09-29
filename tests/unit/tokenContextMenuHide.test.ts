@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { FederatedPointerEvent } from 'pixi.js';
 import type { Viewport } from 'pixi-viewport';
-import type { EventEmitter } from 'events';
+import { EventEmitter } from 'events';
 import type { App } from 'obsidian';
 import { InteractionController } from '../../src/app/pixi/token-renderer/InteractionController';
 import type { GridSystem } from '../../src/app/grid/GridSystem';
@@ -27,7 +27,7 @@ function setup(selectedIds: string[], hidden: string[] = []): { store: ReturnTyp
   const tokens = Object.fromEntries(['a', 'b', 'c'].map((id) => [id, token(id, hidden.includes(id) || undefined)]));
   store.setState({ persistenceEnabled: false, activeTool: 'select', selectedIds, objects: { ...store.getState().objects, tokens } });
   const controller = new InteractionController(
-    {} as Viewport, store, {} as GridSystem, {} as EventEmitter, app as unknown as App,
+    {} as Viewport, store, {} as GridSystem, new EventEmitter(), app as unknown as App,
   );
   const rightClick = (id: string): void => controller.handleViewportTokenPointerDown(
     id, { button: 2, stopPropagation: () => {}, clientX: 0, clientY: 0, global: { x: 0, y: 0 } } as unknown as FederatedPointerEvent,
@@ -66,5 +66,31 @@ describe('token context menu Hide', () => {
     rightClick('c');
     clickItem('Hide');
     expect(hiddenIds(store)).toEqual(['c']);
+  });
+});
+
+describe('token context menu note links', () => {
+  it('offers Link Note for a regular token only in GM view', () => {
+    const { store, rightClick } = setup([]);
+    rightClick('a');
+    expect(opened.entries.some((entry) => entry.type === 'item' && entry.label === 'Link Note')).toBe(true);
+    store.getState().setGMView(false);
+    rightClick('a');
+    expect(opened.entries.some((entry) => entry.type === 'item' && entry.label === 'Link Note')).toBe(false);
+  });
+
+  it('keeps character note and statblock actions independent', () => {
+    const { store, rightClick } = setup([]);
+    store.setState((state) => ({ objects: { ...state.objects, tokens: {
+      ...state.objects.tokens,
+      a: { ...token('a'), kind: 'character', name: 'Hero',
+        notePath: 'Notes/Hero.md', statblockPath: 'Bestiary/Hero.md' },
+    } } }));
+    rightClick('a');
+    const labels = opened.entries.filter((entry) => entry.type === 'item').map((entry) => entry.label);
+    expect(labels).toEqual(expect.arrayContaining(['Open Note', 'Change Note', 'Unlink Note', 'Edit Statblock', 'Unlink Statblock']));
+    clickItem('Unlink Note');
+    expect(store.getState().objects.tokens.a?.notePath).toBeUndefined();
+    expect(store.getState().objects.tokens.a).toMatchObject({ statblockPath: 'Bestiary/Hero.md' });
   });
 });

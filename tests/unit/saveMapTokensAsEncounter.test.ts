@@ -14,7 +14,8 @@ const assetService = {
 };
 
 function storeWith(mapPath: string | null): StoreApi<ViewAtlasState> {
-  const token = { id: 't1', kind: 'character', name: 'Goblin', imagePath: 'atlas-vtt/collections/Goblin Warrens/tokens/goblin.webp', x: 35, y: 35 };
+  const token = { id: 't1', kind: 'character', name: 'Goblin', imagePath: 'atlas-vtt/collections/Goblin Warrens/tokens/goblin.webp', x: 35, y: 35,
+    notePath: 'Notes/Encounter.md', statblockPath: 'Bestiary/Goblin.md' };
   const state = { mapPath, objects: { tokens: { t1: token } } };
   return { getState: () => state } as unknown as StoreApi<ViewAtlasState>;
 }
@@ -34,4 +35,11 @@ it('falls back to the default collection when the scene lies outside every colle
   await saveMapTokensAsEncounter({} as never, storeWith(null), null, ['t1']);
 
   expect(vi.mocked(saveEncounter).mock.calls[0]?.[2]).toBe('default');
+});
+
+it('saves the individual note beside the existing statblock link', async () => {
+  await saveMapTokensAsEncounter({} as never, storeWith(null), null, ['t1']);
+
+  const [draft] = vi.mocked(saveEncounter).mock.calls[0]![3];
+  expect(draft?.state).toMatchObject({ notePath: 'Notes/Encounter.md', statblockPath: 'Bestiary/Goblin.md' });
 });

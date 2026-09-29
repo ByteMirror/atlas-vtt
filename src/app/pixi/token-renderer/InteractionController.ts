@@ -8,7 +8,7 @@
 import React from 'react';
 import { Container, FederatedPointerEvent } from 'pixi.js';
 import { Viewport } from 'pixi-viewport';
-import { App } from 'obsidian';
+import { App, TFile } from 'obsidian';
 import { openEditTokenModal } from './EditTokenModal';
 import { STATBLOCK_UNLINK_UPDATES } from './statblockFrontmatter';
 import { openContextMenuGlobal, closeContextMenuGlobal, type ContextMenuEntry } from '../../react/root/ContextMenuContext';
@@ -32,6 +32,8 @@ import type { DragRuler } from './DragRuler';
 import { runInBackground } from '../../utils/backgroundTask';
 import { tokenSizeSubmenu } from '../../react/components/context-menu/tokenSizeMenu';
 import { conditionsSubmenu } from '../../react/components/context-menu/conditionsMenu';
+import { TokenNoteSuggestModal } from './TokenNoteSuggestModal';
+import { isLinkedNotePreview, tokenPreviewPath } from './tokenNoteLink';
 
 interface DragState {
   isDragging: boolean;
@@ -166,6 +168,7 @@ export class InteractionController implements ITokenInteractionController {
 
   /** Called by TokenRenderer when viewport pointermove hovers over a token (or null to clear). */
   public handleViewportTokenHover(tokenId: string | null, e?: FederatedPointerEvent): void {
+    if (this.isPlayerView) return;
     // Clear previous hover if target changed
     const prevId = this._currentHoverId ?? null;
     if (prevId === tokenId) return;
@@ -174,9 +177,10 @@ export class InteractionController implements ITokenInteractionController {
       this.handleHoverEnd(prevId);
       // Emit hide preview for previous token
       const prevToken = this.store.getState().objects.tokens[prevId];
-      if (prevToken?.kind === 'character' && prevToken.statblockPath?.trim()) {
+      const previousPath = tokenPreviewPath(prevToken);
+      if (prevToken && previousPath?.trim()) {
         this.eventBus.emit('pin-hide-preview', {
-          pin: { id: prevToken.id, notePath: prevToken.statblockPath, x: prevToken.x, y: prevToken.y, type: 'token' },
+          pin: { id: prevToken.id, notePath: previousPath, x: prevToken.x, y: prevToken.y, type: 'token' },
         });
       }
     }
@@ -187,19 +191,28 @@ export class InteractionController implements ITokenInteractionController {
       this.handleHoverStart(tokenId);
       // Emit hover preview for new token
       const token = this.store.getState().objects.tokens[tokenId];
-      if (token?.kind === 'character' && e && token.statblockPath?.trim()) {
+      const gmView = this.store.getState().isGMView;
+      const statblockPath = token?.kind === 'character' ? token.statblockPath : undefined;
+      const ordinaryNote = gmView && isLinkedNotePreview(statblockPath, token?.notePath, e?.shiftKey ?? false);
+      const previewPath = gmView ? tokenPreviewPath(token, e?.shiftKey)
+        : statblockPath;
+      if (token && e && previewPath?.trim()
+        && (!ordinaryNote || this.obsApp.vault.getAbstractFileByPath(previewPath) instanceof TFile)) {
         this.eventBus.emit('pin-hover-preview', {
           pin: {
             id: token.id,
-            notePath: token.statblockPath,
+            notePath: previewPath,
+            ordinaryNote,
+            linkedNotePath: token.notePath,
+            statblockPath: token.kind === 'character' ? token.statblockPath : undefined,
             x: token.x,
             y: token.y,
             type: 'token',
             // Vitals travel with the pin so the preview can mirror them.
-            name: token.name,
-            hp: token.hp,
-            stress: token.stress,
-            maxStress: token.maxStress,
+            name: token.kind === 'character' ? token.name : undefined,
+            hp: token.kind === 'character' ? token.hp : undefined,
+            stress: token.kind === 'character' ? token.stress : undefined,
+            maxStress: token.kind === 'character' ? token.maxStress : undefined,
             imagePath: token.imagePath,
             ringColor: token.ringColor,
             showRing: token.showRing,
@@ -586,6 +599,30 @@ export class InteractionController implements ITokenInteractionController {
       onClick: () => this.showEditTokenModal(token),
     });
 
+    if (!this.isPlayerView && this.store.getState().isGMView) {
+      const notePath = currentToken?.notePath;
+      if (notePath) {
+        entries.push({
+          type: 'item', label: 'Open Note', icon: 'file-text',
+          onClick: () => {
+            if (this.obsApp.vault.getAbstractFileByPath(notePath) instanceof TFile) {
+              runInBackground(this.obsApp.workspace.openLinkText(notePath, '', true), `Opening ${notePath}`, 'Could not open the note');
+            }
+          },
+        });
+      }
+      entries.push({
+        type: 'item', label: notePath ? 'Change Note' : 'Link Note', icon: 'link',
+        onClick: () => new TokenNoteSuggestModal(this.obsApp, (path) => {
+          this.updateTokenNote(token.id, path);
+        }).open(),
+      });
+      if (notePath) entries.push({
+        type: 'item', label: 'Unlink Note', icon: 'unlink',
+        onClick: () => this.updateTokenNote(token.id, undefined),
+      });
+    }
+
     // Initiative
     const initiativeEntries = this.store.getState().initiative?.entries || [];
     const isInInitiative = initiativeEntries.some((entry) => entry.tokenId === token.id);
@@ -817,6 +854,18 @@ export class InteractionController implements ITokenInteractionController {
 
   private showEditTokenModal(token: TokenEntity): void {
     openEditTokenModal(token, this.store, this.obsApp);
+  }
+
+  private updateTokenNote(tokenId: string, notePath: string | undefined): void {
+    const token = this.store.getState().objects.tokens[tokenId];
+    if (!token) return;
+    const previous = token.notePath;
+    if (previous === notePath) return;
+    if (previous) {
+      this.eventBus.emit('pin-hide-preview', { pin: { id: tokenId, notePath: previous, x: token.x, y: token.y, type: 'token' } });
+      this.eventBus.emit('close-active-preview', `${previous}::${tokenId}`);
+    }
+    this.store.getState().updateToken(tokenId, { notePath });
   }
 
   destroyAll(): void {

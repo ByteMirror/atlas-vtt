@@ -25,6 +25,8 @@ export interface TokenResourceValue {
 
 /** Base interface for any token entity. */
 export interface BaseToken {
+  /** Markdown note linked to this individual map token. */
+  notePath?: string;
   /** False preserves the whole artwork without an Atlas frame. Defaults to true. */
   showRing?: boolean;
   /** Per-instance resources imported from a statblock beyond HP, stress and hope. */
@@ -83,7 +85,6 @@ export interface Character extends BaseToken {
   maxStressOverridden?: boolean;
   hope?: number | { current: number; max: number }; // Hope tokens for player characters
   difficulty?: string; // CR or tier from statblock
-  notePath?: string;
   statblockPath?: string; // Path to linked statblock note
   /** Name read from the linked statblock; the nameplate falls back to it when `name` is empty. */
   statblockName?: string | null;
@@ -167,4 +168,3 @@ export type ToolMode =
   | 'draw-circle'
   | 'audio';
 
- 

@@ -27,6 +27,7 @@ function movedPinTarget(target: string, moved: MovedPath): string | null {
 
 interface TokenPaths {
   imagePath?: string | undefined;
+  notePath?: string | undefined;
   statblockPath?: string | null | undefined;
 }
 
@@ -76,6 +77,7 @@ export function rewriteMapReferences(map: MapReferences | null | undefined, move
   const tokenLike = [...Object.values(map.objects?.tokens ?? {}), ...Object.values(map.initiative?.entries ?? {})];
   for (const token of tokenLike) {
     changed = follow(token, 'imagePath', moved) || changed;
+    changed = follow(token, 'notePath', moved) || changed;
     changed = follow(token, 'statblockPath', moved) || changed;
   }
   for (const pin of Object.values(map.objects?.pins ?? {})) {

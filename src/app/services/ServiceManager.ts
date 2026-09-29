@@ -60,7 +60,7 @@ export class ServiceManager {
     this.soundEffectService = new SoundEffectService();
     this.diceToastObserver = new DiceToastObserver(this.soundEffectService);
 
-    this.toolController = new ToolController(this.eventBus, app, store);
+    this.toolController = new ToolController(this.eventBus, app, store, this.settingsService);
 
     this.gridManager = new GridManager(this.eventBus);
 

@@ -4,6 +4,13 @@ import { DiceTool } from '../../../tools/DiceTool';
 import { DiceGrid } from './DiceGrid';
 import { DiceFormulaBar } from './DiceFormulaBar';
 import { DiceToastContainer } from './DiceToastContainer';
+import { SegmentedControl, type SegmentedOption } from '../../../packages/components/primitives/SegmentedControl';
+import type { DiceMode } from '../../../services/SettingsService';
+
+const DICE_MODES: readonly SegmentedOption<DiceMode>[] = [
+  { value: 'rng', label: 'RNG' },
+  { value: 'physical', label: 'Physical' },
+];
 
 interface DiceSelection {
   [die: string]: number;
@@ -19,6 +26,12 @@ export interface DiceDropdownMenuProps {
 export function DiceDropdownMenu({ diceTool, isOpen, onToggle, triggerRef }: DiceDropdownMenuProps): React.ReactElement {
   const [selection, setSelection] = useState<DiceSelection>({});
   const [position, setPosition] = useState({ top: 0, left: 0 });
+  const [mode, setMode] = useState<DiceMode>(() => diceTool.getMode());
+
+  const handleModeChange = useCallback((next: DiceMode): void => {
+    diceTool.setMode(next);
+    setMode(next);
+  }, [diceTool]);
 
   // ── Dice add / remove ────────────────────────
 
@@ -51,8 +64,9 @@ export function DiceDropdownMenu({ diceTool, isOpen, onToggle, triggerRef }: Dic
 
     if (parts.length === 0) return;
 
-    diceTool.rollDice(parts.join('+'));
+    // Physical dice are thrown on the map, so the panel gets out of the way first.
     onToggle();
+    void diceTool.requestRoll(parts.join('+'));
   }, [selection, diceTool, onToggle]);
 
   const handleClear = useCallback((): void => {
@@ -66,11 +80,12 @@ export function DiceDropdownMenu({ diceTool, isOpen, onToggle, triggerRef }: Dic
       setSelection({});
       return;
     }
+    setMode(diceTool.getMode());
     if (triggerRef?.current) {
       const rect = triggerRef.current.getBoundingClientRect();
       setPosition({ top: rect.top - 16, left: rect.left + rect.width / 2 });
     }
-  }, [isOpen, triggerRef]);
+  }, [isOpen, triggerRef, diceTool]);
 
   // ── Click-outside ────────────────────────────
 
@@ -104,6 +119,15 @@ export function DiceDropdownMenu({ diceTool, isOpen, onToggle, triggerRef }: Dic
             style={{ top: `${position.top}px`, left: `${position.left}px` }}
           >
             <div className="atlas-dice-panel">
+              {diceTool.hasPhysicalTable() && (
+                <SegmentedControl
+                  className="atlas-dice-mode"
+                  value={mode}
+                  options={DICE_MODES}
+                  onChange={handleModeChange}
+                  ariaLabel="Dice mode"
+                />
+              )}
               <DiceGrid selection={selection} onAdd={handleAdd} onRemove={handleRemove} />
               <DiceFormulaBar selection={selection} onClear={handleClear} onRoll={handleRoll} />
             </div>

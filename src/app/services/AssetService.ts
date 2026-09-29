@@ -19,6 +19,7 @@ import { listVault, readVault } from './vault-sync/vaultListing';
 import type { CollectionSettings } from '../types/collectionSettingsTypes';
 import { isLegacyTokenRecord, isRecord, type LegacyAssetMetadata } from './assetMetadataGuards';
 import { groupLegacyTags, hasAssetTag, tagGroupOf, tagKey, type TagGroup } from './tagGroups';
+import { trashVaultItem } from '../utils/trashVaultItem';
 
 export interface BaseAsset {
   id: string;
@@ -872,7 +873,7 @@ export class AssetService {
     const collectionPath = `${COLLECTIONS_DIR}/${collectionId}`;
     const folder = this.app.vault.getAbstractFileByPath(collectionPath);
     if (folder instanceof TFolder) {
-      await this.app.fileManager.trashFile(folder);
+      await trashVaultItem(this.app, folder);
     }
 
     // Remove from metadata
@@ -1039,7 +1040,7 @@ export class AssetService {
       const assetPath = this.getAssetPath(asset);
       const file = this.app.vault.getAbstractFileByPath(assetPath);
       if (file instanceof TFile) {
-        await this.app.fileManager.trashFile(file);
+        await trashVaultItem(this.app, file);
       }
     } catch (error) {
       console.error('[AssetService] Error deleting asset file:', error);
@@ -1088,7 +1089,7 @@ export class AssetService {
               }
             }
             
-            await this.app.fileManager.trashFile(mapFile);
+            await trashVaultItem(this.app, mapFile);
           }
         } catch (error) {
           console.error('[AssetService] Error deleting scene map file:', error);
@@ -1114,7 +1115,7 @@ export class AssetService {
     const file = this.app.vault.getAbstractFileByPath(path);
     if (!(file instanceof TFile)) return;
     try {
-      await this.app.fileManager.trashFile(file);
+      await trashVaultItem(this.app, file);
     } catch (error) {
       console.error('[AssetService] Error deleting file:', path, error);
     }

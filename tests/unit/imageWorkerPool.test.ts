@@ -122,13 +122,14 @@ describe('ImageWorkerPool', () => {
     await expect(third).resolves.toBe(RESULT);
   });
 
-  it('frees the budget of a cancelled running job at once', () => {
+  it('frees the budget of a cancelled running job at once', async () => {
     const pool = new ImageWorkerPool(() => new FakeWorker() as unknown as Worker, { maxWorkers: 2, memoryBudget: 100 * MB });
     const huge = new AbortController();
-    void pool.run(job(), { signal: huge.signal, cost: 150 * MB });
+    const cancelled = pool.run(job(), { signal: huge.signal, cost: 150 * MB });
     void pool.run(job(), { cost: 10 * MB });
     expect(FakeWorker.instances.flatMap(w => w.posted)).toHaveLength(1);
     huge.abort();
+    await expect(cancelled).rejects.toMatchObject({ name: 'AbortError' });
     expect(FakeWorker.instances.at(-1)!.posted.map(r => r.id)).toEqual([2]);
   });
 

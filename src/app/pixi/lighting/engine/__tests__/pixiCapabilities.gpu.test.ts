@@ -9,7 +9,8 @@ describe('PIXI capabilities', () => {
     const renderer = await createTestRenderer(64);
     const target = RenderTexture.create({ width: 4, height: 1, format: 'r16float', scaleMode: 'nearest', autoGenerateMipmaps: false });
     const quad = new Buffer({ data: new Float32Array([0, 0, 1, 0, 0, 1, 1, 1]), usage: BufferUsage.VERTEX });
-    const values = new Buffer({ data: new Float32Array([5, 3]), usage: BufferUsage.VERTEX });
+    // Drawn in this order, overwrite would leave 5 and min leaves 3.
+    const values = new Buffer({ data: new Float32Array([3, 5]), usage: BufferUsage.VERTEX });
     const geometry = new Geometry({
       attributes: {
         aPosition: { buffer: quad, format: 'float32x2' },
@@ -28,11 +29,24 @@ describe('PIXI capabilities', () => {
       resources: {},
     });
     const mesh = new Mesh({ geometry, shader });
-    mesh.blendMode = 'min';
-    renderer.render({ container: mesh, target, clear: true, clearColor: [128, 0, 0, 1] });
-    const texels = readFloats(renderer, target);
-    expect(texels[0]).toBe(3);
-    renderer.render({ container: new Container(), target, clear: true, clearColor: [128, 0, 0, 1] });
-    expect(readFloats(renderer, target)[0]).toBe(128);
+    const scene = new Container();
+    const empty = new Container();
+    try {
+      // A root mesh ignores its blendMode (the render group has not resolved it): put it under a container.
+      mesh.blendMode = 'min';
+      scene.addChild(mesh);
+      renderer.render({ container: scene, target, clear: true, clearColor: [128, 0, 0, 1] });
+      const texels = readFloats(renderer, target);
+      expect([0, 1, 2, 3].map((texel) => texels[texel * 4])).toEqual([3, 3, 3, 3]);
+      renderer.render({ container: empty, target, clear: true, clearColor: [128, 0, 0, 1] });
+      expect(readFloats(renderer, target)[0]).toBe(128);
+    } finally {
+      scene.destroy({ children: true });
+      geometry.destroy(true);
+      shader.destroy();
+      empty.destroy();
+      target.destroy(true);
+      renderer.destroy();
+    }
   });
 });

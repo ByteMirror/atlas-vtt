@@ -1,8 +1,9 @@
-import type { WebGLRenderer } from 'pixi.js';
+import { Container, Graphics, Matrix, RenderTexture, type WebGLRenderer } from 'pixi.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ExploredShapes } from '../../../../vision/exploredShapes';
 import type { Polygon } from '../../../../vision/visibility';
 import { ExploredTexture } from '../../ExploredTexture';
+import { StampScratch, TILE } from '../../StampScratch';
 import { saveExploredMask } from '../../exploredMaskSaving';
 import { createTestRenderer, readRgba } from './gpuTestUtils';
 
@@ -87,6 +88,64 @@ describe('explored stamps', () => {
     expect(at(750, 750)).toBe(255);
     expect(at(498, 750)).toBe(0);
     expect(at(1002, 750)).toBe(0);
+  });
+
+  it('draws a map-sized stamp without seams between tiles', async () => {
+    const map = 4096;
+    const big: Polygon = [p(-50, -50), p(map * 0.9, -50), p(map + 50, map * 0.6), p(map * 0.4, map + 50), p(-50, map * 0.8)];
+    const { renderer, explored } = await memory(map);
+    explored.add(stamp(big));
+    const tiled = reds(renderer, explored);
+
+    const reference = RenderTexture.create({ width: 2048, height: 2048, antialias: true });
+    cleanup.push(() => reference.destroy(true));
+    const g = new Graphics().poly(big.flatMap((v) => [v.x, v.y])).fill({ color: 0xffffff });
+    const root = new Container();
+    root.addChild(g);
+    renderer.render({ container: root, target: reference, clear: true, clearColor: [0, 0, 0, 0], transform: new Matrix().scale(0.5, 0.5) });
+    root.destroy({ children: true });
+    const { pixels } = renderer.extract.pixels({ target: reference });
+
+    // Tiles shift the vertices by whole texels in floating point, so an edge texel can land
+    // on the other side of one of its four samples: at most one sample (64) and rarely.
+    const ONE_SAMPLE = 64;
+    let partial = 0;
+    let off = 0;
+    for (let y = 0; y < 2048; y++) {
+      for (let x = 0; x < 2048; x++) {
+        const expected = pixels[(y * 2048 + x) * 4]!;
+        const error = Math.abs(tiled(x, y) - expected);
+        if (expected > 0 && expected < 255) partial++;
+        if (error > 1) off++;
+        expect(error).toBeLessThanOrEqual(ONE_SAMPLE);
+      }
+    }
+    expect(partial).toBeGreaterThan(2000);
+    expect(off).toBeLessThan(partial / 100);
+
+    // A seam would show as a line of errors along the tile border: compare the texels on both sides.
+    for (const seam of [TILE, 2 * TILE, 3 * TILE]) {
+      let error = 0;
+      for (let y = 0; y < 2048; y++) {
+        error += Math.abs(tiled(seam - 1, y) - pixels[(y * 2048 + seam - 1) * 4]!);
+        error += Math.abs(tiled(seam, y) - pixels[(y * 2048 + seam) * 4]!);
+      }
+      expect(error / 4096).toBeLessThan(0.5);
+    }
+  });
+
+  it('keeps one fixed scratch however large or small the stamps are', async () => {
+    const renderer = await createTestRenderer(SIZE);
+    cleanup.push(() => renderer.destroy());
+    const scratch = new StampScratch(renderer);
+    cleanup.push(() => scratch.destroy());
+    const sizes: number[] = [];
+    for (const polygon of [rect(0, 0, 4000, 4000), rect(1, 1, 3, 3), rect(0, 0, 900, 900), rect(5, 5, 6, 6)]) {
+      scratch.begin(stamp(polygon));
+      const target = scratch.renderTile(1, 0, 0);
+      sizes.push(target.width, target.height);
+    }
+    expect(sizes.every((side) => side === TILE)).toBe(true);
   });
 
   it('writes nothing outside the clip and smooths the clip edge', async () => {

@@ -2,7 +2,7 @@ import { Container, RenderTexture, Sprite, Texture, type Renderer } from 'pixi.j
 import type { ExploredShapes } from '../../vision/exploredShapes';
 import type { MapBounds } from '../../vision/visibility';
 import { destroyTree } from '../utils/destroyTree';
-import { StampScratch, stampRegion } from './StampScratch';
+import { StampScratch, stampRegion, tilesOf } from './StampScratch';
 
 /** Longest side of the explored memory in texels; it is drawn dim and soft, so this is plenty. */
 const MAX_TEXELS = 2048;
@@ -12,9 +12,9 @@ const MAX_TEXELS = 2048;
  * where a token has seen. It only grows until reset. Shapes that must stay inside the line of
  * sight are drawn through a mask of it.
  *
- * The texture is a plain 8-bit target. Each stamp is drawn anti-aliased into a small scratch
- * target (`StampScratch`) and merged in with `max`, so edges are smooth and only the stamped
- * part of the map costs multisampling.
+ * The texture is a plain 8-bit target. Each stamp is drawn anti-aliased, one tile at a time,
+ * into a fixed scratch target (`StampScratch`) and merged in with `max`, so edges are smooth
+ * and multisampling costs the same whatever the map's size.
  */
 export class ExploredTexture {
   readonly texture: RenderTexture;
@@ -38,9 +38,12 @@ export class ExploredTexture {
   add(shapes: ExploredShapes): void {
     const region = stampRegion(shapes, this.scale, this.texture);
     if (!region) return;
-    this.mergeSprite.texture = this.scratch.draw(shapes, this.scale, region);
-    this.mergeSprite.position.set(region.x, region.y);
-    this.renderer.render({ container: this.merge, target: this.texture, clear: false });
+    this.scratch.begin(shapes);
+    for (const tile of tilesOf(region)) {
+      this.mergeSprite.texture = this.scratch.renderTile(this.scale, tile.x, tile.y);
+      this.mergeSprite.position.set(tile.x, tile.y);
+      this.renderer.render({ container: this.merge, target: this.texture, clear: false });
+    }
   }
 
   clear(): void {

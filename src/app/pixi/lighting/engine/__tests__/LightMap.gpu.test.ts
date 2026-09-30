@@ -1,5 +1,6 @@
 import { Container, Mesh, Shader, UniformGroup, type Renderer, type RenderTexture } from 'pixi.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { HALO } from '../../../../lighting/lightingConstants';
 import { GLSL_VERSION } from '../glsl';
 import { createQuad, createTarget, HIGHP, quadGeometry, renderInto } from '../gpu';
 import { LightMap, type DrawnLight } from '../LightMap';
@@ -33,9 +34,16 @@ function makeTile(renderer: Renderer, size: number, lit: readonly [number, numbe
   return target;
 }
 
-/** The brief's light: E = ½ ((1 + d²/b²) / 2)^(−3/2) inside a window that ends at the reach. */
-function expected(d: number, bright: number, reach: number): number {
+/** The falloff without its halo: E = ½ ((1 + d²/b²) / 2)^(−3/2) inside a window that ends at the reach. */
+function falloffOnly(d: number, bright: number, reach: number): number {
   const falloff = 0.5 * ((1 + (d * d) / (bright * bright)) / 2) ** -1.5;
+  return falloff * (1 - (d / reach) ** 4) ** 2;
+}
+
+/** The light with its Gaussian halo (`HALO`) added before the window. */
+function expected(d: number, bright: number, reach: number): number {
+  const s = Math.max(bright * HALO.size, 1);
+  const falloff = 0.5 * ((1 + (d * d) / (bright * bright)) / 2) ** -1.5 + HALO.gain * Math.exp(-(d * d) / (2 * s * s));
   return falloff * (1 - (d / reach) ** 4) ** 2;
 }
 
@@ -79,6 +87,17 @@ describe('LightMap', () => {
     expect(at(texels, 241, 201)).toBeCloseTo(expected(Math.hypot(41, 1), 40, 150), 3);
     expect(at(texels, 360, 201)).toBe(0);
     expect(at(texels, 200, 450)).toBe(0);
+  });
+
+  it('adds a halo of about the gain at the flame, nothing noticeable at the bright radius', async () => {
+    const { renderer, map, at } = await setup(512);
+    const tile = tileOf(renderer, 200, 200, [0, 0, 400, 400], 'all');
+    map.draw([light(tile, 40, 150)]);
+    const texels = readFloats(renderer, map.texture);
+    const centre = Math.hypot(1, 1);
+    expect(at(texels, 200, 200)).toBeCloseTo(expected(centre, 40, 150), 3);
+    expect(at(texels, 200, 200) - falloffOnly(centre, 40, 150)).toBeCloseTo(HALO.gain, 1);
+    expect(at(texels, 241, 201) - falloffOnly(Math.hypot(41, 1), 40, 150)).toBeLessThan(1e-4);
   });
 
   it('reads the tile the right way up: only the lit quadrant of the tile shines', async () => {

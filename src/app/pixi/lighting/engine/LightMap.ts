@@ -1,5 +1,5 @@
 import { Container, Mesh, Shader, UniformGroup, type Geometry, type Renderer, type RenderTexture } from 'pixi.js';
-import { FALLOFF_HEIGHT } from '../../../lighting/lightingConstants';
+import { FALLOFF_HEIGHT, HALO } from '../../../lighting/lightingConstants';
 import type { MapBounds } from '../../../vision/visibility';
 import { GLSL_VERSION } from './glsl';
 import { createQuad, createTarget, quadGeometry, renderInto, type Quad } from './gpu';
@@ -18,7 +18,8 @@ void main() {
 // Height falloff E ∝ (d² + h²)^(−3/2): a lamp above the floor, round and hot under it, then
 // inverse-square; normalised to ½ at the bright radius and windowed to exactly zero at the
 // reach (Karis). A light without a bright radius uses a quarter of its reach as one; radii are
-// floored at 1 px so an empty light stays finite in the float target. The tile
+// floored at 1 px so an empty light stays finite in the float target. A Gaussian halo around the
+// flame adds to the falloff before the window and the tile, so it cannot pass a wall. The tile
 // is read with texelFetch: its rect sits on this map's texel grid, so a texel here is a texel there.
 const fragment = `${GLSL_VERSION}
 in vec2 vWorld;
@@ -29,6 +30,8 @@ uniform float uReach;
 uniform float uIntensity;
 uniform vec3 uColor;
 uniform float uHeight;
+uniform float uHaloGain;
+uniform float uHaloSize;
 uniform float uTexel;
 uniform sampler2D uTile;
 out vec4 finalColor;
@@ -41,6 +44,8 @@ void main() {
   float b = max(max(uBright, reach * 0.25), 1.0);
   float h = b * uHeight;
   float e = 0.5 * pow((1.0 + d * d / (h * h)) / (1.0 + b * b / (h * h)), -1.5);
+  float s = max(b * uHaloSize, 1.0);
+  e += uHaloGain * exp(-(d * d) / (2.0 * s * s));
   float q = d / reach;
   float window = clamp(1.0 - q * q * q * q, 0.0, 1.0);
   finalColor = vec4(uColor * uIntensity * e * window * window * texelFetch(uTile, texel, 0).r, 1.0);
@@ -115,6 +120,8 @@ export class LightMap {
       uIntensity: { value: 1, type: 'f32' },
       uColor: { value: color, type: 'vec3<f32>' },
       uHeight: { value: FALLOFF_HEIGHT, type: 'f32' },
+      uHaloGain: { value: HALO.gain, type: 'f32' },
+      uHaloSize: { value: HALO.size, type: 'f32' },
       uTexel: { value: this.texel, type: 'f32' },
     });
     const shader = Shader.from({

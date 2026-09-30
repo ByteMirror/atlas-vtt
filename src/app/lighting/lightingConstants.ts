@@ -37,7 +37,12 @@ export const BOUNCE = {
   throttleMs: 100,
 } as const;
 
-export const BLOOM = { threshold: 0.8, bloomScale: 0.35, brightness: 1, blur: 6, quality: 4 } as const;
+/**
+ * A soft glow around each flame, drawn with the light so it stays inside its walls; an
+ * image-space bloom would blur light across walls. `gain` is its peak on top of the falloff
+ * (HDR), `size` its Gaussian sigma as a share of the bright radius.
+ */
+export const HALO = { gain: 0.6, size: 0.18 } as const;
 
 /** World pixels per texel for a map: 2 px, coarser on maps longer than 8,192 px. */
 export function worldTexel(bounds: MapBounds): number {

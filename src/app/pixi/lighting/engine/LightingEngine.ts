@@ -1,6 +1,4 @@
 import { Container, Graphics, Matrix, Texture, type Renderer, type WebGLRenderer } from 'pixi.js';
-import { AdvancedBloomFilter } from 'pixi-filters';
-import { BLOOM } from '../../../lighting/lightingConstants';
 import type { Sight } from '../../../vision/sight';
 import { destroyTree } from '../../utils/destroyTree';
 import type { CapsuleField } from './CapsuleField';
@@ -11,13 +9,12 @@ import type { EngineScene } from './types';
 
 /**
  * Scene lighting, independent of the store: world-space caches (`LightingWorld`), sight meshes
- * and a bounds rectangle in one layer, lit by the composite filter and then bloom.
+ * and a bounds rectangle in one layer, lit by the composite filter.
  */
 export class LightingEngine {
   readonly layer = new Container({ label: 'lighting' });
   private readonly boundsRect = new Graphics();
   private readonly sightMeshes = new SightMeshes();
-  private readonly bloom = new AdvancedBloomFilter({ ...BLOOM });
   private world: LightingWorld | null = null;
   private composite: CompositeFilter | null = null;
   private boundField: CapsuleField | null = null;
@@ -95,7 +92,6 @@ export class LightingEngine {
   destroy(): void {
     this.layer.filters = null;
     this.composite?.filter.destroy();
-    this.bloom.destroy();
     this.world?.destroy();
     this.sightMeshes.destroy();
     destroyTree(this.layer);
@@ -113,7 +109,7 @@ export class LightingEngine {
       this.composite = createCompositeFilter(world, this.explored);
       this.composite.setMode(this.mode);
       this.composite.setView(this.view.screenToWorld, this.view.zoom);
-      this.layer.filters = [this.composite.filter, this.bloom];
+      this.layer.filters = [this.composite.filter];
     }
     previous?.destroy();
     const { width, height } = world.bounds;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MIN_SOFTNESS, activeLights, bounceFrame, lightFrame } from '../lightSources';
+import { MIN_SOFTNESS, activeLights, bounceFrame, clampFlame, lightFrame } from '../lightSources';
 import { LIGHT_PRESETS } from '../../../lighting/lightPresets';
 import type { LightSource } from '../../../types/lightingTypes';
 import type { TokenEntity } from '../../../types';
@@ -57,8 +57,20 @@ describe('bounceFrame', () => {
     expect(bounce.color).toEqual(frame.color);
     expect(bounce.bright).toBe(0);
     expect(bounce.dim).toBeGreaterThan(frame.dim);
-    expect(bounce.sourceRadius).toBeGreaterThan(frame.sourceRadius * 3);
+    expect(bounce.sourceRadius).toBeGreaterThan(frame.sourceRadius * 2);
     expect(bounce.intensity).toBeLessThan(frame.intensity * 0.35);
     expect(bounce.intensity).toBeGreaterThan(0);
+  });
+});
+
+describe('clampFlame', () => {
+  const frame = lightFrame({ key: 'k', x: 0, y: 0, emission: torch }, scale);
+
+  it('keeps the flame clear of the nearest wall, for every wall alike', () => {
+    expect(clampFlame(frame, 20).sourceRadius).toBeCloseTo(18);
+  });
+
+  it('leaves the flame alone with room to spare', () => {
+    expect(clampFlame(frame, 1e6).sourceRadius).toBe(frame.sourceRadius);
   });
 });

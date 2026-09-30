@@ -1,11 +1,12 @@
-import type { Container, Matrix } from 'pixi.js';
+import type { Container } from 'pixi.js';
 import type { WallSegment } from '../../types/wallTypes';
 import type { UnitScale } from '../../lighting/lightingUnits';
 import { lightReach, type LightReach } from '../../vision/sight';
+import { distSqToSegment } from '../../vision/visionGeometry';
 import { LightFlicker } from './lightFlicker';
 import { LightLayer } from './LightLayer';
 import { LIGHT_EDGE, type LightFrame } from './lightShaders';
-import { BOUNCE_REACH, bounceFrame, lightFrame, type ActiveLight } from './lightSources';
+import { BOUNCE_REACH, bounceFrame, clampFlame, lightFrame, type ActiveLight } from './lightSources';
 import { shadowCasters } from './shadowGeometry';
 
 /** Casters are gathered a little past the glow so radius flicker never outgrows them. */
@@ -15,6 +16,8 @@ interface Entry {
   layer: LightLayer;
   /** The same light bounced off its surroundings (see `bounceFrame`). */
   bounce: LightLayer;
+  /** Distance from the light to the nearest wall that shadows it. */
+  clearance: number;
   light: ActiveLight;
   reach: LightReach;
 }
@@ -52,8 +55,9 @@ export class LightLayers {
       const layer = entry?.layer ?? this.createLayer();
       const frame = lightFrame(light, scale);
       const casters = shadowCasters(walls, light, frame.dim * BOUNCE_REACH * LIGHT_EDGE * CASTER_MARGIN);
-      this.draw({ layer, bounce }, frame, casters);
-      this.entries.set(light.key, { layer, bounce, light, reach: lightReach({ x: light.x, y: light.y }, frame.dim, walls) });
+      const clearance = Math.sqrt(Math.min(Infinity, ...casters.map((wall) => distSqToSegment(light, wall.p1, wall.p2))));
+      this.draw({ layer, bounce, clearance }, frame, casters);
+      this.entries.set(light.key, { layer, bounce, clearance, light, reach: lightReach({ x: light.x, y: light.y }, frame.dim, walls) });
     }
   }
 
@@ -64,14 +68,6 @@ export class LightLayers {
 
   hasAnimation(): boolean {
     return [...this.entries.values()].some((entry) => entry.light.emission.animation !== 'none');
-  }
-
-  /** Shadow edges blur `pixels` wide on screen, for the camera `worldToScreen` of the frame being rendered. */
-  setEdge(pixels: number, worldToScreen: Matrix): void {
-    for (const entry of this.entries.values()) {
-      entry.layer.setEdge(pixels, worldToScreen);
-      entry.bounce.setEdge(pixels, worldToScreen);
-    }
   }
 
   /** Advances every animated light to `timeMs`; only uniforms change. */
@@ -92,9 +88,9 @@ export class LightLayers {
     this.entries.clear();
   }
 
-  private draw(entry: Pick<Entry, 'layer' | 'bounce'>, frame: LightFrame, casters: readonly WallSegment[] | null): void {
-    entry.layer.update(frame, casters);
-    entry.bounce.update(bounceFrame(frame), casters);
+  private draw(entry: Pick<Entry, 'layer' | 'bounce' | 'clearance'>, frame: LightFrame, casters: readonly WallSegment[] | null): void {
+    entry.layer.update(clampFlame(frame, entry.clearance), casters);
+    entry.bounce.update(clampFlame(bounceFrame(frame), entry.clearance), casters);
   }
 
   private createLayer(): LightLayer {

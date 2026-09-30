@@ -101,7 +101,10 @@ void main() {
     vec2 dir = length(toE) > 0.001 ? normalize(toE) : normalize(e - other);
     vec2 perp = vec2(-dir.y, dir.x);
     vec2 outward = perp * (dot(perp, e - other) >= 0.0 ? 1.0 : -1.0);
-    vec2 away = e - (uLight.xy - outward * uLight.w);
+    // Twice the flame plus a margin: the fragment shader computes the exact share, so a fan
+    // wider than the penumbra only costs fill, while a fan cut at the penumbra's edge would let
+    // light through where the shadows of walls meeting at a joint overlap.
+    vec2 away = e - (uLight.xy - outward * (uLight.w * 2.0 + 4.0));
     far = length(away) > 0.001 ? normalize(away) : dir;
   }
   // Four times the dim radius: the fan's far edges then stay outside the glow (1.12 × dim).
@@ -123,72 +126,46 @@ float discShare(float x) {
   return 0.5 + (x * sqrt(1.0 - x * x) + asin(x)) / 3.14159265;
 }
 
-float project1d(vec2 end, vec2 dir, vec2 perp, float dist) {
-  vec2 rel = end - vWorld;
-  float depth = dot(rel, dir);
-  float side = dot(rel, perp);
-  return depth > 0.001 ? side * dist / depth : sign(side) * 1e6;
-}
-
 void main() {
-  vec2 a = vSegment.xy;
-  vec2 b = vSegment.zw;
   vec2 toLight = uLight.xy - vWorld;
   float dist = length(toLight);
-  vec2 n = vec2(a.y - b.y, b.x - a.x);
-  bool sameSide = sign(dot(vWorld - a, n)) == sign(dot(uLight.xy - a, n));
   // Nothing past the glow: the light adds nothing there, and if PIXI skips this light's filter
   // (its bounds are off-screen) the raw shadows then stay off-screen with it.
-  if (dist < 0.001 || sameSide || dist > uLight.z * ${LIGHT_EDGE.toFixed(2)}) discard;
+  if (dist < 0.001 || dist > uLight.z * ${LIGHT_EDGE.toFixed(2)}) discard;
   vec2 dir = toLight / dist;
   vec2 perp = vec2(-dir.y, dir.x);
-  float sa = project1d(a, dir, perp, dist);
-  float sb = project1d(b, dir, perp, dist);
-  // A flame reaching past this wall would light what lies behind it.
-  vec2 ab = b - a;
-  vec2 nearest = a + ab * clamp(dot(uLight.xy - a, ab) / max(dot(ab, ab), 0.0001), 0.0, 1.0);
-  float r = clamp(uLight.w, 0.5, max(length(uLight.xy - nearest) * 0.95, 0.5));
+  vec2 a = vSegment.xy;
+  vec2 b = vSegment.zw;
+  // Only the part of the wall between this pixel and the light can hide the flame: clip the
+  // wall to that stretch, then project it onto the flame. No side test, so walls meeting at
+  // a corner cover the flame between them exactly and no light slips through the joint.
+  float near = 0.001;
+  float far = dist - 0.001;
+  float ta = dot(a - vWorld, dir);
+  float tb = dot(b - vWorld, dir);
+  if (max(ta, tb) <= near || min(ta, tb) >= far) discard;
+  vec2 ca = ta < near ? mix(a, b, (near - ta) / (tb - ta)) : ta > far ? mix(a, b, (far - ta) / (tb - ta)) : a;
+  vec2 cb = tb < near ? mix(b, a, (near - tb) / (ta - tb)) : tb > far ? mix(b, a, (far - tb) / (ta - tb)) : b;
+  float sa = dot(ca - vWorld, perp) * dist / max(dot(ca - vWorld, dir), near);
+  float sb = dot(cb - vWorld, perp) * dist / max(dot(cb - vWorld, dir), near);
+  float r = max(uLight.w, 0.5);
   float occlusion = discShare(max(sa, sb) / r) - discShare(min(sa, sb) / r);
   gl_FragColor = vec4(0.0, 0.0, 0.0, occlusion);
 }`;
 
 // A light's own layer holds its colour in rgb and the summed occlusion of its walls in
 // alpha; this pass hands the shaded light to the lighting layer, adding it to the rest.
-// The walls' summed occlusion is blurred over uEdgeSoftness screen pixels before it hides the
-// light, so every border between light and shadow gets a soft, even edge, also right at a door
-// frame where the physical penumbra is still thin. The blur runs across the light's rays only:
-// shadow edges run along the rays and soften, while a wall facing the light runs across them,
-// so no light is blurred through it. Blurring the sum (not each wall) keeps joints tight.
+// A light's own layer holds its colour in rgb and the summed occlusion of its walls in
+// alpha; this pass hands the shaded light to the lighting layer, adding it to the rest.
 const layerFragment = `
 in vec2 vTextureCoord;
 out vec4 finalColor;
 uniform sampler2D uTexture;
-uniform vec4 uInputSize;
-uniform vec4 uInputClamp;
-uniform vec4 uOutputFrame;
-uniform float uEdgeSoftness;
-uniform vec2 uLightScreen;
-
-float occlusionAt(vec2 uv) {
-  return clamp(texture(uTexture, clamp(uv, uInputClamp.xy, uInputClamp.zw)).a, 0.0, 1.0);
-}
 
 void main() {
   vec4 layer = texture(uTexture, vTextureCoord);
-  vec2 screen = vTextureCoord * uInputSize.xy + uOutputFrame.xy;
-  vec2 ray = screen - uLightScreen;
-  vec2 across = length(ray) > 0.5 ? vec2(-ray.y, ray.x) / length(ray) : vec2(0.0);
-  vec2 step = across * uEdgeSoftness / uInputSize.xy;
-  // Nine taps with gaussian-like weights from -1 to 1 across the ray.
-  float occlusion = occlusionAt(vTextureCoord) * 0.2;
-  for (int i = 1; i <= 4; i++) {
-    float t = float(i) / 4.0;
-    float weight = exp(-t * t * 2.5) * 0.16;
-    occlusion += (occlusionAt(vTextureCoord + step * t) + occlusionAt(vTextureCoord - step * t)) * weight;
-  }
-  occlusion /= 0.2 + 0.32 * (exp(-0.15625) + exp(-0.625) + exp(-1.40625) + exp(-2.5));
   // Occlusion hides a share of linear light; the layer holds perceptual light.
-  finalColor = vec4(layer.rgb * pow(1.0 - occlusion, 1.0 / 2.2), 0.0);
+  finalColor = vec4(layer.rgb * pow(1.0 - clamp(layer.a, 0.0, 1.0), 1.0 / 2.2), 0.0);
 }`;
 
 export function createLightUniforms(): LightUniforms {
@@ -220,29 +197,12 @@ export function createShadowShader(uniforms: LightUniforms): Shader {
   return Shader.from({ gl: { vertex: shadowVertex, fragment: shadowFragment, name: 'atlas-light-shadow', preferredFragmentPrecision: 'highp' }, resources: { lightUniforms: uniforms.group } });
 }
 
-export interface LightLayerFilter {
-  filter: Filter;
-  /** How far shadow edges blur, in screen pixels, and where the light is on screen, at the zoom of the frame being rendered. */
-  setEdge(pixels: number, lightX: number, lightY: number): void;
-}
-
-export function createLightLayerFilter(): LightLayerFilter {
-  const group = new UniformGroup({
-    uEdgeSoftness: { value: 0, type: 'f32' },
-    uLightScreen: { value: new Float32Array(2), type: 'vec2<f32>' },
-  });
+export function createLightLayerFilter(): Filter {
   const filter = new Filter({
     glProgram: GlProgram.from({ vertex: defaultFilterVert, fragment: layerFragment, name: 'atlas-light-layer', preferredFragmentPrecision: 'highp' }),
-    resources: { layerUniforms: group },
+    resources: {},
     resolution: 'inherit',
   });
   filter.blendMode = 'add';
-  return {
-    filter,
-    setEdge(pixels, lightX, lightY): void {
-      group.uniforms.uEdgeSoftness = pixels;
-      group.uniforms.uLightScreen.set([lightX, lightY]);
-      group.update();
-    },
-  };
+  return filter;
 }

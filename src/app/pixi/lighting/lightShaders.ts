@@ -69,8 +69,10 @@ void main() {
   float brightPart = 1.0 - smoothstep(b * 0.8, min(b * 1.2, 0.99), d);
   float dimLevel = mix(0.5, 0.3, clamp((d - b) / max(1.0 - b, 0.001), 0.0, 1.0));
   float edge = 1.0 - smoothstep(1.0, ${LIGHT_EDGE.toFixed(2)}, d);
-  float f = mix(dimLevel, 1.0, brightPart) * edge * uIntensity;
-  vec3 tint = mix(vec3(1.0), uColor, 0.55);
+  float core = 0.35 * exp(-d * d * 60.0);
+  float f = (mix(dimLevel, 1.0, brightPart) + core) * edge * uIntensity;
+  // Firelight looks whiter where it is strong and deepens in colour as it fades.
+  vec3 tint = mix(vec3(1.0), uColor, mix(0.6, 0.45, brightPart));
   float dither = (fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453) - 0.5) / 255.0;
   gl_FragColor = vec4(max(tint * f * ${LIGHT_ENCODING.toFixed(2)} + dither, 0.0), 0.0);
 }`;
@@ -172,16 +174,16 @@ export function createLightUniforms(): LightUniforms {
 
 /** The light's falloff quad. Atlas renders with WebGL only, so this ships GLSL alone. */
 export function createLightShader(uniforms: LightUniforms): Shader {
-  return Shader.from({ gl: { vertex: lightVertex, fragment: lightFragment, name: 'atlas-light' }, resources: { lightUniforms: uniforms.group } });
+  return Shader.from({ gl: { vertex: lightVertex, fragment: lightFragment, name: 'atlas-light', preferredFragmentPrecision: 'highp' }, resources: { lightUniforms: uniforms.group } });
 }
 
 export function createShadowShader(uniforms: LightUniforms): Shader {
-  return Shader.from({ gl: { vertex: shadowVertex, fragment: shadowFragment, name: 'atlas-light-shadow' }, resources: { lightUniforms: uniforms.group } });
+  return Shader.from({ gl: { vertex: shadowVertex, fragment: shadowFragment, name: 'atlas-light-shadow', preferredFragmentPrecision: 'highp' }, resources: { lightUniforms: uniforms.group } });
 }
 
 export function createLightLayerFilter(): Filter {
   const filter = new Filter({
-    glProgram: GlProgram.from({ vertex: defaultFilterVert, fragment: layerFragment, name: 'atlas-light-layer' }),
+    glProgram: GlProgram.from({ vertex: defaultFilterVert, fragment: layerFragment, name: 'atlas-light-layer', preferredFragmentPrecision: 'highp' }),
     resources: {},
     resolution: 'inherit',
   });

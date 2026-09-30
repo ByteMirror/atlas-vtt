@@ -34,6 +34,8 @@ import { TextTool } from "./tools/TextTool"; // Import TextTool
 import { WallRenderer } from './pixi/vision/WallRenderer';
 import { WallInteraction } from './pixi/vision/WallInteraction';
 import { LIGHT_PRESETS } from './lighting/lightPresets';
+import { LightingRenderer } from './pixi/lighting/LightingRenderer';
+import { WALLS_AND_LIGHTING_ENABLED } from './featureFlags';
 import { WallTool, type WallToolMode, type WallToolSubMode } from './tools/WallTool';
 import type { WallType } from './types/wallTypes';
 import { AudioTool } from './tools/AudioTool';
@@ -65,6 +67,7 @@ export class PixiRendererOrchestrator { // Renamed class
   private textTool?: TextTool; // Add TextTool instance
   /** IDs of wall segments created during the current drawing chain (for Escape undo). */
   private currentChainWallIds: string[] = [];
+  private lightingRenderer?: LightingRenderer;
   private wallRenderer?: WallRenderer;
   private wallInteraction?: WallInteraction;
   private wallTool?: WallTool;
@@ -392,6 +395,17 @@ export class PixiRendererOrchestrator { // Renamed class
     // Set the fog container to a high z-index to ensure it's on top when visible
     fogContainer.zIndex = 1000;
 
+    if (WALLS_AND_LIGHTING_ENABLED) {
+      const assetService = AssetService.getInstance(this.obsApp);
+      this.lightingRenderer = new LightingRenderer({
+        viewport,
+        app: this.pixiAppManager.app,
+        store: this.store,
+        measurement: () => mapMeasurementSettings(assetService, this.store.getState()),
+        bounds: () => (this.backgroundSprite?.width ? { width: this.backgroundSprite.width, height: this.backgroundSprite.height } : null),
+      });
+    }
+
     // Initialize WallRenderer (z-index 1100 — GM-only editor overlay)
     this.wallRenderer = new WallRenderer(viewport, this.store);
 
@@ -614,6 +628,7 @@ export class PixiRendererOrchestrator { // Renamed class
       destroyTree(this.backgroundSprite);
     }
     this.backgroundSprite = sprite;
+    this.lightingRenderer?.refreshBounds();
 
     // Ensure new background is at the bottom
     if (!sprite.parent) {
@@ -1292,6 +1307,7 @@ export class PixiRendererOrchestrator { // Renamed class
     this.drawingInteraction?.destroy();
     this.textRenderer?.destroy(); // Destroy TextRenderer
     this.textTool?.destroy(); // Destroy TextTool
+    this.lightingRenderer?.destroy();
     this.wallRenderer?.destroy();
     this.wallInteraction?.destroy();
     this.audioRenderer?.destroy();

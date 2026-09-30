@@ -29,6 +29,7 @@ import { createMapObjectsActions, type MapObjectsSlice } from './stores/mapObjec
 import { computeNextInstanceNumber } from './stores/tokenInstanceNumbers';
 import type { DiceRollResult } from './tools/DiceTool';
 import { isAtlasToolAvailable } from './tools/toolAvailability';
+import { readExploredMask } from './lighting/exploredMaskCodec';
 import { isPinLabelKind, nextPinLabel } from './tools/pinLabels';
 import { movedPathOf, rewriteMapReferences } from './services/renamedPaths';
 import { conditionValue, removeCondition, setConditionValue } from './utils/conditionValues';
@@ -1454,7 +1455,7 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
               ...saved,
               lootRoller: readLootRollerState(saved.lootRoller),
               lighting: { ...DEFAULT_SCENE_LIGHTING, ...(isRecord(saved.lighting) ? saved.lighting : {}) },
-              exploredMask: typeof saved.exploredMask === 'string' ? saved.exploredMask : null,
+              exploredMask: readExploredMask(saved.exploredMask),
             };
           },
 

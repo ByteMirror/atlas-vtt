@@ -293,6 +293,9 @@ export interface ViewAtlasState {
   assetManagerInitialTab?: UISlice['assetManagerInitialTab'];
   isCommandPaletteOpen: UISlice['isCommandPaletteOpen'];
   isDiceTrayOpen: UISlice['isDiceTrayOpen'];
+  lightPanel: UISlice['lightPanel'];
+  openLightPanel: UISlice['openLightPanel'];
+  closeLightPanel: UISlice['closeLightPanel'];
   setGridSettingsOpen: UISlice['setGridSettingsOpen'];
   setDMDashboardOpen: UISlice['setDMDashboardOpen'];
   setGridAlignmentOpen: UISlice['setGridAlignmentOpen'];

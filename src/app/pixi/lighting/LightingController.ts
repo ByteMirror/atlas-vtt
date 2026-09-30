@@ -81,7 +81,11 @@ export class LightingController {
     tokens.setWallPointerDownHandler((x, y, e) => this.pointerDown({ x, y }, e.shiftKey, e.ctrlKey || e.metaKey));
     tokens.setWallPointerMoveHandler((x, y) => this.pointerMove({ x, y }));
     tokens.setWallPointerUpHandler(() => this.pointerUp());
-    tokens.setWallDoubleClickHandler(() => this.tool.finishChain());
+    tokens.setWallDoubleClickHandler((x, y) => {
+      const lightId = this.wallRenderer.hitTestLights(x, y);
+      if (lightId) this.configureLight(lightId, this.clientPoint({ x, y }));
+      else this.tool.finishChain();
+    });
     tokens.setWallContextMenuHandler((x, y, screenX, screenY) => showWallMenu(this.menuContext(), x, y, screenX, screenY));
     tokens.setWallCursorProvider((x, y) => {
       if (this.wallRenderer.hitTestVertices(x, y)) return 'grab';
@@ -116,7 +120,23 @@ export class LightingController {
   }
 
   private menuContext(): LightingMenuContext {
-    return { store: this.deps.store, walls: this.walls, wallRenderer: this.wallRenderer };
+    return {
+      store: this.deps.store,
+      walls: this.walls,
+      wallRenderer: this.wallRenderer,
+      configureLight: (lightId, clientX, clientY) => this.configureLight(lightId, { x: clientX, y: clientY }),
+    };
+  }
+
+  private configureLight(lightId: string, client: Point): void {
+    this.deps.store.getState().openLightPanel({ lightId, clientX: client.x, clientY: client.y });
+  }
+
+  /** A world point in client pixels, where panels open from. */
+  private clientPoint(world: Point): Point {
+    const screen = this.deps.viewport.toScreen(world.x, world.y);
+    const canvas = this.deps.app.canvas.getBoundingClientRect();
+    return { x: canvas.left + screen.x, y: canvas.top + screen.y };
   }
 
   private syncTool(): void {

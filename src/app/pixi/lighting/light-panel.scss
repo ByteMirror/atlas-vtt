@@ -1,0 +1,91 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// Light settings — floating panel of the map view (GM only)
+// ═══════════════════════════════════════════════════════════════════════════
+// Imported inside the `.atlas-vtt-plugin` scope of styles/main.scss.
+
+@use '../../../../styles/tokens' as *;
+@use '../../../../styles/mixins' as *;
+
+.atlas-light-panel {
+  @include atlas-elevated-surface;
+  @include atlas-panel-radius($radius-2xl);
+  position: absolute;
+  z-index: 45;
+  display: flex;
+  flex-direction: column;
+  width: 320px;
+  max-width: calc(100% - 2 * #{$spacing-m});
+  overflow: hidden;
+  pointer-events: auto;
+  color: var(--text-normal);
+  font-size: $font-ui-small;
+  transition: box-shadow $transition-normal $transition-ease;
+
+  &.is-dragging {
+    box-shadow: $shadow-elevated, 0 18px 48px rgba(0, 0, 0, 0.28);
+    user-select: none;
+  }
+}
+
+.atlas-light-panel__header {
+  @include atlas-flex-row($spacing-s);
+  @include atlas-close-header($spacing-m);
+  flex-shrink: 0;
+  border-bottom: $border-width-s solid var(--divider-color);
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+
+.atlas-light-panel__grip,
+.atlas-light-panel__icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  color: var(--text-faint);
+}
+
+.atlas-light-panel__icon {
+  color: var(--text-muted);
+}
+
+.atlas-light-panel__title {
+  flex: 1;
+  margin: 0;
+  font-size: $font-ui-small;
+  font-weight: $font-weight-semibold;
+}
+
+.atlas-light-panel__body {
+  @include atlas-flex-col($spacing-m);
+  padding: $spacing-m;
+}
+
+.atlas-light-panel__row {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: $spacing-m;
+}
+
+.atlas-light-panel__field,
+.atlas-light-panel__slider {
+  @include atlas-flex-col($spacing-xs);
+
+  > span {
+    @include atlas-field-label;
+  }
+
+  input[type='number'] {
+    @include atlas-text-input;
+    width: 100%;
+  }
+}
+
+.atlas-light-panel__field--color input[type='color'] {
+  width: var(--input-height);
+  height: var(--input-height);
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+}

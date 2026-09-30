@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { hasVisionDefaults } from '../../../gameSystems/visionDefaults';
 import { DEFAULT_GRID_DEFAULTS, rulesOfPreset, vanillaSystemSettings } from '../../../gameSystems/systemRules';
 import { parseCreatureFilters, parseHiddenCreatureFilters } from '../../../creatures/creatureFilterDefinitions';
 import type { AssetService } from '../../../services/AssetService';
@@ -8,6 +9,7 @@ import type {
   ConditionDefinition,
 } from '../../../types/collectionSettingsTypes';
 import type { CreatureFilterDefinition } from '../../../types/creatureFilterTypes';
+import type { TokenVisionDefaults } from '../../../types/lightingTypes';
 import type { SystemPreset } from '../../../types/systemPresetTypes';
 import { changedTokenBars, tokenBarsOf, type TokenBars } from '../../../services/collectionTokenBars';
 
@@ -16,6 +18,9 @@ export interface CollectionSettingsDraft {
   setGridDefaults: (gridDefaults: CollectionGridDefaults) => void;
   defaultWidgets: Record<string, boolean>;
   setDefaultWidgets: (defaultWidgets: Record<string, boolean>) => void;
+  /** What new tokens start with; undefined when the collection sets nothing. */
+  defaultTokenVision: TokenVisionDefaults | undefined;
+  setDefaultTokenVision: (vision: TokenVisionDefaults | undefined) => void;
   conditions: ConditionDefinition[];
   setConditions: (conditions: ConditionDefinition[]) => void;
   /** The collection's filters on fields of its own. */
@@ -47,6 +52,7 @@ export function useCollectionSettingsDraft(
 ): CollectionSettingsDraft {
   const [gridDefaults, setGridDefaults] = useState<CollectionGridDefaults>(() => structuredClone(DEFAULT_GRID_DEFAULTS));
   const [defaultWidgets, setDefaultWidgets] = useState<Record<string, boolean>>({});
+  const [defaultTokenVision, setDefaultTokenVision] = useState<TokenVisionDefaults | undefined>(undefined);
   const [conditions, setConditions] = useState<ConditionDefinition[]>([]);
   const [systemPresetId, setSystemPresetId] = useState<string | undefined>(undefined);
   const [lootBases, setLootBases] = useState<string[]>([]);
@@ -60,6 +66,7 @@ export function useCollectionSettingsDraft(
     const settings = assetService.getCollectionSettings(collectionId);
     setGridDefaults(settings.gridDefaults ?? structuredClone(DEFAULT_GRID_DEFAULTS));
     setDefaultWidgets(settings.defaultWidgets ?? {});
+    setDefaultTokenVision(settings.defaultTokenVision);
     setConditions(settings.conditions ?? []);
     setSystemPresetId(settings.systemPresetId);
     setLootBases(settings.lootBases ?? []);
@@ -74,6 +81,7 @@ export function useCollectionSettingsDraft(
     setGridDefaults(rules.gridDefaults);
     setConditions(rules.conditions);
     setDefaultWidgets(rules.defaultWidgets);
+    setDefaultTokenVision(rules.defaultTokenVision);
     setSystemPresetId(preset.id);
   };
 
@@ -82,12 +90,14 @@ export function useCollectionSettingsDraft(
     setGridDefaults(vanilla.gridDefaults);
     setConditions(vanilla.conditions);
     setDefaultWidgets(vanilla.defaultWidgets);
+    setDefaultTokenVision(vanilla.defaultTokenVision);
     setSystemPresetId(undefined);
   };
 
   const toSettings = (): Partial<CollectionSettings> => ({
     gridDefaults,
     defaultWidgets,
+    defaultTokenVision: hasVisionDefaults(defaultTokenVision) ? defaultTokenVision : undefined,
     conditions,
     // Trimmed, with the field as label where none was typed.
     customCreatureFilters: parseCreatureFilters(customCreatureFilters),
@@ -100,6 +110,7 @@ export function useCollectionSettingsDraft(
   return {
     gridDefaults, setGridDefaults,
     defaultWidgets, setDefaultWidgets,
+    defaultTokenVision, setDefaultTokenVision,
     conditions, setConditions,
     customCreatureFilters, setCustomCreatureFilters,
     hiddenCreatureFilters, setHiddenCreatureFilters,

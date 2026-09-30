@@ -1,9 +1,8 @@
-import type { LightEmission, TokenVision } from '../types/lightingTypes';
+import type { LightEmission, TokenVision, TokenVisionDefaults } from '../types/lightingTypes';
 import { emissionOfPreset } from './lightEmissionForm';
 import type { LightPresetId } from './lightPresets';
 
-export interface VisionForm {
-  enabled: boolean;
+export interface VisionDefaultsForm {
   /** Game units as typed; blank is unlimited sight. */
   range: string;
   /** Game units as typed; blank is none. */
@@ -12,6 +11,10 @@ export interface VisionForm {
   tremorsense: string;
   /** Degrees as typed; blank is all around. */
   angle: string;
+}
+
+export interface VisionForm extends VisionDefaultsForm {
+  enabled: boolean;
 }
 
 const FULL_TURN = 360;
@@ -29,29 +32,37 @@ function coneAngle(text: string): number | undefined {
 
 const text = (value: number | undefined): string => (value === undefined ? '' : String(value));
 
-/** The fields Edit Token shows for a token's vision. */
-export function visionForm(vision: TokenVision | undefined): VisionForm {
+/** The fields a collection's default vision shows. */
+export function visionDefaultsForm(defaults: TokenVisionDefaults | undefined): VisionDefaultsForm {
   return {
-    enabled: vision?.enabled ?? false,
-    range: text(vision?.range),
-    darkvision: text(vision?.darkvision),
-    tremorsense: text(vision?.tremorsense),
-    angle: text(vision?.angle),
+    range: text(defaults?.range),
+    darkvision: text(defaults?.darkvision),
+    tremorsense: text(defaults?.tremorsense),
+    angle: text(defaults?.angle),
   };
 }
 
-export function visionFromForm(form: VisionForm): TokenVision {
+/** The fields Edit Token shows for a token's vision. */
+export function visionForm(vision: TokenVision | undefined): VisionForm {
+  return { enabled: vision?.enabled ?? false, ...visionDefaultsForm(vision) };
+}
+
+/** The default vision typed in; empty when every field is blank or unusable. */
+export function visionDefaultsFromForm(form: VisionDefaultsForm): TokenVisionDefaults {
   const range = positive(form.range);
   const darkvision = positive(form.darkvision);
   const tremorsense = positive(form.tremorsense);
   const angle = coneAngle(form.angle);
   return {
-    enabled: form.enabled,
     ...(range !== undefined && { range }),
     ...(darkvision !== undefined && { darkvision }),
     ...(tremorsense !== undefined && { tremorsense }),
     ...(angle !== undefined && { angle }),
   };
+}
+
+export function visionFromForm(form: VisionForm): TokenVision {
+  return { enabled: form.enabled, ...visionDefaultsFromForm(form) };
 }
 
 /** The light a token carries for a preset, or none. */

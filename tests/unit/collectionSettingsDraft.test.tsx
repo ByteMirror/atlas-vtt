@@ -4,6 +4,7 @@ import { BUILT_IN_SYSTEM_PRESETS } from '../../src/app/gameSystems/builtInPreset
 import { useCollectionSettingsDraft } from '../../src/app/react/components/collection-settings/useCollectionSettingsDraft';
 import type { AssetService } from '../../src/app/services/AssetService';
 import type { CollectionSettings } from '../../src/app/types/collectionSettingsTypes';
+import type { SystemPreset } from '../../src/app/types/systemPresetTypes';
 
 const shadowdark = BUILT_IN_SYSTEM_PRESETS.find((preset) => preset.name === 'Shadowdark')!;
 const dnd5e = BUILT_IN_SYSTEM_PRESETS.find((preset) => preset.name === 'D&D 5e')!;
@@ -36,4 +37,37 @@ it('loads and saves the collection’s own creature filters and the switched-off
   act(() => result.current.applyPreset(dnd5e));
   act(() => result.current.setHiddenCreatureFilters(['source', 'rarity']));
   expect(result.current.toSettings()).toMatchObject({ customCreatureFilters: custom, hiddenCreatureFilters: ['source', 'rarity'] });
+});
+
+describe('default token vision', () => {
+  const ranged = { ...structuredClone(dnd5e.rules), defaultTokenVision: { darkvision: 60 }, systemPresetId: dnd5e.id };
+
+  it('loads the collection’s default and saves an edit of it', () => {
+    const { result } = draftFor(ranged);
+    expect(result.current.defaultTokenVision).toEqual({ darkvision: 60 });
+    act(() => result.current.setDefaultTokenVision({ darkvision: 60, range: 120, angle: 90 }));
+    expect(result.current.toSettings().defaultTokenVision).toEqual({ darkvision: 60, range: 120, angle: 90 });
+  });
+
+  it('saves no default, explicitly, when none is set or every field is blank', () => {
+    const { result } = draftFor(structuredClone(dnd5e.rules));
+    expect(result.current.toSettings()).toHaveProperty('defaultTokenVision', undefined);
+    act(() => result.current.setDefaultTokenVision({}));
+    expect(result.current.toSettings()).toHaveProperty('defaultTokenVision', undefined);
+  });
+
+  it('takes the default of an applied preset, and none from a preset that sets none', () => {
+    const night: SystemPreset = { ...dnd5e, id: 'user-night', builtIn: false, rules: { ...structuredClone(dnd5e.rules), defaultTokenVision: { tremorsense: 15 } } };
+    const { result } = draftFor(ranged);
+    act(() => result.current.applyPreset(night));
+    expect(result.current.toSettings().defaultTokenVision).toEqual({ tremorsense: 15 });
+    act(() => result.current.applyPreset(dnd5e));
+    expect(result.current.toSettings().defaultTokenVision).toBeUndefined();
+  });
+
+  it('is cleared with the game system', () => {
+    const { result } = draftFor(ranged);
+    act(() => result.current.clearSystem());
+    expect(result.current.toSettings().defaultTokenVision).toBeUndefined();
+  });
 });

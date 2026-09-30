@@ -12,6 +12,8 @@ import {
 } from '../../../../encounters/encounterFormation';
 import type { AtlasView } from '../../../../atlas-view';
 import type { TokenInput, ViewAtlasState } from '../../../../storeFactory';
+import { hasVisionDefaults } from '../../../../gameSystems/visionDefaults';
+import type { TokenVision, TokenVisionDefaults } from '../../../../types/lightingTypes';
 
 // ─── Viewport helpers ───────────────────────────────────────────────
 
@@ -121,6 +123,7 @@ interface TokenSpawnData extends Omit<StatblockOverrides, 'hp'> {
   difficulty?: string;
   size?: number;
   showRing?: boolean;
+  vision?: TokenVision;
 }
 
 /** What a spawned token inherits from its asset. */
@@ -161,10 +164,22 @@ async function resolveTokenSource(ctx: SpawnContext, ref: TokenSourceRef): Promi
   };
 }
 
+/** What new tokens start with on the map in `ctx`, from its collection; undefined when it sets none. */
+function collectionVisionDefaults(ctx: SpawnContext): TokenVisionDefaults | undefined {
+  const mapPath = ctx.view?.getStore().getState().mapPath;
+  if (!mapPath || !ctx.assetService) return undefined;
+  const collectionId = ctx.assetService.getCollectionForMap(mapPath);
+  if (!collectionId) return undefined;
+  const defaults = ctx.assetService.getCollectionSettings(collectionId).defaultTokenVision;
+  return hasVisionDefaults(defaults) ? defaults : undefined;
+}
+
+/** Builds a token from its asset; a token without vision of its own gets `visionDefaults`, switched off. */
 async function buildTokenData(
   app: ObsidianApp,
   pos: { x: number; y: number },
-  { imagePath, name, statblockPath, size, showRing }: TokenSource
+  { imagePath, name, statblockPath, size, showRing }: TokenSource,
+  visionDefaults: TokenVisionDefaults | undefined,
 ): Promise<TokenSpawnData> {
   const data: TokenSpawnData = {
     x: pos.x,
@@ -182,6 +197,8 @@ async function buildTokenData(
     const overrides = await loadStatblockOverrides(app, statblockPath);
     Object.assign(data, overrides);
   }
+
+  if (visionDefaults && data.vision === undefined) data.vision = { enabled: false, ...visionDefaults };
 
   return data;
 }
@@ -221,7 +238,7 @@ export async function spawnTokenAsset(
   if (!source) return [];
 
   // The statblock is read once; every copy shares that data at its own position.
-  const template = await buildTokenData(ctx.app, center, source);
+  const template = await buildTokenData(ctx.app, center, source, collectionVisionDefaults(ctx));
   const tokens = Array.from({ length: count }, (_, i): TokenInput => ({
     ...structuredClone(template),
     ...gridPosition(i, count, center.x, center.y, pitch, gridSystem),
@@ -251,6 +268,7 @@ export async function spawnEncounterTokens(
     ? placeFormation(slots, encounter.formation, center, grid)
     : null;
 
+  const visionDefaults = collectionVisionDefaults(ctx);
   const tokens: TokenInput[] = [];
   for (let i = 0; i < tokensToSpawn.length; i++) {
     const token = tokensToSpawn[i];
@@ -284,7 +302,7 @@ export async function spawnEncounterTokens(
     }
     const source = await resolveTokenSource(ctx, token);
     if (source && imageExists(ctx.app, source.imagePath)) {
-      tokens.push(await buildTokenData(ctx.app, pos, source));
+      tokens.push(await buildTokenData(ctx.app, pos, source, visionDefaults));
     }
   }
 
@@ -308,6 +326,7 @@ export async function spawnSelectedTokens(
   const center = getViewportCenter(viewport);
   const tokensToSpawn = selectedAssets.filter(a => a.type === 'tokens');
 
+  const visionDefaults = collectionVisionDefaults(ctx);
   const tokens: TokenInput[] = [];
   for (let i = 0; i < tokensToSpawn.length; i++) {
     const tokenAsset = tokensToSpawn[i];
@@ -316,7 +335,7 @@ export async function spawnSelectedTokens(
     const source = await resolveTokenSource(ctx, tokenAsset);
     if (!source) continue;
     const pos = gridPosition(i, tokensToSpawn.length, center.x, center.y, pitch, gridSystem);
-    tokens.push(await buildTokenData(ctx.app, pos, source));
+    tokens.push(await buildTokenData(ctx.app, pos, source, visionDefaults));
   }
 
   return addSpawnedTokens(ctx, tokens);

@@ -43,6 +43,16 @@ describe('SystemPresetService', () => {
     expect(settings.current.systemPresets?.[0]).toMatchObject({ addedLater: true, rules: { vision: { enabled: true } } });
   });
 
+  it('saves and clears a default token vision when a preset is edited', () => {
+    const service = new SystemPresetService(memorySettings());
+    const preset = service.create('Homebrew', { ...rules, defaultTokenVision: { darkvision: 60 } });
+    expect(service.list().find((p) => p.id === preset.id)?.rules.defaultTokenVision).toEqual({ darkvision: 60 });
+    service.update(preset.id, { ...rules, defaultTokenVision: { darkvision: 30, angle: 120 } });
+    expect(service.list().find((p) => p.id === preset.id)?.rules.defaultTokenVision).toEqual({ darkvision: 30, angle: 120 });
+    service.update(preset.id, rules);
+    expect(service.list().find((p) => p.id === preset.id)?.rules).not.toHaveProperty('defaultTokenVision');
+  });
+
   it('stores a copy, so later edits to the rules do not leak into the preset', () => {
     const service = new SystemPresetService(memorySettings());
     const draft = structuredClone(rules);

@@ -9,8 +9,10 @@ import type {
   ConditionDefinition,
   GridUnitType,
 } from '../types/collectionSettingsTypes';
+import type { TokenVisionDefaults } from '../types/lightingTypes';
 import type { SystemPreset, SystemRules } from '../types/systemPresetTypes';
 import type { AnyWidget } from '../types/widgetTypes';
+import { hasVisionDefaults, sameVisionDefaults } from './visionDefaults';
 
 /** Measurement of a collection that never set any: 5-foot squares, every diagonal counts 1. */
 export const DEFAULT_GRID_DEFAULTS: Readonly<CollectionGridDefaults> = {
@@ -23,28 +25,33 @@ export const DEFAULT_GRID_DEFAULTS: Readonly<CollectionGridDefaults> = {
 
 /** What a game system sets in a collection's settings. */
 export type SystemSettings = Required<Pick<CollectionSettings, 'gridDefaults' | 'conditions' | 'defaultWidgets'>>
-  & Pick<CollectionSettings, 'systemPresetId'>;
+  & Pick<CollectionSettings, 'systemPresetId' | 'defaultTokenVision'>;
 
-/** A collection without a game system: default measurement, no conditions, no default widgets. */
+/** A collection without a game system: default measurement, no conditions, no default widgets, no default vision. */
 export function vanillaSystemSettings(): SystemSettings {
   return {
     gridDefaults: structuredClone(DEFAULT_GRID_DEFAULTS),
     conditions: [],
     defaultWidgets: {},
     systemPresetId: undefined,
+    defaultTokenVision: undefined,
   };
 }
 
 /**
  * The rules a collection gets from a preset: a copy of its measurement and of its
- * conditions with their own ids. Conditions from the previous system never carry
+ * conditions with their own ids, and its default token vision when it sets one. Conditions from the previous system never carry
  * over; the ones tokens still have are removed when the collection is saved.
  */
-export function rulesOfPreset(preset: SystemPreset): Required<Pick<SystemRules, 'gridDefaults' | 'conditions' | 'defaultWidgets'>> {
+export function rulesOfPreset(
+  preset: SystemPreset,
+): Required<Pick<SystemRules, 'gridDefaults' | 'conditions' | 'defaultWidgets'>> & Pick<SystemRules, 'defaultTokenVision'> {
+  const vision: TokenVisionDefaults | undefined = preset.rules.defaultTokenVision;
   return {
     gridDefaults: structuredClone(preset.rules.gridDefaults),
     conditions: structuredClone(preset.rules.conditions),
     defaultWidgets: { ...preset.rules.defaultWidgets },
+    ...(hasVisionDefaults(vision) && { defaultTokenVision: { ...vision } }),
   };
 }
 
@@ -75,6 +82,7 @@ function enabledWidgets(defaultWidgets: Record<string, boolean> | undefined): st
 export function sameSystemRules(a: SystemRules, b: SystemRules): boolean {
   return sameGridDefaults(a.gridDefaults, b.gridDefaults)
     && enabledWidgets(a.defaultWidgets) === enabledWidgets(b.defaultWidgets)
+    && sameVisionDefaults(a.defaultTokenVision, b.defaultTokenVision)
     && a.conditions.length === b.conditions.length
     && a.conditions.every((condition, i) => sameCondition(condition, b.conditions[i]!));
 }

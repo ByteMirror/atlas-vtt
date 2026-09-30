@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { carriedLight, visionForm, visionFromForm, type VisionForm } from '../tokenLighting';
+import { carriedLight, visionDefaultsForm, visionDefaultsFromForm, visionForm, visionFromForm, type VisionForm } from '../tokenLighting';
 import { LIGHT_PRESETS } from '../lightPresets';
 
 describe('visionFromForm', () => {
@@ -49,5 +49,20 @@ describe('carriedLight', () => {
 
   it('removes the light for none', () => {
     expect(carriedLight(null)).toBeUndefined();
+  });
+});
+
+describe('visionDefaultsFromForm', () => {
+  it('reads the same fields as a token, without the on switch', () => {
+    const form = { range: '60', darkvision: '30', tremorsense: '', angle: '90' };
+    expect(visionDefaultsFromForm(form)).toEqual({ range: 60, darkvision: 30, angle: 90 });
+    expect(visionFromForm({ ...form, enabled: true })).toEqual({ enabled: true, range: 60, darkvision: 30, angle: 90 });
+  });
+
+  it('is empty when every field is blank or unusable, and round-trips through visionDefaultsForm', () => {
+    expect(visionDefaultsFromForm({ range: '', darkvision: '0', tremorsense: 'x', angle: '360' })).toEqual({});
+    const defaults = { range: 60, tremorsense: 10, angle: 120 };
+    expect(visionDefaultsFromForm(visionDefaultsForm(defaults))).toEqual(defaults);
+    expect(visionDefaultsForm(undefined)).toEqual({ range: '', darkvision: '', tremorsense: '', angle: '' });
   });
 });

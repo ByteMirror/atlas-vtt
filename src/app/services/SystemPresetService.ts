@@ -37,7 +37,12 @@ export class SystemPresetService {
   }
 
   update(id: string, rules: SystemRules): void {
-    this.modify(id, (stored) => ({ ...stored, rules: { ...asRecord(stored.rules), ...structuredClone(rules) } }));
+    this.modify(id, (stored) => {
+      const merged = { ...asRecord(stored.rules), ...structuredClone(rules) };
+      // The rules hold no default vision when the system sets none, so a stored one must not survive.
+      if (!rules.defaultTokenVision) delete merged.defaultTokenVision;
+      return { ...stored, rules: merged };
+    });
   }
 
   rename(id: string, name: string): void {

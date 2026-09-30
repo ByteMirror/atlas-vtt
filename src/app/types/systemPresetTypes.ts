@@ -4,6 +4,7 @@
  */
 
 import type { CollectionGridDefaults, ConditionDefinition } from './collectionSettingsTypes';
+import type { TokenVisionDefaults } from './lightingTypes';
 import type { AnyWidget } from './widgetTypes';
 
 /** The parts of a collection's settings that a game system defines. */
@@ -21,6 +22,11 @@ export interface SystemRules {
    * `CollectionSettings.defaultWidgets` (e.g. `stressBar` for Daggerheart's Stress).
    */
   defaultWidgets?: Record<string, boolean>;
+  /**
+   * What new tokens start with (sight range, darkvision, tremorsense, cone), for systems
+   * where every character has a baseline. Unset: new tokens get no vision settings.
+   */
+  defaultTokenVision?: TokenVisionDefaults;
 }
 
 /** Built-in preset ids start with this; user presets never do. */

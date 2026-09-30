@@ -2,6 +2,7 @@ import type { Point } from '../types/visionTypes';
 import type { WallSegment } from '../types/wallTypes';
 import { blocksNothing } from '../lighting/segments';
 import { angleTo, distSqToSegment, isOnBlockingSide, raySegmentIntersect } from './visionGeometry';
+import { clipToCone, type VisionCone } from './visionCone';
 
 export type Polygon = Point[];
 
@@ -30,9 +31,15 @@ export function wallsInReach(walls: readonly WallSegment[], origin: Point, radiu
 /**
  * The area visible from `origin` up to `radius`, as a star-shaped polygon around it.
  * Radial sweep: a ray at every wall endpoint (and just beside it) plus evenly spaced
- * boundary rays, each stopped by the nearest wall.
+ * boundary rays, each stopped by the nearest wall. With a `cone`, only its part inside
+ * the cone, closed through the origin.
  */
-export function computeVisibility(origin: Point, radius: number, walls: readonly WallSegment[]): Polygon {
+export function computeVisibility(origin: Point, radius: number, walls: readonly WallSegment[], cone?: VisionCone): Polygon {
+  const polygon = sweep(origin, radius, walls);
+  return cone && cone.angle < 2 * Math.PI ? clipToCone(origin, polygon, cone) : polygon;
+}
+
+function sweep(origin: Point, radius: number, walls: readonly WallSegment[]): Polygon {
   const blocking = wallsInReach(walls, origin, radius);
   const angles: number[] = [];
   for (let i = 0; i < BOUNDARY_RAYS; i++) angles.push(-Math.PI + (2 * Math.PI * i) / BOUNDARY_RAYS);

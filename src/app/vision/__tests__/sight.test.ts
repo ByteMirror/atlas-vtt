@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { SightCache, computeSight, isSeen, lightReach, sightSources, type SightSource } from '../sight';
+import { SightCache, computeSight, isFelt, isSeen, lightReach, sightSources, type SightSource } from '../sight';
 import type { TokenEntity } from '../../types';
 import type { WallSegment } from '../../types/wallTypes';
 
@@ -87,5 +87,82 @@ describe('SightCache', () => {
     expect(computeSight([source()], walls, cache).polygons[0]).toBe(first);
     expect(computeSight([source()], [wall], cache).polygons[0]).not.toBe(first);
     expect(computeSight([source({ origin: { x: 110, y: 100 } })], walls, cache).polygons[0]).not.toBe(first);
+  });
+});
+
+describe('vision cones', () => {
+  const at = { x: 500, y: 500 };
+  const seenFrom = (vision: TokenEntity['vision'], rotation?: number): ((x: number, y: number, ambient?: number) => boolean) => {
+    const viewer = { ...token('v', at.x, at.y, vision), ...(rotation !== undefined && { rotation }) };
+    const sight = computeSight(sightSources({ v: viewer }, scale, bounds), []);
+    return (x: number, y: number, ambient = 1): boolean => isSeen({ x, y }, sight, ambient, []);
+  };
+
+  it('looks up at rotation 0, as the token art does', () => {
+    const sees = seenFrom({ enabled: true, angle: 90 });
+    expect(sees(500, 300)).toBe(true);
+    expect(sees(500, 700)).toBe(false);
+    expect(sees(700, 500)).toBe(false);
+  });
+
+  it('turns clockwise with the token rotation', () => {
+    const right = seenFrom({ enabled: true, angle: 90 }, 90);
+    expect(right(700, 500)).toBe(true);
+    expect(right(300, 500)).toBe(false);
+    expect(right(500, 300)).toBe(false);
+    for (const rotation of [-90, 270]) {
+      const left = seenFrom({ enabled: true, angle: 90 }, rotation);
+      expect(left(300, 500)).toBe(true);
+      expect(left(700, 500)).toBe(false);
+    }
+  });
+
+  it('sees all around without an angle or with 360', () => {
+    for (const vision of [{ enabled: true }, { enabled: true, angle: 360 }]) {
+      const sees = seenFrom(vision, 90);
+      expect(sees(300, 500)).toBe(true);
+      expect(sees(500, 700)).toBe(true);
+    }
+  });
+
+  it('limits darkvision to the cone', () => {
+    const sees = seenFrom({ enabled: true, angle: 90, darkvision: 30 }, 0);
+    expect(sees(500, 400, 0)).toBe(true);
+    expect(sees(500, 600, 0)).toBe(false);
+  });
+
+  it('recomputes the polygon when the token turns', () => {
+    const cache = new SightCache();
+    const walls = [wall];
+    const facingUp = source({ cone: { facing: -Math.PI / 2, angle: 1 } });
+    const first = computeSight([facingUp], walls, cache).polygons[0];
+    expect(computeSight([{ ...facingUp, cone: { facing: -Math.PI / 2, angle: 1 } }], walls, cache).polygons[0]).toBe(first);
+    expect(computeSight([{ ...facingUp, cone: { facing: 0, angle: 1 } }], walls, cache).polygons[0]).not.toBe(first);
+    expect(computeSight([{ ...facingUp, cone: { facing: -Math.PI / 2, angle: 2 } }], walls, cache).polygons[0]).not.toBe(first);
+  });
+});
+
+describe('tremorsense', () => {
+  it('converts the range to world pixels and adds no sight of its own', () => {
+    const viewer = token('v', 100, 100, { enabled: true, range: 5, tremorsense: 30 });
+    const [only] = sightSources({ v: viewer }, scale, bounds);
+    expect(only!.tremorsense).toBe(420);
+    const sight = computeSight([only!], [wall]);
+    const { tremorsense: _felt, ...unfelt } = only!;
+    const without = computeSight([unfelt], [wall]);
+    expect(sight.polygons).toEqual(without.polygons);
+    expect(sight.tremors).toEqual([{ origin: { x: 100, y: 100 }, radius: 420 }]);
+    expect(without.tremors).toEqual([]);
+  });
+
+  it('feels points within range through walls and darkness', () => {
+    const sight = computeSight([source({ tremorsense: 300 })], [wall]);
+    expect(isSeen({ x: 300, y: 100 }, sight, 0, [])).toBe(false);
+    expect(isFelt({ x: 300, y: 100 }, sight)).toBe(true);
+    expect(isFelt({ x: 450, y: 100 }, sight)).toBe(false);
+  });
+
+  it('feels nothing without tremorsense', () => {
+    expect(isFelt({ x: 110, y: 100 }, computeSight([source()], []))).toBe(false);
   });
 });

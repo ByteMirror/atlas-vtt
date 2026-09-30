@@ -45,4 +45,11 @@ export interface TokenVision {
   range?: number;
   /** Radius the token sees without light, drawn desaturated. */
   darkvision?: number;
+  /** Radius within which the token senses other tokens through walls and darkness; the map stays unseen. */
+  tremorsense?: number;
+  /** Width of the vision cone in degrees (1–360), facing the token's rotation; unset sees all around. */
+  angle?: number;
 }
+
+/** What a collection or game system gives new tokens; vision itself always starts off. */
+export type TokenVisionDefaults = Omit<TokenVision, 'enabled'>;

@@ -14,7 +14,7 @@ import { TokenLightingFields, type LightChoice } from './TokenLightingFields';
 import { WALLS_AND_LIGHTING_ENABLED } from '../../featureFlags';
 import { unitLabelFor } from '../../grid/measurementFormat';
 import { presetOf } from '../../lighting/lightPresets';
-import { carriedLight, visionFromForm, type VisionForm } from '../../lighting/tokenLighting';
+import { carriedLight, visionForm, visionFromForm, type VisionForm } from '../../lighting/tokenLighting';
 
 interface EditTokenValues {
   name: string;
@@ -188,11 +188,7 @@ export function openEditTokenModal(token: TokenEntity, store: StoreApi<ViewAtlas
         showNameplate: token.showNameplate ?? false,
         maxHp: typeof character?.hp === 'object' ? character.hp.max : character?.hp,
         maxStress: typeof character?.stress === 'object' ? character.stress.max : character?.maxStress,
-        vision: {
-          enabled: token.vision?.enabled ?? false,
-          range: numberInput(token.vision?.range),
-          darkvision: numberInput(token.vision?.darkvision),
-        },
+        vision: visionForm(token.vision),
         light: token.light ? presetOf(token.light) ?? 'custom' : 'none',
       }}
       unit={unitLabelFor(store.getState().grid?.unitType)}

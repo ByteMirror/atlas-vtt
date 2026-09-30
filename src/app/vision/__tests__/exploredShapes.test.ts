@@ -3,12 +3,12 @@ import { exploredShapes } from '../exploredShapes';
 import type { LightReach, Sight } from '../sight';
 
 const square = (x: number): { x: number; y: number }[] => [{ x, y: 0 }, { x: x + 1, y: 0 }, { x: x + 1, y: 1 }];
-const sight: Sight = { all: false, polygons: [square(0)], origins: [{ x: 0, y: 0 }], darkvision: [square(1)], darkvisionOrigins: [{ x: 0, y: 0 }] };
+const sight: Sight = { all: false, polygons: [square(0)], origins: [{ x: 0, y: 0 }], darkvision: [square(1)], darkvisionOrigins: [{ x: 0, y: 0 }], tremors: [] };
 const torch: LightReach = { origin: { x: 5, y: 5 }, dim: 10, polygon: square(2) };
 
 describe('exploredShapes', () => {
   it('records nothing while no token has vision', () => {
-    expect(exploredShapes({ all: true, polygons: [], origins: [], darkvision: [], darkvisionOrigins: [] }, 0, [torch])).toBeNull();
+    expect(exploredShapes({ all: true, polygons: [], origins: [], darkvision: [], darkvisionOrigins: [], tremors: [] }, 0, [torch])).toBeNull();
   });
 
   it('records the whole line of sight when the scene is lit', () => {
@@ -20,6 +20,6 @@ describe('exploredShapes', () => {
   });
 
   it('records nothing in the dark without light or darkvision', () => {
-    expect(exploredShapes({ ...sight, darkvision: [], darkvisionOrigins: [] }, 0, [])).toBeNull();
+    expect(exploredShapes({ ...sight, darkvision: [], darkvisionOrigins: [], tremors: [] }, 0, [])).toBeNull();
   });
 });

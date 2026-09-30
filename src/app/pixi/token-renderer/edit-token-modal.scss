@@ -21,6 +21,11 @@
   font-weight: 500;
 }
 
+.atlas-edit-token__hint {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+}
+
 .atlas-edit-token__section-divider {
   height: 1px;
   background: var(--background-modifier-border);

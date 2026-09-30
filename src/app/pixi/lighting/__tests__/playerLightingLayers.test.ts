@@ -54,6 +54,30 @@ describe('tokenSeenPredicate', () => {
   });
 });
 
+describe('tokenSeenPredicate with tremorsense', () => {
+  const wall = { id: 'w', kind: 'wall' as const, type: 'solid' as const, p1: { x: 200, y: 0 }, p2: { x: 200, y: 400 } };
+  const tokens: Record<string, TokenEntity> = {
+    hero: { id: 'hero', kind: 'token', imagePath: 'h.png', x: 100, y: 100, vision: { enabled: true, tremorsense: 30 } },
+    near: { id: 'near', kind: 'token', imagePath: 'n.png', x: 300, y: 100 },
+    far: { id: 'far', kind: 'token', imagePath: 'f.png', x: 600, y: 100 },
+  };
+  const hero = { tokenId: 'hero', origin: { x: 100, y: 100 }, range: 1000, darkvision: 0 };
+  const sight = computeSight([{ ...hero, tremorsense: 300 }], [wall]);
+
+  it('senses tokens within range through walls, even in the dark', () => {
+    expect(tokenSeenPredicate(sight, 1, [], tokens)('near')).toBe(true);
+    expect(tokenSeenPredicate(sight, 0, [], tokens)('near')).toBe(true);
+  });
+
+  it('does not sense tokens out of range', () => {
+    expect(tokenSeenPredicate(sight, 1, [], tokens)('far')).toBe(false);
+  });
+
+  it('leaves the sight polygon as it is', () => {
+    expect(sight.polygons).toEqual(computeSight([hero], [wall]).polygons);
+  });
+});
+
 describe('hiddenTokenLayers with a seen predicate', () => {
   it('hides unseen tokens as well as hidden ones', () => {
     const [a, b, c] = [new Container(), new Container(), new Container()];

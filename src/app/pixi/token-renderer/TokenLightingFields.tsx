@@ -52,6 +52,23 @@ export function TokenLightingFields({ vision, onVisionChange, light, onLightChan
         placeholder="None"
         resetLabel="No darkvision"
       />
+      <NumberOverrideField
+        label={`Tremorsense (${unit})`}
+        value={vision.tremorsense}
+        onChange={(tremorsense) => onVisionChange({ ...vision, tremorsense })}
+        placeholder="None"
+        resetLabel="No tremorsense"
+      />
+      <NumberOverrideField
+        label="Vision angle (°)"
+        value={vision.angle}
+        onChange={(angle) => onVisionChange({ ...vision, angle })}
+        placeholder="360"
+        resetLabel="See all around"
+        hint="Faces the token's rotation"
+        min={1}
+        max={360}
+      />
       <div className="atlas-edit-token__field">
         <span id={lightLabel} className="atlas-edit-token__label">Carried light</span>
         <Select value={light} options={options} onChange={onLightChange} labelledBy={lightLabel} />

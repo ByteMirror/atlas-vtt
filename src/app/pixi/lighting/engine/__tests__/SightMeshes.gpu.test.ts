@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { SightMeshes } from '../SightMeshes';
 import { computeSight } from '../../../../vision/sight';
 import type { WallSegment } from '../../../../types/wallTypes';
+import type { VisionCone } from '../../../../vision/visionCone';
 import { createTestRenderer, readRgba } from './gpuTestUtils';
 
 describe('SightMeshes', () => {
@@ -31,6 +32,48 @@ describe('SightMeshes', () => {
       expect(red(160, 15)).toBeLessThan(red(160, 10));
       expect(red(160, 10)).toBeLessThan(255);
       expect(red(160, 6)).toBe(255);
+    } finally {
+      meshes.destroy();
+      target.destroy(true);
+      stage.destroy({ children: true });
+      renderer.destroy();
+    }
+  });
+
+  it('draws a cone with hard edges from the token, never where the full polygon draws nothing', async () => {
+    const renderer = await createTestRenderer(256);
+    const wall: WallSegment = { id: 'w', kind: 'wall', type: 'solid', p1: { x: 200, y: 100 }, p2: { x: 200, y: 200 } };
+    const meshes = new SightMeshes();
+    const stage = new Container();
+    const target = RenderTexture.create({ width: 256, height: 256 });
+    const render = (cone?: VisionCone): Uint8ClampedArray => {
+      meshes.draw(computeSight([{ tokenId: 't', origin: { x: 128, y: 128 }, range: 400, darkvision: 0, ...(cone && { cone }) }], [wall]), 20);
+      renderer.render({ container: stage, target, clear: true, clearColor: [0, 0, 0, 0] });
+      return readRgba(renderer, target);
+    };
+    try {
+      stage.addChild(new Graphics().rect(0, 0, 256, 256).fill({ color: 0, alpha: 0 }), meshes.view);
+      const full = render();
+      // Facing down with a half turn: the cone's edges run along y = 128, the fan's own first vertex angle.
+      const down = render({ facing: Math.PI / 2, angle: Math.PI });
+      const red = (px: Uint8ClampedArray, x: number, y: number): number => px[(y * 256 + x) * 4]!;
+      expect(red(down, 128, 200)).toBe(255);
+      expect(red(down, 40, 131)).toBe(255);
+      expect(red(down, 180, 131)).toBe(255);
+      expect(red(down, 128, 60)).toBe(0);
+      expect(red(down, 40, 124)).toBe(0);
+      const right = render({ facing: 0, angle: Math.PI / 2 });
+      expect(red(right, 180, 128)).toBe(255);
+      expect(red(right, 180, 172)).toBe(255);
+      expect(red(right, 180, 184)).toBe(0);
+      expect(red(right, 60, 128)).toBe(0);
+      expect(red(right, 240, 150)).toBe(0);
+      for (const cone of [{ facing: 0.4, angle: 2.2 }, { facing: -2.5, angle: 4 }, { facing: Math.PI, angle: 1 }]) {
+        const px = render(cone);
+        let outside = 0;
+        for (let i = 0; i < px.length; i += 4) if (full[i] === 0 && px[i]! > 0) outside++;
+        expect(outside).toBe(0);
+      }
     } finally {
       meshes.destroy();
       target.destroy(true);

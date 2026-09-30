@@ -19,6 +19,22 @@ describe('sightWedges', () => {
       expect(pointInPolygon({ x: wedge.a.x + outside.x * 100, y: wedge.a.y + outside.y * 100 }, polygon)).toBe(false);
     }
   });
+
+  it('keeps the edges of a vision cone hard, whichever way it faces', () => {
+    const origin = { x: 0, y: 0 };
+    for (const facing of [Math.PI / 2, 0, -1, Math.PI]) {
+      const polygon = computeVisibility(origin, 400, [], { facing, angle: Math.PI });
+      expect(sightWedges(origin, polygon, 20)).toEqual([]);
+    }
+  });
+
+  it('still softens wall corners inside a cone', () => {
+    const origin = { x: 0, y: 0 };
+    const polygon = computeVisibility(origin, 400, [wall], { facing: 0, angle: Math.PI / 2 });
+    const wedges = sightWedges(origin, polygon, 20);
+    expect(wedges).toHaveLength(2);
+    for (const wedge of wedges) expect(Math.hypot(wedge.a.x - 50, Math.abs(wedge.a.y) - 40)).toBeLessThan(1e-3);
+  });
 });
 
 function rotate(v: { x: number; y: number }, angle: number): { x: number; y: number } {

@@ -10,10 +10,14 @@ interface NumberOverrideFieldProps {
   /** Shown while the field is empty, e.g. the inherited default. */
   placeholder: string;
   resetLabel: string;
+  /** Helper text below the input. */
+  hint?: string;
+  min?: number;
+  max?: number;
 }
 
 /** Numeric input whose empty state falls back to an inherited default; a clear button restores it. */
-export function NumberOverrideField({ label, value, onChange, placeholder, resetLabel }: NumberOverrideFieldProps): React.ReactElement {
+export function NumberOverrideField({ label, value, onChange, placeholder, resetLabel, hint, min = 0, max }: NumberOverrideFieldProps): React.ReactElement {
   return (
     <div className="atlas-edit-token__field">
       <label className="atlas-edit-token__label">{label}</label>
@@ -24,7 +28,8 @@ export function NumberOverrideField({ label, value, onChange, placeholder, reset
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
-          min={0}
+          min={min}
+          max={max}
         />
         {value !== '' && (
           <LabelTooltip label={resetLabel}>
@@ -34,6 +39,7 @@ export function NumberOverrideField({ label, value, onChange, placeholder, reset
           </LabelTooltip>
         )}
       </div>
+      {hint && <span className="atlas-edit-token__hint">{hint}</span>}
     </div>
   );
 }

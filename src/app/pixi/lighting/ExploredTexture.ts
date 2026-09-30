@@ -24,6 +24,8 @@ export class ExploredTexture {
     this.texture = RenderTexture.create({
       width: Math.max(1, Math.ceil(bounds.width * this.scale)),
       height: Math.max(1, Math.ceil(bounds.height * this.scale)),
+      // Multisampled: the stamps get smooth edges, and stay inside the stencil clip.
+      antialias: true,
     });
     this.painter.blendMode = 'max';
     this.stamp.addChild(this.painter, this.clip);

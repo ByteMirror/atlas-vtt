@@ -3,7 +3,8 @@ import type { Viewport } from 'pixi-viewport';
 import type { ViewAtlasState, ViewAtlasStore } from '../../storeFactory';
 import type { MeasurementSettings } from '../../grid/measurementFormat';
 import { unitScaleOf } from '../../lighting/lightingUnits';
-import { weldedWalls } from '../../lighting/weldWalls';
+import { sealedWalls } from '../../lighting/sealWalls';
+import { worldTexel } from '../../lighting/lightingConstants';
 import { SEES_ALL, SightCache, computeSight, sightSources, type LightReach, type Sight } from '../../vision/sight';
 import { wallList } from '../../vision/wallList';
 import { exploredShapes } from '../../vision/exploredShapes';
@@ -128,10 +129,10 @@ export class LightingRenderer implements SceneLightingView {
     requestRender(this.deps.app);
   }
 
-  /** Recomputes lights, their reaches and sight with welded walls, and records what tokens now see. */
+  /** Recomputes lights, their reaches and sight with sealed walls, and records what tokens now see. */
   private buildScene(state: ViewAtlasState, bounds: MapBounds): SceneWithoutAmbient {
     const scale = unitScaleOf(this.deps.measurement(), state.grid);
-    const walls = weldedWalls(wallList(state.objects.walls));
+    const walls = sealedWalls(wallList(state.objects.walls), worldTexel(bounds));
     const lights = activeLights(state.objects.lights, state.objects.tokens).map((light) => engineLight(light, scale));
     this.reaches = this.lightReachCache.sync(lights, walls);
     this.sight = computeSight(sightSources(state.objects.tokens, scale, bounds), walls, this.sightCache);

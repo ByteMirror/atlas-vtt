@@ -2,12 +2,11 @@
 import { Container, Matrix, RenderTexture, Sprite, Texture } from 'pixi.js';
 import { describe, expect, it } from 'vitest';
 import { LightingEngine } from '../LightingEngine';
-import { weldWalls } from '../../../../lighting/weldWalls';
-import { distToSeg, segOf } from '../../../../lighting/segments';
-import { REVEAL, weldTolerance } from '../../../../lighting/lightingConstants';
+import { sealWalls } from '../../../../lighting/sealWalls';
+import { REVEAL, sealTolerance } from '../../../../lighting/lightingConstants';
 import { SEES_ALL, computeSight } from '../../../../vision/sight';
 import { createTestRenderer, readRgba } from './gpuTestUtils';
-import { fuzzRooms, insidePolygon, rng, type P } from './fuzzRooms';
+import { distToOutline, fuzzRooms, insidePolygon, rng, roomOutline, type P } from './fuzzRooms';
 
 const SIZE = 384;
 const TRIALS = Number(import.meta.env.VITE_LEAK_TRIALS ?? 24);
@@ -22,7 +21,7 @@ interface Report {
 
 /**
  * Renders every room through the real engine at a random camera and counts pixels past the
- * room's welded walls that are not black: light (direct + bounce, player mode, everything seen,
+ * room's walls (as drawn, joined by their bridges) that are not black: light (direct + bounce, player mode, everything seen,
  * no ambient) and sight (ambient 1, the token where the light is; the drawn wall may show up to
  * REVEAL px + 1.5 screen px past its centre line).
  */
@@ -36,11 +35,9 @@ async function fuzz(seed: number, trials: number, gap: boolean | number): Promis
     const rand = rng(seed + 1);
     const report: Report = { checked: 0, leaks: 0, sightChecked: 0, sightLeaks: 0, litInside: 0 };
     for (const room of fuzzRooms(seed, trials, gap)) {
-      const walls = weldWalls(room.walls, weldTolerance(2));
-      const roomWalls = walls.slice(0, room.roomWallCount);
-      const outline: P[] = roomWalls.map((w) => [w.p1.x, w.p1.y]);
+      const walls = sealWalls(room.walls, sealTolerance(2));
+      const outline = roomOutline(room);
       if (!insidePolygon(room.light, outline)) continue;
-      const distToRoom = (p: P): number => Math.min(...roomWalls.map((w) => distToSeg(p[0], p[1], segOf(w))));
       const dim = 150 + rand() * 500;
       const light = { key: 'l', x: room.light[0], y: room.light[1], bright: dim / 2, dim, flame: 2 + rand() * 90, color: [1, 1, 1] as const, intensity: 1, animation: 'none' as const };
       const scale = 0.2 + rand() * 2;
@@ -78,7 +75,7 @@ async function fuzz(seed: number, trials: number, gap: boolean | number): Promis
           if (p[0] < 0 || p[1] < 0 || p[0] > 2048 || p[1] > 2048) continue;
           const o = (sy * SIZE + sx) * 4;
           const inside = insidePolygon(p, outline);
-          const d = distToRoom(p);
+          const d = distToOutline(p, outline);
           if (inside && lit[o]! > 0) report.litInside++;
           if (!inside && d > 0.01) {
             report.checked++;

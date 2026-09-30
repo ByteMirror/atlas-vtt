@@ -3,7 +3,8 @@ import type { Viewport } from 'pixi-viewport';
 import type { ViewAtlasState, ViewAtlasStore } from '../../storeFactory';
 import type { MeasurementSettings } from '../../grid/measurementFormat';
 import { unitScaleOf } from '../../lighting/lightingUnits';
-import { weldedWalls } from '../../lighting/weldWalls';
+import { sealedWalls } from '../../lighting/sealWalls';
+import { worldTexel } from '../../lighting/lightingConstants';
 import { SEES_ALL, SightCache, computeSight, sightSources, type LightReach, type Sight } from '../../vision/sight';
 import { wallList } from '../../vision/wallList';
 import type { MapBounds } from '../../vision/visibility';
@@ -59,7 +60,7 @@ export class CanvasLightingFallback implements SceneLightingView {
       return;
     }
     const scale = unitScaleOf(this.deps.measurement(), state.grid);
-    this.sight = computeSight(sightSources(state.objects.tokens, scale, bounds), weldedWalls(wallList(state.objects.walls)), this.cache);
+    this.sight = computeSight(sightSources(state.objects.tokens, scale, bounds), sealedWalls(wallList(state.objects.walls), worldTexel(bounds)), this.cache);
     const g = this.darkness;
     g.clear();
     if (this.sight.all) return;

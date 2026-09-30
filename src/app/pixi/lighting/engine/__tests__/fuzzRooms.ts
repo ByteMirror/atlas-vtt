@@ -1,4 +1,5 @@
 import type { WallSegment } from '../../../../types/wallTypes';
+import { distToSeg } from '../../../../lighting/segments';
 
 export type P = [number, number];
 
@@ -18,6 +19,24 @@ export function insidePolygon(p: P, polygon: readonly P[]): boolean {
     if ((yi > p[1]) !== (yj > p[1]) && p[0] < ((xj - xi) * (p[1] - yi)) / (yj - yi) + xi) c = !c;
   }
   return c;
+}
+
+/**
+ * The closed boundary of a room's outline walls: each wall from end to end, joined to the next
+ * by the bridge sealing closes hand-drawn joints with (the room walls are never moved).
+ */
+export function roomOutline(room: FuzzRoom): P[] {
+  return room.walls.slice(0, room.roomWallCount).flatMap((w): P[] => [[w.p1.x, w.p1.y], [w.p2.x, w.p2.y]]);
+}
+
+/** Distance from `p` to the nearest edge of a closed polygon. */
+export function distToOutline(p: P, outline: readonly P[]): number {
+  let best = Infinity;
+  for (let i = 0; i < outline.length; i++) {
+    const a = outline[i]!, b = outline[(i + 1) % outline.length]!;
+    best = Math.min(best, distToSeg(p[0], p[1], [a[0], a[1], b[0], b[1]]));
+  }
+  return best;
 }
 
 export interface FuzzRoom {

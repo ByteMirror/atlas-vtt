@@ -3,12 +3,12 @@ import { describe, expect, it } from 'vitest';
 import { CapsuleField } from '../CapsuleField';
 import { TileTracer } from '../TileTracer';
 import { TileCache, type Tile } from '../TileCache';
-import { weldWalls } from '../../../../lighting/weldWalls';
-import { splitBlocking, distToSeg, segOf } from '../../../../lighting/segments';
-import { wallRadius, weldTolerance } from '../../../../lighting/lightingConstants';
+import { sealWalls } from '../../../../lighting/sealWalls';
+import { splitBlocking } from '../../../../lighting/segments';
+import { sealTolerance, wallRadius } from '../../../../lighting/lightingConstants';
 import { placeLight } from '../../../../lighting/lightPlacement';
 import { createTestRenderer, readUnorm } from './gpuTestUtils';
-import { fuzzRooms, insidePolygon, type P } from './fuzzRooms';
+import { distToOutline, fuzzRooms, insidePolygon, roomOutline, type P } from './fuzzRooms';
 import type { EngineLight } from '../types';
 
 const TEXEL = 2;
@@ -25,8 +25,8 @@ async function litOutside(gap: boolean, count: number): Promise<LitCount> {
   const result: LitCount = { rooms: 0, outside: 0, litOutside: 0, litInside: 0 };
   try {
     for (const room of fuzzRooms(17, count, gap)) {
-      const walls = weldWalls(room.walls, weldTolerance(TEXEL));
-      const outline: P[] = walls.slice(0, room.roomWallCount).map((w) => [w.p1.x, w.p1.y]);
+      const walls = sealWalls(room.walls, sealTolerance(TEXEL));
+      const outline = roomOutline(room);
       if (!insidePolygon(room.light, outline)) continue;
       const { twoWay } = splitBlocking(walls);
       const placed = placeLight(room.light[0], room.light[1], 40, twoWay, TEXEL);
@@ -45,7 +45,7 @@ async function litOutside(gap: boolean, count: number): Promise<LitCount> {
         for (let j = 0; j < tile.source.pixelHeight; j += 2) {
           for (let i = 0; i < w; i += 2) {
             const p: P = [x0 + (i + 0.5) * TEXEL, y0 + (j + 0.5) * TEXEL];
-            const past = !insidePolygon(p, outline) && walls.slice(0, room.roomWallCount).every((wall) => distToSeg(p[0], p[1], segOf(wall)) > 0.01);
+            const past = !insidePolygon(p, outline) && distToOutline(p, outline) > 0.01;
             const lit = texels[(j * w + i) * 4]! > 0;
             if (past) {
               result.outside++;

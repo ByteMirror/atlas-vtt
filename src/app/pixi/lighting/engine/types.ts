@@ -23,7 +23,7 @@ export interface EngineScene {
   bounds: MapBounds;
   /** The map image; bounce reads its colours (mid grey without one). */
   albedo: Texture | null;
-  /** Welded walls. */
+  /** Sealed walls: the drawn walls followed by the bridges that close their joints (`sealedWalls`). */
   walls: readonly WallSegment[];
   lights: readonly EngineLight[];
   sight: Sight;

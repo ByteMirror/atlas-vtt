@@ -57,13 +57,8 @@ describe('bounceFrame', () => {
     expect(bounce.color).toEqual(frame.color);
     expect(bounce.bright).toBe(0);
     expect(bounce.dim).toBeGreaterThan(frame.dim);
-    expect(bounce.sourceRadius).toBeGreaterThan(frame.sourceRadius * 5);
+    expect(bounce.sourceRadius).toBeGreaterThan(frame.sourceRadius * 3);
     expect(bounce.intensity).toBeLessThan(frame.intensity * 0.35);
     expect(bounce.intensity).toBeGreaterThan(0);
-  });
-
-  it('keeps the area light clear of the nearest wall', () => {
-    expect(bounceFrame(frame, 40).sourceRadius).toBeLessThanOrEqual(40 * 0.8);
-    expect(bounceFrame(frame, 1e6).sourceRadius).toBeCloseTo(bounceFrame(frame).sourceRadius);
   });
 });

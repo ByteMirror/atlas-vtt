@@ -26,7 +26,7 @@ export function activeLights(lights: Record<string, LightSource>, tokens: Record
 }
 
 /** Smallest flame, as a share of the dim radius, so shadow edges never look cut out. */
-export const MIN_SOFTNESS = 0.05;
+export const MIN_SOFTNESS = 0.08;
 
 export function lightFrame(light: ActiveLight, scale: UnitScale, flicker: FlickerSample = STEADY): LightFrame {
   const { emission } = light;
@@ -51,11 +51,10 @@ export const BOUNCE_REACH = 1.4;
 /**
  * Light that bounced off floors and walls, drawn as a faint, very large area light at the
  * same point: its shadows wrap softly around door frames and pillars, but long walls still
- * hide it, so beams through doorways fade out instead of cutting to black. `clearance` is the
- * distance to the nearest wall.
+ * hide it, so beams through doorways fade out instead of cutting to black.
  */
-export function bounceFrame(frame: LightFrame, clearance = Infinity): LightFrame {
-  // The area light stays clear of the nearest wall; a source crossing a wall would shine past it.
-  const sourceRadius = Math.max(frame.sourceRadius, Math.min(frame.dim * 0.3, clearance * 0.8));
+export function bounceFrame(frame: LightFrame): LightFrame {
+  // The shadow shader keeps this large source from reaching past any wall.
+  const sourceRadius = Math.max(frame.sourceRadius, frame.dim * 0.3);
   return { ...frame, bright: 0, dim: frame.dim * BOUNCE_REACH, sourceRadius, intensity: frame.intensity * 0.3 };
 }

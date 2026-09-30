@@ -1,4 +1,4 @@
-import { Buffer, BufferUsage, Container, Geometry, Mesh, type Filter, type Shader } from 'pixi.js';
+import { Buffer, BufferUsage, Container, Geometry, Mesh, Point, type Matrix, type Shader } from 'pixi.js';
 import type { WallSegment } from '../../types/wallTypes';
 import { destroyTree } from '../utils/destroyTree';
 import { buildShadowQuads } from './shadowGeometry';
@@ -9,6 +9,7 @@ import {
   createLightUniforms,
   createShadowShader,
   type LightFrame,
+  type LightLayerFilter,
   type LightUniforms,
 } from './lightShaders';
 
@@ -30,7 +31,8 @@ export class LightLayer {
    * vertex bounds, so the quad must hold its real extent, not one the shader scales out. */
   private readonly quad = new Float32Array(8);
   private readonly quadBuffer = new Buffer({ data: this.quad, usage: BufferUsage.VERTEX | BufferUsage.COPY_DST });
-  private readonly filter: Filter = createLightLayerFilter();
+  private readonly layerFilter: LightLayerFilter = createLightLayerFilter();
+  private readonly centre = new Point();
   private shadowGeometry: Geometry | null = null;
   private shadowMesh: Mesh<Geometry, Shader> | null = null;
 
@@ -44,13 +46,20 @@ export class LightLayer {
     const lightMesh = new Mesh({ geometry: this.lightGeometry, shader: this.lightShader });
     lightMesh.blendMode = 'add';
     this.view.addChild(lightMesh);
-    this.view.filters = [this.filter];
+    this.view.filters = [this.layerFilter.filter];
     this.view.eventMode = 'none';
+  }
+
+  /** Shadow edges blur `pixels` wide on screen, across the light's rays; `worldToScreen` is the camera of the frame being rendered. */
+  setEdge(pixels: number, worldToScreen: Matrix): void {
+    const light = worldToScreen.apply(this.centre);
+    this.layerFilter.setEdge(pixels, light.x, light.y);
   }
 
   /** Moves and restyles the light; `casters` rebuilds its shadows, null keeps them. */
   update(frame: LightFrame, casters: readonly WallSegment[] | null): void {
     this.uniforms.set(frame);
+    this.centre.set(frame.x, frame.y);
     const reach = frame.dim * LIGHT_EDGE;
     const [left, top, right, bottom] = [frame.x - reach, frame.y - reach, frame.x + reach, frame.y + reach];
     this.quad.set([left, top, right, top, left, bottom, right, bottom]);
@@ -93,6 +102,6 @@ export class LightLayer {
     this.lightGeometry.destroy(true);
     this.lightShader.destroy();
     this.shadowShader.destroy();
-    this.filter.destroy();
+    this.layerFilter.filter.destroy();
   }
 }

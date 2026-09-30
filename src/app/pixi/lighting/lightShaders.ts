@@ -144,22 +144,51 @@ void main() {
   vec2 perp = vec2(-dir.y, dir.x);
   float sa = project1d(a, dir, perp, dist);
   float sb = project1d(b, dir, perp, dist);
-  float r = max(uLight.w, 0.5);
+  // A flame reaching past this wall would light what lies behind it.
+  vec2 ab = b - a;
+  vec2 nearest = a + ab * clamp(dot(uLight.xy - a, ab) / max(dot(ab, ab), 0.0001), 0.0, 1.0);
+  float r = clamp(uLight.w, 0.5, max(length(uLight.xy - nearest) * 0.95, 0.5));
   float occlusion = discShare(max(sa, sb) / r) - discShare(min(sa, sb) / r);
   gl_FragColor = vec4(0.0, 0.0, 0.0, occlusion);
 }`;
 
 // A light's own layer holds its colour in rgb and the summed occlusion of its walls in
 // alpha; this pass hands the shaded light to the lighting layer, adding it to the rest.
+// The walls' summed occlusion is blurred over uEdgeSoftness screen pixels before it hides the
+// light, so every border between light and shadow gets a soft, even edge, also right at a door
+// frame where the physical penumbra is still thin. The blur runs across the light's rays only:
+// shadow edges run along the rays and soften, while a wall facing the light runs across them,
+// so no light is blurred through it. Blurring the sum (not each wall) keeps joints tight.
 const layerFragment = `
 in vec2 vTextureCoord;
 out vec4 finalColor;
 uniform sampler2D uTexture;
+uniform vec4 uInputSize;
+uniform vec4 uInputClamp;
+uniform vec4 uOutputFrame;
+uniform float uEdgeSoftness;
+uniform vec2 uLightScreen;
+
+float occlusionAt(vec2 uv) {
+  return clamp(texture(uTexture, clamp(uv, uInputClamp.xy, uInputClamp.zw)).a, 0.0, 1.0);
+}
 
 void main() {
   vec4 layer = texture(uTexture, vTextureCoord);
+  vec2 screen = vTextureCoord * uInputSize.xy + uOutputFrame.xy;
+  vec2 ray = screen - uLightScreen;
+  vec2 across = length(ray) > 0.5 ? vec2(-ray.y, ray.x) / length(ray) : vec2(0.0);
+  vec2 step = across * uEdgeSoftness / uInputSize.xy;
+  // Nine taps with gaussian-like weights from -1 to 1 across the ray.
+  float occlusion = occlusionAt(vTextureCoord) * 0.2;
+  for (int i = 1; i <= 4; i++) {
+    float t = float(i) / 4.0;
+    float weight = exp(-t * t * 2.5) * 0.16;
+    occlusion += (occlusionAt(vTextureCoord + step * t) + occlusionAt(vTextureCoord - step * t)) * weight;
+  }
+  occlusion /= 0.2 + 0.32 * (exp(-0.15625) + exp(-0.625) + exp(-1.40625) + exp(-2.5));
   // Occlusion hides a share of linear light; the layer holds perceptual light.
-  finalColor = vec4(layer.rgb * pow(1.0 - clamp(layer.a, 0.0, 1.0), 1.0 / 2.2), 0.0);
+  finalColor = vec4(layer.rgb * pow(1.0 - occlusion, 1.0 / 2.2), 0.0);
 }`;
 
 export function createLightUniforms(): LightUniforms {
@@ -191,12 +220,29 @@ export function createShadowShader(uniforms: LightUniforms): Shader {
   return Shader.from({ gl: { vertex: shadowVertex, fragment: shadowFragment, name: 'atlas-light-shadow', preferredFragmentPrecision: 'highp' }, resources: { lightUniforms: uniforms.group } });
 }
 
-export function createLightLayerFilter(): Filter {
+export interface LightLayerFilter {
+  filter: Filter;
+  /** How far shadow edges blur, in screen pixels, and where the light is on screen, at the zoom of the frame being rendered. */
+  setEdge(pixels: number, lightX: number, lightY: number): void;
+}
+
+export function createLightLayerFilter(): LightLayerFilter {
+  const group = new UniformGroup({
+    uEdgeSoftness: { value: 0, type: 'f32' },
+    uLightScreen: { value: new Float32Array(2), type: 'vec2<f32>' },
+  });
   const filter = new Filter({
     glProgram: GlProgram.from({ vertex: defaultFilterVert, fragment: layerFragment, name: 'atlas-light-layer', preferredFragmentPrecision: 'highp' }),
-    resources: {},
+    resources: { layerUniforms: group },
     resolution: 'inherit',
   });
   filter.blendMode = 'add';
-  return filter;
+  return {
+    filter,
+    setEdge(pixels, lightX, lightY): void {
+      group.uniforms.uEdgeSoftness = pixels;
+      group.uniforms.uLightScreen.set([lightX, lightY]);
+      group.update();
+    },
+  };
 }

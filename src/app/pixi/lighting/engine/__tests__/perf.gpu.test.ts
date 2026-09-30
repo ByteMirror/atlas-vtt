@@ -1,5 +1,5 @@
 /// <reference types="vite/client" />
-import type { Renderer } from 'pixi.js';
+import type { Renderer, WebGLRenderer } from 'pixi.js';
 import { describe, expect, it } from 'vitest';
 import { LightingEngine } from '../LightingEngine';
 import { SEES_ALL } from '../../../../vision/sight';
@@ -9,27 +9,48 @@ import { createTestRenderer } from './gpuTestUtils';
 import { rng } from './fuzzRooms';
 
 const SAMPLES = 5;
-const STRICT = Boolean(import.meta.env.VITE_PERF_STRICT);
+/** Attempts per sample; an attempt whose timing the GPU reports as disjoint is discarded. */
+const MAX_ATTEMPTS = 5;
+const STRICT = import.meta.env.VITE_PERF_STRICT === '1';
 
 interface TimerExt { TIME_ELAPSED_EXT: number; GPU_DISJOINT_EXT: number }
 
+interface Sample {
+  all: number;
+  bounce: number;
+  moved: number;
+}
+
 /**
- * GPU time of `fn` from a timer query (CPU time around readPixels does not wait for the GPU),
- * sampled again while the GPU reports a disjoint event. NaN without the extension.
+ * GPU time of `fn` from a timer query (CPU time around readPixels does not wait for the GPU);
+ * null when the GPU reported a disjoint event, which voids the measurement.
  */
-async function gpuMs(gl: WebGL2RenderingContext, fn: () => void): Promise<number> {
-  const ext = gl.getExtension('EXT_disjoint_timer_query_webgl2') as TimerExt | null;
-  if (!ext) return NaN;
-  for (;;) {
-    gl.getParameter(ext.GPU_DISJOINT_EXT);
-    const query = gl.createQuery()!;
-    gl.beginQuery(ext.TIME_ELAPSED_EXT, query);
-    fn();
-    gl.endQuery(ext.TIME_ELAPSED_EXT);
-    while (!gl.getQueryParameter(query, gl.QUERY_RESULT_AVAILABLE)) await new Promise((r) => setTimeout(r, 5));
-    const ns = gl.getQueryParameter(query, gl.QUERY_RESULT) as number;
-    gl.deleteQuery(query);
-    if (!gl.getParameter(ext.GPU_DISJOINT_EXT)) return ns / 1e6;
+async function gpuMs(gl: WebGL2RenderingContext, ext: TimerExt, fn: () => void): Promise<number | null> {
+  gl.getParameter(ext.GPU_DISJOINT_EXT);
+  const query = gl.createQuery()!;
+  gl.beginQuery(ext.TIME_ELAPSED_EXT, query);
+  fn();
+  gl.endQuery(ext.TIME_ELAPSED_EXT);
+  while (!gl.getQueryParameter(query, gl.QUERY_RESULT_AVAILABLE)) await new Promise((r) => setTimeout(r, 5));
+  const ns = gl.getQueryParameter(query, gl.QUERY_RESULT) as number;
+  gl.deleteQuery(query);
+  return gl.getParameter(ext.GPU_DISJOINT_EXT) ? null : ns / 1e6;
+}
+
+/**
+ * A fresh engine's first build, bounce and one moved light. Null if any timing was disjoint:
+ * re-running a step on the state it already applied would measure a no-op.
+ */
+async function sample(renderer: WebGLRenderer, ext: TimerExt, scene: EngineScene): Promise<Sample | null> {
+  const engine = new LightingEngine(renderer);
+  try {
+    engine.setEnabled(true);
+    const all = await gpuMs(renderer.gl, ext, () => engine.update(scene));
+    const bounce = await gpuMs(renderer.gl, ext, () => engine.flush());
+    const moved = await gpuMs(renderer.gl, ext, () => engine.update(withMovedLight(scene, 10)));
+    return all === null || bounce === null || moved === null ? null : { all, bounce, moved };
+  } finally {
+    engine.destroy();
   }
 }
 
@@ -68,30 +89,29 @@ async function gpuName(renderer: Renderer & { gl: WebGL2RenderingContext }): Pro
 describe('lighting performance', () => {
   it('measures 1,000 walls and 40 lights (budgets asserted with VITE_PERF_STRICT)', async (ctx) => {
     const renderer = await createTestRenderer(1440);
-    const engines: LightingEngine[] = [];
     try {
       const gpu = await gpuName(renderer);
+      const ext = renderer.gl.getExtension('EXT_disjoint_timer_query_webgl2') as TimerExt | null;
+      if (!ext || gpu.includes('SwiftShader')) ctx.skip('no GPU timer, or software rendering');
       const scene = randomScene(3);
-      const all: number[] = [], bounce: number[] = [], moved: number[] = [];
+      const samples: Sample[] = [];
       for (let i = 0; i < SAMPLES; i++) {
-        const engine = new LightingEngine(renderer);
-        engines.push(engine);
-        engine.setEnabled(true);
-        all.push(await gpuMs(renderer.gl, () => engine.update(scene)));
-        bounce.push(await gpuMs(renderer.gl, () => engine.flush()));
-        moved.push(await gpuMs(renderer.gl, () => engine.update(withMovedLight(scene, 10))));
-        engine.destroy();
-        engines.pop();
+        for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+          const taken = await sample(renderer, ext!, scene);
+          if (!taken) continue;
+          samples.push(taken);
+          break;
+        }
       }
-      const figures = { gpu, samples: SAMPLES, all: median(all), bounce: median(bounce), moved: median(moved) };
+      if (samples.length === 0) ctx.skip('every GPU timing was disjoint');
+      const pick = (key: keyof Sample): number => median(samples.map((taken) => taken[key]));
+      const figures = { gpu, samples: samples.length, all: pick('all'), bounce: pick('bounce'), moved: pick('moved') };
       console.info(`lighting perf: ${JSON.stringify(figures)}`);
-      if (gpu.includes('SwiftShader') || Number.isNaN(figures.all)) ctx.skip('no GPU timer, or software rendering');
       if (STRICT) {
         expect(figures.moved).toBeLessThan(3);
         expect(figures.bounce).toBeLessThan(10);
       }
     } finally {
-      for (const engine of engines) engine.destroy();
       renderer.destroy();
     }
   });

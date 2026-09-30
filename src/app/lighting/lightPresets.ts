@@ -9,10 +9,10 @@ export interface LightPreset {
 
 /** Built-in lights, in feet-based game units like the D&D defaults. */
 export const LIGHT_PRESETS: Record<LightPresetId, LightPreset> = {
-  candle: { label: 'Candle', emission: { bright: 5, dim: 10, color: '#ffb347', intensity: 0.9, animation: 'candle', sourceRadius: 0.5 } },
-  torch: { label: 'Torch', emission: { bright: 20, dim: 40, color: '#ff9a3c', intensity: 1, animation: 'torch', sourceRadius: 1 } },
-  lantern: { label: 'Lantern', emission: { bright: 30, dim: 60, color: '#ffd28a', intensity: 1, animation: 'none', sourceRadius: 1 } },
-  magical: { label: 'Magical light', emission: { bright: 15, dim: 30, color: '#8fb8ff', intensity: 1, animation: 'magic', sourceRadius: 1.5 } },
+  candle: { label: 'Candle', emission: { bright: 5, dim: 10, color: '#ffb347', intensity: 0.9, animation: 'candle', sourceRadius: 1 } },
+  torch: { label: 'Torch', emission: { bright: 20, dim: 40, color: '#ff9a3c', intensity: 1, animation: 'torch', sourceRadius: 2 } },
+  lantern: { label: 'Lantern', emission: { bright: 30, dim: 60, color: '#ffd28a', intensity: 1, animation: 'none', sourceRadius: 1.5 } },
+  magical: { label: 'Magical light', emission: { bright: 15, dim: 30, color: '#8fb8ff', intensity: 1, animation: 'magic', sourceRadius: 2.5 } },
 };
 
 export const LIGHT_PRESET_IDS = Object.keys(LIGHT_PRESETS) as LightPresetId[];

@@ -55,24 +55,25 @@ void main() {
   gl_Position = project(vWorld);
 }`;
 
-// Full light inside the bright radius, a dim level that eases from 0.5 to 0.3 across the
-// dim ring (it stays readable to the edge), then a short soft fade past the dim radius.
+// Physically shaped falloff: inverse-square-like in linear light, half strength at the bright
+// radius, one continuous curve with no plateau or ring, windowed smoothly to zero just past
+// the dim radius. It is stored perceptually encoded (gamma 2.2): the layers are 8-bit, and
+// linear values would leave too few steps for the dark tail of the light, which then bands.
 const lightFragment = `
 in vec2 vWorld;
 ${LIGHT_UNIFORMS}
 
 void main() {
   float d = length(vWorld - uLight.xy) / max(uLight.z, 1.0);
-  float b = clamp(uBright / max(uLight.z, 1.0), 0.0, 0.98);
-  float brightPart = 1.0 - smoothstep(b * 0.8, min(b * 1.2, 0.99), d);
-  float dimLevel = mix(0.5, 0.3, clamp((d - b) / max(1.0 - b, 0.001), 0.0, 1.0));
-  float edge = 1.0 - smoothstep(1.0, ${LIGHT_EDGE.toFixed(2)}, d);
-  float core = 0.35 * exp(-d * d * 60.0);
-  float f = (mix(dimLevel, 1.0, brightPart) + core) * edge * uIntensity;
-  // Firelight looks whiter where it is strong and deepens in colour as it fades.
-  vec3 tint = mix(vec3(1.0), uColor, mix(0.6, 0.45, brightPart));
+  float b = clamp(uBright / max(uLight.z, 1.0), 0.05, 0.98);
+  float falloff = 1.0 / (1.0 + (d * d) / (b * b));
+  float window = 1.0 - smoothstep(0.9, ${LIGHT_EDGE.toFixed(2)}, d);
+  float core = 0.2 * exp(-d * d * 80.0);
+  float f = (falloff + core) * window * uIntensity;
+  vec3 tint = pow(mix(vec3(1.0), uColor, 0.45), vec3(2.2));
+  vec3 perceptual = pow(tint * f, vec3(1.0 / 2.2));
   float dither = (fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453) - 0.5) / 255.0;
-  gl_FragColor = vec4(max(tint * f * ${LIGHT_ENCODING.toFixed(2)} + dither, 0.0), 0.0);
+  gl_FragColor = vec4(max(perceptual * ${LIGHT_ENCODING.toFixed(2)} + dither, 0.0), 0.0);
 }`;
 
 // Each wall is a fan from its endpoints to far points pushed away from the light's
@@ -157,7 +158,8 @@ uniform sampler2D uTexture;
 
 void main() {
   vec4 layer = texture(uTexture, vTextureCoord);
-  finalColor = vec4(layer.rgb * (1.0 - clamp(layer.a, 0.0, 1.0)), 0.0);
+  // Occlusion hides a share of linear light; the layer holds perceptual light.
+  finalColor = vec4(layer.rgb * pow(1.0 - clamp(layer.a, 0.0, 1.0), 1.0 / 2.2), 0.0);
 }`;
 
 export function createLightUniforms(): LightUniforms {

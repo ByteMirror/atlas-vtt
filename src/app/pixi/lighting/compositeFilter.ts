@@ -59,8 +59,11 @@ void main() {
   vec3 memory = vec3(grey) * 0.3 * explored;
 
   vec3 player = mix(memory, visible, seen);
-  vec3 floorColor = base * 0.3;
-  vec3 gm = mix(brighter(lit, floorColor) * 0.6, brighter(visible, floorColor), seen);
+  // The GM always sees the map: a dim floor screen-blended under the light, so light fades
+  // into it smoothly instead of ending where the two are equally bright.
+  vec3 floorColor = base * 0.25;
+  vec3 gmSeen = 1.0 - (1.0 - visible) * (1.0 - floorColor);
+  vec3 gm = mix((1.0 - (1.0 - lit) * (1.0 - floorColor)) * 0.6, gmSeen, seen);
   finalColor = vec4(uMode > 0.5 ? player : gm, 1.0);
 }`;
 

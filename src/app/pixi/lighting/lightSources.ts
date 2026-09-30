@@ -47,8 +47,11 @@ export const BOUNCE_REACH = 1.25;
 /**
  * Light that bounced off floors and walls, drawn as a faint, very large area light at the
  * same point: its shadows wrap softly around door frames and pillars, but long walls still
- * hide it, so beams through doorways fade out instead of cutting to black.
+ * hide it, so beams through doorways fade out instead of cutting to black. `clearance` is the
+ * distance to the nearest wall.
  */
-export function bounceFrame(frame: LightFrame): LightFrame {
-  return { ...frame, bright: 0, dim: frame.dim * BOUNCE_REACH, sourceRadius: frame.dim * 0.3, intensity: frame.intensity * 0.22 };
+export function bounceFrame(frame: LightFrame, clearance = Infinity): LightFrame {
+  // The area light stays clear of the nearest wall; a source crossing a wall would shine past it.
+  const sourceRadius = Math.max(frame.sourceRadius, Math.min(frame.dim * 0.3, clearance * 0.8));
+  return { ...frame, bright: 0, dim: frame.dim * BOUNCE_REACH, sourceRadius, intensity: frame.intensity * 0.22 };
 }

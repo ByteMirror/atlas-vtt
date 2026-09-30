@@ -31,7 +31,7 @@ describe('lightFrame', () => {
     expect(frame.y).toBe(19);
     expect(frame.bright).toBeCloseTo(280 * 1.1);
     expect(frame.dim).toBeCloseTo(560 * 1.1);
-    expect(frame.sourceRadius).toBeCloseTo(14);
+    expect(frame.sourceRadius).toBeCloseTo(28);
     expect(frame.intensity).toBeCloseTo(0.9);
     expect(frame.color[0]).toBeCloseTo(1);
   });
@@ -55,5 +55,10 @@ describe('bounceFrame', () => {
     expect(bounce.sourceRadius).toBeGreaterThan(frame.sourceRadius * 5);
     expect(bounce.intensity).toBeLessThan(frame.intensity * 0.35);
     expect(bounce.intensity).toBeGreaterThan(0);
+  });
+
+  it('keeps the area light clear of the nearest wall', () => {
+    expect(bounceFrame(frame, 40).sourceRadius).toBeLessThanOrEqual(40 * 0.8);
+    expect(bounceFrame(frame, 1e6).sourceRadius).toBeCloseTo(bounceFrame(frame).sourceRadius);
   });
 });

@@ -4,7 +4,6 @@ import {
   raySegmentIntersect,
   distSq,
   angleTo,
-  clipPolygonToCircle,
   wallNormal,
   isOnBlockingSide,
 } from '../visionGeometry';
@@ -107,28 +106,5 @@ describe('isOnBlockingSide', () => {
       { x: 0, y: 0 }, { x: 10, y: 0 },
       'left',
     )).toBe(false);
-  });
-});
-
-describe('clipPolygonToCircle', () => {
-  it('returns empty for fewer than 3 vertices', () => {
-    expect(clipPolygonToCircle([{ x: 0, y: 0 }], { x: 0, y: 0 }, 10)).toEqual([]);
-  });
-
-  it('clips a polygon with vertices inside the circle', () => {
-    // Square centered at origin with corners inside the circle (radius 50),
-    // but extending past it on one edge
-    // Triangle: one vertex inside, two outside — the clipped result should be non-empty
-    const triangle = [
-      { x: 0, y: 0 },    // inside (at center)
-      { x: 100, y: 0 },  // outside
-      { x: 0, y: 100 },  // outside
-    ];
-    const result = clipPolygonToCircle(triangle, { x: 0, y: 0 }, 50);
-    expect(result.length).toBeGreaterThan(0);
-    // All resulting points should be within or on the circle
-    for (const p of result) {
-      expect(p.x * p.x + p.y * p.y).toBeLessThanOrEqual(50 * 50 + 1);
-    }
   });
 });

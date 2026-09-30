@@ -6,7 +6,7 @@ import type { EngineLight } from '../types';
 import { sealWalls } from '../../../../lighting/sealWalls';
 import { placeLight } from '../../../../lighting/lightPlacement';
 import { allSegments, splitBlocking } from '../../../../lighting/segments';
-import { LIGHT_REACH, sealTolerance, wallCore, worldTexel } from '../../../../lighting/lightingConstants';
+import { LIGHT_REACH, sealTolerance, worldTexel } from '../../../../lighting/lightingConstants';
 import { SEES_ALL, computeSight } from '../../../../vision/sight';
 import type { MapBounds } from '../../../../vision/visibility';
 import { createTestRenderer, readRgba } from './gpuTestUtils';
@@ -41,8 +41,8 @@ interface FuzzOptions {
 /**
  * Renders every room through the real engine at a random camera and counts pixels past the
  * room's walls (as drawn, joined by their bridges) that are not black: light (direct + bounce,
- * player mode, everything seen, no ambient) and sight (ambient 1, a token at each light; a
- * wall's core, `wallCore`, may show up to 1.5 screen px past its centre line).
+ * player mode, everything seen, no ambient) and sight (ambient 1, a token at each light; sight
+ * stops at the centre line, so only filtering may show past it: 1.5 screen px).
  */
 async function fuzz({ seed, trials, gap = false, bounds = { width: 2048, height: 2048 } }: FuzzOptions): Promise<Report> {
   const renderer = await createTestRenderer(SIZE);
@@ -101,7 +101,7 @@ async function fuzz({ seed, trials, gap = false, bounds = { width: 2048, height:
             report.checked++;
             if (lit[o]! + lit[o + 1]! + lit[o + 2]! > 0) report.leaks++;
           }
-          if (!inside && d > wallCore(texel) + 1.5 / scale) {
+          if (!inside && d > 1.5 / scale + 0.01) {
             report.sightChecked++;
             if (seen[o]! + seen[o + 1]! + seen[o + 2]! > 0) report.sightLeaks++;
           }

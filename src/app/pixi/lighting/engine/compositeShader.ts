@@ -5,8 +5,8 @@ import { WALL_PUSH_GLSL } from './wallPushGlsl';
 /**
  * The lighting layer's final pass. uTexture is the layer itself (red = in sight, green =
  * darkvision); uBackTexture the scene beneath (map and tokens, sRGB). World textures are read
- * through uScreenToWorld (uWorldToScreen back), so every render (GM or player camera) lights
- * its own view; uPixelWorld is the size of a screen pixel in world pixels.
+ * through uScreenToWorld, so every render (GM or player camera) lights its own view;
+ * uPixelWorld is the size of a screen pixel in world pixels.
  * uAreaOrigin is where the filter's area starts on screen (PIXI's uOutputFrame holds it only
  * for the last filter of a chain; `AreaAwareFilter` computes it for any position in one).
  */
@@ -21,11 +21,10 @@ uniform sampler2D uLightMap;
 uniform sampler2D uExplored;
 uniform vec2 uAreaOrigin;
 uniform mat3 uScreenToWorld;
-uniform mat3 uWorldToScreen;
 uniform float uPixelWorld;
 uniform float uCore;
 uniform float uBand;
-uniform float uReveal;
+uniform float uTexel;
 uniform vec2 uLightWorld;
 uniform vec2 uMapSize;
 uniform vec3 uAmbient;
@@ -59,15 +58,6 @@ vec3 neutral(vec3 color) {
   return mix(color, vec3(newPeak), g);
 }
 
-// Sight of the screen pixel holding world point q (0 outside this render). Read at that pixel's
-// centre, within 0.71 px of q, so a q that far from every wall reads its own side.
-float sightAt(vec2 q) {
-  vec2 uv = ((uWorldToScreen * vec3(q, 1.0)).xy - uAreaOrigin) / uInputSize.xy;
-  uv = (floor(uv * uInputSize.xy) + 0.5) / uInputSize.xy;
-  if (any(lessThan(uv, uInputClamp.xy)) || any(greaterThan(uv, uInputClamp.zw))) return 0.0;
-  return texture(uTexture, uv).r;
-}
-
 // Explored memory is stamped with hard-edged polygons: blur it over a disc of two memory texels,
 // shrunk to the pixel's wall clearance so memory never smears across a wall. 12 Vogel taps,
 // Gaussian in distance.
@@ -97,26 +87,20 @@ void main() {
   vec2 world = (uScreenToWorld * vec3(screen, 1.0)).xy;
   vec3 albedo = toLinear(texture(uBackTexture, vTextureCoord).rgb);
   vec3 direct = texture(uLightMap, world / uLightWorld).rgb;
-  vec4 sight = texture(uTexture, vTextureCoord);
-  float seen = sight.r;
-  // Sight stops at a wall's centre line and tiles fade out before the wall. Beyond its core, a
-  // wall's face takes the light (direct and bounce) of the floor in front of it, at uBand, and
-  // the sight a little further out, both on its own side: the far side is never lit or revealed.
+  vec3 bounce = bounceAt(world);
+  // Tiles end at the capsule: from its core to the band a wall's face takes the light (direct
+  // and bounce alike) of the floor in front of it, on its own side, then blends back to its own
+  // over a texel, where its own is fully lit (blending earlier left a dark line along walls).
   float d = wallDistance(world);
-  float face = clamp((d - uCore) / uPixelWorld + 0.5, 0.0, 1.0);
-  vec2 lightAt = world;
-  if (face > 0.0 && d < uBand + uReveal) {
-    vec2 n = wallNormal(world);
-    float s = pushFromWall(world, n, uBand + uReveal - d, 0.71 * uPixelWorld + 0.01);
-    if (d < uBand) {
-      vec2 front = world + n * min(s, uBand - d);
-      direct = mix(direct, max(direct, texture(uLightMap, front / uLightWorld).rgb), face);
-      if (face >= 0.5) lightAt = front;
-    }
-    seen = mix(seen, max(seen, sightAt(world + n * s)), face);
+  float front = clamp((d - uCore) / uPixelWorld + 0.5, 0.0, 1.0) * (1.0 - smoothstep(uBand, uBand + uTexel, d));
+  if (front > 0.0) {
+    vec2 floorAt = climbFromWall(world, uBand);
+    direct = mix(direct, texture(uLightMap, floorAt / uLightWorld).rgb, front);
+    bounce = mix(bounce, bounceAt(floorAt), front);
   }
-  seen = max(uAllSeen, seen);
-  vec3 light = uAmbient + (direct + bounceAt(lightAt) * uBounceGain) * uExposure;
+  vec4 sight = texture(uTexture, vTextureCoord);
+  float seen = max(uAllSeen, sight.r);
+  vec3 light = uAmbient + (direct + bounce * uBounceGain) * uExposure;
   vec3 lit = neutral(albedo * light);
   float night = (1.0 - smoothstep(0.03, 0.35, dot(light, LUMA))) * uPurkinje;
   lit = mix(lit, vec3(dot(lit, LUMA)) * vec3(0.86, 0.96, 1.18), night);

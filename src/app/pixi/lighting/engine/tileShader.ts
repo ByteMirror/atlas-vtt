@@ -35,7 +35,7 @@ float clearance(vec2 w) {
  * straight paths that sphere tracing proved clear of every capsule. The cone test proves the
  * whole cone to the flame clear (each ball of clearance covers the widening cone up to the next
  * step); otherwise TILE_RAYS rays to equal-area strips of the flame, jittered within their strip.
- * This is the raw tile: `tileSmoothFragment` smooths it and fades it into the walls.
+ * This is the raw tile: `tileSmoothFragment` smooths it.
  */
 export const tileFragment = `${GLSL_VERSION}
 in vec2 vUv;

@@ -17,13 +17,12 @@ function smoothTaps(): string {
 }
 
 /**
- * Smooths a raw tile (`uRaw`, same texel grid, the tile's `uTexels` in its corner) and fades it
- * into the walls. Each texel becomes a Gaussian-weighted average of the texels closer than its
- * clearance (and than `TILE_SMOOTH` texels): that disc holds no wall, so every texel read lies
- * in the same free region as this one and light spreads within free space, never across a wall.
- * Near walls the disc shrinks, keeping contact shadows crisp. The fade then follows the smooth
- * field rather than stopping at the binary hit, so capsule edges never show as texel steps;
- * texels without clearance stay exactly 0.
+ * Smooths a raw tile (`uRaw`, same texel grid, the tile's `uTexels` in its corner). Each texel
+ * becomes a Gaussian-weighted average of the texels closer than its clearance (and than
+ * `TILE_SMOOTH` texels): that disc holds no wall, so every texel read lies in the same free
+ * region as this one and light spreads within free space, never across a wall. Near walls the
+ * disc shrinks, keeping contact shadows crisp; texels without clearance read no neighbours and
+ * stay exactly 0, as the trace left them. The composite lights the capsule's edge (`wallPushGlsl`).
  */
 export const tileSmoothFragment = `${GLSL_VERSION}
 in vec2 vUv;
@@ -55,5 +54,5 @@ void main() {
   sum = texelFetch(uRaw, here, 0).r;
   weights = 1.0;
 ${smoothTaps()}
-  finalColor = vec4(sum / weights * smoothstep(0.0, uTexel * 2.0, c), 0.0, 0.0, 1.0);
+  finalColor = vec4(sum / weights, 0.0, 0.0, 1.0);
 }`;

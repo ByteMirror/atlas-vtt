@@ -24,11 +24,6 @@ export const EXPOSURE = 0.9;
 export const TINT_TO_WHITE = 0.5;
 /** Smallest flame, as a share of the dim radius, so shadow edges never look cut out. */
 export const MIN_SOFTNESS = 0.12;
-/**
- * Near a wall, sight is read this far beyond the wall's lit band (`wallBand`) on the pixel's own
- * side, in world pixels, so the face of a wall shows wherever the floor in front of it is seen.
- */
-export const REVEAL = 8;
 /** Strength of the cool grey shift where light is low. */
 export const PURKINJE = 0.55;
 
@@ -71,24 +66,24 @@ export function fieldMargin(texel: number): number {
 }
 
 /**
- * Within this distance of a wall's centre line a pixel keeps its own light and sight: closer in,
- * the wall field's gradient may point across the line.
+ * Within this distance of a wall's centre line a pixel keeps its own light: closer in, the wall
+ * field's gradient may point across the line.
  */
 export function wallCore(texel: number): number {
   return 1.5 * texel;
 }
 
 /**
- * Distance from a wall's centre line at which the light map is fully lit again: past the tiles'
- * contact fade (two texels) and the light map's bilinear footprint (a texel diagonal).
+ * Distance from a wall's centre line at which the light map is fully lit again: past the capsule
+ * (tiles are lit wherever the trace clears it) and the light map's bilinear texel.
  */
 export function wallBand(texel: number): number {
-  return wallRadius(texel) + fieldMargin(texel) + (2 + Math.SQRT2) * texel;
+  return wallRadius(texel) + fieldMargin(texel) + texel;
 }
 
 /**
  * How far from its centre line a wall still changes a tile: smoothing reads a texel's clearance
- * up to `TILE_SMOOTH` texels (the contact fade only two), plus a texel for the bilinear field.
+ * up to `TILE_SMOOTH` texels, plus a texel for the bilinear field.
  */
 export function tileWallReach(texel: number): number {
   return wallRadius(texel) + fieldMargin(texel) + (TILE_SMOOTH + 1) * texel;

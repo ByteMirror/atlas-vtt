@@ -1,10 +1,10 @@
 /**
- * Wall faces take light and sight from their own side. The wall field's distance grows away
- * from the nearest centre line on the pixel's side, so its gradient points to where the floor
- * in front of the wall lies. `pushFromWall` walks that way by sphere tracing the conservative
- * field, with steps shortened by `margin`: every point on the way, the end included, stays at
- * least `margin` from every centre line, so what is read there lies on the pixel's side of every
- * wall however the gradient points. Requires `fieldGlsl('uField')`.
+ * The face of a wall takes its light from the floor in front of it. Tiles end at the capsule, so
+ * a pixel on the capsule's edge climbs the wall field (`climbFromWall`) until it is a band away
+ * from every centre line: the gradient is taken anew at every step, so the path bends out of
+ * inside corners instead of sliding along one wall into another's shadow. Each step stays inside
+ * the ball the conservative field proves free of centre lines, so the end lies on the pixel's
+ * side of every wall however the gradient points. Requires `fieldGlsl('uField')`.
  */
 export const WALL_PUSH_GLSL = `
 /** Distance to the nearest wall centre line as the field stores it (bilinear, not conservative). */
@@ -17,14 +17,15 @@ vec2 wallNormal(vec2 w) {
   return len > 1e-4 ? g / len : vec2(0.0);
 }
 
-/** How far from w along n (up to \`want\`) the path stays at least \`margin\` from every centre line. */
-float pushFromWall(vec2 w, vec2 n, float want, float margin) {
-  float s = 0.0;
-  for (int i = 0; i < 8; i++) {
-    float step = uFieldDistance(w + n * s) - margin;
-    if (step <= 0.0) break;
-    s = min(s + step, want);
-    if (s >= want) break;
+vec2 climbFromWall(vec2 w, float band) {
+  vec2 p = w;
+  for (int i = 0; i < 6; i++) {
+    float c = uFieldDistance(p);
+    if (c >= band) break;
+    vec2 n = wallNormal(p);
+    float step = min(c - 0.01, band - c + 0.05);
+    if (step <= 0.0 || n == vec2(0.0)) break;
+    p += n * step;
   }
-  return s;
+  return p;
 }`;

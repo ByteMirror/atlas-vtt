@@ -11,7 +11,7 @@ import {
   type FilterSystem,
   type RenderSurface,
 } from 'pixi.js';
-import { BOUNCE, EXPOSURE, PURKINJE, REVEAL, wallBand, wallCore } from '../../../lighting/lightingConstants';
+import { BOUNCE, EXPOSURE, PURKINJE, wallBand, wallCore } from '../../../lighting/lightingConstants';
 import { srgbToLinear } from '../../../lighting/srgb';
 import { compositeFragment } from './compositeShader';
 import { HIGHP } from './gpu';
@@ -64,18 +64,16 @@ class AreaAwareFilter extends Filter {
 
 export function createCompositeFilter(world: LightingWorld, explored: Texture): CompositeFilter {
   const screenToWorld = new Matrix();
-  const worldToScreen = new Matrix();
   const areaOrigin = new Float32Array(2);
   const lightWorld = new Float32Array(2);
   const mapSize = new Float32Array(2);
   const ambient = new Float32Array(3);
   const group = new UniformGroup({
     uScreenToWorld: { value: screenToWorld, type: 'mat3x3<f32>' },
-    uWorldToScreen: { value: worldToScreen, type: 'mat3x3<f32>' },
     uPixelWorld: { value: 1, type: 'f32' },
     uCore: { value: 0, type: 'f32' },
     uBand: { value: 0, type: 'f32' },
-    uReveal: { value: REVEAL, type: 'f32' },
+    uTexel: { value: 1, type: 'f32' },
     uAreaOrigin: { value: areaOrigin, type: 'vec2<f32>' },
     uLightWorld: { value: lightWorld, type: 'vec2<f32>' },
     uMapSize: { value: mapSize, type: 'vec2<f32>' },
@@ -107,6 +105,7 @@ export function createCompositeFilter(world: LightingWorld, explored: Texture): 
       mapSize.set([next.bounds.width, next.bounds.height]);
       u.uCore = wallCore(next.texel);
       u.uBand = wallBand(next.texel);
+      u.uTexel = next.texel;
       Object.assign(filter.resources, { uLightMap: next.lightMap.texture.source, uFluence: next.cascades.fluence.source, ...next.fieldAll().resources() });
       group.update();
     },
@@ -128,7 +127,6 @@ export function createCompositeFilter(world: LightingWorld, explored: Texture): 
     },
     setView(matrix, zoom): void {
       screenToWorld.copyFrom(matrix);
-      worldToScreen.copyFrom(matrix).invert();
       u.uPixelWorld = 1 / zoom;
       group.update();
     },

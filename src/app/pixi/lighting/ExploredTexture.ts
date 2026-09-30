@@ -50,16 +50,25 @@ export class ExploredTexture {
     this.renderer.render({ container: new Container(), target: this.texture, clear: true, clearColor: [0, 0, 0, 0] });
   }
 
-  /** Replaces the memory with a saved image of it. */
-  async load(dataUrl: string): Promise<void> {
+  /** Decodes a saved image of the memory; the caller draws it with `draw`, or destroys it if it came too late. */
+  async decode(dataUrl: string): Promise<Texture> {
     const image = createEl('img', { attr: { src: dataUrl } });
     await image.decode();
-    const texture = Texture.from(image);
-    const sprite = new Sprite(texture);
+    return Texture.from(image);
+  }
+
+  /** Replaces the memory with a decoded image of it, which it then destroys. */
+  draw(image: Texture): void {
+    const sprite = new Sprite(image);
     sprite.width = this.texture.width;
     sprite.height = this.texture.height;
     this.renderer.render({ container: sprite, target: this.texture, clear: true, clearColor: [0, 0, 0, 0] });
     destroyTree(sprite, { textures: true });
+  }
+
+  /** Replaces the memory with a saved image of it. */
+  async load(dataUrl: string): Promise<void> {
+    this.draw(await this.decode(dataUrl));
   }
 
   /**

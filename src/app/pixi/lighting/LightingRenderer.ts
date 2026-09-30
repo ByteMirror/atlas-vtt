@@ -59,9 +59,17 @@ export class LightingRenderer implements SceneLightingView {
   private previous: Watched | null = null;
   /** The last scene without its ambient light, reused while only the ambient changes. */
   private lastScene: SceneWithoutAmbient | null = null;
-  private loadedMask: string | null = null;
-  /** While a saved mask is being loaded the texture is not the memory, so it must not be saved. */
-  private loadsInFlight = 0;
+  /** The mask the texture holds; undefined after a failed load, so that the next update retries. */
+  private loadedMask: string | null | undefined = null;
+  /** Bumped whenever the texture's content is superseded, so a load decoded too late is dropped. */
+  private loadGeneration = 0;
+  /** False while a saved mask is on its way in, or failed to load: the texture is not the memory then. */
+  private exploredReady = true;
+  private contextLost = false;
+  private readonly onContextLost = (): void => {
+    this.contextLost = true;
+    this.exploredSaver.cancel();
+  };
   private readonly exploredSaver: ExploredSaveScheduler;
   private readonly playerView = new PlayerView((active) => this.engine.setMode(active ? 'player' : 'gm'));
   private readonly unsubscribe: () => void;
@@ -71,6 +79,7 @@ export class LightingRenderer implements SceneLightingView {
     this.engine = new LightingEngine(deps.app.renderer, () => this.afterContextRestored());
     this.layer = this.engine.layer;
     this.exploredSaver = new ExploredSaveScheduler(() => deps.store.getState().mapPath, () => this.saveExplored(), EXPLORED_SAVE_DELAY);
+    deps.app.renderer.canvas.addEventListener('webglcontextlost', this.onContextLost);
     this.layer.zIndex = LIGHTING_Z_INDEX;
     this.layer.onRender = (): void => this.syncScreenTransform();
     deps.viewport.addChild(this.layer);
@@ -103,6 +112,8 @@ export class LightingRenderer implements SceneLightingView {
   resetExplored(): void {
     this.explored?.clear();
     this.loadedMask = null;
+    this.loadGeneration++;
+    this.exploredReady = true;
     this.deps.store.getState().setExploredMask(null);
     requestRender(this.deps.app);
   }
@@ -163,6 +174,8 @@ export class LightingRenderer implements SceneLightingView {
     this.explored = new ExploredTexture(this.deps.app.renderer, bounds);
     this.exploredBounds = bounds;
     this.loadedMask = null;
+    this.loadGeneration++;
+    this.exploredReady = true;
     this.engine.setExplored(this.explored.texture);
     previous?.destroy();
   }
@@ -173,28 +186,47 @@ export class LightingRenderer implements SceneLightingView {
    * saves wait for the reload (`saveExplored`), so a blank texture never replaces the saved mask.
    */
   private afterContextRestored(): void {
+    this.contextLost = false;
     this.exploredSaver.cancel();
     this.loadedMask = null;
     const state = this.deps.store.getState();
-    if (this.explored) void this.loadExplored(state.exploredMask);
+    void this.loadExplored(state.exploredMask);
     this.update(state);
   }
 
+  /**
+   * Each load supersedes the ones before it (a map switch or reset mid-decode must not draw the
+   * old scene's memory), and the texture is unsaveable until its mask is in.
+   */
   private async loadExplored(mask: string | null): Promise<void> {
+    const generation = ++this.loadGeneration;
+    const explored = this.explored;
     this.loadedMask = mask;
-    if (!this.explored) return;
-    this.loadsInFlight++;
-    try {
-      if (mask) await this.explored.load(mask);
-      else this.explored.clear();
-    } finally {
-      this.loadsInFlight--;
+    if (!explored) return;
+    if (!mask) {
+      explored.clear();
+      this.exploredReady = true;
+      requestRender(this.deps.app);
+      return;
     }
-    requestRender(this.deps.app);
+    this.exploredReady = false;
+    try {
+      const image = await explored.decode(mask);
+      if (generation !== this.loadGeneration) {
+        image.destroy(true);
+        return;
+      }
+      explored.draw(image);
+      this.exploredReady = true;
+      requestRender(this.deps.app);
+    } catch (error) {
+      if (generation === this.loadGeneration) this.loadedMask = undefined;
+      console.error('Atlas: could not load the explored areas of this scene', error);
+    }
   }
 
   private saveExplored(): void {
-    if (!this.explored || this.loadsInFlight > 0) return;
+    if (!this.explored || !this.exploredReady || this.contextLost) return;
     this.loadedMask = saveExploredMask(this.explored.toCanvas());
     this.deps.store.getState().setExploredMask(this.loadedMask);
   }
@@ -204,6 +236,8 @@ export class LightingRenderer implements SceneLightingView {
     this.exploredSaver.flush();
     this.explored?.clear();
     this.loadedMask = null;
+    this.loadGeneration++;
+    this.exploredReady = true;
     this.previous = null;
   }
 
@@ -224,6 +258,8 @@ export class LightingRenderer implements SceneLightingView {
     this.unsubscribe();
     this.deps.app.ticker.remove(this.tick);
     this.exploredSaver.cancel();
+    this.loadGeneration++;
+    this.deps.app.renderer.canvas.removeEventListener('webglcontextlost', this.onContextLost);
     this.engine.destroy();
     this.explored?.destroy();
   }

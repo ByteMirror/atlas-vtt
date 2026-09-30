@@ -41,6 +41,8 @@ ${BOUNCE_GATHER_GLSL}
 ${SRGB_GLSL}
 
 const vec3 LUMA = vec3(0.2126, 0.7152, 0.0722);
+// Share of its colour an area no token sees loses in the GM view.
+const float UNSEEN_FADE = 0.4;
 
 // Khronos PBR Neutral: colours stay as painted up to ~0.8, highlights roll off to white.
 vec3 neutral(vec3 color) {
@@ -113,9 +115,12 @@ void main() {
   float explored = uMode > 0.5 && seen < 1.0 ? exploredAt(world) : 0.0;
   vec3 player = mix(vec3(grey) * 0.07 * explored, visible, seen);
 
-  // The GM always sees the map: a dim floor screen-blended under the light, unseen areas dimmer.
+  // The GM always sees the map and every light at full strength: a dim floor screen-blended under
+  // the light. What no token sees keeps its brightness and loses part of its colour.
   vec3 floorColor = albedo * 0.05;
-  vec3 gm = mix((1.0 - (1.0 - lit) * (1.0 - floorColor)) * 0.58, 1.0 - (1.0 - visible) * (1.0 - floorColor), seen);
+  vec3 gmLit = 1.0 - (1.0 - lit) * (1.0 - floorColor);
+  vec3 unseen = mix(gmLit, vec3(dot(gmLit, LUMA)), UNSEEN_FADE);
+  vec3 gm = mix(unseen, 1.0 - (1.0 - visible) * (1.0 - floorColor), seen);
 
   vec3 color = uMode > 0.5 ? player : gm;
   float dither = (fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))) - 0.5) / 255.0;

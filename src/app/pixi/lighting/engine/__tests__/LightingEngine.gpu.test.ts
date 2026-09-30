@@ -1,11 +1,11 @@
-import { Container, Matrix, RenderTexture, Sprite, Texture, type WebGLRenderer } from 'pixi.js';
+import type { WebGLRenderer } from 'pixi.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { WallSegment } from '../../../../types/wallTypes';
 import { SEES_ALL } from '../../../../vision/sight';
 import { LightingEngine } from '../LightingEngine';
 import { LightingWorld } from '../LightingWorld';
 import type { EngineLight, EngineScene } from '../types';
-import { createTestRenderer, readRgba } from './gpuTestUtils';
+import { createTestRenderer, renderThroughEngine } from './gpuTestUtils';
 
 const SIZE = 256;
 const light: EngineLight = { key: 'l', x: 300, y: 300, bright: 60, dim: 120, flame: 10, color: [1, 0.8, 0.6], intensity: 1, animation: 'none' };
@@ -45,24 +45,10 @@ describe('LightingEngine', () => {
     return { renderer, engine };
   }
 
-  /** Renders a white map with the lighting layer on top through a camera at `scale`, offset (x, y). */
+  /** The red channel of a white map lit through a camera at `scale`, offset (x, y). */
   function render(engine: LightingEngine, renderer: WebGLRenderer, scale: number, x: number, y: number): (sx: number, sy: number) => number {
-    const stage = new Container();
-    const map = new Sprite(Texture.WHITE);
-    map.setSize(1024, 1024);
-    const world = new Container();
-    world.addChild(map, engine.layer);
-    world.scale.set(scale);
-    world.position.set(x, y);
-    stage.addChild(world);
-    engine.setView(new Matrix(scale, 0, 0, scale, x, y).invert(), scale);
-    const target = RenderTexture.create({ width: SIZE, height: SIZE });
-    renderer.render({ container: stage, target, clear: true });
-    const pixels = readRgba(renderer, target);
-    world.removeChild(engine.layer);
-    stage.destroy({ children: true });
-    target.destroy(true);
-    return (sx, sy) => pixels[(sy * SIZE + sx) * 4]!;
+    const at = renderThroughEngine(engine, renderer, { size: SIZE, scale, x, y });
+    return (sx, sy) => at(sx, sy)[0];
   }
 
   it('lights around the light, black outside its room, in player mode with everything seen', async () => {

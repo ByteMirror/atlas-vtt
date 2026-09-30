@@ -57,6 +57,38 @@ it('deletes a collection together with its assets and keeps the default one', as
   expect(await service.getAssets('Winter Camp')).toEqual([]);
 });
 
+it('deletes a collection whose files already left the disk, as after a git checkout', async () => {
+  const service = await setup();
+  const { app, files, folders } = service.vault;
+  const thumbnail = 'atlas-vtt/assets/thumbnails/goblin-1.webp';
+  const folder = 'atlas-vtt/collections/Winter Camp';
+  files.set(thumbnail, 'jpeg');
+  await service.addTokenAsset({ name: 'Goblin', imagePath: 'goblin.webp', thumbnailPath: thumbnail, collection: 'Winter Camp', tags: [] });
+  // Obsidian still lists them, but they are gone from disk, so trashing them fails
+  const trash = app.fileManager.trashFile;
+  app.fileManager.trashFile = vi.fn(async (file: { path: string }) => {
+    if (file.path !== thumbnail && file.path !== folder) return trash(file);
+    files.delete(file.path);
+    for (const path of [...folders]) if (path === folder || path.startsWith(`${folder}/`)) folders.delete(path);
+    throw new Error(`ENOENT: no such file or directory, rename '${file.path}'`);
+  });
+  const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+  await service.deleteCollection('Winter Camp');
+
+  expect((await service.getCollections()).map((c) => c.id)).toEqual(['Default']);
+  expect(await service.getAssets('Winter Camp')).toEqual([]);
+  expect(errors).not.toHaveBeenCalled();
+});
+
+it('keeps a collection whose folder could not be trashed', async () => {
+  const service = await setup();
+  const { app } = service.vault;
+  app.fileManager.trashFile = vi.fn(async () => { throw new Error('EACCES: permission denied'); });
+  await expect(service.deleteCollection('Winter Camp')).rejects.toThrow('EACCES');
+  expect(await service.getCollection('Winter Camp')).not.toBeNull();
+});
+
 it('never lets two collections share a name or a folder', async () => {
   const { app, folders } = createInMemoryApp();
   const service = AssetService.getInstance(app);

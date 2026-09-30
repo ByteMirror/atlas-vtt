@@ -44,6 +44,15 @@ describe('built-in presets', () => {
     expect(ose.rules.conditions.map((c) => c.name)).toContain('Paralysed');
   });
 
+  it('measure Cairn in 5-foot squares with its core-rule conditions', () => {
+    const cairn = BUILT_IN_SYSTEM_PRESETS.find((preset) => preset.name === 'Cairn')!;
+    const settings = resolveMeasurementSettings(cairn.rules.gridDefaults, null);
+    // A turn's 40ft of movement covers 8 squares.
+    expect(formatDistance(8, settings)).toBe('40ft');
+    expect(cairn.rules.conditions.find((c) => c.name === 'Fatigue')?.valued).toBe(true);
+    expect(cairn.rules.conditions.map((c) => c.id)).toContain('cairn-critical-damage');
+  });
+
   it('measure Pathfinder 2e in 5-foot squares with 5/10 diagonals and the Remaster conditions', () => {
     const pf2 = BUILT_IN_SYSTEM_PRESETS.find((preset) => preset.name === 'Pathfinder 2e')!;
     const settings = resolveMeasurementSettings(pf2.rules.gridDefaults, null);

@@ -1,5 +1,6 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import { AssetService } from '../../src/app/services/AssetService';
+import { AssetRegistrationUncertainError } from '../../src/app/services/assetRegistrationRecovery';
 import { THUMBNAIL_DIR } from '../../src/app/services/AssetThumbnailService';
 import { saveTokenPreviews } from '../../src/app/packages/components/asset-manager/token-creator/saveTokenPreviews';
 import type { TokenPreview } from '../../src/app/packages/components/asset-manager/token-creator/types';
@@ -10,7 +11,7 @@ const crop = vi.hoisted(() => vi.fn());
 vi.mock('../../src/app/packages/components/asset-manager/token-creator/tokenImages', () => ({ cropTokenImage: crop, optimizeUpload: vi.fn() }));
 
 const bytes = (text: string): Blob => ({ arrayBuffer: async () => new TextEncoder().encode(text).buffer } as Blob);
-const converted = (name: string): ProcessedImage => ({ image: bytes(`${name} image`), thumbnail: bytes(`${name} thumbnail`), preview: null });
+const converted = (name: string): ProcessedImage => ({ image: bytes(`${name} image`), thumbnail: bytes(`${name} thumbnail`), preview: null, sourcePreview: null });
 const preview = (id: string, patch: Partial<TokenPreview> = {}): TokenPreview => ({
   id, name: id, file: new File(['art'], `${id}.png`), previewUrl: 'blob:art', imageScale: 1, imagePosition: { x: 0, y: 0 }, isSelected: true, isOptimizing: false, ...patch,
 });
@@ -86,4 +87,40 @@ it('reports progress once per preview, counting failures too', async () => {
   });
   expect(saved).toBe(2);
   expect(progress).toEqual([[0, 3], [1, 3], [2, 3], [3, 3]]);
+});
+
+it('registers a large import with one index write per hundred previews', async () => {
+  const { app, assets } = setup();
+  const addAssets = vi.spyOn(assets, 'addAssets');
+  const saved: string[][] = [];
+  const previews = Array.from({ length: 250 }, (_, index) => preview(`token-${index}`));
+  expect(await saveTokenPreviews({
+    app, assetService: assets, mode: 'token', previews, collection: 'Default', tags: [],
+    waitForOptimized: async (id) => converted(id), onSaved: (ids) => saved.push(ids),
+  })).toBe(250);
+  expect(addAssets.mock.calls.map(([batch]) => batch.length)).toEqual([100, 100, 50]);
+  expect(saved.flat()).toEqual(previews.map(p => p.id));
+  expect(await assets.getTokenAssets()).toHaveLength(250);
+});
+
+it('saves the default crop converted in the background, and crops again once the crop was edited', async () => {
+  const { app, assets } = setup();
+  crop.mockImplementation(async (file: File) => converted(`${file.name} recropped`));
+  const waitForOptimized = vi.fn(async (id: string, kind: string) => kind === 'default-crop' ? converted(`${id} background`) : undefined);
+  const previews = [preview('goblin'), preview('wolf', { imageScale: 1.5 })];
+  await saveTokenPreviews({ app, assetService: assets, mode: 'token', previews, collection: 'Default', tags: [], waitForOptimized });
+  expect(waitForOptimized).toHaveBeenCalledWith('goblin', 'default-crop');
+  expect(crop.mock.calls.map(([file]: [File]) => file.name)).toEqual(['wolf.png']);
+});
+
+it('trashes the files of a batch the index refuses, and keeps them when the write may have landed', async () => {
+  const { app, files, assets } = setup();
+  const options = { app, assetService: assets, mode: 'token' as const, previews: [preview('goblin')], collection: 'Default', tags: [], waitForOptimized: async () => converted('goblin') };
+  vi.spyOn(assets, 'addAssets').mockRejectedValueOnce(new Error('Disk full'));
+  expect(await saveTokenPreviews(options)).toBe(0);
+  expect([...files.keys()].filter(path => path.endsWith('.webp'))).toEqual([]);
+
+  vi.spyOn(assets, 'addAssets').mockRejectedValueOnce(new AssetRegistrationUncertainError());
+  await expect(saveTokenPreviews(options)).rejects.toBeInstanceOf(AssetRegistrationUncertainError);
+  expect([...files.keys()].filter(path => path.endsWith('.webp'))).toHaveLength(2);
 });

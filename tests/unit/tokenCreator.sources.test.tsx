@@ -4,12 +4,14 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { TokenCreator } from '../../src/app/packages/components/asset-manager/TokenCreator';
 import { AtlasUIContext } from '../../src/app/react/root/AtlasUIContext';
 import { createInMemoryApp } from '../mocks/inMemoryVault';
+import { stubLayout } from '../mocks/jsdomLayout';
 const fake = vi.hoisted(() => ({ save: vi.fn(), service: {}, scan: vi.fn() }));
 vi.mock('../../src/app/packages/components/asset-manager/token-creator/useAssetCatalog', () => ({ useAssetCatalog: () => ({ assetService: fake.service, collections: [{ id: 'default', name: 'Default' }] }) }));
 vi.mock('../../src/app/packages/components/asset-manager/token-creator/useAssetTags', () => ({ useAssetTags: () => ({ tags: ['Enemy'], createTag: vi.fn(), isCreatingTag: false }) }));
 vi.mock('../../src/app/services/StatblockTokenImportService', () => ({ StatblockTokenImportService: class { scan = fake.scan; } }));
 vi.mock('../../src/app/packages/components/asset-manager/token-creator/saveTokenPreviews', () => ({ saveTokenPreviews: fake.save }));
-vi.mock('../../src/app/packages/components/asset-manager/token-creator/tokenImages', () => ({ optimizeUpload: async () => ({ image: new Blob(['art']), thumbnail: null, preview: null }) }));
+vi.mock('../../src/app/packages/components/asset-manager/token-creator/tokenImages', () => ({ convertForPreview: async () => ({ image: new Blob(['art']), thumbnail: null, preview: null, sourcePreview: null }) }));
+stubLayout({ width: 800, height: 600 });
 afterEach(cleanup);
 beforeEach(() => {
   vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} });

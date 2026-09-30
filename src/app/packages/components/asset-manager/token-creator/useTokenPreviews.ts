@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ProcessedImage } from '../../../../imageProcessing/imageProcessing';
-import { optimizeUpload } from './tokenImages';
+import { convertForPreview } from './tokenImages';
 import type { CreatorMode, EditTokenInput, PreviewImage, TokenPreview, TokenPreviewPatch } from './types';
 import { cropReset } from './cropMath';
 import { useBatchProgress } from './useBatchProgress';
 import type { ProgressCount } from '../../primitives/useLingeringTask';
+
+/** What a background conversion produced: a framed token's default crop, or the whole image. */
+export type PreviewConversionKind = 'default-crop' | 'whole';
 
 export interface TokenPreviewsApi {
   previews: TokenPreview[];
@@ -16,17 +19,26 @@ export interface TokenPreviewsApi {
   toggleTag: (tag: string) => void;
   reset: (editToken?: EditTokenInput | null) => void;
   remove: (id: string) => void;
+  /** Removes several previews in one list update, e.g. the ones a save just stored. */
+  removeMany: (ids: readonly string[]) => void;
   removeSelected: () => void;
   selectAll: () => void;
   deselectAll: () => void;
   toggleSelected: (id: string) => void;
   update: (id: string, patch: TokenPreviewPatch) => void;
   updateSelected: (patch: TokenPreviewPatch) => void;
-  /** Resolves with the converted upload once background optimization for this preview settles. */
-  waitForOptimized: (id: string) => Promise<ProcessedImage | undefined>;
+  /** The background conversion of this preview once it settles, if it produced `kind`. */
+  waitForOptimized: (id: string, kind: PreviewConversionKind) => Promise<ProcessedImage | undefined>;
   /** How far the conversion of the images added last is, or null when none runs. */
   optimization: ProgressCount | null;
 }
+
+/**
+ * Finished conversions reach the preview list at most this often. Each list
+ * update renders the grid again, so with thousands of previews one update per
+ * image made a large import crawl.
+ */
+const PATCH_FLUSH_MS = 150;
 
 function revokeIfBlob(url: string): void {
   if (url.startsWith('blob:')) URL.revokeObjectURL(url);
@@ -63,28 +75,66 @@ function previewFromEdit(token: EditTokenInput): TokenPreview {
 
 interface PendingOptimization {
   result: Promise<ProcessedImage | undefined>;
+  kind: PreviewConversionKind;
   controller: AbortController;
   settled: boolean;
 }
 
 /**
  * Owns the preview list of the token creator: file intake, background
- * optimization, selection and per-preview edits. Uploads are converted in
- * parallel by the image workers; removing a preview cancels its conversion.
- * Blob URLs are revoked when a preview is removed or on unmount.
+ * conversion, selection and per-preview edits. Uploads are converted in
+ * parallel by the image workers and their results reach the list in batches;
+ * removing a preview cancels its conversion. Blob URLs are revoked when a
+ * preview is removed or on unmount.
  */
 export function useTokenPreviews(mode: CreatorMode): TokenPreviewsApi {
   const [defaultRing, setDefaultRing] = useState(true);
   const [previews, setPreviews] = useState<TokenPreview[]>([]);
   const previewsRef = useRef(previews);
+  const liveIds = useRef(new Set<string>());
   const changePreviews = useCallback((update: (current: TokenPreview[]) => TokenPreview[]): void => {
     const next = update(previewsRef.current);
     previewsRef.current = next;
+    liveIds.current = new Set(next.map((p) => p.id));
     setPreviews(next);
   }, []);
 
   const pendingRef = useRef(new Map<string, PendingOptimization>());
-  const { progress: optimization, start: startOptimizations, finish: finishOptimization, drop: dropOptimization, clear: clearOptimizations } = useBatchProgress();
+  const { progress: optimization, start: startOptimizations, finish: finishOptimizations, drop: dropOptimization, clear: clearOptimizations } = useBatchProgress();
+
+  // Finished conversions wait here until the next flush applies them in one list update.
+  const queuedPatches = useRef(new Map<string, Partial<TokenPreview>>());
+  const queuedFinishes = useRef(0);
+  const flushTimer = useRef<number | null>(null);
+
+  const flushQueued = useCallback((): void => {
+    flushTimer.current = null;
+    const patches = queuedPatches.current;
+    const finished = queuedFinishes.current;
+    queuedPatches.current = new Map();
+    queuedFinishes.current = 0;
+    if (finished > 0) finishOptimizations(finished);
+    patches.forEach((patch, id) => { if (!liveIds.current.has(id) && patch.previewUrl) revokeIfBlob(patch.previewUrl); });
+    if (![...patches.keys()].some((id) => liveIds.current.has(id))) return;
+    changePreviews((prev) => prev.map((p) => {
+      const patch = patches.get(p.id);
+      if (!patch) return p;
+      if (patch.previewUrl) revokeIfBlob(p.previewUrl);
+      return { ...p, ...patch };
+    }));
+  }, [changePreviews, finishOptimizations]);
+
+  const scheduleFlush = useCallback((): void => {
+    flushTimer.current ??= window.setTimeout(flushQueued, PATCH_FLUSH_MS);
+  }, [flushQueued]);
+
+  const queuePatch = useCallback((id: string, patch: Partial<TokenPreview>): void => {
+    const earlier = queuedPatches.current.get(id);
+    if (earlier?.previewUrl && patch.previewUrl) revokeIfBlob(earlier.previewUrl);
+    queuedPatches.current.set(id, { ...earlier, ...patch });
+    scheduleFlush();
+  }, [scheduleFlush]);
+
   const cancelOptimization = useCallback((id: string): void => {
     const pending = pendingRef.current.get(id);
     pendingRef.current.delete(id);
@@ -95,6 +145,11 @@ export function useTokenPreviews(mode: CreatorMode): TokenPreviewsApi {
   const cancelAllOptimizations = useCallback((): void => {
     pendingRef.current.forEach(pending => pending.controller.abort());
     pendingRef.current.clear();
+    if (flushTimer.current !== null) window.clearTimeout(flushTimer.current);
+    flushTimer.current = null;
+    queuedPatches.current.forEach((patch) => { if (patch.previewUrl) revokeIfBlob(patch.previewUrl); });
+    queuedPatches.current.clear();
+    queuedFinishes.current = 0;
     clearOptimizations();
   }, [clearOptimizations]);
 
@@ -108,30 +163,27 @@ export function useTokenPreviews(mode: CreatorMode): TokenPreviewsApi {
     changePreviews((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)));
   }, [changePreviews]);
 
-  const optimizeOne = useCallback(async (preview: TokenPreview, signal: AbortSignal): Promise<ProcessedImage | undefined> => {
-    if (!preview.file) return undefined;
+  const optimizeOne = useCallback(async (preview: TokenPreview, framed: boolean, signal: AbortSignal): Promise<ProcessedImage | undefined> => {
+    const { file } = preview;
+    if (!file) return undefined;
     try {
-      // The thumbnail is only saved from this result for maps and unframed tokens; framed ones are cropped at save.
-      const thumbnail = mode === 'map' || preview.showRing === false;
-      const result = await optimizeUpload(preview.file, mode, { signal, thumbnail, background: true });
-      const stillPresent = previewsRef.current.some((p) => p.id === preview.id);
-      if (!stillPresent) return result;
-      patchPreview(preview.id, {
-        compressionRatio: Math.round((1 - result.image.size / preview.file.size) * 100),
-        previewUrl: URL.createObjectURL(result.preview ?? result.image),
-        isOptimizing: false,
-      });
+      const result = await convertForPreview(file, mode, framed, signal);
+      if (!signal.aborted && liveIds.current.has(preview.id)) {
+        queuePatch(preview.id, {
+          compressionRatio: Math.round((1 - result.image.size / file.size) * 100),
+          previewUrl: URL.createObjectURL(result.sourcePreview ?? result.preview ?? result.image),
+          isOptimizing: false,
+        });
+      }
       return result;
     } catch (error) {
       if (signal.aborted) return undefined;
       console.error(`[TokenCreator] Failed to optimize ${preview.name}:`, error);
       // Show the upload itself so the user can see which image failed.
-      if (previewsRef.current.some((p) => p.id === preview.id)) {
-        patchPreview(preview.id, { previewUrl: URL.createObjectURL(preview.file), isOptimizing: false });
-      }
+      if (liveIds.current.has(preview.id)) queuePatch(preview.id, { previewUrl: URL.createObjectURL(file), isOptimizing: false });
       return undefined;
     }
-  }, [mode, patchPreview]);
+  }, [mode, queuePatch]);
 
   const addImages = useCallback((images: PreviewImage[]): void => {
     const paths = new Set(previewsRef.current.flatMap(p => p.statblockPath ? [p.statblockPath] : []));
@@ -145,14 +197,20 @@ export function useTokenPreviews(mode: CreatorMode): TokenPreviewsApi {
     startOptimizations(fresh.length);
     for (const preview of fresh) {
       const controller = new AbortController();
-      const pending: PendingOptimization = { controller, settled: false, result: optimizeOne(preview, controller.signal) };
+      const framed = preview.showRing !== false;
+      const pending: PendingOptimization = {
+        controller, settled: false, kind: mode === 'token' && framed ? 'default-crop' : 'whole',
+        result: optimizeOne(preview, framed, controller.signal),
+      };
       void pending.result.finally(() => {
         pending.settled = true;
-        if (!controller.signal.aborted) finishOptimization();
+        if (controller.signal.aborted) return;
+        queuedFinishes.current += 1;
+        scheduleFlush();
       });
       pendingRef.current.set(preview.id, pending);
     }
-  }, [optimizeOne, defaultRing, changePreviews, startOptimizations, finishOptimization]);
+  }, [mode, optimizeOne, defaultRing, changePreviews, startOptimizations, scheduleFlush]);
 
   const reset = useCallback((editToken?: EditTokenInput | null): void => {
     previewsRef.current.forEach((p) => revokeIfBlob(p.previewUrl));
@@ -161,23 +219,20 @@ export function useTokenPreviews(mode: CreatorMode): TokenPreviewsApi {
     changePreviews(() => editToken?.imageUrl ? [previewFromEdit(editToken)] : []);
   }, [changePreviews, cancelAllOptimizations]);
 
-  const remove = useCallback((id: string): void => {
+  const removeMany = useCallback((ids: readonly string[]): void => {
+    const removed = new Set(ids);
     changePreviews((prev) => {
-      prev.filter((p) => p.id === id).forEach((p) => revokeIfBlob(p.previewUrl));
-      return prev.filter((p) => p.id !== id);
+      prev.filter((p) => removed.has(p.id)).forEach((p) => revokeIfBlob(p.previewUrl));
+      return prev.filter((p) => !removed.has(p.id));
     });
-    cancelOptimization(id);
+    removed.forEach(cancelOptimization);
   }, [changePreviews, cancelOptimization]);
 
+  const remove = useCallback((id: string): void => removeMany([id]), [removeMany]);
+
   const removeSelected = useCallback((): void => {
-    changePreviews((prev) => {
-      prev.filter((p) => p.isSelected).forEach((p) => {
-        revokeIfBlob(p.previewUrl);
-        cancelOptimization(p.id);
-      });
-      return prev.filter((p) => !p.isSelected);
-    });
-  }, [changePreviews, cancelOptimization]);
+    removeMany(previewsRef.current.filter((p) => p.isSelected).map((p) => p.id));
+  }, [removeMany]);
 
   const setAllSelected = useCallback((isSelected: boolean): void => {
     changePreviews((prev) => prev.map((p) => ({ ...p, isSelected })));
@@ -191,7 +246,10 @@ export function useTokenPreviews(mode: CreatorMode): TokenPreviewsApi {
     changePreviews((prev) => prev.map((p) => (p.isSelected ? { ...p, ...patch } : p)));
   }, [changePreviews]);
 
-  const waitForOptimized = useCallback(async (id: string): Promise<ProcessedImage | undefined> => pendingRef.current.get(id)?.result, []);
+  const waitForOptimized = useCallback(async (id: string, kind: PreviewConversionKind): Promise<ProcessedImage | undefined> => {
+    const pending = pendingRef.current.get(id);
+    return pending?.kind === kind ? pending.result : undefined;
+  }, []);
 
   const selectedIds = useMemo(() => previews.filter((p) => p.isSelected).map((p) => p.id), [previews]);
 
@@ -208,6 +266,7 @@ export function useTokenPreviews(mode: CreatorMode): TokenPreviewsApi {
     }),
     reset,
     remove,
+    removeMany,
     removeSelected,
     selectAll: () => setAllSelected(true),
     deselectAll: () => setAllSelected(false),

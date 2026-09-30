@@ -3,9 +3,11 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { StatblockImportContent } from '../../src/app/packages/components/asset-manager/statblock-import/StatblockImportContent';
 import { createInMemoryApp } from '../mocks/inMemoryVault';
+import { stubLayout } from '../mocks/jsdomLayout';
 
 const fake = vi.hoisted(() => ({ scan: vi.fn() }));
 vi.mock('../../src/app/services/StatblockTokenImportService', () => ({ StatblockTokenImportService: class { scan = fake.scan; } }));
+stubLayout({ width: 800, height: 600 });
 afterEach(cleanup);
 function setup(queuedPaths: string[] = []) {
   fake.scan.mockResolvedValue([
@@ -51,4 +53,15 @@ it('does not stage partially read images after cancellation', async () => {
   expect((screen.getByRole('button', { name: 'Loading images…' }) as HTMLButtonElement).disabled).toBe(true);
   await act(async () => { controller.abort(); finish(new ArrayBuffer(1)); });
   expect(onAdd).not.toHaveBeenCalled();
+});
+it('mounts only the rows in view of a large bestiary', async () => {
+  const creatures = Array.from({ length: 6000 }, (_, index) => ({ name: `Creature ${index}`, path: `Bestiary/${index}.md`, imagePath: 'goblin.webp', status: 'ready', detail: 'Ready', layoutName: 'Basic 5e Layout' }));
+  fake.scan.mockResolvedValue(creatures);
+  const { app } = createInMemoryApp({ files: { 'goblin.webp': 'art' } });
+  app.vault.getResourcePath = (p: { path: string }) => p.path;
+  render(<StatblockImportContent app={app} queuedPaths={[]} onAdd={vi.fn()} onClose={vi.fn()} controller={new AbortController()} />);
+  await screen.findByRole('button', { name: 'Add 6000 to import' });
+  const mounted = screen.getAllByRole('checkbox');
+  expect(mounted.length).toBeGreaterThan(0);
+  expect(mounted.length).toBeLessThan(50);
 });

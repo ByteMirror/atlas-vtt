@@ -1,6 +1,6 @@
 import React from 'react';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ExportCollectionDialog } from '../../src/app/packages/components/asset-manager/collection-transfer/ExportCollectionDialog';
 import { ImportReviewDialog } from '../../src/app/packages/components/asset-manager/collection-transfer/ImportReviewDialog';
 import type { App } from 'obsidian';
@@ -8,32 +8,12 @@ import type { ContentMedia } from '../../src/app/packages/components/asset-manag
 import type { Asset } from '../../src/app/services/AssetService';
 import type { ExportPreview } from '../../src/app/services/collectionBundle/collectionExport';
 import type { ImportReview } from '../../src/app/services/collectionBundle/importReview';
+import { stubLayout } from '../mocks/jsdomLayout';
 
 afterEach(cleanup);
 
 const VIEWPORT = { width: 800, height: 600 };
-const rect = (): DOMRect => ({
-  ...VIEWPORT, top: 0, left: 0, right: VIEWPORT.width, bottom: VIEWPORT.height, x: 0, y: 0, toJSON: () => ({}),
-}) as DOMRect;
-
-// jsdom has no layout: give every element the viewport's box, so the virtual
-// lists inside the dialog's scrolling pane have room to show their first rows.
-const layoutStubs: Array<[object, string, PropertyDescriptor]> = [
-  [Element.prototype, 'getBoundingClientRect', { configurable: true, value: rect }],
-  [Element.prototype, 'clientWidth', { configurable: true, get: () => VIEWPORT.width }],
-  [HTMLElement.prototype, 'offsetWidth', { configurable: true, get: () => VIEWPORT.width }],
-  [HTMLElement.prototype, 'offsetHeight', { configurable: true, get: () => VIEWPORT.height }],
-];
-const originals = layoutStubs.map(([target, name]) => [target, name, Object.getOwnPropertyDescriptor(target, name)] as const);
-beforeAll(() => {
-  for (const [target, name, descriptor] of layoutStubs) Object.defineProperty(target, name, descriptor);
-});
-afterAll(() => {
-  for (const [target, name, descriptor] of originals) {
-    if (descriptor) Object.defineProperty(target, name, descriptor);
-    else Reflect.deleteProperty(target, name);
-  }
-});
+stubLayout(VIEWPORT);
 
 const media: ContentMedia = {
   // Just what the statblock preview reaches for; without Fantasy Statblocks it shows its install hint.

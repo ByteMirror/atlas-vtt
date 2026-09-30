@@ -6,7 +6,8 @@ export interface BatchProgressApi {
   progress: ProgressCount | null;
   /** Adds items; after a finished batch they start a new one, so the count never jumps backwards. */
   start: (count: number) => void;
-  finish: () => void;
+  /** Marks `count` items (one by default) as done. */
+  finish: (count?: number) => void;
   /** Takes out an item that was cancelled before it finished. */
   drop: () => void;
   clear: () => void;
@@ -18,7 +19,7 @@ export function useBatchProgress(): BatchProgressApi {
   const start = useCallback((count: number): void => {
     setBatch(({ done, total }) => (done >= total ? { done: 0, total: count } : { done, total: total + count }));
   }, []);
-  const finish = useCallback((): void => setBatch(({ done, total }) => ({ done: Math.min(total, done + 1), total })), []);
+  const finish = useCallback((count = 1): void => setBatch(({ done, total }) => ({ done: Math.min(total, done + count), total })), []);
   const drop = useCallback((): void => setBatch(({ done, total }) => ({ done, total: Math.max(done, total - 1) })), []);
   const clear = useCallback((): void => setBatch({ done: 0, total: 0 }), []);
   const progress = useMemo(() => (batch.done < batch.total ? batch : null), [batch]);

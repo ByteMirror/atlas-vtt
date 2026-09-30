@@ -5,6 +5,7 @@ import { afterAll, afterEach, beforeAll, expect, it } from 'vitest';
 
 import { VirtualAssetGrid } from '../../src/app/packages/components/asset-manager/components/VirtualAssetGrid';
 import type { AnyAsset } from '../../src/app/packages/components/asset-manager/types';
+import { stubLayout } from '../mocks/jsdomLayout';
 
 const TOTAL = 100;
 const assets: AnyAsset[] = Array.from({ length: TOTAL }, (_, index) => ({
@@ -26,32 +27,15 @@ function Harness({ items = assets }: { items?: AnyAsset[] }): React.JSX.Element 
 }
 
 const VIEWPORT = { width: 800, height: 600 };
-const rect = (): DOMRect => ({
-  ...VIEWPORT, top: 0, left: 0, right: VIEWPORT.width, bottom: VIEWPORT.height, x: 0, y: 0, toJSON: () => ({}),
-}) as DOMRect;
-
-// jsdom has no layout: give every element the viewport's box, so the scroll
-// container shows one row and each row is as tall as the viewport.
-const layoutStubs: Array<[object, string, PropertyDescriptor]> = [
-  [Element.prototype, 'getBoundingClientRect', { configurable: true, value: rect }],
-  [Element.prototype, 'clientWidth', { configurable: true, get: () => VIEWPORT.width }],
-  [HTMLElement.prototype, 'offsetWidth', { configurable: true, get: () => VIEWPORT.width }],
-  [HTMLElement.prototype, 'offsetHeight', { configurable: true, get: () => VIEWPORT.height }],
-];
-const originals = layoutStubs.map(([target, name]) => [target, name, Object.getOwnPropertyDescriptor(target, name)] as const);
+stubLayout(VIEWPORT);
 
 beforeAll(() => {
   // jsdom does not run animation frames; settle every animation at once.
   MotionGlobalConfig.skipAnimations = true;
-  for (const [target, name, descriptor] of layoutStubs) Object.defineProperty(target, name, descriptor);
 });
 
 afterAll(() => {
   MotionGlobalConfig.skipAnimations = false;
-  for (const [target, name, descriptor] of originals) {
-    if (descriptor) Object.defineProperty(target, name, descriptor);
-    else Reflect.deleteProperty(target, name);
-  }
 });
 
 afterEach(cleanup);

@@ -11,12 +11,12 @@ import { CloseButton } from '../primitives/CloseButton';
 import { dialogOverlayMotion, useDialogWindowVariants } from '../primitives/dialogMotion';
 import { TokenCreatorFooter } from './token-creator/TokenCreatorFooter';
 import { TokenCreatorRail } from './token-creator/TokenCreatorRail';
-import { TokenPreviewCard } from './token-creator/TokenPreviewCard';
+import { PreviewGrid } from './token-creator/PreviewGrid';
 import { saveTokenPreviews } from './token-creator/saveTokenPreviews';
 import { useAssetCatalog } from './token-creator/useAssetCatalog';
 import { useAssetTags } from './token-creator/useAssetTags';
 import { useTokenPreviews } from './token-creator/useTokenPreviews';
-import type { ProgressCount } from '../primitives/useLingeringTask';
+import { useFrameProgress } from '../primitives/useFrameProgress';
 import { modeNoun } from './token-creator/types';
 import type { CreatorMode, EditTokenInput } from './token-creator/types';
 
@@ -50,9 +50,11 @@ export function TokenCreator({ isOpen, onClose, mode = 'token', selectedCollecti
   const queuedPaths = useMemo(() => previews.previews.flatMap(p => p.statblockPath ? [p.statblockPath] : []), [previews.previews]);
   const [saveError, setSaveError] = useState('');
   const [saveBlocked, setSaveBlocked] = useState(false);
-  const [saveProgress, setSaveProgress] = useState<ProgressCount | null>(null);
-  const isSubmitting = saveProgress !== null;
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  // Saving reports every preview; the footer shows it at most once a frame
+  const { progress: saveProgress, report: reportSaveProgress, clear: clearSaveProgress } = useFrameProgress();
   const [isDragging, setIsDragging] = useState(false);
+  const [previewPane, setPreviewPane] = useState<HTMLDivElement | null>(null);
   const dragDepthRef = useRef(0);
   const titleId = useId();
   const windowRef = useRef<HTMLDivElement>(null);
@@ -66,13 +68,14 @@ export function TokenCreator({ isOpen, onClose, mode = 'token', selectedCollecti
     if (!isOpen) return;
     const token = editTokenRef.current;
     setCollection(selectedCollection);
-    setSaveProgress(null);
+    setIsSubmitting(false);
+    clearSaveProgress();
     setImportController(new AbortController());
     setSaveError('');
     setSaveBlocked(false);
     reset(token);
     windowRef.current?.focus();
-  }, [isOpen, editTokenId, selectedCollection, reset]);
+  }, [isOpen, editTokenId, selectedCollection, reset, clearSaveProgress]);
 
   useEffect(() => {
     const first = collections[0];
@@ -99,7 +102,7 @@ export function TokenCreator({ isOpen, onClose, mode = 'token', selectedCollecti
   const handleSubmit = useCallback(async (): Promise<void> => {
     if (usingStatblocks || !canSubmit || !assetService || !app) return;
     const total = previews.previews.length;
-    setSaveProgress({ done: 0, total });
+    setIsSubmitting(true);
     setSaveError('');
     try {
       const saved = await saveTokenPreviews({
@@ -109,11 +112,11 @@ export function TokenCreator({ isOpen, onClose, mode = 'token', selectedCollecti
         previews: previews.previews,
         collection,
         tags: [],
-        onSaved: previews.remove,
+        onSaved: previews.removeMany,
         signal: importController.signal,
         editToken: editToken ?? null,
         waitForOptimized: previews.waitForOptimized,
-        onProgress: (done, count) => setSaveProgress({ done, total: count }),
+        onProgress: reportSaveProgress,
       });
       if (saved > 0) app.workspace.trigger('atlas-vtt:refresh-assets');
       if (saved === total) onClose();
@@ -122,9 +125,10 @@ export function TokenCreator({ isOpen, onClose, mode = 'token', selectedCollecti
       setSaveError(error instanceof Error ? error.message : 'Could not save previews.');
       if (error instanceof AssetRegistrationUncertainError) setSaveBlocked(true);
     } finally {
-      setSaveProgress(null);
+      setIsSubmitting(false);
+      clearSaveProgress();
     }
-  }, [usingStatblocks, app, assetService, canSubmit, collection, editToken, mode, onClose, previews, importController]);
+  }, [usingStatblocks, app, assetService, canSubmit, collection, editToken, mode, onClose, previews, importController, reportSaveProgress, clearSaveProgress]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -217,7 +221,7 @@ export function TokenCreator({ isOpen, onClose, mode = 'token', selectedCollecti
 
         {usingStatblocks ? (
           <StatblockImportContent app={app} queuedPaths={queuedPaths} onAdd={images => { previews.addImages(images); setSource('images'); }} onClose={() => { importController.abort(); setImportController(new AbortController()); setSource('images'); }} controller={importController} onRunningChange={setImportRunning} />
-        ) : <div className={cn('atlas-token-creator__previews', count === 0 && 'atlas-empty')} inert={isSubmitting}>
+        ) : <div ref={setPreviewPane} className={cn('atlas-token-creator__previews', count === 0 && 'atlas-empty')} inert={isSubmitting}>
           {count === 0 ? (
             <div className="atlas-token-creator__empty">
               <div className="atlas-token-creator__empty-icon"><ImageIcon /></div>
@@ -225,19 +229,14 @@ export function TokenCreator({ isOpen, onClose, mode = 'token', selectedCollecti
               <p>Drop images anywhere in this window. You can crop, zoom and name each one before creating.</p>
             </div>
           ) : (
-            <div className="atlas-token-creator__grid">
-              {previews.previews.map((preview, index) => (
-                <TokenPreviewCard
-                  key={preview.id}
-                  preview={preview}
-                  mode={mode}
-                  index={index}
-                  onChange={(patch) => previews.update(preview.id, patch)}
-                  onToggleSelected={() => previews.toggleSelected(preview.id)}
-                  onRemove={() => previews.remove(preview.id)}
-                />
-              ))}
-            </div>
+            <PreviewGrid
+              previews={previews.previews}
+              mode={mode}
+              scrollElement={previewPane}
+              onChange={previews.update}
+              onToggleSelected={previews.toggleSelected}
+              onRemove={previews.remove}
+            />
           )}
         </div>}
 
@@ -248,7 +247,7 @@ export function TokenCreator({ isOpen, onClose, mode = 'token', selectedCollecti
             count={count}
             saveError={saveError}
             optimization={previews.optimization}
-            saving={saveProgress}
+            saving={isSubmitting ? saveProgress ?? { done: 0, total: previews.previews.length } : null}
             canSubmit={canSubmit}
             onCancel={onClose}
             onSubmit={() => { void handleSubmit(); }}

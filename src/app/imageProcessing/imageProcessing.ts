@@ -30,6 +30,7 @@ export interface ProcessOptions {
   signal?: AbortSignal | undefined;
   thumbnail?: ThumbnailSpec | undefined;
   preview?: ThumbnailSpec | undefined;
+  sourcePreview?: ThumbnailSpec | undefined;
   /** Work nobody waits for yet, such as preview conversions; jobs someone waits for run first. */
   background?: boolean;
 }
@@ -92,7 +93,7 @@ function jobCost(size: Size | null): number | undefined {
 
 async function process(source: Blob, job: Omit<ImageJob, 'source'>, options: ProcessOptions): Promise<ImageJobResult> {
   const run: ImageJobOptions = { signal: options.signal, background: options.background ?? false, cost: jobCost(await imageDimensions(source)) };
-  const withCopies = { ...job, thumbnail: options.thumbnail, preview: options.preview };
+  const withCopies = { ...job, thumbnail: options.thumbnail, preview: options.preview, sourcePreview: options.sourcePreview };
   // One pool for both attempts: after unload it refuses the fallback and frees its bitmap
   const workers = workerPool();
   try {

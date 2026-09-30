@@ -15,10 +15,12 @@ import type { CreatorMode, ImagePosition, TokenPreview, TokenPreviewPatch } from
 interface TokenPreviewCardProps {
   preview: TokenPreview;
   mode: CreatorMode;
-  index: number;
-  onChange: (patch: TokenPreviewPatch) => void;
-  onToggleSelected: () => void;
-  onRemove: () => void;
+  /** The card's place in the stagger of cards entering together, or null to show it without the enter animation. */
+  enterIndex?: number | null;
+  /** Stable callbacks that take the preview's id, so an unchanged card never renders again. */
+  onChange: (id: string, patch: TokenPreviewPatch) => void;
+  onToggleSelected: (id: string) => void;
+  onRemove: (id: string) => void;
 }
 
 const WHEEL_ZOOM_SENSITIVITY = 0.0025;
@@ -58,9 +60,14 @@ function useWellSize(element: HTMLDivElement | null): number {
  * One preview in the grid. Tokens get a crop editor (drag to reposition, wheel
  * or slider to zoom, double-click to reset) with the image beyond the circle
  * dimmed rather than hidden; maps show whole. Positions are fractions of the
- * well so the export can reproduce the preview exactly.
+ * well so the export can reproduce the preview exactly. Memoized: a large
+ * import changes a few cards at a time, and rendering every card for each
+ * change made thousands of previews crawl.
  */
-export function TokenPreviewCard({ preview, mode, index, onChange, onToggleSelected, onRemove }: TokenPreviewCardProps): React.JSX.Element {
+export const TokenPreviewCard = React.memo(function TokenPreviewCard({ preview, mode, enterIndex = 0, onChange: onChangePreview, onToggleSelected, onRemove }: TokenPreviewCardProps): React.JSX.Element {
+  const onChange = (patch: TokenPreviewPatch): void => onChangePreview(preview.id, patch);
+  // Decided once, at mount: switching it later would cut the enter animation short
+  const [entrance] = useState(enterIndex);
   const nameLabelId = useId();
   const [artElement, setArtElement] = useState<HTMLDivElement | null>(null);
   const previewRef = useRef(preview);
@@ -155,7 +162,7 @@ export function TokenPreviewCard({ preview, mode, index, onChange, onToggleSelec
           className={cn('atlas-token-card__check', preview.isSelected && 'atlas-checked')}
           role="checkbox"
           aria-checked={preview.isSelected}
-          onClick={(e) => { e.stopPropagation(); onToggleSelected(); }}
+          onClick={(e) => { e.stopPropagation(); onToggleSelected(preview.id); }}
         >
           <Check />
         </button>
@@ -165,7 +172,7 @@ export function TokenPreviewCard({ preview, mode, index, onChange, onToggleSelec
           variant="ghost"
           size="icon"
           className="atlas-token-card__remove"
-          onClick={(e) => { e.stopPropagation(); onRemove(); }}
+          onClick={(e) => { e.stopPropagation(); onRemove(preview.id); }}
         >
           <Trash2 />
         </Button>
@@ -189,8 +196,8 @@ export function TokenPreviewCard({ preview, mode, index, onChange, onToggleSelec
 
   return (
     <div
-      className={cn('atlas-token-card', `atlas-token-card--${mode}`, preview.isSelected && 'atlas-selected', !isCropEditable && 'atlas-token-card--unframed')}
-      style={{ '--atlas-enter-index': Math.min(index, ENTER_STAGGER_CAP) } as React.CSSProperties}
+      className={cn('atlas-token-card', `atlas-token-card--${mode}`, preview.isSelected && 'atlas-selected', !isCropEditable && 'atlas-token-card--unframed', entrance === null && 'atlas-token-card--settled')}
+      style={{ '--atlas-enter-index': Math.min(entrance ?? 0, ENTER_STAGGER_CAP) } as React.CSSProperties}
     >
       {isCropEditable ? <LabelTooltip label="Drag to reposition · Scroll to zoom · Double-click to reset">{art}</LabelTooltip> : art}
 
@@ -244,4 +251,4 @@ export function TokenPreviewCard({ preview, mode, index, onChange, onToggleSelec
       )}
     </div>
   );
-}
+});

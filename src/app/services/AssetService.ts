@@ -19,6 +19,7 @@ import { listVault, readVault } from './vault-sync/vaultListing';
 import type { CollectionSettings } from '../types/collectionSettingsTypes';
 import { isLegacyTokenRecord, isRecord, type LegacyAssetMetadata } from './assetMetadataGuards';
 import { groupLegacyTags, hasAssetTag, tagGroupOf, tagKey, type TagGroup } from './tagGroups';
+import { trashVaultItem } from '../utils/trashVaultItem';
 
 export interface BaseAsset {
   id: string;
@@ -872,7 +873,7 @@ export class AssetService {
     const collectionPath = `${COLLECTIONS_DIR}/${collectionId}`;
     const folder = this.app.vault.getAbstractFileByPath(collectionPath);
     if (folder instanceof TFolder) {
-      await this.app.fileManager.trashFile(folder);
+      await trashVaultItem(this.app, folder);
     }
 
     // Remove from metadata
@@ -902,30 +903,46 @@ export class AssetService {
 
   /** Persists a fully built asset: data file, metadata entry and, for a token the user imported, the onboarding flag. */
   private async registerAsset<A extends Asset>(newAsset: A, userImport = true): Promise<A> {
+    await this.registerAssets([newAsset], userImport);
+    return newAsset;
+  }
+
+  /**
+   * Registers several new assets with a single save of the index, e.g. a batch
+   * of an import: saving once per asset rewrites the whole index every time,
+   * which grows with the square of the import's size.
+   */
+  async addAssets(assets: readonly NewAsset[]): Promise<Asset[]> {
+    const newAssets = assets.map((asset): Asset => ({ ...asset, ...this.createAssetIdentity(asset.type) }));
+    await this.registerAssets(newAssets);
+    return newAssets;
+  }
+
+  private async registerAssets(newAssets: readonly Asset[], userImport = true): Promise<void> {
     await this.ensureLoaded();
 
-    if (newAsset.type !== 'token' && newAsset.type !== 'note' && !newAsset.filePath) {
-      newAsset.filePath = this.getAssetPath(newAsset);
+    for (const newAsset of newAssets) {
+      if (newAsset.type !== 'token' && newAsset.type !== 'note' && !newAsset.filePath) {
+        newAsset.filePath = this.getAssetPath(newAsset);
+      }
+      await this.ensureCollectionRecord(newAsset.collection);
+      await this.writeRecordFile(newAsset);
     }
 
-    await this.ensureCollectionRecord(newAsset.collection);
-
-    await this.writeRecordFile(newAsset);
-
-    this.metadata!.assets[newAsset.id] = newAsset;
+    for (const newAsset of newAssets) this.metadata!.assets[newAsset.id] = newAsset;
     try {
       await this.saveMetadata();
     } catch (error) {
-      if (newAsset.type !== 'token') throw error;
-      const saved = await wasTokenRegistrationSaved(this.app, newAsset);
-      if (!saved) {
-        delete this.metadata!.assets[newAsset.id];
+      // One write holds every asset, so one token tells whether all were saved
+      const token = newAssets.find((asset): asset is TokenAsset => asset.type === 'token');
+      if (!token || newAssets.some((asset) => asset.type !== 'token')) throw error;
+      if (!await wasTokenRegistrationSaved(this.app, token)) {
+        for (const newAsset of newAssets) delete this.metadata!.assets[newAsset.id];
         throw error;
       }
     }
 
-    if (newAsset.type === 'token' && userImport) SettingsService.forApp(this.app)?.markTokenImported();
-    return newAsset;
+    if (userImport && newAssets.some((asset) => asset.type === 'token')) SettingsService.forApp(this.app)?.markTokenImported();
   }
 
   async getAssets<T extends Asset['type']>(collection: string | undefined, type: T): Promise<AssetOfType<T>[]>;
@@ -1039,7 +1056,7 @@ export class AssetService {
       const assetPath = this.getAssetPath(asset);
       const file = this.app.vault.getAbstractFileByPath(assetPath);
       if (file instanceof TFile) {
-        await this.app.fileManager.trashFile(file);
+        await trashVaultItem(this.app, file);
       }
     } catch (error) {
       console.error('[AssetService] Error deleting asset file:', error);
@@ -1088,7 +1105,7 @@ export class AssetService {
               }
             }
             
-            await this.app.fileManager.trashFile(mapFile);
+            await trashVaultItem(this.app, mapFile);
           }
         } catch (error) {
           console.error('[AssetService] Error deleting scene map file:', error);
@@ -1114,7 +1131,7 @@ export class AssetService {
     const file = this.app.vault.getAbstractFileByPath(path);
     if (!(file instanceof TFile)) return;
     try {
-      await this.app.fileManager.trashFile(file);
+      await trashVaultItem(this.app, file);
     } catch (error) {
       console.error('[AssetService] Error deleting file:', path, error);
     }

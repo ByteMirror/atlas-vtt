@@ -7,7 +7,7 @@ import { createInMemoryApp } from '../mocks/inMemoryVault';
 
 const note = 'Bestiary/Goblin.md';
 const image = 'Artwork/goblin.webp';
-const converted = { image: { arrayBuffer: async () => new Uint8Array([1, 2]).buffer } as Blob, thumbnail: null, preview: null };
+const converted = { image: { arrayBuffer: async () => new Uint8Array([1, 2]).buffer } as Blob, thumbnail: null, preview: null, sourcePreview: null };
 beforeEach(() => Reflect.set(AssetService, 'instance', null));
 afterEach(() => Reflect.deleteProperty(window, 'FantasyStatblocks'));
 function setup() {
@@ -32,7 +32,7 @@ it('saves queued statblock identity, subset tags and ring choice with an owned i
   expect(token!.imagePath).not.toBe(image);
   expect(files.get(image)).toBe('original art');
   expect(files.get(note)).toBe('original note');
-  expect(options.onSaved).toHaveBeenCalledWith('goblin');
+  expect(options.onSaved).toHaveBeenCalledWith(['goblin']);
   expect(await saveTokenPreviews(options)).toBe(0);
   expect(await assetService.getTokenAssets()).toHaveLength(1);
 });
@@ -40,8 +40,12 @@ it('saves queued statblock identity, subset tags and ring choice with an owned i
 it('retains failed previews for retry and removes only successfully saved previews', async () => {
   const { app, assetService, options, preview } = setup();
   options.previews.push({ ...preview, id: 'wolf', statblockPath: undefined, name: 'Wolf', tags: [] });
-  app.vault.createBinary.mockRejectedValueOnce(new Error('Disk full'));
+  const write = app.vault.createBinary.getMockImplementation()!;
+  app.vault.createBinary.mockImplementation(async (path: string) => {
+    if (path.includes('Custom_Goblin')) throw new Error('Disk full');
+    return write(path);
+  });
   expect(await saveTokenPreviews(options)).toBe(1);
-  expect(options.onSaved.mock.calls).toEqual([['wolf']]);
+  expect(options.onSaved.mock.calls).toEqual([[['wolf']]]);
   expect((await assetService.getTokenAssets()).map(t => t.name)).toEqual(['Wolf']);
 });

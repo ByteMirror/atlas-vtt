@@ -1,7 +1,7 @@
 import type * as React from 'react';
 import { useLayoutEffect, useState } from 'react';
 
-/** The narrowest a card gets; the grid fits as many columns as this allows. */
+/** The narrowest an asset card gets; the grid fits as many columns as this allows. */
 const CARD_MIN_WIDTH = 132;
 
 export interface GridMetrics {
@@ -10,10 +10,10 @@ export interface GridMetrics {
   cardWidth: number;
 }
 
-function measureGrid(element: HTMLElement): GridMetrics {
+function measureGrid(element: HTMLElement, minCardWidth: number): GridMetrics {
   const width = element.clientWidth;
   const gap = parseFloat(getComputedStyle(element).columnGap) || 0;
-  const columns = Math.max(1, Math.floor((width + gap) / (CARD_MIN_WIDTH + gap)));
+  const columns = Math.max(1, Math.floor((width + gap) / (minCardWidth + gap)));
   return { columns, gap, cardWidth: Math.max(0, (width - gap * (columns - 1)) / columns) };
 }
 
@@ -22,14 +22,14 @@ function sameMetrics(a: GridMetrics, b: GridMetrics): boolean {
 }
 
 /** Column count and card size of the grid, following the container's width. */
-export function useGridMetrics(ref: React.RefObject<HTMLElement | null>): GridMetrics {
-  const [metrics, setMetrics] = useState<GridMetrics>({ columns: 1, gap: 0, cardWidth: CARD_MIN_WIDTH });
+export function useGridMetrics(ref: React.RefObject<HTMLElement | null>, minCardWidth = CARD_MIN_WIDTH): GridMetrics {
+  const [metrics, setMetrics] = useState<GridMetrics>({ columns: 1, gap: 0, cardWidth: minCardWidth });
   useLayoutEffect(() => {
     const element = ref.current;
     if (!element) return;
     const update = (): void => {
       setMetrics((previous) => {
-        const next = measureGrid(element);
+        const next = measureGrid(element, minCardWidth);
         return sameMetrics(previous, next) ? previous : next;
       });
     };
@@ -38,6 +38,6 @@ export function useGridMetrics(ref: React.RefObject<HTMLElement | null>): GridMe
     const observer = new ResizeObserver(update);
     observer.observe(element);
     return () => observer.disconnect();
-  }, [ref]);
+  }, [ref, minCardWidth]);
   return metrics;
 }

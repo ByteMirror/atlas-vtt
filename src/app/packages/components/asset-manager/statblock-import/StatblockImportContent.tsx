@@ -1,17 +1,16 @@
-import { TokenPortrait } from '../../shared/TokenPortrait';
 import './statblock-import.scss';
 import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
-import { TFile, type App } from 'obsidian';
-import { ImageOff, Search } from 'lucide-react';
+import type { App } from 'obsidian';
+import { Search } from 'lucide-react';
 import { ObsidianMenuDropdown } from '../../shared/ObsidianMenuDropdown';
 import { Button } from '../../primitives/button';
 import { ProgressStatus } from '../../primitives/ProgressStatus';
 import { useFrameProgress } from '../../primitives/useFrameProgress';
-import { LabelTooltip } from '../../primitives/tooltip';
 import { StatblockTokenImportService } from '../../../../services/StatblockTokenImportService';
 import { statblockPreviewImages } from '../token-creator/statblockPreviewImages';
 import type { PreviewImage } from '../token-creator/types';
-import type { StatblockImportCandidate, StatblockImportStatus } from '../../../../services/statblockImportCandidates';
+import type { StatblockImportCandidate } from '../../../../services/statblockImportCandidates';
+import { StatblockList } from './StatblockList';
 
 interface Props {
   app: App;
@@ -21,15 +20,6 @@ interface Props {
   controller: AbortController;
   onRunningChange?: (running: boolean) => void;
 }
-const statusLabels: Record<StatblockImportStatus, string> = {
-  ready: 'Ready', imported: 'Already imported', 'missing-image': 'Missing image', 'remote-image': 'Remote image', conflict: 'Conflict',
-};
-
-function thumbnail(app: App, row: StatblockImportCandidate): string | undefined {
-  const file = row.imagePath ? app.vault.getAbstractFileByPath(row.imagePath) : null;
-  return file instanceof TFile ? app.vault.getResourcePath(file) : undefined;
-}
-
 export function StatblockImportContent({ app, queuedPaths, onAdd, onClose, controller, onRunningChange }: Props): React.JSX.Element {
   const importer = useMemo(() => new StatblockTokenImportService(app), [app]);
   const [rows, setRows] = useState<StatblockImportCandidate[]>([]);
@@ -43,8 +33,10 @@ export function StatblockImportContent({ app, queuedPaths, onAdd, onClose, contr
   const { progress: scanned, report: reportScan, clear: clearScan } = useFrameProgress();
   const { progress: loadedImages, report: reportImages, clear: clearImages } = useFrameProgress();
   const layoutId = useId();
-  const queuedPathsRef = useRef(queuedPaths);
-  queuedPathsRef.current = queuedPaths;
+  const queued = useMemo(() => new Set(queuedPaths), [queuedPaths]);
+  const queuedRef = useRef(queued);
+  queuedRef.current = queued;
+  const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -55,7 +47,7 @@ export function StatblockImportContent({ app, queuedPaths, onAdd, onClose, contr
       if (!mounted || controller.signal.aborted) return;
       setRows(next);
       setLayout('');
-      setSelected(new Set(next.filter(row => row.status === 'ready' && !queuedPathsRef.current.includes(row.path)).map(row => row.path)));
+      setSelected(new Set(next.filter(row => row.status === 'ready' && !queuedRef.current.has(row.path)).map(row => row.path)));
     }).catch((reason: unknown) => {
       if (mounted) setError(reason instanceof Error ? reason.message : 'Could not scan statblocks.');
     }).finally(() => { if (mounted) setLoading(false); });
@@ -63,7 +55,7 @@ export function StatblockImportContent({ app, queuedPaths, onAdd, onClose, contr
   }, [app, importer, controller, scanVersion, clearScan, reportScan]);
 
   const scopedRows = rows.filter(row => !layout || (row.layoutName ?? 'Unspecified') === layout);
-  const selectedRows = scopedRows.filter(row => selected.has(row.path) && !queuedPaths.includes(row.path));
+  const selectedRows = scopedRows.filter(row => selected.has(row.path) && !queued.has(row.path));
   const filtered = scopedRows.filter(row => `${row.name} ${row.path}`.toLowerCase().includes(query.toLowerCase()));
   const ready = scopedRows.filter(row => row.status === 'ready');
   const disabled = loading || running;
@@ -86,7 +78,7 @@ export function StatblockImportContent({ app, queuedPaths, onAdd, onClose, contr
 
   return (
     <>
-      <div className="atlas-token-creator__previews atlas-statblock-import">
+      <div ref={setScrollElement} className="atlas-token-creator__previews atlas-statblock-import">
         <p className="atlas-statblock-import__intro">Choose a system or layout, then add creatures to your import. Edit their tags, crop and rings in the preview cards.</p>
         {error && <p role="alert" className="atlas-statblock-import__error">{error}</p>}
         {loading ? (
@@ -116,23 +108,13 @@ export function StatblockImportContent({ app, queuedPaths, onAdd, onClose, contr
               <label className="atlas-statblock-import__search"><Search size={16} /><input type="search" aria-label="Search statblocks" placeholder="Search creatures or folders…" value={query} onChange={e => setQuery(e.target.value)} /></label>
             </div>
             <div className="atlas-statblock-import__selection">
-              <Button variant="ghost" size="sm" disabled={disabled} onClick={() => setSelected(current => new Set([...current, ...filtered.filter(r => r.status === 'ready' && !queuedPaths.includes(r.path)).map(r => r.path)]))}>Select all shown</Button>
+              <Button variant="ghost" size="sm" disabled={disabled} onClick={() => setSelected(current => new Set([...current, ...filtered.filter(r => r.status === 'ready' && !queued.has(r.path)).map(r => r.path)]))}>Select all shown</Button>
               <Button variant="ghost" size="sm" disabled={disabled || selectedRows.length === 0} onClick={() => setSelected(new Set())}>Clear selection</Button>
               <span>{selectedRows.length} selected</span>
             </div>
-            <div className="atlas-statblock-import__list" aria-label="Statblocks">
-              {filtered.map(row => {
-                const url = thumbnail(app, row);
-                const status = <span className={`atlas-statblock-import__status atlas-statblock-import__status--${row.status}`}>{queuedPaths.includes(row.path) ? 'Added to import' : statusLabels[row.status]}</span>;
-                return <div key={row.path} className="atlas-statblock-import__row">
-                  <input type="checkbox" aria-label={`Select ${row.name}`} checked={selected.has(row.path)} disabled={disabled || row.status !== 'ready' || queuedPaths.includes(row.path)} onChange={() => toggle(row.path)} />
-                  <span className="atlas-statblock-import__portrait">{url ? <TokenPortrait src={url} alt="" showRing={false} /> : <ImageOff size={20} />}</span>
-                  <span className="atlas-statblock-import__identity"><strong>{row.name}</strong><span>{row.path}</span></span>
-                  {row.status === 'ready' ? status : <LabelTooltip label={row.detail} describe>{status}</LabelTooltip>}
-                </div>;
-              })}
-              {filtered.length === 0 && <p>{query ? 'No statblocks match your search.' : 'No statblock notes found. Enable frontmatter parsing in Fantasy Statblocks, or add a statblock code block to a note.'}</p>}
-            </div>
+            {filtered.length > 0
+              ? <StatblockList app={app} rows={filtered} selected={selected} queued={queued} disabled={disabled} scrollElement={scrollElement} onToggle={toggle} />
+              : <p>{query ? 'No statblocks match your search.' : 'No statblock notes found. Enable frontmatter parsing in Fantasy Statblocks, or add a statblock code block to a note.'}</p>}
           </>
         )}
       </div>

@@ -1,66 +1,47 @@
 import { App, Notice, TFile } from 'obsidian';
 import { AssetRegistrationUncertainError } from '../../../../services/assetRegistrationRecovery';
 import { withStatblockImportLock } from '../../../../services/statblockImportLock';
-import { requireResolvedBestiary, statblockImportCandidate, statblockLookup } from '../../../../services/statblockImportCandidates';
-import { AssetService } from '../../../../services/AssetService';
+import { requireResolvedBestiary, statblockImportCandidate, statblockLookup, type StatblockLookup } from '../../../../services/statblockImportCandidates';
+import { AssetService, type NewAsset } from '../../../../services/AssetService';
 import { AssetThumbnailService } from '../../../../services/AssetThumbnailService';
-import { writeAssetImage } from '../../../../services/assetImageFiles';
-import { transferAssets } from '../../../../services/assetTransfer/assetTransfer';
+import { discardAssetFiles, writeAssetImage } from '../../../../services/assetImageFiles';
+import { prepareSaveImages, type SaveImageContext } from './prepareSaveImages';
+import { saveEditedPreview } from './saveEditedPreview';
+import { modeNoun, type EditTokenInput, type TokenPreview } from './types';
 import type { ProcessedImage } from '../../../../imageProcessing/imageProcessing';
-import { STORED_IMAGE_SCALE } from './cropMath';
-import { overwriteStoredImage, storedImageFile } from './storedTokenImage';
-import { cropTokenImage } from './tokenImages';
-import type { CreatorMode, EditTokenInput, TokenPreview } from './types';
 
-export interface SaveTokenPreviewsOptions {
+export interface SaveTokenPreviewsOptions extends SaveImageContext {
   app: App;
   assetService: AssetService;
-  mode: CreatorMode;
   previews: TokenPreview[];
   collection: string;
   tags: string[];
   editToken?: EditTokenInput | null;
-  onSaved?: (id: string) => void;
+  /** Called with every batch of previews once their assets are registered. */
+  onSaved?: (ids: string[]) => void;
   /** Called once per preview as it is saved or fails, with the count so far and the number being saved. */
   onProgress?: (done: number, total: number) => void;
   signal?: AbortSignal;
-  waitForOptimized: (id: string) => Promise<ProcessedImage | undefined>;
 }
 
-/** Framed tokens are cropped as shown in the preview; maps and unframed tokens use the background-converted whole image. */
-async function prepareImage(file: File, preview: TokenPreview, options: SaveTokenPreviewsOptions, signal?: AbortSignal): Promise<ProcessedImage> {
-  if (options.mode === 'token' && preview.showRing !== false) {
-    return cropTokenImage(file, preview.imageScale, preview.imagePosition, signal);
-  }
-  const optimized = await options.waitForOptimized(preview.id);
-  if (!optimized) throw new Error('Could not optimize the image. Try again with a smaller image.');
-  return optimized;
+/** Previews registered with one save of the asset index (see `AssetService.addAssets`); 6,000 tokens saved one by one wrote about 20 GB. */
+const REGISTER_BATCH = 100;
+
+/** A preview whose files are written, waiting for its batch to be registered. */
+interface WrittenPreview {
+  id: string;
+  asset: NewAsset;
+  /** What to trash if the batch cannot be registered: a token's image and thumbnail, a map's thumbnail. */
+  discard: (string | undefined)[];
 }
 
-/**
- * Starts converting every preview at once; the image workers bound how many
- * run together, and assets are registered in order as their images finish.
- */
-function prepareImages(options: SaveTokenPreviewsOptions, signal: AbortSignal): Map<string, Promise<ProcessedImage>> {
-  const prepared = new Map<string, Promise<ProcessedImage>>();
-  for (const preview of options.previews) {
-    if (!preview.file) continue;
-    const image = prepareImage(preview.file, preview, options, signal);
-    // Failures surface when the loop awaits this preview; previews it never reaches must not raise unhandled rejections.
-    image.catch(() => undefined);
-    prepared.set(preview.id, image);
-  }
-  return prepared;
-}
-
-/**
- * An edit without an upload crops the token's stored image when the crop was moved or
- * the ring was just turned on (the stored image is then the whole artwork).
- */
-function cropsStoredImage(preview: TokenPreview, editToken: EditTokenInput): boolean {
-  if (preview.file || preview.showRing === false) return false;
-  const { imageScale, imagePosition } = preview;
-  return editToken.showRing === false || imageScale !== STORED_IMAGE_SCALE || imagePosition.x !== 0 || imagePosition.y !== 0;
+/** Throws when a queued statblock note no longer resolves to an importable creature. */
+async function checkStatblock(app: App, preview: TokenPreview, lookup: StatblockLookup | null): Promise<void> {
+  if (!preview.statblockPath || !lookup) return;
+  const note = app.vault.getAbstractFileByPath(preview.statblockPath);
+  if (!(note instanceof TFile)) throw new Error('The statblock note no longer exists.');
+  const candidate = await statblockImportCandidate(app, note, lookup);
+  if (!candidate || candidate.status !== 'ready') throw new Error(candidate?.detail ?? 'The statblock no longer resolves.');
 }
 
 /**
@@ -79,97 +60,83 @@ async function savePreviews(options: SaveTokenPreviewsOptions): Promise<number> 
   const destinations = await assetService.getCollections();
   const destination = destinations.find(c => c.id === collection) ?? destinations.find(c => c.name === collection);
   if (!destination) throw new Error('The destination collection no longer exists. Choose another collection.');
-  const meta = { collection: destination.id };
   const thumbnails = AssetThumbnailService.getInstance(app, assetService);
-  if (previews.some(p => p.statblockPath)) await assetService.refreshMetadata();
-  let saved = 0;
+  const hasStatblocks = previews.some(p => p.statblockPath);
+  if (hasStatblocks) await assetService.refreshMetadata();
 
   if (editToken) {
     const preview = previews[0];
     if (!preview) return 0;
-    let imagePath = editToken.imagePath ?? editToken.imageUrl;
-    let thumbnailPath: string | undefined;
-    const source = preview.file ?? (cropsStoredImage(preview, editToken) ? await storedImageFile(app, editToken) : null);
-    if (source) {
-      let prepared: ProcessedImage;
-      try {
-        prepared = await prepareImage(source, preview, options);
-      } catch (error) {
-        console.error(`[TokenCreator] Failed to optimize ${preview.name}:`, error);
-        new Notice(`Failed to optimize ${preview.name}. Cannot update ${mode}.`);
-        return 0;
-      }
-      const data = await prepared.image.arrayBuffer();
-      imagePath = await overwriteStoredImage(app, editToken.imagePath, data) ?? await writeAssetImage(app, preview.name, data);
-      thumbnailPath = await thumbnails.tryThumbnailForImage(imagePath, prepared.thumbnail);
-    }
-    const before = await assetService.getAssetById(editToken.id);
-    const previousThumbnail = before?.type === 'token' || before?.type === 'map' ? before.thumbnailPath : undefined;
-    await assetService.updateAsset(editToken.id, {
-      name: preview.name, imagePath, showRing: preview.showRing !== false, size: preview.size, tags: preview.tags ?? tags,
-      ...(source && { thumbnailPath }),
-    });
-    // A new image path (an upload, or stored art renamed to .webp) gets a thumbnail of its own
-    if (source && previousThumbnail && previousThumbnail !== thumbnailPath) await thumbnails.tryDiscard(previousThumbnail);
-    const stored = await assetService.getAssetById(editToken.id);
-    if (stored && stored.collection !== destination.id) {
-      await transferAssets(app, assetService, { assetIds: [editToken.id], targetCollectionId: destination.id, mode: 'move' });
-    }
-    return 1;
+    return saveEditedPreview({ ...options, thumbnails, editToken, preview, collectionId: destination.id });
   }
 
+  // Built once: every preview of this save links a different note, so the tokens it adds never change another's check.
+  const lookup = hasStatblocks ? statblockLookup(await assetService.getTokenAssets(), requireResolvedBestiary()) : null;
   const conversion = new AbortController();
   const stopConversion = (): void => conversion.abort();
   options.signal?.addEventListener('abort', stopConversion, { once: true });
-  const prepared = prepareImages(options, conversion.signal);
+  const prepared = prepareSaveImages(previews, options, conversion.signal);
+  let saved = 0;
   let done = 0;
+
+  const register = async (written: readonly WrittenPreview[]): Promise<void> => {
+    if (written.length === 0) return;
+    try {
+      await assetService.addAssets(written.map(w => w.asset));
+    } catch (error) {
+      // An unconfirmed write may have committed; its files must stay.
+      if (error instanceof AssetRegistrationUncertainError) throw error;
+      await discardAssetFiles(app, written.flatMap(w => w.discard));
+      new Notice(`Could not save ${written.length} ${modeNoun(mode, written.length)}: ${error instanceof Error ? error.message : 'the asset index could not be written.'}`);
+      return;
+    }
+    saved += written.length;
+    options.onSaved?.(written.map(w => w.id));
+  };
+
+  /** Writes a preview's files; a failure is reported and leaves nothing behind. */
+  const write = async (preview: TokenPreview, pending: Promise<ProcessedImage>): Promise<WrittenPreview | null> => {
+    let imagePath: string | undefined;
+    let thumbnailPath: string | undefined;
+    try {
+      await checkStatblock(app, preview, lookup);
+      const { image, thumbnail } = await pending;
+      if (options.signal?.aborted) return null;
+      imagePath = await writeAssetImage(app, preview.name, await image.arrayBuffer());
+      thumbnailPath = await thumbnails.tryThumbnailForImage(imagePath, thumbnail);
+      const metadata = { collection: destination.id, tags: preview.tags ?? tags, ...(thumbnailPath && { thumbnailPath }) };
+      const asset: NewAsset = mode === 'map'
+        ? { type: 'map', name: preview.name, mapFilePath: imagePath, ...metadata }
+        : {
+          type: 'token', showRing: preview.showRing !== false, name: preview.name, imagePath,
+          ...(preview.size !== undefined && { size: preview.size }),
+          ...(preview.statblockPath ? { statblockPath: preview.statblockPath } : {}), ...metadata,
+        };
+      return { id: preview.id, asset, discard: mode === 'token' ? [imagePath, thumbnailPath] : [thumbnailPath] };
+    } catch (error) {
+      await discardAssetFiles(app, mode === 'token' ? [imagePath, thumbnailPath] : [thumbnailPath]);
+      new Notice(`${preview.name}: ${error instanceof Error ? error.message : 'Could not save this preview.'}`);
+      return null;
+    } finally {
+      if (!options.signal?.aborted) options.onProgress?.(++done, prepared.size);
+    }
+  };
+
   options.onProgress?.(done, prepared.size);
   try {
+    let batch: WrittenPreview[] = [];
     for (const preview of previews) {
       if (options.signal?.aborted) break;
       const pending = prepared.get(preview.id);
       if (!pending) continue;
-      let imagePath: string | undefined;
-      let thumbnailPath: string | undefined;
-      try {
-        if (preview.statblockPath) {
-          const note = app.vault.getAbstractFileByPath(preview.statblockPath);
-          if (!(note instanceof TFile)) throw new Error('The statblock note no longer exists.');
-          const lookup = statblockLookup(await assetService.getTokenAssets(), requireResolvedBestiary());
-          const candidate = await statblockImportCandidate(app, note, lookup);
-          if (!candidate || candidate.status !== 'ready') throw new Error(candidate?.detail ?? 'The statblock no longer resolves.');
-        }
-        const { image, thumbnail } = await pending;
-        if (options.signal?.aborted) break;
-        imagePath = await writeAssetImage(app, preview.name, await image.arrayBuffer());
-        thumbnailPath = await thumbnails.tryThumbnailForImage(imagePath, thumbnail);
-        const metadata = { ...meta, tags: preview.tags ?? tags, ...(thumbnailPath && { thumbnailPath }) };
-        if (mode === 'map') {
-          await assetService.addAsset({ type: 'map', name: preview.name, mapFilePath: imagePath, ...metadata });
-        } else {
-          await assetService.addTokenAsset({
-            showRing: preview.showRing !== false, name: preview.name, imagePath,
-            ...(preview.size !== undefined && { size: preview.size }),
-            ...(preview.statblockPath ? { statblockPath: preview.statblockPath } : {}), ...metadata,
-          });
-        }
-        saved += 1;
-        options.onSaved?.(preview.id);
-      } catch (error) {
-        if (error instanceof AssetRegistrationUncertainError) throw error;
-        if (imagePath) {
-          for (const path of mode === 'token' ? [imagePath, thumbnailPath] : [thumbnailPath]) {
-            const copied = path ? app.vault.getAbstractFileByPath(path) : null;
-            if (copied instanceof TFile) {
-              try { await app.fileManager.trashFile(copied); } catch { /* Keep an unlinked copy if trash is unavailable. */ }
-            }
-          }
-        }
-        new Notice(`${preview.name}: ${error instanceof Error ? error.message : 'Could not save this preview.'}`);
+      const written = await write(preview, pending);
+      if (written) batch.push(written);
+      if (batch.length >= REGISTER_BATCH) {
+        await register(batch);
+        batch = [];
       }
-      done += 1;
-      options.onProgress?.(done, prepared.size);
     }
+    await register(batch);
   } finally {
     options.signal?.removeEventListener('abort', stopConversion);
     conversion.abort();

@@ -1,71 +1,159 @@
 import type { WebGLRenderer } from 'pixi.js';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { ExploredShapes } from '../../../../vision/exploredShapes';
 import type { Polygon } from '../../../../vision/visibility';
 import { ExploredTexture } from '../../ExploredTexture';
+import { saveExploredMask } from '../../exploredMaskSaving';
 import { createTestRenderer, readRgba } from './gpuTestUtils';
 
 const SIZE = 64;
 const p = (x: number, y: number): { x: number; y: number } => ({ x, y });
 /** A right triangle whose hypotenuse runs diagonally through the map, x + y = 40. */
 const TRIANGLE: Polygon = [p(0, 0), p(40, 0), p(0, 40)];
+/** A triangle whose edges cross the first one's hypotenuse, so both are partial where they overlap. */
+const OTHER: Polygon = [p(10, 25), p(25, 10), p(50, 50)];
 const EVERYTHING: Polygon = [p(-10, -10), p(SIZE + 10, -10), p(SIZE + 10, SIZE + 10), p(-10, SIZE + 10)];
+const rect = (x0: number, y0: number, x1: number, y1: number): Polygon => [p(x0, y0), p(x1, y0), p(x1, y1), p(x0, y1)];
+const stamp = (polygon: Polygon, clip: Polygon[] | null = null): ExploredShapes => ({ polygons: [polygon], clip });
+
+/** The red channel of every texel, top row first. */
+type Reds = (x: number, y: number) => number;
 
 describe('explored stamps', () => {
   const cleanup: (() => void)[] = [];
   afterEach(() => {
     while (cleanup.length) cleanup.pop()!();
+    vi.unstubAllGlobals();
   });
 
-  async function stamped(polygons: Polygon[], clip: Polygon[] | null): Promise<(x: number, y: number) => number> {
-    const renderer: WebGLRenderer = await createTestRenderer(SIZE);
+  async function memory(size = SIZE): Promise<{ renderer: WebGLRenderer; explored: ExploredTexture }> {
+    const renderer = await createTestRenderer(SIZE);
     cleanup.push(() => renderer.destroy());
-    const explored = new ExploredTexture(renderer, { width: SIZE, height: SIZE });
+    const explored = new ExploredTexture(renderer, { width: size, height: size });
     cleanup.push(() => explored.destroy());
-    explored.add({ polygons, clip });
-    const pixels = readRgba(renderer, explored.texture);
-    return (x, y) => pixels[(y * SIZE + x) * 4]!;
+    return { renderer, explored };
   }
 
-  it('draws a diagonal edge anti-aliased', async () => {
-    const at = await stamped([TRIANGLE], null);
-    expect(at(5, 5)).toBe(255);
-    expect(at(60, 60)).toBe(0);
+  function reds(renderer: WebGLRenderer, explored: ExploredTexture): Reds {
+    const { pixels } = renderer.extract.pixels({ target: explored.texture });
+    const width = explored.texture.width;
+    return (x, y) => pixels[(y * width + x) * 4]!;
+  }
+
+  async function stamped(shapes: ExploredShapes[]): Promise<Reds> {
+    const { renderer, explored } = await memory();
+    for (const s of shapes) explored.add(s);
+    return reds(renderer, explored);
+  }
+
+  /** Texels along the hypotenuse x + y = 40 with a value strictly between empty and full. */
+  function partialAlongHypotenuse(at: Reds): number {
     let partial = 0;
     for (let x = 0; x < 40; x++) {
       for (const y of [39 - x, 40 - x]) if (y >= 0 && y < SIZE && at(x, y) > 20 && at(x, y) < 235) partial++;
     }
-    expect(partial).toBeGreaterThanOrEqual(30);
+    return partial;
+  }
+
+  it('draws a diagonal edge anti-aliased', async () => {
+    const at = await stamped([stamp(TRIANGLE)]);
+    expect(at(5, 5)).toBe(255);
+    expect(at(60, 60)).toBe(0);
+    expect(partialAlongHypotenuse(at)).toBeGreaterThanOrEqual(30);
   });
 
-  it('writes nothing outside the clip', async () => {
-    const at = await stamped([EVERYTHING], [[p(0, 0), p(20, 0), p(20, SIZE), p(0, SIZE)]]);
-    expect(at(10, 30)).toBe(255);
-    for (let x = 22; x < SIZE; x++) for (let y = 0; y < SIZE; y += 7) expect(at(x, y)).toBe(0);
+  it('places a stamp exactly where it is, however far from the origin', async () => {
+    const at = await stamped([stamp(rect(40, 44, 50, 52))]);
+    expect(at(45, 48)).toBe(255);
+    expect(at(39, 48)).toBe(0);
+    expect(at(51, 48)).toBe(0);
+    expect(at(45, 43)).toBe(0);
+    expect(at(45, 53)).toBe(0);
+    expect(at(5, 5)).toBe(0);
   });
 
-  it('saves the smooth edge through toCanvas', async () => {
-    const renderer = await createTestRenderer(SIZE);
-    cleanup.push(() => renderer.destroy());
-    const explored = new ExploredTexture(renderer, { width: SIZE, height: SIZE });
-    cleanup.push(() => explored.destroy());
-    explored.add({ polygons: [TRIANGLE], clip: null });
-    const canvas = explored.toCanvas();
-    const data = canvas.getContext('2d')!.getImageData(0, 0, SIZE, SIZE).data;
-    expect(data[(5 * SIZE + 5) * 4]).toBe(255);
-    const edge = data[(20 * SIZE + 19) * 4]!;
-    expect(edge).toBeGreaterThan(0);
-    expect(edge).toBeLessThan(255);
+  it('stamps correctly after a large stamp and a small one reuse its scratch', async () => {
+    const at = await stamped([stamp(EVERYTHING), stamp(rect(1, 1, 3, 3)), stamp(rect(60, 60, 62, 62))]);
+    expect(at(2, 2)).toBe(255);
+    expect(at(61, 61)).toBe(255);
+    expect(at(30, 30)).toBe(255);
   });
 
-  it('only ever grows', async () => {
-    const renderer = await createTestRenderer(SIZE);
-    cleanup.push(() => renderer.destroy());
-    const explored = new ExploredTexture(renderer, { width: SIZE, height: SIZE });
-    cleanup.push(() => explored.destroy());
-    explored.add({ polygons: [TRIANGLE], clip: null });
-    const before = readRgba(renderer, explored.texture).slice();
-    explored.add({ polygons: [[p(50, 50), p(60, 50), p(60, 60)]], clip: null });
-    const after = readRgba(renderer, explored.texture);
-    for (let i = 0; i < before.length; i += 4) expect(after[i]!).toBeGreaterThanOrEqual(before[i]!);
+  it('maps a large map down to its texels', async () => {
+    const { renderer, explored } = await memory(4096);
+    expect(explored.texture.width).toBe(2048);
+    explored.add(stamp(rect(1000, 1000, 2000, 2000)));
+    const at = reds(renderer, explored);
+    expect(at(750, 750)).toBe(255);
+    expect(at(498, 750)).toBe(0);
+    expect(at(1002, 750)).toBe(0);
+  });
+
+  it('writes nothing outside the clip and smooths the clip edge', async () => {
+    const at = await stamped([stamp(EVERYTHING, [TRIANGLE])]);
+    expect(at(5, 5)).toBe(255);
+    expect(partialAlongHypotenuse(at)).toBeGreaterThanOrEqual(30);
+    for (let x = 0; x < SIZE; x++) for (let y = 0; y < SIZE; y++) if (x + y >= 42) expect(at(x, y)).toBe(0);
+  });
+
+  it('keeps the larger of overlapping stamps texel by texel', async () => {
+    const first = await stamped([stamp(TRIANGLE)]);
+    const second = await stamped([stamp(OTHER)]);
+    const both = await stamped([stamp(TRIANGLE), stamp(OTHER)]);
+    const reversed = await stamped([stamp(OTHER), stamp(TRIANGLE)]);
+    let overlapped = 0;
+    for (let x = 0; x < SIZE; x++) {
+      for (let y = 0; y < SIZE; y++) {
+        const expected = Math.max(first(x, y), second(x, y));
+        if (first(x, y) > 0 && second(x, y) > 0) overlapped++;
+        expect(Math.abs(both(x, y) - expected)).toBeLessThanOrEqual(1);
+        expect(Math.abs(reversed(x, y) - expected)).toBeLessThanOrEqual(1);
+      }
+    }
+    expect(overlapped).toBeGreaterThan(50);
+  });
+
+  it('does not thicken an edge by stamping it again', async () => {
+    const once = await stamped([stamp(TRIANGLE)]);
+    const twice = await stamped([stamp(TRIANGLE), stamp(TRIANGLE)]);
+    const nudged = await stamped([stamp(TRIANGLE), stamp([p(0, 0), p(40.4, 0), p(0, 40.4)])]);
+    const nudgedAlone = await stamped([stamp([p(0, 0), p(40.4, 0), p(0, 40.4)])]);
+    for (let x = 0; x < SIZE; x++) {
+      for (let y = 0; y < SIZE; y++) {
+        expect(Math.abs(twice(x, y) - once(x, y))).toBeLessThanOrEqual(1);
+        expect(Math.abs(nudged(x, y) - Math.max(once(x, y), nudgedAlone(x, y)))).toBeLessThanOrEqual(1);
+      }
+    }
+  });
+
+  it('forgets everything on clear', async () => {
+    const { renderer, explored } = await memory();
+    explored.add(stamp(EVERYTHING));
+    expect(reds(renderer, explored)(10, 10)).toBe(255);
+    explored.clear();
+    const at = reds(renderer, explored);
+    for (let x = 0; x < SIZE; x++) for (let y = 0; y < SIZE; y += 5) expect(at(x, y)).toBe(0);
+  });
+
+  it('keeps an anti-aliased edge through repeated saves and loads', async () => {
+    vi.stubGlobal('createEl', (tag: string, options?: { attr?: Record<string, string> }): HTMLElement => {
+      const el = document.createElement(tag);
+      for (const [name, value] of Object.entries(options?.attr ?? {})) el.setAttribute(name, value);
+      return el;
+    });
+    const { renderer, explored } = await memory();
+    explored.add(stamp(TRIANGLE));
+    const original = reds(renderer, explored);
+    expect(partialAlongHypotenuse(original)).toBeGreaterThanOrEqual(30);
+
+    let current = explored;
+    for (let cycle = 0; cycle < 3; cycle++) {
+      const next = new ExploredTexture(renderer, { width: SIZE, height: SIZE });
+      cleanup.push(() => next.destroy());
+      await next.load(saveExploredMask(current.toCanvas()));
+      current = next;
+    }
+    const restored = reds(renderer, current);
+    for (let x = 0; x < SIZE; x++) for (let y = 0; y < SIZE; y++) expect(Math.abs(restored(x, y) - original(x, y))).toBeLessThanOrEqual(2);
   });
 });

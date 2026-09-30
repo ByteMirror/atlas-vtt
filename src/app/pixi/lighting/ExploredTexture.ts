@@ -1,8 +1,8 @@
-import { Container, Graphics, Matrix, RenderTexture, Sprite, Texture, type Renderer } from 'pixi.js';
+import { Container, RenderTexture, Sprite, Texture, type Renderer } from 'pixi.js';
 import type { ExploredShapes } from '../../vision/exploredShapes';
-import type { Polygon } from '../../vision/visibility';
 import type { MapBounds } from '../../vision/visibility';
 import { destroyTree } from '../utils/destroyTree';
+import { StampScratch, stampRegion } from './StampScratch';
 
 /** Longest side of the explored memory in texels; it is drawn dim and soft, so this is plenty. */
 const MAX_TEXELS = 2048;
@@ -11,32 +11,36 @@ const MAX_TEXELS = 2048;
  * What the viewer's tokens have seen so far, in a world-space texture over the map: red is 1
  * where a token has seen. It only grows until reset. Shapes that must stay inside the line of
  * sight are drawn through a mask of it.
+ *
+ * The texture is a plain 8-bit target. Each stamp is drawn anti-aliased into a small scratch
+ * target (`StampScratch`) and merged in with `max`, so edges are smooth and only the stamped
+ * part of the map costs multisampling.
  */
 export class ExploredTexture {
   readonly texture: RenderTexture;
   private readonly scale: number;
-  private readonly stamp = new Container();
-  private readonly painter = new Graphics();
-  private readonly clip = new Graphics();
+  private readonly scratch: StampScratch;
+  private readonly merge = new Container();
+  private readonly mergeSprite = new Sprite();
 
   constructor(private readonly renderer: Renderer, bounds: MapBounds) {
     this.scale = Math.min(1, MAX_TEXELS / Math.max(bounds.width, bounds.height, 1));
     this.texture = RenderTexture.create({
       width: Math.max(1, Math.ceil(bounds.width * this.scale)),
       height: Math.max(1, Math.ceil(bounds.height * this.scale)),
-      // Multisampled: the stamps get smooth edges, and stay inside the stencil clip.
-      antialias: true,
     });
-    this.painter.blendMode = 'max';
-    this.stamp.addChild(this.painter, this.clip);
+    this.scratch = new StampScratch(renderer);
+    this.mergeSprite.blendMode = 'max';
+    this.merge.addChild(this.mergeSprite);
     this.clear();
   }
 
-  add({ polygons, clip }: ExploredShapes): void {
-    fillPolygons(this.painter.clear(), polygons);
-    fillPolygons(this.clip.clear(), clip ?? []);
-    this.painter.mask = clip ? this.clip : null;
-    this.renderer.render({ container: this.stamp, target: this.texture, clear: false, transform: new Matrix().scale(this.scale, this.scale) });
+  add(shapes: ExploredShapes): void {
+    const region = stampRegion(shapes, this.scale, this.texture);
+    if (!region) return;
+    this.mergeSprite.texture = this.scratch.draw(shapes, this.scale, region);
+    this.mergeSprite.position.set(region.x, region.y);
+    this.renderer.render({ container: this.merge, target: this.texture, clear: false });
   }
 
   clear(): void {
@@ -55,20 +59,30 @@ export class ExploredTexture {
     destroyTree(sprite, { textures: true });
   }
 
-  /** The memory as a canvas, for saving. */
+  /**
+   * The memory as a canvas, for saving: white, with the coverage as alpha. The texture holds
+   * premultiplied white, which a canvas or PNG would premultiply again on loading and so
+   * halve every soft edge with each save.
+   */
   toCanvas(): HTMLCanvasElement {
-    return this.renderer.extract.canvas({ target: this.texture }) as HTMLCanvasElement;
+    const { pixels, width, height } = this.renderer.extract.pixels({ target: this.texture });
+    const image = new ImageData(width, height);
+    for (let i = 0; i < pixels.length; i += 4) {
+      image.data[i] = 255;
+      image.data[i + 1] = 255;
+      image.data[i + 2] = 255;
+      image.data[i + 3] = pixels[i]!;
+    }
+    const canvas = createEl('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    canvas.getContext('2d')?.putImageData(image, 0, 0);
+    return canvas;
   }
 
   destroy(): void {
-    destroyTree(this.stamp);
+    this.scratch.destroy();
+    destroyTree(this.merge);
     this.texture.destroy(true);
   }
-}
-
-function fillPolygons(g: Graphics, polygons: readonly Polygon[]): Graphics {
-  for (const polygon of polygons) {
-    if (polygon.length >= 3) g.poly(polygon.flatMap((p) => [p.x, p.y])).fill({ color: 0xffffff });
-  }
-  return g;
 }

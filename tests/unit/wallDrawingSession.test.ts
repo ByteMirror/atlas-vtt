@@ -50,4 +50,26 @@ describe('WallDrawingSession', () => {
     expect(steps()).toBe(before + 2);
     expect(session.active).toBe(false);
   });
+
+  it('records other edits normally while a chain has no segment yet', () => {
+    const { store, session, steps } = setup();
+    const before = steps();
+    session.start();
+    store.getState().addWall(segment(50));
+    expect(steps()).toBe(before + 1);
+    session.cancel();
+    expect(steps()).toBe(before + 1);
+  });
+
+  it('keeps unrelated edits made while a chain is cancelled', () => {
+    const { store, session } = setup();
+    const doorId = store.getState().addWall({ ...segment(100), type: 'door', closed: true });
+    session.start();
+    session.add(segment(0));
+    store.getState().toggleDoor(doorId);
+    session.cancel();
+    const walls = store.getState().objects.walls;
+    expect(Object.keys(walls)).toEqual([doorId]);
+    expect(walls[doorId]!.closed).toBe(false);
+  });
 });

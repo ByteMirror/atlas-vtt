@@ -177,6 +177,8 @@ export class LightingController {
       this.applyPreview();
     });
     on('lighting-reset-explored', () => this.renderer.resetExplored());
+    // A chain half drawn on the old scene must not follow the map switch.
+    on('map-unloading', () => this.tool.cancelDrawing());
     on('wall-chain-start', (point: Point) => {
       this.drawing.start();
       this.wallRenderer.setPreviewAnchor(point);

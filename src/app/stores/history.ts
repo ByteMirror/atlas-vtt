@@ -26,6 +26,8 @@ export interface HistoryState extends TemporalState<HistorySnapshot> {
   beginTransaction: () => void;
   /** Close the current transaction, recording one step if anything changed. */
   endTransaction: () => void;
+  /** Close the current transaction (all levels) without recording a step. */
+  discardTransaction: () => void;
   /** Run `fn` inside a transaction. */
   transaction: <T>(fn: () => T) => T;
   /** Run `fn` without recording anything (hydration, remote sync, derived state). */
@@ -95,6 +97,18 @@ export function createHistoryOptions<S extends HistorySnapshot>(
         });
       };
 
+      const discardTransaction = (): void => {
+        transactionDepth = 0;
+        transactionStart = null;
+      };
+
+      // A transaction left open when the history is cleared (a map switch) must not
+      // swallow the next scene's edits or later record the previous scene as a step.
+      const clear = (): void => {
+        discardTransaction();
+        base.clear();
+      };
+
       const transaction = <T>(fn: () => T): T => {
         beginTransaction();
         try {
@@ -113,7 +127,7 @@ export function createHistoryOptions<S extends HistorySnapshot>(
         }
       };
 
-      const history = { ...base, beginTransaction, endTransaction, transaction, untracked };
+      const history = { ...base, clear, beginTransaction, endTransaction, discardTransaction, transaction, untracked };
       return history;
     },
   };
@@ -130,6 +144,10 @@ export function beginHistoryTransaction(store: HistoryHost): void {
 
 export function endHistoryTransaction(store: HistoryHost): void {
   getHistoryStore(store)?.getState().endTransaction();
+}
+
+export function discardHistoryTransaction(store: HistoryHost): void {
+  getHistoryStore(store)?.getState().discardTransaction();
 }
 
 export function runHistoryTransaction<T>(store: HistoryHost, fn: () => T): T {

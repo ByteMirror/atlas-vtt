@@ -14,16 +14,16 @@ function samples(flicker: LightFlicker, animation: LightAnimation, count = 10_00
   return Array.from({ length: count }, (_, i) => flicker.sample('light', animation, i * 16));
 }
 
-const RANGES: Record<Exclude<LightAnimation, 'none'>, { intensity: [number, number]; radius: [number, number]; jitter: number }> = {
-  torch: { intensity: [0.85, 1.1], radius: [0.97, 1.03], jitter: 1.5 },
-  candle: { intensity: [0.8, 1.05], radius: [0.98, 1.02], jitter: 0.8 },
-  pulse: { intensity: [0.85, 1.15], radius: [1, 1], jitter: 0 },
-  magic: { intensity: [0.85, 1.15], radius: [0.96, 1.04], jitter: 0 },
+const RANGES: Record<Exclude<LightAnimation, 'none'>, { intensity: [number, number]; radius: [number, number] }> = {
+  torch: { intensity: [0.85, 1.1], radius: [0.97, 1.03] },
+  candle: { intensity: [0.8, 1.05], radius: [0.98, 1.02] },
+  pulse: { intensity: [0.85, 1.15], radius: [1, 1] },
+  magic: { intensity: [0.85, 1.15], radius: [0.96, 1.04] },
 };
 
 describe('LightFlicker', () => {
   it('leaves steady lights untouched', () => {
-    expect(new LightFlicker(seeded(1)).sample('a', 'none', 500)).toEqual({ intensity: 1, radiusScale: 1, jitterX: 0, jitterY: 0 });
+    expect(new LightFlicker(seeded(1)).sample('a', 'none', 500)).toEqual({ intensity: 1, radiusScale: 1 });
   });
 
   it('is deterministic for the same random source', () => {
@@ -36,8 +36,6 @@ describe('LightFlicker', () => {
       expect(s.intensity).toBeLessThanOrEqual(range.intensity[1] + 1e-9);
       expect(s.radiusScale).toBeGreaterThanOrEqual(range.radius[0] - 1e-9);
       expect(s.radiusScale).toBeLessThanOrEqual(range.radius[1] + 1e-9);
-      expect(Math.abs(s.jitterX)).toBeLessThanOrEqual(range.jitter + 1e-9);
-      expect(Math.abs(s.jitterY)).toBeLessThanOrEqual(range.jitter + 1e-9);
     }
   });
 

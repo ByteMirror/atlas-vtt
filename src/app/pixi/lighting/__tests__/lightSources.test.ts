@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MIN_SOFTNESS, activeLights, bounceFrame, clampFlame, lightFrame } from '../lightSources';
+import { activeLights, engineLight } from '../lightSources';
 import { LIGHT_PRESETS } from '../../../lighting/lightPresets';
 import type { LightSource } from '../../../types/lightingTypes';
 import type { TokenEntity } from '../../../types';
@@ -24,53 +24,12 @@ describe('activeLights', () => {
   });
 });
 
-describe('lightFrame', () => {
-  it('converts game units to world pixels and applies the flicker', () => {
-    const frame = lightFrame({ key: 'k', x: 10, y: 20, emission: torch }, scale, { intensity: 0.9, radiusScale: 1.1, jitterX: 1, jitterY: -1 });
-    expect(frame.x).toBe(11);
-    expect(frame.y).toBe(19);
-    expect(frame.bright).toBeCloseTo(280 * 1.1);
-    expect(frame.dim).toBeCloseTo(560 * 1.1);
-    expect(frame.sourceRadius).toBeCloseTo(Math.max(28, frame.dim * MIN_SOFTNESS));
-    expect(frame.intensity).toBeCloseTo(0.9);
-    expect(frame.color[0]).toBeCloseTo(1);
-  });
-
-  it('never casts shadows with a flame smaller than a share of its reach', () => {
-    const frame = lightFrame({ key: 'k', x: 0, y: 0, emission: { ...torch, sourceRadius: 0 } }, scale);
-    expect(frame.sourceRadius).toBeCloseTo(frame.dim * MIN_SOFTNESS);
-  });
-
-  it('keeps dim at least as large as bright', () => {
-    const frame = lightFrame({ key: 'k', x: 0, y: 0, emission: { ...torch, bright: 50, dim: 10 } }, scale);
-    expect(frame.dim).toBeGreaterThanOrEqual(frame.bright);
-  });
-});
-
-describe('bounceFrame', () => {
-  const frame = lightFrame({ key: 'k', x: 10, y: 20, emission: torch }, scale);
-
-  it('turns a light into a faint, wide area light around the same point', () => {
-    const bounce = bounceFrame(frame);
-    expect(bounce.x).toBe(frame.x);
-    expect(bounce.y).toBe(frame.y);
-    expect(bounce.color).toEqual(frame.color);
-    expect(bounce.bright).toBe(0);
-    expect(bounce.dim).toBeGreaterThan(frame.dim);
-    expect(bounce.sourceRadius).toBeGreaterThan(frame.sourceRadius * 2);
-    expect(bounce.intensity).toBeLessThan(frame.intensity * 0.35);
-    expect(bounce.intensity).toBeGreaterThan(0);
-  });
-});
-
-describe('clampFlame', () => {
-  const frame = lightFrame({ key: 'k', x: 0, y: 0, emission: torch }, scale);
-
-  it('keeps the flame clear of the nearest wall, for every wall alike', () => {
-    expect(clampFlame(frame, 20).sourceRadius).toBeCloseTo(18);
-  });
-
-  it('leaves the flame alone with room to spare', () => {
-    expect(clampFlame(frame, 1e6).sourceRadius).toBe(frame.sourceRadius);
+describe('engineLight', () => {
+  it('converts game units, keeps a minimum flame and tints the colour halfway to white in linear light', () => {
+    const light = engineLight({ key: 'k', x: 10, y: 20, emission: { ...torch, color: '#ff0000', sourceRadius: 0.1 } }, scale);
+    expect(light).toMatchObject({ key: 'k', x: 10, y: 20, bright: 280, dim: 560, animation: torch.animation });
+    expect(light.flame).toBeCloseTo(560 * 0.12, 6);
+    expect(light.color[0]).toBe(1);
+    expect(light.color[1]).toBeCloseTo(((0.5 + 0.055) / 1.055) ** 2.4, 6);
   });
 });

@@ -77,8 +77,9 @@ void main() {
   gl_FragColor = vec4(max(tint * f * ${LIGHT_ENCODING.toFixed(2)} + dither, 0.0), 0.0);
 }`;
 
-// Each wall is a quad from its endpoints to far points pushed away from the light's
-// opposite rim, so the quad covers the umbra and the whole outer penumbra.
+// Each wall is a fan from its endpoints to far points pushed away from the light's
+// opposite rim, plus one far point straight behind its middle, so the fan covers the umbra
+// and the whole outer penumbra out past the light's reach.
 const shadowVertex = `
 in vec2 aPosition;
 in vec4 aSegment;
@@ -90,15 +91,22 @@ ${PROJECT}
 
 void main() {
   vec2 e = aPosition;
-  vec2 other = aCorner.x < 0.5 ? aSegment.zw : aSegment.xy;
-  vec2 toE = e - uLight.xy;
-  vec2 dir = length(toE) > 0.001 ? normalize(toE) : normalize(e - other);
-  vec2 perp = vec2(-dir.y, dir.x);
-  vec2 outward = perp * (dot(perp, e - other) >= 0.0 ? 1.0 : -1.0);
-  vec2 rim = uLight.xy - outward * uLight.w;
-  vec2 away = e - rim;
-  away = length(away) > 0.001 ? normalize(away) : dir;
-  vWorld = aCorner.y < 0.5 ? e : e + away * uLight.z * 4.0;
+  vec2 far;
+  if (abs(aCorner.x - 0.5) < 0.25) {
+    vec2 away = e - uLight.xy;
+    vec2 normal = normalize(vec2(aSegment.y - aSegment.w, aSegment.z - aSegment.x));
+    far = length(away) > 0.001 ? normalize(away) : normal * sign(dot(normal, e - uLight.xy) + 0.5);
+  } else {
+    vec2 other = aCorner.x < 0.5 ? aSegment.zw : aSegment.xy;
+    vec2 toE = e - uLight.xy;
+    vec2 dir = length(toE) > 0.001 ? normalize(toE) : normalize(e - other);
+    vec2 perp = vec2(-dir.y, dir.x);
+    vec2 outward = perp * (dot(perp, e - other) >= 0.0 ? 1.0 : -1.0);
+    vec2 away = e - (uLight.xy - outward * uLight.w);
+    far = length(away) > 0.001 ? normalize(away) : dir;
+  }
+  // Four times the dim radius: the fan's far edges then stay outside the glow (1.12 × dim).
+  vWorld = aCorner.y < 0.5 ? e : e + far * uLight.z * 4.0;
   vSegment = aSegment;
   gl_Position = project(vWorld);
 }`;

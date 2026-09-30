@@ -31,6 +31,13 @@ uniform float uMode;
 uniform float uAllSeen;
 uniform mat3 uScreenToExplored;
 
+// Whichever colour is brighter, blended near a tie. A per-channel max would mix the two
+// (orange light over a grey floor turns pink).
+vec3 brighter(vec3 a, vec3 b) {
+  float difference = dot(b - a, vec3(0.299, 0.587, 0.114));
+  return mix(a, b, smoothstep(-0.06, 0.06, difference));
+}
+
 void main() {
   vec4 acc = texture(uTexture, vTextureCoord);
   vec3 base = texture(uBackTexture, vTextureCoord).rgb;
@@ -44,9 +51,7 @@ void main() {
   float grey = dot(base, vec3(0.299, 0.587, 0.114));
   vec3 darkSight = mix(vec3(grey), base, 0.15) * 0.45;
   // Darkvision shows the scene grey where light is weaker than it, never mixing the two.
-  float litLuma = dot(lit, vec3(0.299, 0.587, 0.114));
-  float darkLuma = dot(darkSight, vec3(0.299, 0.587, 0.114));
-  vec3 visible = mix(lit, darkSight, darkvision * smoothstep(-0.06, 0.06, darkLuma - litLuma));
+  vec3 visible = mix(lit, brighter(lit, darkSight), darkvision);
 
   vec2 screen = vTextureCoord * uInputSize.xy + uOutputFrame.xy;
   vec2 exploredUv = (uScreenToExplored * vec3(screen, 1.0)).xy;
@@ -54,7 +59,8 @@ void main() {
   vec3 memory = vec3(grey) * 0.3 * explored;
 
   vec3 player = mix(memory, visible, seen);
-  vec3 gm = mix(max(lit, base * 0.3) * 0.6, max(visible, base * 0.3), seen);
+  vec3 floorColor = base * 0.3;
+  vec3 gm = mix(brighter(lit, floorColor) * 0.6, brighter(visible, floorColor), seen);
   finalColor = vec4(uMode > 0.5 ? player : gm, 1.0);
 }`;
 

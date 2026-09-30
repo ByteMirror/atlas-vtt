@@ -22,14 +22,15 @@ describe('shadowCasters', () => {
 });
 
 describe('buildShadowQuads', () => {
-  it('emits one quad per caster with near and far corners of both endpoints', () => {
+  it('emits a fan per caster: both endpoints, their far corners and a far point behind the middle', () => {
     const quads = buildShadowQuads([wall('a', 1, 2, 3, 4), wall('b', 5, 6, 7, 8)]);
     expect(quads.count).toBe(2);
-    expect(quads.positions).toHaveLength(2 * 4 * 2);
-    expect(quads.segments).toHaveLength(2 * 4 * 4);
-    expect(Array.from(quads.corners.slice(0, 8))).toEqual([0, 0, 1, 0, 0, 1, 1, 1]);
-    expect(Array.from(quads.segments.slice(16, 20))).toEqual([5, 6, 7, 8]);
-    expect(Array.from(quads.indices)).toEqual([0, 1, 2, 1, 3, 2, 4, 5, 6, 5, 7, 6]);
+    expect(quads.positions).toHaveLength(2 * 5 * 2);
+    expect(quads.segments).toHaveLength(2 * 5 * 4);
+    expect(Array.from(quads.corners.slice(0, 10))).toEqual([0, 0, 1, 0, 0, 1, 1, 1, 0.5, 1]);
+    expect(Array.from(quads.positions.slice(8, 10))).toEqual([2, 3]);
+    expect(Array.from(quads.segments.slice(20, 24))).toEqual([5, 6, 7, 8]);
+    expect(Array.from(quads.indices)).toEqual([0, 1, 4, 0, 4, 2, 1, 3, 4, 5, 6, 9, 5, 9, 7, 6, 8, 9]);
   });
 
   it('is empty without casters', () => {

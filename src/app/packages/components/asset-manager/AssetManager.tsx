@@ -23,6 +23,7 @@ import { useAssetManagerEffects } from './hooks/useAssetManagerEffects';
 import { useFollowSelectedCollection } from './hooks/useFollowSelectedCollection';
 import { useHeldWhile } from './hooks/useHeldWhile';
 import { useSidebarLayout } from './hooks/useSidebarLayout';
+import { useMapFileDrop } from './hooks/useMapFileDrop';
 import { useRememberedPlace } from './hooks/useRememberedPlace';
 import { sortAssets } from './utils/assetSort';
 import { filterFolders, type AssetFilter } from './utils/assetFilter';
@@ -150,6 +151,12 @@ export default function AssetManager({ isOpen, onClose, initialTab, onExitComple
 
   const statblock = useStatblockLink(data.app);
 
+  const refreshAfterImport = useCallback((): void => {
+    void crud.handleRefresh();
+    data.app.workspace.trigger('atlas-vtt:refresh-assets');
+  }, [crud.handleRefresh, data.app]);
+  const fileDrop = useMapFileDrop(data.app, data.assetService, selectedCollection, refreshAfterImport);
+
   const { handleAssetContextMenu, handleFolderContextMenu, handleContentContextMenu } =
     useContextMenus({ data, sel, crud, tags, statblock, selectedCollection, onClose });
 
@@ -192,6 +199,9 @@ export default function AssetManager({ isOpen, onClose, initialTab, onExitComple
               initial="hidden"
               animate="visible"
               exit="exit"
+              // Anywhere in the window takes a map dragged in from outside Obsidian
+              onDragOver={(e) => { fileDrop.accepts(e); }}
+              onDrop={(e) => { fileDrop.receive(e); }}
             >
               <Sidebar
                 selectedTagIds={sel.selectedTagIds}
@@ -227,8 +237,14 @@ export default function AssetManager({ isOpen, onClose, initialTab, onExitComple
               />
               <div
                 className="atlas-asset-manager-body"
-                onDragOver={(e) => { if (draggedItems && sel.selectedFolderId === null) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; } }}
-                onDrop={(e) => { if (draggedItems && sel.selectedFolderId === null) { e.preventDefault(); crud.handleDrop(null); } }}
+                onDragOver={(e) => {
+                  if (fileDrop.accepts(e)) return;
+                  if (draggedItems && sel.selectedFolderId === null) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }
+                }}
+                onDrop={(e) => {
+                  if (fileDrop.receive(e)) return;
+                  if (draggedItems && sel.selectedFolderId === null) { e.preventDefault(); crud.handleDrop(null); }
+                }}
               >
                 <ActiveFilterBar groups={filterSearch.chips} onReset={filterSearch.reset} />
                 <Breadcrumb

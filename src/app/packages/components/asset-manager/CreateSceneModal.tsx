@@ -1,11 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Notice, normalizePath } from 'obsidian';
+import { Notice } from 'obsidian';
 import { motion } from 'framer-motion';
 import { MapIcon } from 'lucide-react';
 import { AssetService } from '../../../services/AssetService';
-import { tokenBarsOf, withTokenBars } from '../../../services/collectionTokenBars';
-import { normalizeImagePath } from '../../../utils/pathUtils';
-import { ensureFolder } from '../../../plugin/vaultFolders';
+import { createScene, sceneFilePath } from '../../../services/sceneCreation';
 import { useAtlasUI } from '../../../react/root/AtlasUIContext';
 import { CloseButton } from '../primitives/CloseButton';
 import { Button } from '../primitives/button';
@@ -93,78 +91,19 @@ export default function CreateSceneModal({
       }
       const collectionId = collection.id;
 
-      // Create a new empty scene structure
-      const normalizedBackground = backgroundPath ? normalizeImagePath(backgroundPath) : null;
-      const mapData = {
-        state: {
-          schema: "atlas-vtt",
-          version: 3,
-          // If invoked from a map, prefill background (ensure vault-relative path)
-          background: normalizedBackground,
-          grid: {
-            enabled: true,
-            visible: true,
-            snapToGrid: true,
-            type: 'square',
-            size: 70,
-            offsetX: 0,
-            offsetY: 0,
-            opacity: 0.5,
-            lineType: 'solid' as const,
-            lineWidth: 1,
-            autoDetect: true
-          },
-          objects: {
-            tokens: {},
-            fog: {},
-            pins: {},
-            texts: {},
-            drawings: {} // Include drawings for all scenes
-          },
-          camera: {
-            x: 0,
-            y: 0,
-            scale: 1
-          }
-        },
-        version: 3
-      };
-
-      // Apply collection grid defaults if available
-      if (assetService) {
-        const settings = assetService.getCollectionSettings(collectionId);
-        if (settings.gridDefaults) {
-          const gd = settings.gridDefaults;
-          Object.assign(mapData.state.grid, {
-            unitType: gd.unitType,
-            unitDistance: gd.unitDistance,
-            measurementType: gd.measurementMode === 'abstract' ? 'abstract' as const : 'units' as const,
-          });
-        }
-        // The collection's resource bars, e.g. Daggerheart's Stress
-        Object.assign(mapData.state, { tokenSettings: withTokenBars(undefined, tokenBarsOf(settings.defaultWidgets)) });
-      }
-
-      const scenePath = normalizePath(`atlas-vtt/collections/${collectionId}/scenes/${sceneName.trim()}.atlasmap`);
-
-      if (app.vault.getAbstractFileByPath(scenePath)) {
-        new Notice(`A scene named "${sceneName.trim()}" already exists`);
+      const name = sceneName.trim();
+      if (app.vault.getAbstractFileByPath(sceneFilePath(collectionId, name))) {
+        new Notice(`A scene named "${name}" already exists`);
         return;
       }
 
-      // The map file and its scene record are written as one step, so the vault
-      // check never finds the new map without a scene and adds a second one.
-      const sceneFile = await assetService.runExclusive(async () => {
-        await ensureFolder(app, scenePath.substring(0, scenePath.lastIndexOf('/')));
-        const file = await app.vault.create(scenePath, JSON.stringify(mapData, null, 2));
-        await assetService.addAsset({
-          type: 'scene',
-          name: sceneName.trim(),
-          collection: collectionId,
-          tags: selectedTags,
-          data: { mapPath: scenePath },
-        });
-        return file;
+      const sceneFile = await createScene({
+        app,
+        assetService,
+        name,
+        collectionId,
+        backgroundPath,
+        tags: selectedTags,
       });
 
       await app.workspace.getLeaf(false).openFile(sceneFile);

@@ -1,7 +1,7 @@
 import { App, Notice, TFile } from 'obsidian';
 import { AssetService } from '../../../../services/AssetService';
 import { createScene, sceneFilePath } from '../../../../services/sceneCreation';
-import { writeAssetFile, writeAssetImage } from '../../../../services/assetImageFiles';
+import { discardAssetFiles, writeAssetFile, writeAssetImage } from '../../../../services/assetImageFiles';
 import { MapThumbnailService } from '../../../../services/MapThumbnailService';
 import { mapFileThumbnail } from './mapFileThumbnail';
 import { optimizeUpload } from '../token-creator/tokenImages';
@@ -92,10 +92,7 @@ export async function importDroppedMaps({ app, assetService, collectionId, files
       console.error('[Atlas] Could not import the dropped map', file.name, error);
       new Notice(`Could not import ${file.name}: ${error instanceof Error ? error.message : String(error)}`);
       // The map would otherwise stay in the assets folder with no scene using it
-      const written = backgroundPath ? app.vault.getAbstractFileByPath(backgroundPath) : null;
-      if (written instanceof TFile) {
-        try { await app.fileManager.trashFile(written); } catch { /* Keep the copy if trash is unavailable. */ }
-      }
+      await discardAssetFiles(app, [backgroundPath ?? undefined]);
     }
 
     // Deliberately after the import and outside its catch: saveThumbnail needs the scene

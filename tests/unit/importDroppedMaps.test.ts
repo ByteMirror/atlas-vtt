@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { TFile } from 'obsidian';
 
 const scenes = vi.hoisted(() => ({ createScene: vi.fn() }));
-const files = vi.hoisted(() => ({ writeAssetFile: vi.fn(), writeAssetImage: vi.fn() }));
+const files = vi.hoisted(() => ({ writeAssetFile: vi.fn(), writeAssetImage: vi.fn(), discardAssetFiles: vi.fn() }));
 const images = vi.hoisted(() => ({ optimizeUpload: vi.fn() }));
 const stills = vi.hoisted(() => ({ mapFileThumbnail: vi.fn() }));
 const thumbnails = vi.hoisted(() => ({ saveThumbnail: vi.fn() }));
@@ -59,6 +59,7 @@ describe('importDroppedMaps', () => {
   beforeEach(() => {
     existing = new Set();
     trashFile.mockReset().mockResolvedValue(undefined);
+    files.discardAssetFiles.mockReset().mockResolvedValue(undefined);
     scenes.createScene.mockReset().mockResolvedValue(
       Object.assign(new TFile(), { path: 'atlas-vtt/collections/campaign/scenes/Cavern.atlasmap' })
     );
@@ -134,7 +135,7 @@ describe('importDroppedMaps', () => {
 
     expect(await run(drop('Cavern.webm'))).toBe(1);
 
-    expect(trashFile).not.toHaveBeenCalled();
+    expect(files.discardAssetFiles).not.toHaveBeenCalled();
   });
 
   it('does not try to thumbnail a map whose scene was never written', async () => {
@@ -151,6 +152,14 @@ describe('importDroppedMaps', () => {
 
     expect(await run(drop('Cavern.webm'))).toBe(0);
 
-    expect(trashFile).toHaveBeenCalledWith(expect.objectContaining({ path: 'atlas-vtt/assets/Cavern_1.webm' }));
+    expect(files.discardAssetFiles).toHaveBeenCalledWith(expect.anything(), ['atlas-vtt/assets/Cavern_1.webm']);
+  });
+
+  it('has nothing to discard when the map itself could not be written', async () => {
+    files.writeAssetFile.mockRejectedValue(new Error('the vault is read-only'));
+
+    expect(await run(drop('Cavern.webm'))).toBe(0);
+
+    expect(files.discardAssetFiles).toHaveBeenCalledWith(expect.anything(), [undefined]);
   });
 });

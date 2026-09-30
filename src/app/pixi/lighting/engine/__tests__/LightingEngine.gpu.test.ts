@@ -40,6 +40,7 @@ describe('LightingEngine', () => {
     cleanup.push(() => renderer.destroy());
     const engine = new LightingEngine(renderer);
     cleanup.push(() => engine.destroy());
+    engine.setEnabled(true);
     return { renderer, engine };
   }
 
@@ -104,6 +105,20 @@ describe('LightingEngine', () => {
     engine.flush();
     const at = render(engine, renderer, 0.25, 0, 0);
     expect(at(128, 128)).toBeGreaterThan(0);
+  });
+
+  it('leaves the back buffer off while disabled, however often it updates', async () => {
+    const { renderer, engine } = await setup();
+    engine.setEnabled(false);
+    expect(engine.layer.visible).toBe(false);
+    expect(renderer.backBuffer.useBackBuffer).toBe(false);
+    engine.update(scene({ walls: room }));
+    engine.update(scene({ bounds: { width: 512, height: 512 } }));
+    engine.flush();
+    expect(renderer.backBuffer.useBackBuffer).toBe(false);
+    engine.setEnabled(true);
+    expect(renderer.backBuffer.useBackBuffer).toBe(true);
+    expect(engine.layer.visible).toBe(true);
   });
 
   it('keeps no destroyed texture bound when one-way walls come and go or the map changes', async () => {

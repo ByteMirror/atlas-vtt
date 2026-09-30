@@ -25,6 +25,7 @@ export class LightingEngine {
   private mode: LightingMode = 'gm';
   private view = { screenToWorld: new Matrix(), zoom: 1 };
   private sight: Sight | null = null;
+  private ownsBackBuffer = false;
 
   constructor(private readonly renderer: Renderer) {
     this.layer.eventMode = 'none';
@@ -38,8 +39,6 @@ export class LightingEngine {
     }
     const world = this.world!;
     const composite = this.composite!;
-    // Without it WebGL skips the composite and the layer shows the map unlit.
-    useBackBuffer(this.renderer, true);
     world.update(scene.walls, scene.lights, scene.albedo);
     if (world.fieldAll() !== this.boundField) {
       this.boundField = world.fieldAll();
@@ -51,6 +50,17 @@ export class LightingEngine {
       composite.setAllSeen(scene.sight.all);
     }
     composite.setAmbient(scene.ambient, scene.ambientColor);
+  }
+
+  /**
+   * The one switch for the back buffer: the composite reads the scene beneath it, and without
+   * one WebGL skips the composite and the layer shows the map unlit. The engine's owner calls
+   * this, so nothing else turns the back buffer on or off behind its back.
+   */
+  setEnabled(on: boolean): void {
+    this.layer.visible = on;
+    setBackBuffer(this.renderer, on);
+    this.ownsBackBuffer = on;
   }
 
   animate(now: number): boolean {
@@ -89,7 +99,7 @@ export class LightingEngine {
     this.world?.destroy();
     this.sightMeshes.destroy();
     destroyTree(this.layer);
-    useBackBuffer(this.renderer, false);
+    if (this.ownsBackBuffer) setBackBuffer(this.renderer, false);
   }
 
   /** The composite moves to the new world before the old one's textures are destroyed. */
@@ -113,8 +123,8 @@ export class LightingEngine {
   }
 }
 
-/** The composite reads the scene beneath it, which WebGL only offers through a back buffer. */
-function useBackBuffer(renderer: Renderer, on: boolean): void {
+/** WebGL only offers the scene beneath a filter through a back buffer. */
+function setBackBuffer(renderer: Renderer, on: boolean): void {
   if (renderer.name !== 'webgl') return;
   (renderer as WebGLRenderer).backBuffer.useBackBuffer = on;
 }

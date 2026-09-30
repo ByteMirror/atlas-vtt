@@ -68,6 +68,25 @@ float sightAt(vec2 q) {
   return texture(uTexture, uv).r;
 }
 
+// Explored memory is stamped with hard-edged polygons: blur it over a disc of two memory texels,
+// shrunk to the pixel's wall clearance so memory never smears across a wall. 12 Vogel taps,
+// Gaussian in distance.
+float exploredAt(vec2 w) {
+  float texel = uMapSize.x / float(textureSize(uExplored, 0).x);
+  float r = min(2.0 * texel, clearance(w));
+  float sum = texture(uExplored, clamp(w / uMapSize, 0.0, 1.0)).r;
+  if (r < 0.25 * texel) return sum;
+  float weights = 1.0;
+  for (int i = 0; i < 12; i++) {
+    float t = sqrt((float(i) + 0.5) / 12.0);
+    float a = float(i) * 2.39996323;
+    float k = exp(-2.0 * t * t);
+    sum += k * texture(uExplored, clamp((w + vec2(cos(a), sin(a)) * t * r) / uMapSize, 0.0, 1.0)).r;
+    weights += k;
+  }
+  return sum / weights;
+}
+
 // Whichever colour is brighter, blended near a tie (a per-channel max mixes them into pink).
 vec3 brighter(vec3 a, vec3 b) {
   return mix(a, b, smoothstep(-0.02, 0.02, dot(b - a, LUMA)));
@@ -105,7 +124,7 @@ void main() {
   float grey = dot(albedo, LUMA);
   vec3 darkSight = mix(vec3(grey), albedo, 0.15) * 0.15;
   vec3 visible = mix(lit, brighter(lit, darkSight), sight.g);
-  float explored = texture(uExplored, clamp(world / uMapSize, 0.0, 1.0)).r;
+  float explored = uMode > 0.5 && seen < 1.0 ? exploredAt(world) : 0.0;
   vec3 player = mix(vec3(grey) * 0.07 * explored, visible, seen);
 
   // The GM always sees the map: a dim floor screen-blended under the light, unseen areas dimmer.

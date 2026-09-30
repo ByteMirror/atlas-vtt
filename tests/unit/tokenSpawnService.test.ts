@@ -6,12 +6,6 @@ import type { AssetService } from '../../src/app/services/AssetService';
 import type { TokenVisionDefaults } from '../../src/app/types/lightingTypes';
 import { createInMemoryApp } from '../mocks/inMemoryVault';
 
-const statblock = vi.hoisted(() => ({ overrides: null as Record<string, unknown> | null }));
-vi.mock('../../src/app/packages/components/asset-manager/utils/statblockLoader', async (importOriginal) => {
-  const original = await importOriginal<typeof import('../../src/app/packages/components/asset-manager/utils/statblockLoader')>();
-  return { ...original, loadStatblockOverrides: async (...args: Parameters<typeof original.loadStatblockOverrides>) => statblock.overrides ?? original.loadStatblockOverrides(...args) };
-});
-
 const unframed: TokenAsset = { id: 'goblin', name: 'Goblin', type: 'tokens', imageUrl: 'app://goblin.png', imagePath: 'tokens/goblin.png', showRing: false, size: 2, modifiedAt: 0 };
 const framed: TokenAsset = { id: 'knight', name: 'Knight', type: 'tokens', imageUrl: 'app://knight.png', imagePath: 'tokens/knight.png', showRing: true, modifiedAt: 0 };
 
@@ -126,11 +120,10 @@ describe('default token vision of the placing map\'s collection', () => {
     expect(spawned[0]!.vision).toEqual({ enabled: false, ...defaults });
   });
 
-  it('leaves the vision a token already has', async () => {
-    const { ctx, spawned } = setup({}, defaults);
-    statblock.overrides = { vision: { enabled: true, range: 10 } };
-    await spawnTokenAsset(ctx, { ...unframed, statblockPath: 'notes/goblin.md' }, 1);
-    expect(spawned[0]!.vision).toEqual({ enabled: true, range: 10 });
+  it('ignores anything but the defaults in the stored settings, so vision stays off', async () => {
+    const { ctx, spawned } = setup({}, { enabled: true, darkvision: 60, unknown: 1 } as TokenVisionDefaults);
+    await spawnTokenAsset(ctx, unframed, 1);
+    expect(spawned[0]!.vision).toEqual({ enabled: false, darkvision: 60 });
   });
 
   it('keeps the vision of a token restored from a saved snapshot, or none', async () => {

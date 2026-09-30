@@ -12,7 +12,7 @@ import {
 } from '../../../../encounters/encounterFormation';
 import type { AtlasView } from '../../../../atlas-view';
 import type { TokenInput, ViewAtlasState } from '../../../../storeFactory';
-import { hasVisionDefaults } from '../../../../gameSystems/visionDefaults';
+import { mapVisionDefaults } from '../../../../gameSystems/visionDefaults';
 import type { TokenVision, TokenVisionDefaults } from '../../../../types/lightingTypes';
 
 // ─── Viewport helpers ───────────────────────────────────────────────
@@ -164,17 +164,12 @@ async function resolveTokenSource(ctx: SpawnContext, ref: TokenSourceRef): Promi
   };
 }
 
-/** What new tokens start with on the map in `ctx`, from its collection; undefined when it sets none. */
-function collectionVisionDefaults(ctx: SpawnContext): TokenVisionDefaults | undefined {
-  const mapPath = ctx.view?.getStore().getState().mapPath;
-  if (!mapPath || !ctx.assetService) return undefined;
-  const collectionId = ctx.assetService.getCollectionForMap(mapPath);
-  if (!collectionId) return undefined;
-  const defaults = ctx.assetService.getCollectionSettings(collectionId).defaultTokenVision;
-  return hasVisionDefaults(defaults) ? defaults : undefined;
+/** What new tokens start with on the map of `ctx`, from its collection. */
+function spawnVisionDefaults(ctx: SpawnContext): TokenVisionDefaults | undefined {
+  return ctx.assetService ? mapVisionDefaults(ctx.assetService, ctx.view?.getStore().getState().mapPath) : undefined;
 }
 
-/** Builds a token from its asset; a token without vision of its own gets `visionDefaults`, switched off. */
+/** Builds a token from its asset; `visionDefaults` (the placing collection's) start vision off. */
 async function buildTokenData(
   app: ObsidianApp,
   pos: { x: number; y: number },
@@ -198,7 +193,7 @@ async function buildTokenData(
     Object.assign(data, overrides);
   }
 
-  if (visionDefaults && data.vision === undefined) data.vision = { enabled: false, ...visionDefaults };
+  if (visionDefaults) data.vision = { enabled: false, ...visionDefaults };
 
   return data;
 }
@@ -238,7 +233,7 @@ export async function spawnTokenAsset(
   if (!source) return [];
 
   // The statblock is read once; every copy shares that data at its own position.
-  const template = await buildTokenData(ctx.app, center, source, collectionVisionDefaults(ctx));
+  const template = await buildTokenData(ctx.app, center, source, spawnVisionDefaults(ctx));
   const tokens = Array.from({ length: count }, (_, i): TokenInput => ({
     ...structuredClone(template),
     ...gridPosition(i, count, center.x, center.y, pitch, gridSystem),
@@ -268,7 +263,7 @@ export async function spawnEncounterTokens(
     ? placeFormation(slots, encounter.formation, center, grid)
     : null;
 
-  const visionDefaults = collectionVisionDefaults(ctx);
+  const visionDefaults = spawnVisionDefaults(ctx);
   const tokens: TokenInput[] = [];
   for (let i = 0; i < tokensToSpawn.length; i++) {
     const token = tokensToSpawn[i];
@@ -326,7 +321,7 @@ export async function spawnSelectedTokens(
   const center = getViewportCenter(viewport);
   const tokensToSpawn = selectedAssets.filter(a => a.type === 'tokens');
 
-  const visionDefaults = collectionVisionDefaults(ctx);
+  const visionDefaults = spawnVisionDefaults(ctx);
   const tokens: TokenInput[] = [];
   for (let i = 0; i < tokensToSpawn.length; i++) {
     const tokenAsset = tokensToSpawn[i];

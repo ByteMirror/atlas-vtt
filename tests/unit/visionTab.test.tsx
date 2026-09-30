@@ -53,6 +53,17 @@ describe('VisionTab', () => {
     expect(saved()).toBeNull();
   });
 
+  it('shows a default that arrives after it mounted, and keeps it when one field is edited', () => {
+    const grid = DEFAULT_GRID_DEFAULTS;
+    const changes: Array<TokenVisionDefaults | undefined> = [];
+    const { rerender } = render(<VisionTab gridDefaults={grid} vision={undefined} onChange={(v) => changes.push(v)} />);
+    const loaded = { darkvision: 60, range: 30 };
+    rerender(<VisionTab gridDefaults={grid} vision={loaded} onChange={(v) => changes.push(v)} />);
+    expect(field(/^Darkvision/).value).toBe('60');
+    fireEvent.change(field(/^Tremorsense/), { target: { value: '10' } });
+    expect(changes).toEqual([{ range: 30, darkvision: 60, tremorsense: 10 }]);
+  });
+
   it('treats a full turn or an invalid number as nothing', () => {
     render(<Harness />);
     fireEvent.change(field(/^Vision angle/), { target: { value: '360' } });

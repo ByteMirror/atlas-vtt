@@ -14,7 +14,7 @@ import { TokenLightingFields, type LightChoice } from './TokenLightingFields';
 import { WALLS_AND_LIGHTING_ENABLED } from '../../featureFlags';
 import { unitLabelFor } from '../../grid/measurementFormat';
 import { presetOf } from '../../lighting/lightPresets';
-import { carriedLight, visionForm, visionFromForm, type VisionForm } from '../../lighting/tokenLighting';
+import { carriedLight, numberText, visionForm, visionFromForm, type VisionForm } from '../../lighting/tokenLighting';
 
 interface EditTokenValues {
   name: string;
@@ -33,16 +33,14 @@ interface EditTokenModalProps {
   onClose: () => void;
 }
 
-const numberInput = (value: number | undefined): string => (value === undefined ? '' : String(value));
-
 const defaultPlaceholder = (value: number | undefined): string =>
   value === undefined ? 'None' : `Statblock default: ${value}`;
 
 function EditTokenModalInner({ initial, resourceDefaults, unit, onSave, onClose }: EditTokenModalProps): React.ReactElement {
   const [name, setName] = useState(initial.name);
   const [showNameplate, setShowNameplate] = useState(initial.showNameplate);
-  const [maxHpInput, setMaxHpInput] = useState(numberInput(initial.maxHp));
-  const [maxStressInput, setMaxStressInput] = useState(numberInput(initial.maxStress));
+  const [maxHpInput, setMaxHpInput] = useState(numberText(initial.maxHp));
+  const [maxStressInput, setMaxStressInput] = useState(numberText(initial.maxStress));
   const [vision, setVision] = useState(initial.vision);
   const [light, setLight] = useState(initial.light);
   const inputRef = useRef<HTMLInputElement>(null);

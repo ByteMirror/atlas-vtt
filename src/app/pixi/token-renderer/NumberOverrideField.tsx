@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useId } from 'react';
 import { X } from 'lucide-react';
 import { Button } from '../../packages/components/primitives/button';
 import { LabelTooltip } from '../../packages/components/primitives/tooltip';
@@ -18,11 +18,13 @@ interface NumberOverrideFieldProps {
 
 /** Numeric input whose empty state falls back to an inherited default; a clear button restores it. */
 export function NumberOverrideField({ label, value, onChange, placeholder, resetLabel, hint, min = 0, max }: NumberOverrideFieldProps): React.ReactElement {
+  const id = useId();
   return (
     <div className="atlas-edit-token__field">
-      <label className="atlas-edit-token__label">{label}</label>
+      <label className="atlas-edit-token__label" htmlFor={id}>{label}</label>
       <div className="atlas-edit-token__input-row">
         <input
+          id={id}
           type="number"
           className="atlas-input"
           value={value}

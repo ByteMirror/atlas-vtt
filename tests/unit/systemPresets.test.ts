@@ -249,8 +249,10 @@ describe('default token vision', () => {
   });
 
   it('drops invalid fields and unknown ones, keeping the valid ones', () => {
-    const [preset] = parseUserPresets([stored({ range: -5, darkvision: '60', tremorsense: 0, angle: 0, enabled: true, other: 1 })]);
-    expect(preset?.rules.defaultTokenVision).toEqual({ tremorsense: 0 });
+    const [preset] = parseUserPresets([stored({ range: -5, darkvision: '60', tremorsense: 15, angle: 0, enabled: true, other: 1 })]);
+    expect(preset?.rules.defaultTokenVision).toEqual({ tremorsense: 15 });
+    const [zero] = parseUserPresets([stored({ range: 0, darkvision: 30 })]);
+    expect(zero?.rules.defaultTokenVision).toEqual({ darkvision: 30 });
     const [wide] = parseUserPresets([stored({ angle: 361, darkvision: Infinity, range: 25 })]);
     expect(wide?.rules.defaultTokenVision).toEqual({ range: 25 });
     const [full] = parseUserPresets([stored({ angle: 360 })]);

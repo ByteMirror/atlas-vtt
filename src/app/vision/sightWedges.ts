@@ -30,6 +30,7 @@ export function sightWedges(origin: Point, polygon: Polygon, radius: number): Si
   const dist = polygon.map((p) => Math.hypot(p.x - origin.x, p.y - origin.y));
   for (let i = 0; i + 1 < polygon.length; i++) {
     if (Math.abs(angle[i + 1]! - angle[i]!) > 1e-4 || Math.abs(dist[i + 1]! - dist[i]!) < 1) continue;
+    // Only a vision cone's edge starts at the origin (a wall corner is never that close).
     if (Math.min(dist[i]!, dist[i + 1]!) < CONE_EDGE) continue;
     const nearFirst = dist[i]! < dist[i + 1]!;
     const a = polygon[nearFirst ? i : i + 1]!;

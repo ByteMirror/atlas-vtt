@@ -30,7 +30,6 @@ export function wallsInReach(walls: readonly WallSegment[], origin: Point, radiu
  * Radial sweep: a ray at every wall endpoint (and just beside it) plus evenly spaced
  * boundary rays, each stopped by the nearest wall.
  */
-// ponytail: O(rays × walls), ~4 ms with 500 walls in reach; switch to a sorted-endpoint sweep if drags get slow.
 export function computeVisibility(origin: Point, radius: number, walls: readonly WallSegment[]): Polygon {
   const blocking = wallsInReach(walls, origin, radius);
   const angles: number[] = [];
@@ -43,14 +42,41 @@ export function computeVisibility(origin: Point, radius: number, walls: readonly
     }
   }
   angles.sort((a, b) => a - b);
-
+  const spans = angularSpans(origin, blocking);
+  const seam = spans.filter((span) => span.wraps);
+  const ordered = spans.filter((span) => !span.wraps).sort((a, b) => a.from - b.from);
+  let next = 0;
+  let active: AngularSpan[] = [];
   return angles.map((angle) => {
+    while (next < ordered.length && ordered[next]!.from <= angle + SPAN_SLACK) active.push(ordered[next++]!);
+    active = active.filter((span) => span.to >= angle - SPAN_SLACK);
     let reach = radius;
-    for (const wall of blocking) {
-      const t = raySegmentIntersect(origin, angle, wall.p1, wall.p2);
-      if (t < reach) reach = t;
+    for (const span of active) reach = Math.min(reach, raySegmentIntersect(origin, angle, span.wall.p1, span.wall.p2));
+    for (const span of seam) {
+      if (angle >= span.from - SPAN_SLACK || angle <= span.to + SPAN_SLACK) reach = Math.min(reach, raySegmentIntersect(origin, angle, span.wall.p1, span.wall.p2));
     }
     return { x: origin.x + Math.cos(angle) * reach, y: origin.y + Math.sin(angle) * reach };
+  });
+}
+
+/** Angles slightly beyond a wall's own, so rays at its ends always test it. */
+const SPAN_SLACK = 1e-4;
+
+interface AngularSpan {
+  wall: WallSegment;
+  from: number;
+  to: number;
+  /** Crosses the ±π seam: covers angles ≥ from and ≤ to. */
+  wraps: boolean;
+}
+
+/** The angles each wall covers as seen from `origin` (always less than π, since it is a segment). */
+function angularSpans(origin: Point, walls: readonly WallSegment[]): AngularSpan[] {
+  return walls.map((wall) => {
+    const a = angleTo(origin, wall.p1), b = angleTo(origin, wall.p2);
+    const [lo, hi] = a < b ? [a, b] : [b, a];
+    const wraps = hi - lo > Math.PI;
+    return { wall, from: wraps ? hi : lo, to: wraps ? lo : hi, wraps };
   });
 }
 

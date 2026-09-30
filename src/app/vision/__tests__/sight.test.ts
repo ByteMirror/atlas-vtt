@@ -49,6 +49,18 @@ describe('computeSight', () => {
   });
 });
 
+describe('computeSight origins', () => {
+  it('records where each polygon is seen from, darkvision only for tokens that have it', () => {
+    const a = source({ tokenId: 'a', origin: { x: 100, y: 100 } });
+    const b = source({ tokenId: 'b', origin: { x: 500, y: 500 }, darkvision: 400 });
+    const sight = computeSight([a, b], [wall]);
+    expect(sight.origins).toEqual([a.origin, b.origin]);
+    expect(sight.polygons).toHaveLength(2);
+    expect(sight.darkvisionOrigins).toEqual([b.origin]);
+    expect(sight.darkvision).toHaveLength(1);
+  });
+});
+
 describe('isSeen', () => {
   const sight = computeSight([source()], []);
 

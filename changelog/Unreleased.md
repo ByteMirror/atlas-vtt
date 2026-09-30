@@ -1,6 +1,7 @@
 ## New
 
 - Cairn is a built-in game system preset, with 5-foot squares and its conditions: Deprived, Fatigue, Critical Damage, Paralyzed, Delirious and Fleeing
+- The toolbar can be customised in Settings → Atlas VTT → Toolbar: hide tools you do not use and reorder the rest. The control furthest left stays on the bar longest when the window is narrow, and a hidden tool keeps its keyboard shortcut
 
 ## Improved
 

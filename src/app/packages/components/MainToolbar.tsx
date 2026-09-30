@@ -1,56 +1,21 @@
 import React, { useState, useCallback, useRef, useMemo, forwardRef } from "react"
 import { useAtlasStore, useViewStoreHook } from "src/app/react/ViewStoreContext"
-import { Command, Dices, Eye, EyeOff, ImageIcon, MapPin, Volume2 } from "lucide-react"
+import { Eye, EyeOff } from "lucide-react"
 
 import { TooltipProvider } from "./primitives/tooltip"
-import { useHotkeyLabels } from "../../keyboard/useMapHotkeys"
+import { useAtlasSettings, useHotkeyLabels } from "../../keyboard/useMapHotkeys"
 import { useMapClipboardHotkeys } from "../../clipboard/useMapClipboardHotkeys"
 import { CommandPalette } from "../../react/components/CommandPalette"
 import AssetManager from "./asset-manager/AssetManager"
-import { ToolButton } from "./primitives/ToolButton"
-import { CoinIcon } from "../../react/components/CoinIcon"
 import { useAtlasUI } from "src/app/react/root/AtlasUIContext"
 import { Toggle } from "./primitives/Toggle"
-import { DiceDropdownMenu } from "../../react/components/dice/DiceDropdownMenu"
-import { AMBIENT_AUDIO_ENABLED, WALLS_AND_LIGHTING_ENABLED } from "../../featureFlags"
 import { isAtlasToolAvailable } from "../../tools/toolAvailability"
 import { ResponsiveToolbar } from "./toolbar/ResponsiveToolbar"
-import { MoveToolGroup } from "./toolbar/MoveToolGroup"
-import { FogToolGroup } from "./toolbar/FogToolGroup"
-import { DrawToolGroup } from "./toolbar/DrawToolGroup"
-import { TextToolGroup } from "./toolbar/TextToolGroup"
-import { MeasureToolGroup } from "./toolbar/MeasureToolGroup"
-import { WallToolGroup } from "./toolbar/WallToolGroup"
 import { useToolbarHotkeys } from "./toolbar/useToolbarHotkeys"
-import {
-  drawToolFace, fogToolFace, measureToolFace, moveToolFace, textToolFace, wallToolFace,
-  type Tool, type ToolFace,
-} from "./toolbar/toolFaces"
+import type { Tool } from "./toolbar/toolFaces"
+import { toolbarItems } from "./toolbar/toolbarRegistry"
+import type { ToolbarContext, ToolMenu } from "./toolbar/toolbarContext"
 import type { ToolGroupControls } from "./toolbar/ToolGroup"
-import type { ResponsiveToolbarItem } from "./toolbar/toolbarTypes"
-
-/** Tool groups whose options menu is open; only one at a time. */
-type ToolMenu = 'move' | 'fog' | 'draw' | 'text' | 'measure' | 'wall'
-
-/**
- * Which controls a narrow toolbar keeps longest (higher stays longer). The
- * tools a GM reaches for during play outrank setup and reference tools, which
- * also have hotkeys.
- */
-const PRIORITY = {
-  move: 100,
-  measure: 90,
-  fog: 85,
-  assets: 80,
-  dice: 75,
-  pin: 70,
-  draw: 65,
-  palette: 55,
-  text: 50,
-  loot: 45,
-  wall: 40,
-  audio: 35,
-} as const
 
 interface MainToolbarProps {
   viewId?: string;
@@ -64,6 +29,9 @@ export const MainToolbar = forwardRef<HTMLDivElement, MainToolbarProps>(({ viewI
   const isGMView = useAtlasStore(state => state.isGMView)
   const setGMView = useAtlasStore(state => state.setGMView)
   const hotkeyLabel = useHotkeyLabels()
+  const settings = useAtlasSettings()
+  const toolbarOverrides = settings?.getToolbarControls()
+  const toolbarOrder = settings?.getToolbarOrder() ?? []
 
   const isActualPlayerView = view?.getViewType?.() === 'atlas-vtt-player'
 
@@ -139,72 +107,20 @@ export const MainToolbar = forwardRef<HTMLDivElement, MainToolbarProps>(({ viewI
     closeMenu: closeMenus,
   })
 
-  /** A tool group: pinned while its tool is active or its options are open. */
-  const toolGroupItem = (menu: ToolMenu, face: ToolFace, shortcut: string, element: React.ReactNode): ResponsiveToolbarItem => ({
-    id: menu,
-    priority: PRIORITY[menu],
-    pinned: face.isActive || openMenu === menu,
-    element,
-    menuEntry: { icon: face.icon, label: face.label, shortcut, isActive: face.isActive, onSelect: () => handleToolClick(face.tool) },
-  })
-
-  /**
-   * A plain button for a tool or a panel. Tools pin while active; panels that
-   * float on their own (loot roller, asset manager, palette) never pin.
-   */
-  const buttonItem = (
-    id: keyof typeof PRIORITY,
-    button: { icon: ToolFace["icon"]; label: string; shortcut: string; isActive: boolean; onClick: () => void },
-    pinned: boolean,
-  ): ResponsiveToolbarItem => ({
-    id,
-    priority: PRIORITY[id],
-    pinned,
-    element: <ToolButton {...button} />,
-    menuEntry: { icon: button.icon, label: button.label, shortcut: button.shortcut, isActive: button.isActive, onSelect: button.onClick },
-  })
-
-  const toolButtonItem = (id: 'pin' | 'audio', tool: Tool, icon: ToolFace["icon"], label: string, shortcut: string): ResponsiveToolbarItem =>
-    buttonItem(id, { icon, label, shortcut, isActive: activeTool === tool, onClick: () => handleToolClick(tool) }, activeTool === tool)
-
   const dm = !isActualPlayerView
 
-  const items: ResponsiveToolbarItem[] = [
-    toolGroupItem('move', moveToolFace(activeTool), hotkeyLabel('move'), <MoveToolGroup {...groupControls('move')} />),
-    ...(dm ? [toolGroupItem('fog', fogToolFace(activeTool), hotkeyLabel('fog'), <FogToolGroup {...groupControls('fog')} />)] : []),
-    ...(dm ? [toolGroupItem('draw', drawToolFace(activeTool), hotkeyLabel('draw'), <DrawToolGroup {...groupControls('draw')} />)] : []),
-    ...(dm && isAtlasToolAvailable('text')
-      ? [toolGroupItem('text', textToolFace(activeTool), hotkeyLabel('text'), <TextToolGroup {...groupControls('text')} />)]
-      : []),
-    toolGroupItem('measure', measureToolFace(activeTool), hotkeyLabel('measure'), <MeasureToolGroup {...groupControls('measure')} />),
-    ...(dm ? [toolButtonItem('pin', "note-pin", MapPin, "Note Pin Tool", hotkeyLabel('pin'))] : []),
-    ...(dm && WALLS_AND_LIGHTING_ENABLED
-      ? [toolGroupItem('wall', wallToolFace(activeTool), hotkeyLabel('wall'), <WallToolGroup {...groupControls('wall')} />)]
-      : []),
-    ...(dm && AMBIENT_AUDIO_ENABLED
-      ? [toolButtonItem('audio', "audio", Volume2, "Ambient Sound", hotkeyLabel('audio'))]
-      : []),
-    {
-      id: 'dice',
-      priority: PRIORITY.dice,
-      // The dice tray hangs from this button.
-      pinned: isDiceTrayOpen,
-      element: (
-        <div ref={diceButtonRef} className="relative flex items-center">
-          <ToolButton icon={Dices} label="Roll Dice" shortcut={hotkeyLabel('diceTray')} isActive={isDiceTrayOpen} onClick={toggleDiceTray} />
-          {diceTool && (
-            <DiceDropdownMenu diceTool={diceTool} isOpen={isDiceTrayOpen} onToggle={toggleDiceTray} triggerRef={diceButtonRef} />
-          )}
-        </div>
-      ),
-      menuEntry: { icon: Dices, label: "Roll Dice", shortcut: hotkeyLabel('diceTray'), isActive: isDiceTrayOpen, onSelect: toggleDiceTray },
-    },
-    ...(dm ? [
-      buttonItem('loot', { icon: CoinIcon, label: "Loot Roller", shortcut: hotkeyLabel('lootRoller'), isActive: lootRollerOpen, onClick: () => setLootRollerOpen(!lootRollerOpen) }, false),
-      buttonItem('assets', { icon: ImageIcon, label: "Asset Manager", shortcut: hotkeyLabel('assets'), isActive: isAssetManagerOpen, onClick: handleAssetManagerClick }, false),
-      buttonItem('palette', { icon: Command, label: "Command Palette", shortcut: hotkeyLabel('palette'), isActive: isCommandPaletteOpen, onClick: () => setCommandPaletteOpen(!isCommandPaletteOpen) }, false),
-    ] : []),
-  ]
+  const ctx: ToolbarContext = {
+    activeTool,
+    selectTool: handleToolClick,
+    hotkeyLabel,
+    openMenu,
+    groupControls,
+    dice: { open: isDiceTrayOpen, toggle: toggleDiceTray, tool: diceTool, buttonRef: diceButtonRef },
+    loot: { open: lootRollerOpen, setOpen: setLootRollerOpen },
+    assets: { open: isAssetManagerOpen, openManager: handleAssetManagerClick },
+    palette: { open: isCommandPaletteOpen, setOpen: setCommandPaletteOpen },
+  }
+  const items = toolbarItems(ctx, { dm, overrides: toolbarOverrides, order: toolbarOrder })
 
   return (
     <TooltipProvider delayDuration={300}>

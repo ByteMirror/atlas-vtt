@@ -10,6 +10,8 @@ export interface CompositeFilter {
   setMode(mode: LightingMode): void;
   /** No token has vision: line of sight hides nothing. */
   setAllSeen(all: boolean): void;
+  /** How far the edge of what is seen fades, in screen pixels at the current zoom. */
+  setSightSoftness(pixels: number): void;
   setExplored(texture: Texture): void;
   /** Maps global (screen) pixels to explored-texture coordinates; set every frame from the layer's transform. */
   setScreenToExplored(matrix: Matrix): void;
@@ -29,6 +31,24 @@ uniform vec4 uOutputFrame;
 uniform vec3 uAmbient;
 uniform float uMode;
 uniform float uAllSeen;
+uniform float uSightSoftness;
+uniform vec4 uInputClamp;
+
+// Share of the neighbourhood in line of sight, so the edge of what is seen fades over
+// uSightSoftness pixels instead of cutting hard along walls and door frames.
+float seenAround(vec2 uv) {
+  float seen = step(0.25, texture(uTexture, uv).a) * 0.12;
+  vec2 radius = uSightSoftness / uInputSize.xy;
+  for (int i = 0; i < 8; i++) {
+    float angle = float(i) * 0.7854;
+    vec2 direction = vec2(cos(angle), sin(angle)) * radius;
+    // Inner ring turned half a step against the outer one, so the taps do not line up into bands.
+    vec2 inner = vec2(cos(angle + 0.3927), sin(angle + 0.3927)) * radius * 0.5;
+    seen += step(0.25, texture(uTexture, clamp(uv + inner, uInputClamp.xy, uInputClamp.zw)).a) * 0.07;
+    seen += step(0.25, texture(uTexture, clamp(uv + direction, uInputClamp.xy, uInputClamp.zw)).a) * 0.04;
+  }
+  return smoothstep(0.0, 1.0, seen);
+}
 uniform mat3 uScreenToExplored;
 
 // Whichever colour is brighter, blended near a tie. A per-channel max would mix the two
@@ -46,7 +66,7 @@ void main() {
   vec3 mapped = min(light, 1.0) + max(light - 1.0, 0.0) / (1.0 + max(light - 1.0, 0.0)) * 0.35;
   vec3 lit = base * mapped;
 
-  float seen = max(uAllSeen, step(0.25, acc.a));
+  float seen = max(uAllSeen, seenAround(vTextureCoord));
   float darkvision = step(0.75, acc.a);
   float grey = dot(base, vec3(0.299, 0.587, 0.114));
   vec3 darkSight = mix(vec3(grey), base, 0.15) * 0.45;
@@ -63,7 +83,7 @@ void main() {
   // into it smoothly instead of ending where the two are equally bright.
   vec3 floorColor = base * 0.25;
   vec3 gmSeen = 1.0 - (1.0 - visible) * (1.0 - floorColor);
-  vec3 gm = mix((1.0 - (1.0 - lit) * (1.0 - floorColor)) * 0.6, gmSeen, seen);
+  vec3 gm = mix((1.0 - (1.0 - lit) * (1.0 - floorColor)) * 0.78, gmSeen, seen);
   finalColor = vec4(uMode > 0.5 ? player : gm, 1.0);
 }`;
 
@@ -77,6 +97,7 @@ export function createCompositeFilter(explored: Texture): CompositeFilter {
     uAmbient: { value: new Float32Array([0, 0, 0]), type: 'vec3<f32>' },
     uMode: { value: 0, type: 'f32' },
     uAllSeen: { value: 1, type: 'f32' },
+    uSightSoftness: { value: 0, type: 'f32' },
     uScreenToExplored: { value: new Matrix(), type: 'mat3x3<f32>' },
   });
   const { uniforms } = group;
@@ -96,6 +117,10 @@ export function createCompositeFilter(explored: Texture): CompositeFilter {
     },
     setMode(mode): void {
       uniforms.uMode = mode === 'player' ? 1 : 0;
+      update();
+    },
+    setSightSoftness(pixels): void {
+      uniforms.uSightSoftness = pixels;
       update();
     },
     setAllSeen(all): void {

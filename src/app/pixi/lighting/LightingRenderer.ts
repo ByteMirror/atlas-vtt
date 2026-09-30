@@ -23,7 +23,9 @@ import type { SceneLightingView } from './sceneLightingView';
 export const LIGHTING_Z_INDEX = 90;
 const EXPLORED_SAVE_DELAY = 2000;
 /** How far every edge between light and shadow blurs, in grid cells. */
-const EDGE_SOFTNESS_CELLS = 0.3;
+const EDGE_SOFTNESS_CELLS = 0.5;
+/** How far the edge of what tokens see fades, in grid cells. */
+const SIGHT_SOFTNESS_CELLS = 0.5;
 const DEFAULT_CELL_SIZE = 70;
 
 export interface LightingRendererDeps {
@@ -190,7 +192,9 @@ export class LightingRenderer implements SceneLightingView {
     if (!bounds) return;
     const { viewport } = this.deps;
     const worldToScreen = new Matrix(viewport.scale.x, 0, 0, viewport.scale.y, viewport.x, viewport.y);
-    this.lights.setEdge((this.deps.store.getState().grid?.size ?? DEFAULT_CELL_SIZE) * EDGE_SOFTNESS_CELLS * viewport.scale.x, worldToScreen);
+    const cellOnScreen = (this.deps.store.getState().grid?.size ?? DEFAULT_CELL_SIZE) * viewport.scale.x;
+    this.lights.setEdge(cellOnScreen * EDGE_SOFTNESS_CELLS, worldToScreen);
+    this.composite.setSightSoftness(cellOnScreen * SIGHT_SOFTNESS_CELLS);
     this.composite.setScreenToExplored(worldToScreen.clone().invert().scale(1 / bounds.width, 1 / bounds.height));
   }
 

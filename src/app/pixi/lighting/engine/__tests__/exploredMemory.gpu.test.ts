@@ -1,5 +1,6 @@
 import { Container, Graphics, Matrix, RenderTexture, Sprite, Texture, type WebGLRenderer } from 'pixi.js';
 import { afterEach, describe, expect, it } from 'vitest';
+import type { WallSegment } from '../../../../types/wallTypes';
 import type { Sight } from '../../../../vision/sight';
 import { LightingEngine } from '../LightingEngine';
 import { createTestRenderer, readRgba } from './gpuTestUtils';
@@ -27,7 +28,8 @@ describe('explored memory', () => {
     return texture;
   }
 
-  it('fades out smoothly over more than a texel of the memory', async () => {
+  /** The red channel along the row through y = 300, with memory left of EDGE, at `SCALE` around the edge. */
+  async function profileAcross(walls: WallSegment[]): Promise<number[]> {
     const renderer = await createTestRenderer(SIZE);
     cleanup.push(() => renderer.destroy());
     const engine = new LightingEngine(renderer);
@@ -37,7 +39,7 @@ describe('explored memory', () => {
     engine.setEnabled(true);
     engine.setMode('player');
     engine.setExplored(explored);
-    engine.update({ bounds: { width: MAP, height: MAP }, albedo: null, walls: [], lights: [], sight: NOTHING_SEEN, sightRadius: 20, ambient: 1 });
+    engine.update({ bounds: { width: MAP, height: MAP }, albedo: null, walls, lights: [], sight: NOTHING_SEEN, sightRadius: 20, ambient: 1 });
     engine.flush();
 
     const ox = SIZE / 2 - EDGE * SCALE, oy = SIZE / 2 - 300 * SCALE;
@@ -56,9 +58,12 @@ describe('explored memory', () => {
     world.removeChild(engine.layer);
     stage.destroy({ children: true });
     target.destroy(true);
-
     const row = SIZE / 2;
-    const profile = Array.from({ length: SIZE }, (_, sx) => pixels[(row * SIZE + sx) * 4]!);
+    return Array.from({ length: SIZE }, (_, sx) => pixels[(row * SIZE + sx) * 4]!);
+  }
+
+  it('fades out smoothly over more than a texel of the memory', async () => {
+    const profile = await profileAcross([]);
     const peak = profile[0]!;
     expect(peak).toBeGreaterThan(40);
     expect(profile[SIZE - 1]).toBe(0);
@@ -66,5 +71,13 @@ describe('explored memory', () => {
     for (let sx = 1; sx < SIZE; sx++) expect(profile[sx]!).toBeLessThanOrEqual(profile[sx - 1]! + 1);
     const between = profile.filter((v) => v > 1 && v < peak - 1).length;
     expect(between / SCALE).toBeGreaterThanOrEqual(2 * EXPLORED_TEXEL);
+  });
+
+  it('never smears memory across a wall', async () => {
+    // A wall on the memory's edge: past it, only the memory's own bilinear texel may show.
+    const profile = await profileAcross([{ id: 'w', kind: 'wall', type: 'solid', p1: { x: EDGE, y: 0 }, p2: { x: EDGE, y: MAP } }]);
+    expect(profile[0]).toBeGreaterThan(40);
+    const first = Math.ceil((EXPLORED_TEXEL + 1.5 / SCALE) * SCALE);
+    for (let sx = SIZE / 2 + first; sx < SIZE; sx++) expect(profile[sx]).toBe(0);
   });
 });

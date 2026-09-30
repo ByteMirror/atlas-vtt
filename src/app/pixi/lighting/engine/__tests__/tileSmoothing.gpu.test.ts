@@ -33,4 +33,27 @@ describe('tile smoothing', () => {
       renderer.destroy();
     }
   });
+
+  it('keeps light from spreading through a gap too narrow for it to pass', async () => {
+    const renderer = await createTestRenderer(64);
+    const field = new CapsuleField(renderer, [0, 0, SIZE, SIZE], TEXEL, wallRadius(TEXEL));
+    const tracer = new TileTracer(renderer, field);
+    try {
+      // A 7 px gap centred on the texel column x = 501: the capsules close it, yet the texels 3 px
+      // above and below it are lit or free, 6 px apart, within the smoothing radius: a blur that
+      // ignored the clearance would carry light through.
+      field.build([[0, 500, 497.5, 500], [504.5, 500, SIZE, 500]]);
+      const tile = tracer.trace([501, 300], 20, [0, 0, SIZE, SIZE], null);
+      const texels = readUnorm(renderer, tile);
+      const width = tile.source.pixelWidth;
+      tile.destroy(true);
+      const at = (x: number, y: number): number => texels[(Math.floor(y / TEXEL) * width + Math.floor(x / TEXEL)) * 4]!;
+      for (let y = 501; y < 530; y += TEXEL) for (let x = 470; x < 530; x += TEXEL) expect(at(x, y)).toBe(0);
+      expect(at(501, 497)).toBeGreaterThan(0.9);
+    } finally {
+      tracer.destroy();
+      field.destroy();
+      renderer.destroy();
+    }
+  });
 });

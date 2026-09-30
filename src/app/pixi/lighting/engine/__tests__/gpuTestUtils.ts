@@ -1,9 +1,9 @@
 import { WebGLRenderer, type RenderTexture } from 'pixi.js';
 
-/** A WebGL2 renderer on an offscreen canvas, as the plugin uses. */
-export async function createTestRenderer(size = 512): Promise<WebGLRenderer> {
+/** A WebGL2 renderer on an offscreen canvas, as the plugin uses; `resolution` 2 as on a Retina display. */
+export async function createTestRenderer(size = 512, resolution = 1): Promise<WebGLRenderer> {
   const renderer = new WebGLRenderer();
-  await renderer.init({ width: size, height: size, antialias: false, backgroundAlpha: 1 });
+  await renderer.init({ width: size, height: size, antialias: false, backgroundAlpha: 1, resolution });
   return renderer;
 }
 

@@ -36,6 +36,8 @@ interface FuzzOptions {
   /** Opens one wall of every room (the negative control). */
   gap?: boolean | number;
   bounds?: MapBounds;
+  /** Device pixels per screen pixel of the renderer and its target (2 on Retina displays). */
+  resolution?: number;
 }
 
 /**
@@ -44,10 +46,11 @@ interface FuzzOptions {
  * player mode, everything seen, no ambient) and sight (ambient 1, a token at each light; sight
  * stops at the centre line, so only filtering may show past it: 1.5 screen px).
  */
-async function fuzz({ seed, trials, gap = false, bounds = { width: 2048, height: 2048 } }: FuzzOptions): Promise<Report> {
-  const renderer = await createTestRenderer(SIZE);
+async function fuzz({ seed, trials, gap = false, bounds = { width: 2048, height: 2048 }, resolution = 1 }: FuzzOptions): Promise<Report> {
+  const renderer = await createTestRenderer(SIZE, resolution);
   const engine = new LightingEngine(renderer);
-  const target = RenderTexture.create({ width: SIZE, height: SIZE });
+  const target = RenderTexture.create({ width: SIZE, height: SIZE, resolution });
+  const device = SIZE * resolution;
   try {
     engine.setEnabled(true);
     engine.setMode('player');
@@ -86,11 +89,11 @@ async function fuzz({ seed, trials, gap = false, bounds = { width: 2048, height:
       // Direct light ends at the reach around where the engine places each light (plus the light map's bilinear texel).
       const placed = lights.map((l) => ({ at: placeLight(l.x, l.y, l.flame, allSegments(splitBlocking(walls)), texel), reach: l.dim * LIGHT_REACH + 2 * texel }));
       const beyondReach = (p: P): boolean => placed.every(({ at, reach }) => !at || Math.hypot(p[0] - at.x, p[1] - at.y) > reach);
-      for (let sy = 0; sy < SIZE; sy += 1) {
-        for (let sx = 0; sx < SIZE; sx += 1) {
-          const p: P = [(sx + 0.5 - x) / scale, (sy + 0.5 - y) / scale];
+      for (let sy = 0; sy < device; sy += 1) {
+        for (let sx = 0; sx < device; sx += 1) {
+          const p: P = [((sx + 0.5) / resolution - x) / scale, ((sy + 0.5) / resolution - y) / scale];
           if (p[0] < 0 || p[1] < 0 || p[0] > bounds.width || p[1] > bounds.height) continue;
-          const o = (sy * SIZE + sx) * 4;
+          const o = (sy * device + sx) * 4;
           const inside = insidePolygon(p, outline);
           const d = distToOutline(p, outline);
           if (inside && lit[o]! > 0) {
@@ -155,6 +158,14 @@ describe('leak fuzz', () => {
     console.info(`leak fuzz (large map): ${JSON.stringify(report)}`);
     expect(Math.min(report.doors, report.oneWay, report.twoLights)).toBeGreaterThan(0);
     expect(report.checked).toBeGreaterThan(8000);
+    expect(report.litInside).toBeGreaterThan(800);
+    expect(report).toMatchObject({ leaks: 0, sightLeaks: 0 });
+  });
+
+  it('holds at renderer resolution 2', { timeout: 600_000 }, async () => {
+    const report = await fuzz({ seed: 5, trials: 8, resolution: 2 });
+    console.info(`leak fuzz (resolution 2): ${JSON.stringify(report)}`);
+    expect(report.checked).toBeGreaterThan(8 * 4000);
     expect(report.litInside).toBeGreaterThan(800);
     expect(report).toMatchObject({ leaks: 0, sightLeaks: 0 });
   });

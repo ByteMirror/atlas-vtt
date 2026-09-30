@@ -7,7 +7,7 @@ import { GLSL_VERSION, SRGB_GLSL, TRACE_GLSL, fieldGlsl } from './glsl';
  * darkvision); uBackTexture the scene beneath (map and tokens, sRGB). World textures are read
  * through uScreenToWorld, so every render (GM or player camera) lights its own view.
  * uAreaOrigin is where the filter's area starts on screen (PIXI's uOutputFrame holds it only
- * for the last filter of a chain, and bloom follows this one).
+ * for the last filter of a chain; `AreaAwareFilter` computes it for any position in one).
  */
 export const compositeFragment = `${GLSL_VERSION}
 in vec2 vTextureCoord;

@@ -8,6 +8,7 @@
 - Open and close doors by clicking the door badges, with any tool.
 - Double-click a light, or right-click it, to change its kind, colour, range, brightness, softness and flicker.
 - Cairn is a built-in game system preset, with 5-foot squares and its conditions: Deprived, Fatigue, Critical Damage, Paralyzed, Delirious and Fleeing
+- Drag map images or videos from your file manager straight onto the asset manager to make a scene of each one. Each scene shows the map on its card right away, and its grid is measured from the map the first time you open it.
 
 ## Improved
 

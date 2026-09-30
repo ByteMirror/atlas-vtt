@@ -39,6 +39,10 @@ describe('tokenSeenPredicate', () => {
     expect(isSeen('lurker')).toBe(false);
   });
 
+  it('always shows the tokens that see, even in the dark', () => {
+    expect(tokenSeenPredicate(sight, 0, [], tokens)('hero')).toBe(true);
+  });
+
   it('treats unknown tokens as unseen', () => {
     expect(tokenSeenPredicate(sight, 1, [], tokens)('missing')).toBe(false);
   });

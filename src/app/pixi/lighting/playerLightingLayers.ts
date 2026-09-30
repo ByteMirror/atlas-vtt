@@ -16,7 +16,7 @@ export function playerLightingLayers({ enabled, modeLayer, gmOverlays }: PlayerL
   return enabled ? [{ layer: modeLayer, visible: true }, ...hidden] : hidden;
 }
 
-/** Whether the viewer sees each token, by the centre of the token. */
+/** Whether the viewer sees each token, by its centre. The viewer's own tokens always show, lit or not. */
 export function tokenSeenPredicate(
   sight: Sight,
   ambient: number,
@@ -25,6 +25,6 @@ export function tokenSeenPredicate(
 ): (tokenId: string) => boolean {
   return (tokenId) => {
     const token = tokens[tokenId];
-    return !!token && isSeen({ x: token.x, y: token.y }, sight, ambient, lights);
+    return !!token && (!!token.vision?.enabled || isSeen({ x: token.x, y: token.y }, sight, ambient, lights));
   };
 }

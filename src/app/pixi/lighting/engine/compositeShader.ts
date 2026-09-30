@@ -62,7 +62,9 @@ vec3 neutral(vec3 color) {
 // shrunk to the pixel's wall clearance so memory never smears across a wall. 12 Vogel taps,
 // Gaussian in distance.
 float exploredAt(vec2 w) {
-  float texel = uMapSize.x / float(textureSize(uExplored, 0).x);
+  // The memory's scale is set by the map's longer side, whose texel count rounds least.
+  vec2 size = vec2(textureSize(uExplored, 0));
+  float texel = size.x >= size.y ? uMapSize.x / size.x : uMapSize.y / size.y;
   float r = min(2.0 * texel, clearance(w));
   float sum = texture(uExplored, clamp(w / uMapSize, 0.0, 1.0)).r;
   if (r < 0.25 * texel) return sum;

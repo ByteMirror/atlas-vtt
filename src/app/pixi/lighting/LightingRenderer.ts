@@ -1,4 +1,4 @@
-import { Container, Matrix, RendererType, Texture, type Application, type Renderer, type WebGLRenderer } from 'pixi.js';
+import { Container, Matrix, Texture, type Application, type Renderer, type WebGLRenderer } from 'pixi.js';
 import type { Viewport } from 'pixi-viewport';
 import type { ViewAtlasState, ViewAtlasStore } from '../../storeFactory';
 import type { MeasurementSettings } from '../../grid/measurementFormat';
@@ -202,6 +202,6 @@ export class LightingRenderer {
 
 /** The composite reads the scene beneath it, which WebGL only offers through a back buffer. */
 function setBackBuffer(renderer: Renderer, on: boolean): void {
-  if (renderer.type !== RendererType.WEBGL) return;
+  if (renderer.name !== 'webgl') return;
   (renderer as WebGLRenderer).backBuffer.useBackBuffer = on;
 }

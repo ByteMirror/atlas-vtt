@@ -42,4 +42,15 @@ describe('scene lighting state', () => {
     expect(saved.lighting).toEqual({ ...DEFAULT_SCENE_LIGHTING, enabled: true });
     expect(saved.exploredMask).toBe('data:image/png;base64,AAAA');
   });
+
+  it('loads only valid explored memory and fills in missing lighting fields', () => {
+    const store = createStore();
+    const merge = store.persist.getOptions().merge!;
+    const current = store.getState();
+    const unsafe = merge({ exploredMask: 'javascript:alert(1)', lighting: { enabled: true } }, current);
+    expect(unsafe.exploredMask).toBeNull();
+    expect(unsafe.lighting).toEqual({ ...DEFAULT_SCENE_LIGHTING, enabled: true });
+    expect(merge({ exploredMask: 'data:image/png;base64,AAAA' }, current).exploredMask).toBe('data:image/png;base64,AAAA');
+    expect(merge({ lighting: 'broken' }, current).lighting).toEqual(DEFAULT_SCENE_LIGHTING);
+  });
 });

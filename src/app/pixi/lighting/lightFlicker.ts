@@ -87,7 +87,8 @@ export class LightFlicker {
     }
     const t = (timeMs % profile.step) / profile.step;
     const eased = t * t * (3 - 2 * t);
-    return state.current.map((value, i) => state!.previous[i]! + (value - state!.previous[i]!) * eased);
+    const { previous } = state;
+    return state.current.map((value, i) => previous[i]! + (value - previous[i]!) * eased);
   }
 }
 

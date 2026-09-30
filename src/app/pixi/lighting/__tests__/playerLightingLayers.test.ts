@@ -17,8 +17,11 @@ describe('playerLightingLayers', () => {
     ]);
   });
 
-  it('changes nothing while the scene has no lighting', () => {
-    expect(playerLightingLayers({ enabled: false, modeLayer: { visible: false }, gmOverlays: [new Container()] })).toEqual([]);
+  it('still hides the GM overlays while the scene has no lighting', () => {
+    const walls = new Container();
+    expect(playerLightingLayers({ enabled: false, modeLayer: { visible: false }, gmOverlays: [walls] })).toEqual([
+      { layer: walls, visible: false },
+    ]);
   });
 });
 

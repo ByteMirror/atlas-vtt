@@ -10,10 +10,10 @@ export interface PlayerLightingInput {
   gmOverlays: readonly HideableLayer[];
 }
 
-/** Layer changes for a player frame of a scene with dynamic lighting. */
+/** Layer changes for a player frame: the GM's wall and door overlays never show; with lighting on, the player's view. */
 export function playerLightingLayers({ enabled, modeLayer, gmOverlays }: PlayerLightingInput): LayerVisibility[] {
-  if (!enabled) return [];
-  return [{ layer: modeLayer, visible: true }, ...gmOverlays.map((layer) => ({ layer, visible: false }))];
+  const hidden = gmOverlays.map((layer) => ({ layer, visible: false }));
+  return enabled ? [{ layer: modeLayer, visible: true }, ...hidden] : hidden;
 }
 
 /** Whether the viewer sees each token, by the centre of the token. */

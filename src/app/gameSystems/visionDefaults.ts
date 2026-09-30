@@ -1,27 +1,26 @@
 import type { AssetService } from '../services/AssetService';
 import type { TokenVisionDefaults } from '../types/lightingTypes';
+import { positiveNumber } from '../utils/numberInput';
+import { coneAngle } from '../vision/visionCone';
 
 const DISTANCE_FIELDS = ['range', 'darkvision', 'tremorsense'] as const;
-const FULL_TURN = 360;
-
-function isPositive(value: unknown): value is number {
-  return typeof value === 'number' && Number.isFinite(value) && value > 0;
-}
 
 /**
- * The usable part of stored default vision: distances above 0 (as the forms read them), an angle of 1 to
- * 360 degrees, anything else (unknown fields, `enabled`) dropped. Undefined when
- * nothing is left, since an empty default means new tokens get no vision settings.
+ * The usable part of stored default vision, read as the forms read it: distances above 0, a cone
+ * angle as `coneAngle` takes it (360 is no cone, so it is dropped), anything else (unknown fields,
+ * `enabled`) dropped. Undefined when nothing is left, since an empty default means new tokens get
+ * no vision settings.
  */
 export function parseVisionDefaults(raw: unknown): TokenVisionDefaults | undefined {
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return undefined;
   const record = raw as Record<string, unknown>;
   const result: TokenVisionDefaults = {};
   for (const field of DISTANCE_FIELDS) {
-    const value = record[field];
-    if (isPositive(value)) result[field] = value;
+    const value = positiveNumber(record[field]);
+    if (value !== undefined) result[field] = value;
   }
-  if (isPositive(record.angle) && record.angle >= 1 && record.angle <= FULL_TURN) result.angle = record.angle;
+  const angle = coneAngle(record.angle);
+  if (angle !== undefined) result.angle = angle;
   return hasVisionDefaults(result) ? result : undefined;
 }
 

@@ -12,6 +12,8 @@ import {
 import { formatDistance, resolveMeasurementSettings } from '../../src/app/grid/measurementFormat';
 import type { SystemPreset, SystemRules } from '../../src/app/types/systemPresetTypes';
 import { WIDGET_ICON_PATHS } from '../../src/app/types/widgetIcons';
+import { visionDefaultsForm, visionDefaultsFromForm } from '../../src/app/lighting/tokenLighting';
+import { visionCone } from '../../src/app/vision/visionCone';
 
 const [daggerheart, dnd5e] = BUILT_IN_SYSTEM_PRESETS as [SystemPreset, SystemPreset];
 
@@ -234,6 +236,12 @@ describe('default token vision', () => {
     expect(vanillaSystemSettings().defaultTokenVision).toBeUndefined();
   });
 
+  it('shows in the preset summary when a system sets one', () => {
+    expect(describeSystemRules(withVision({ darkvision: 60 }))).toBe('5 ft squares · 0 conditions · Default vision');
+    expect(describeSystemRules(withVision({}))).toBe('5 ft squares · 0 conditions');
+    expect(describeSystemRules(withVision(undefined))).toBe('5 ft squares · 0 conditions');
+  });
+
   it('marks a preset as edited when it changes, and treats none and empty alike', () => {
     expect(sameSystemRules(withVision({ darkvision: 60 }), withVision({ darkvision: 60 }))).toBe(true);
     expect(sameSystemRules(withVision({ darkvision: 60 }), withVision({ darkvision: 30 }))).toBe(false);
@@ -255,8 +263,20 @@ describe('default token vision', () => {
     expect(zero?.rules.defaultTokenVision).toEqual({ darkvision: 30 });
     const [wide] = parseUserPresets([stored({ angle: 361, darkvision: Infinity, range: 25 })]);
     expect(wide?.rules.defaultTokenVision).toEqual({ range: 25 });
-    const [full] = parseUserPresets([stored({ angle: 360 })]);
-    expect(full?.rules.defaultTokenVision).toEqual({ angle: 360 });
+    const [full] = parseUserPresets([stored({ angle: 360, range: 30 })]);
+    expect(full?.rules.defaultTokenVision).toEqual({ range: 30 });
+  });
+
+  it('reads a cone angle exactly as the forms and the cone do, so a stored preset never shows as edited', () => {
+    for (const angle of [0.5, 1, 90, 359.5, 360, 400, 0, -30]) {
+      const [parsed] = parseUserPresets([stored({ angle, range: 30 })]);
+      const vision = parsed?.rules.defaultTokenVision;
+      const typed = visionDefaultsFromForm(visionDefaultsForm({ range: 30, angle }));
+      expect(vision).toEqual(typed);
+      expect(visionDefaultsFromForm(visionDefaultsForm(vision))).toEqual(vision);
+      const cone = visionCone(0, angle);
+      expect(cone === undefined ? undefined : Math.round((cone.angle * 180) / Math.PI * 1e6) / 1e6).toBe(vision?.angle);
+    }
   });
 
   it('is absent when nothing usable is stored', () => {

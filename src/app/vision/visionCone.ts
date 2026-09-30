@@ -1,9 +1,11 @@
 import type { Point } from '../types/visionTypes';
 import type { Polygon } from './visibility';
+import { positiveNumber } from '../utils/numberInput';
 import { angleTo, raySegmentIntersect } from './visionGeometry';
 
 const TURN = 2 * Math.PI;
 const DEGREE = Math.PI / 180;
+const FULL_TURN_DEGREES = 360;
 /** Relative angles this close to a cone edge count as on it. */
 const EDGE_SLACK = 1e-9;
 /** Largest angle between two points of the viewer's own space outside its cone; the chords stay within a tenth of a pixel of a 60 px circle. */
@@ -29,8 +31,19 @@ export interface VisionCone {
  * angle `rotation - 90°`.
  */
 export function visionCone(rotation: number | undefined, angle: number | undefined, apex = 0): VisionCone | undefined {
-  if (angle === undefined || !(angle > 0) || angle >= 360) return undefined;
-  return { facing: ((rotation ?? 0) - 90) * DEGREE, angle: Math.max(1, angle) * DEGREE, ...(apex > 0 && { apex }) };
+  const degrees = coneAngle(angle);
+  if (degrees === undefined) return undefined;
+  return { facing: ((rotation ?? 0) - 90) * DEGREE, angle: degrees * DEGREE, ...(apex > 0 && { apex }) };
+}
+
+/**
+ * The width in degrees of a vision cone set to `angle`: at least one degree, below a full turn.
+ * Undefined (seeing all around) for 360 or more and for anything that is not a positive number.
+ * The one check for stored angles, typed ones and the cone itself.
+ */
+export function coneAngle(angle: unknown): number | undefined {
+  const degrees = positiveNumber(angle);
+  return degrees !== undefined && degrees < FULL_TURN_DEGREES ? Math.max(1, degrees) : undefined;
 }
 
 /**

@@ -20,6 +20,7 @@ interface TokenLightingFieldsProps {
 /** The Edit Token modal's section for how the token sees and what light it carries. */
 export function TokenLightingFields({ vision, onVisionChange, light, onLightChange, unit }: TokenLightingFieldsProps): React.ReactElement {
   const lightLabel = useId();
+  const visionLabel = useId();
   const options = [
     { value: 'none' as const, label: 'None' },
     ...LIGHT_PRESET_IDS.map((id) => ({ value: id, label: LIGHT_PRESETS[id].label })),
@@ -30,8 +31,9 @@ export function TokenLightingFields({ vision, onVisionChange, light, onLightChan
       <div className="atlas-edit-token__section-divider" />
       <div className="atlas-edit-token__section-label">Vision &amp; light</div>
       <div className="atlas-edit-token__field atlas-edit-token__field--row">
-        <label className="atlas-edit-token__label">Vision</label>
+        <span id={visionLabel} className="atlas-edit-token__label">Vision</span>
         <Toggle
+          labelledBy={visionLabel}
           value={vision.enabled}
           onChange={() => onVisionChange({ ...vision, enabled: !vision.enabled })}
           tooltipOn="The token sees; players see what it sees"

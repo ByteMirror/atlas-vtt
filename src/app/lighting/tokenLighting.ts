@@ -1,6 +1,8 @@
 import type { LightEmission, TokenVision, TokenVisionDefaults } from '../types/lightingTypes';
 import { emissionOfPreset } from './lightEmissionForm';
 import type { LightPresetId } from './lightPresets';
+import { numberText, parseNumberText, positiveNumber } from '../utils/numberInput';
+import { coneAngle } from '../vision/visionCone';
 
 export interface VisionDefaultsForm {
   /** Game units as typed; blank is unlimited sight. */
@@ -16,22 +18,6 @@ export interface VisionDefaultsForm {
 export interface VisionForm extends VisionDefaultsForm {
   enabled: boolean;
 }
-
-const FULL_TURN = 360;
-
-function positive(text: string): number | undefined {
-  const value = Number(text);
-  return text.trim() !== '' && Number.isFinite(value) && value > 0 ? value : undefined;
-}
-
-/** A cone narrower than a full turn, at least one degree wide; anything else sees all around. */
-function coneAngle(text: string): number | undefined {
-  const angle = positive(text);
-  return angle !== undefined && angle < FULL_TURN ? Math.max(1, angle) : undefined;
-}
-
-/** A number as its input text; blank when unset. */
-export const numberText = (value: number | undefined): string => (value === undefined ? '' : String(value));
 
 /** A vision field as both Edit Token and the collection's Vision tab show it. */
 export interface VisionFieldSpec {
@@ -78,10 +64,10 @@ export function visionForm(vision: TokenVision | undefined): VisionForm {
 
 /** The default vision typed in; empty when every field is blank or unusable. */
 export function visionDefaultsFromForm(form: VisionDefaultsForm): TokenVisionDefaults {
-  const range = positive(form.range);
-  const darkvision = positive(form.darkvision);
-  const tremorsense = positive(form.tremorsense);
-  const angle = coneAngle(form.angle);
+  const range = positiveNumber(parseNumberText(form.range));
+  const darkvision = positiveNumber(parseNumberText(form.darkvision));
+  const tremorsense = positiveNumber(parseNumberText(form.tremorsense));
+  const angle = coneAngle(parseNumberText(form.angle));
   return {
     ...(range !== undefined && { range }),
     ...(darkvision !== undefined && { darkvision }),

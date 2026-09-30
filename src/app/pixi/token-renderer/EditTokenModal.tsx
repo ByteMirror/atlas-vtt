@@ -15,7 +15,8 @@ import { TokenLightingFields, type LightChoice } from './TokenLightingFields';
 import { WALLS_AND_LIGHTING_ENABLED } from '../../featureFlags';
 import { unitLabelFor } from '../../grid/measurementFormat';
 import { presetOf } from '../../lighting/lightPresets';
-import { carriedLight, numberText, visionForm, visionFromForm, type VisionForm } from '../../lighting/tokenLighting';
+import { carriedLight, visionForm, visionFromForm, type VisionForm } from '../../lighting/tokenLighting';
+import { numberText } from '../../utils/numberInput';
 
 interface EditTokenValues {
   name: string;

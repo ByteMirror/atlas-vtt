@@ -17,7 +17,7 @@ describe('openEditTokenModal', () => {
     const store = createViewAtlasStore(app, `edit-token-${Math.random()}`);
     const token: TokenEntity = { id: 't', kind: 'token', imagePath: 't.png', x: 0, y: 0, vision: { enabled: true } };
     act(() => openEditTokenModal(token, store, app));
-    expect(screen.getByRole('switch')).toBeTruthy();
+    expect(screen.getByRole('switch', { name: 'Vision' }).getAttribute('aria-checked')).toBe('true');
     expect(screen.getByText('Vision & light')).toBeTruthy();
     act(() => screen.getByRole('button', { name: 'Cancel' }).click());
     expect(document.body.querySelector('.atlas-vtt-root')).toBeNull();

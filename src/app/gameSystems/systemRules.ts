@@ -93,14 +93,15 @@ function count(n: number, noun: string): string {
   return `${n} ${noun}${n === 1 ? '' : 's'}`;
 }
 
-/** One-line summary, e.g. "5 ft squares · 15 conditions" or "4 range bands · 10 conditions · Torch timer". */
+/** One-line summary, e.g. "5 ft squares · 15 conditions · Default vision" or "4 range bands · 10 conditions · Torch timer". */
 export function describeSystemRules(rules: SystemRules): string {
   const grid = rules.gridDefaults;
   const measurement = grid.measurementMode === 'abstract'
     ? count(grid.abstractRangeBands?.length ?? 0, 'range band')
     : `${grid.unitDistance} ${SQUARE_UNIT[grid.unitType]} squares`;
   const widgets = (rules.widgets ?? []).map((widget) => `${widget.label} ${widget.type}`);
-  return [measurement, count(rules.conditions.length, 'condition'), ...widgets].join(' · ');
+  const vision = hasVisionDefaults(rules.defaultTokenVision) ? ['Default vision'] : [];
+  return [measurement, count(rules.conditions.length, 'condition'), ...vision, ...widgets].join(' · ');
 }
 
 /**

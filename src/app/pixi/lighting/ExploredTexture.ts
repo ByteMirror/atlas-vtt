@@ -1,5 +1,6 @@
 import { Container, Graphics, Matrix, RenderTexture, Sprite, Texture, type Renderer } from 'pixi.js';
-import type { Sight } from '../../vision/sight';
+import type { ExploredShapes } from '../../vision/exploredShapes';
+import type { Polygon } from '../../vision/visibility';
 import type { MapBounds } from '../../vision/visibility';
 import { destroyTree } from '../utils/destroyTree';
 
@@ -8,12 +9,15 @@ const MAX_TEXELS = 2048;
 
 /**
  * What the viewer's tokens have seen so far, in a world-space texture over the map: red is 1
- * where a token has looked. It only grows until reset.
+ * where a token has seen. It only grows until reset. Shapes that must stay inside the line of
+ * sight are drawn through a mask of it.
  */
 export class ExploredTexture {
   readonly texture: RenderTexture;
   private readonly scale: number;
+  private readonly stamp = new Container();
   private readonly painter = new Graphics();
+  private readonly clip = new Graphics();
 
   constructor(private readonly renderer: Renderer, bounds: MapBounds) {
     this.scale = Math.min(1, MAX_TEXELS / Math.max(bounds.width, bounds.height, 1));
@@ -22,16 +26,15 @@ export class ExploredTexture {
       height: Math.max(1, Math.ceil(bounds.height * this.scale)),
     });
     this.painter.blendMode = 'max';
+    this.stamp.addChild(this.painter, this.clip);
     this.clear();
   }
 
-  add(sight: Sight): void {
-    if (sight.all || sight.polygons.length === 0) return;
-    this.painter.clear();
-    for (const polygon of sight.polygons) {
-      if (polygon.length >= 3) this.painter.poly(polygon.flatMap((p) => [p.x, p.y])).fill({ color: 0xffffff });
-    }
-    this.renderer.render({ container: this.painter, target: this.texture, clear: false, transform: new Matrix().scale(this.scale, this.scale) });
+  add({ polygons, clip }: ExploredShapes): void {
+    fillPolygons(this.painter.clear(), polygons);
+    fillPolygons(this.clip.clear(), clip ?? []);
+    this.painter.mask = clip ? this.clip : null;
+    this.renderer.render({ container: this.stamp, target: this.texture, clear: false, transform: new Matrix().scale(this.scale, this.scale) });
   }
 
   clear(): void {
@@ -56,7 +59,14 @@ export class ExploredTexture {
   }
 
   destroy(): void {
-    destroyTree(this.painter);
+    destroyTree(this.stamp);
     this.texture.destroy(true);
   }
+}
+
+function fillPolygons(g: Graphics, polygons: readonly Polygon[]): Graphics {
+  for (const polygon of polygons) {
+    if (polygon.length >= 3) g.poly(polygon.flatMap((p) => [p.x, p.y])).fill({ color: 0xffffff });
+  }
+  return g;
 }

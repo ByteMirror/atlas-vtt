@@ -5,6 +5,7 @@ import type { MeasurementSettings } from '../../grid/measurementFormat';
 import { unitScaleOf, type UnitScale } from '../../lighting/lightingUnits';
 import { SEES_ALL, SightCache, computeSight, sightSources, type LightReach, type Sight } from '../../vision/sight';
 import { wallList } from '../../vision/wallList';
+import { exploredShapes } from '../../vision/exploredShapes';
 import type { MapBounds } from '../../vision/visibility';
 import type { HideableLayer } from '../playerSafeFrame';
 import { requestRender } from '../RenderScheduler';
@@ -137,8 +138,9 @@ export class LightingRenderer implements SceneLightingView {
     this.sight = computeSight(sources, wallList(state.objects.walls), this.sightCache);
     this.sightLayer.draw(this.sight, bounds);
     this.composite.setAllSeen(this.sight.all);
-    if (this.sight.all || !this.explored) return;
-    this.explored.add(this.sight);
+    const shapes = exploredShapes(this.sight, state.lighting.ambient, this.lights.reaches());
+    if (!shapes || !this.explored) return;
+    this.explored.add(shapes);
     this.scheduleExploredSave();
   }
 

@@ -1,7 +1,7 @@
 import { Mesh, UniformGroup, type Geometry, type Renderer, type RenderTexture, type Shader } from 'pixi.js';
 import type { Rect } from '../../../lighting/segments';
 import { CapsuleField } from './CapsuleField';
-import { createQuad, createShader, createTarget, quadGeometry, renderInto } from './gpu';
+import { createQuad, createShader, createTarget, destroyQuad, quadGeometry, renderInto, type Quad } from './gpu';
 import { tileFragment, tileVertex } from './tileShader';
 
 /** Traces one light's visibility tile (`r8unorm`, one texel per field texel) through the wall field. */
@@ -14,6 +14,8 @@ export class TileTracer {
     uHasOneWay: { value: 0, type: 'f32' },
   });
   private readonly shader: Shader;
+  private readonly quad: Quad = createQuad();
+  private readonly geometry: Geometry = quadGeometry(this.quad);
   private readonly mesh: Mesh<Geometry, Shader>;
   /** Bound when a light has no one-way walls, so the program always has both fields. */
   private readonly noOneWay: CapsuleField;
@@ -22,7 +24,7 @@ export class TileTracer {
     this.noOneWay = new CapsuleField(renderer, [0, 0, 1, 1], 1, 0, 'uOneWay');
     this.noOneWay.build([]);
     this.shader = createShader(tileVertex, tileFragment, 'atlas-visibility-tile', { tileUniforms: this.uniforms, ...field.resources(), ...this.noOneWay.resources() });
-    this.mesh = new Mesh({ geometry: quadGeometry(createQuad()), shader: this.shader });
+    this.mesh = new Mesh({ geometry: this.geometry, shader: this.shader });
   }
 
   /** `rect` must be snapped to the field's texel grid; `oneWay` holds this light's one-way walls. */
@@ -44,6 +46,8 @@ export class TileTracer {
 
   destroy(): void {
     this.mesh.destroy();
+    this.geometry.destroy();
+    destroyQuad(this.quad);
     this.shader.destroy();
     this.noOneWay.destroy();
   }

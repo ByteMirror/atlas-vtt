@@ -1,6 +1,7 @@
 import { Container, Mesh, UniformGroup, type Geometry, type Renderer, type RenderTexture, type Shader } from 'pixi.js';
 import { FALLOFF_HEIGHT, HALO } from '../../../lighting/lightingConstants';
 import type { MapBounds } from '../../../vision/visibility';
+import { destroyTree } from '../../utils/destroyTree';
 import { GLSL_VERSION } from './glsl';
 import { createPlaceholder, createQuad, createShader, createTarget, destroyQuad, quadGeometry, renderInto, type Quad } from './gpu';
 import type { Tile } from './TileCache';
@@ -132,10 +133,8 @@ export class LightMap {
   }
 
   destroy(): void {
-    for (const { mesh } of this.slots) {
-      mesh.shader?.destroy();
-      mesh.destroy();
-    }
+    for (const { mesh } of this.slots) mesh.shader?.destroy();
+    destroyTree(this.scene);
     this.geometry.destroy();
     destroyQuad(this.quad);
     this.placeholder.destroy(true);

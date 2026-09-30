@@ -130,6 +130,10 @@ export class WallInteraction {
 
   /** Delete all selected walls and lights. */
   deleteSelected(): void {
+    runHistoryTransaction(this.store, () => this.deleteSelection());
+  }
+
+  private deleteSelection(): void {
     if (this.selectedWallIds.size > 0) {
       this.store.getState().deleteWalls(Array.from(this.selectedWallIds));
       this.selectedWallIds.clear();
@@ -147,7 +151,7 @@ export class WallInteraction {
   /** Change the type of all selected walls. */
   changeSelectedWallType(type: WallType): void {
     const state = this.store.getState();
-    for (const id of this.selectedWallIds) {
+    runHistoryTransaction(this.store, () => this.selectedWallIds.forEach((id) => {
       const updates: Record<string, unknown> = { type };
       if (type === 'door' || type === 'secret-door') {
         const wall = state.objects.walls[id];
@@ -156,16 +160,14 @@ export class WallInteraction {
         }
       }
       state.updateWall(id, updates);
-    }
+    }));
     this.wallRenderer.forceRedraw();
   }
 
   /** Set the light pass-through direction on all selected walls. */
   setSelectedDirection(direction: 'left' | 'right' | undefined): void {
     const state = this.store.getState();
-    for (const id of this.selectedWallIds) {
-      state.updateWall(id, { direction });
-    }
+    runHistoryTransaction(this.store, () => this.selectedWallIds.forEach((id) => state.updateWall(id, { direction })));
     this.wallRenderer.forceRedraw();
   }
 

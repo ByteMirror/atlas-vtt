@@ -1,4 +1,4 @@
-import { DEFAULT_MAP_HOTKEYS, canRunMapHotkeys, matchesMapHotkey } from './keyboard/mapHotkeys';
+import { canRunMapHotkeys, matchesMapHotkey } from './keyboard/mapHotkeys';
 import { SettingsService, type AtlasSettings } from './services/SettingsService';
 import { DEFAULT_LASER_POINTER_SETTINGS } from './tools/laserPointerSettings';
 import { Application, Sprite, Container, type FederatedPointerEvent } from "pixi.js";
@@ -10,7 +10,6 @@ import { parseGridColor } from "./grid/gridContrastColor";
 import { hexNumberStyleOfGrid } from "./grid/hexNumbering";
 import type { App } from 'obsidian';
 import type { ViewAtlasState, ViewAtlasStore } from './storeFactory';
-import { openContextMenuGlobal, type ContextMenuEntry } from './react/root/ContextMenuContext';
 import { EventEmitter } from 'events';
 import { PixiAppManager } from "./pixi/PixiAppManager"; // Import the new manager
 import { TokenRenderer } from "./pixi/token-renderer"; // Import TokenRenderer
@@ -20,7 +19,7 @@ import { HexLinkRenderer } from "./pixi/hexLinks/HexLinkRenderer";
 import { HexLinkInteraction } from "./pixi/hexLinks/HexLinkInteraction";
 import type { MapRect } from "./grid/hexNumbering";
 import type { NotePin } from "./types";
-import { captureWithLayerVisibility, type HideableLayer, type LayerVisibility } from "./pixi/playerSafeFrame";
+import { captureWithLayerVisibility, type LayerVisibility } from "./pixi/playerSafeFrame";
 import type { PlayerCameraState } from "./local-player-view";
 import { SelectionManager } from "./pixi/SelectionManager"; // Import SelectionManager
 import { FogOfWarRenderer } from "./pixi/fog/FogOfWarRenderer";
@@ -31,15 +30,9 @@ import { DrawingInteraction } from "./pixi/DrawingInteraction";
 import { isViewportPanEnabled } from "./pixi/utils/viewportPan";
 import { TextRenderer } from "./pixi/TextRenderer"; // Import TextRenderer
 import { TextTool } from "./tools/TextTool"; // Import TextTool
-import { WallRenderer } from './pixi/vision/WallRenderer';
-import { WallInteraction } from './pixi/vision/WallInteraction';
-import { LIGHT_PRESETS } from './lighting/lightPresets';
-import { LightingRenderer } from './pixi/lighting/LightingRenderer';
-import { bindHoldHotkey } from './keyboard/holdHotkey';
+import { LightingController } from './pixi/lighting/LightingController';
 import { playerLightingLayers, tokenSeenPredicate } from './pixi/lighting/playerLightingLayers';
 import { WALLS_AND_LIGHTING_ENABLED } from './featureFlags';
-import { WallTool, type WallToolMode, type WallToolSubMode } from './tools/WallTool';
-import type { WallType } from './types/wallTypes';
 import { AudioTool } from './tools/AudioTool';
 import { openAudioConfigPanel } from './pixi/audio/AudioConfigPanel';
 import { AudioRenderer } from './pixi/audio/AudioRenderer';
@@ -68,12 +61,7 @@ export class PixiRendererOrchestrator { // Renamed class
   private textRenderer?: TextRenderer; // Add TextRenderer instance
   private textTool?: TextTool; // Add TextTool instance
   /** IDs of wall segments created during the current drawing chain (for Escape undo). */
-  private currentChainWallIds: string[] = [];
-  private lightingRenderer?: LightingRenderer;
-  private unbindLightingPeek?: () => void;
-  private wallRenderer?: WallRenderer;
-  private wallInteraction?: WallInteraction;
-  private wallTool?: WallTool;
+  private lighting?: LightingController;
   private audioRenderer?: AudioRenderer;
   private audioTool?: AudioTool;
   private soundRegistry?: SoundRegistry;
@@ -181,16 +169,6 @@ export class PixiRendererOrchestrator { // Renamed class
             this.textTool.activate();
           } else if (this.textTool) {
             this.textTool.deactivate();
-          }
-
-          // Wall tool activation
-          if (tool === 'wall') {
-            this.wallRenderer?.setVisible(true);
-          } else {
-            this.wallRenderer?.setVisible(false);
-            this.wallRenderer?.clearPreview();
-            this.wallRenderer?.clearFreeformPreview();
-            this.wallTool?.cancelDrawing();
           }
 
           // Laser pointer activation/cursor is self-managed by LaserPointerRenderer
@@ -398,27 +376,17 @@ export class PixiRendererOrchestrator { // Renamed class
     // Set the fog container to a high z-index to ensure it's on top when visible
     fogContainer.zIndex = 1000;
 
-    if (WALLS_AND_LIGHTING_ENABLED) {
-      const assetService = AssetService.getInstance(this.obsApp);
-      this.lightingRenderer = new LightingRenderer({
+    if (WALLS_AND_LIGHTING_ENABLED && !isPlayerView) {
+      this.lighting = new LightingController({
         viewport,
         app: this.pixiAppManager.app,
         store: this.store,
-        measurement: () => mapMeasurementSettings(assetService, this.store.getState()),
+        eventBus: this.eventBus,
+        obsApp: this.obsApp,
+        viewId: this.viewId,
         bounds: () => (this.backgroundSprite?.width ? { width: this.backgroundSprite.width, height: this.backgroundSprite.height } : null),
       });
-      const settings = SettingsService.forApp(this.obsApp);
-      this.unbindLightingPeek = bindHoldHotkey(window, () => (settings?.getHotkeys() ?? DEFAULT_MAP_HOTKEYS).lightingPeek, this.viewId, (held) => this.lightingRenderer?.setPreview(held));
     }
-
-    // Initialize WallRenderer (z-index 1100 — GM-only editor overlay)
-    this.wallRenderer = new WallRenderer(viewport, this.store);
-
-    // Initialize WallInteraction
-    this.wallInteraction = new WallInteraction(this.store, this.wallRenderer);
-
-    // Initialize WallTool
-    this.wallTool = new WallTool(this.eventBus);
 
     // Initialize Audio system
     this.audioRenderer = new AudioRenderer(viewport, this.store);
@@ -633,7 +601,7 @@ export class PixiRendererOrchestrator { // Renamed class
       destroyTree(this.backgroundSprite);
     }
     this.backgroundSprite = sprite;
-    this.lightingRenderer?.refreshBounds();
+    this.lighting?.renderer.refreshBounds();
 
     // Ensure new background is at the bottom
     if (!sprite.parent) {
@@ -752,24 +720,19 @@ export class PixiRendererOrchestrator { // Renamed class
     if (this.hexLinkRenderer) layers.push({ layer: this.hexLinkRenderer.container, visible: false });
     const grid = this.gridSystem?.getGridSprite();
     if (grid) layers.push({ layer: grid, visible: settings.showGrid });
-    const lighting = this.lightingRenderer;
+    const lighting = this.lighting?.renderer;
     const lit = !!lighting?.isEnabled();
     const isSeen = lighting && lit
       ? tokenSeenPredicate(lighting.currentSight(), lighting.ambient(), lighting.lightReaches(), this.store.getState().objects.tokens)
       : undefined;
     layers.push(...(this.tokenRenderer?.getPlayerViewLayers(settings, isSeen) ?? []));
-    if (lighting) layers.push(...playerLightingLayers({ enabled: lit, modeLayer: lighting.modeLayer, gmOverlays: this.lightingGmOverlays() }));
+    if (lighting) layers.push(...playerLightingLayers({ enabled: lit, modeLayer: lighting.modeLayer, gmOverlays: this.lighting?.gmOverlays() ?? [] }));
     layers.push(...(this.fogRenderer?.getPlayerViewLayers() ?? []));
     layers.push(...(this.selectionManager?.getPlayerViewLayers() ?? []));
     for (const overlay of this.dmScreenOverlays) layers.push({ layer: overlay, visible: false });
     const viewport = this.pixiAppManager.getViewport();
     const playerCamera = camera && viewport ? { target: viewport, camera } : undefined;
     captureWithLayerVisibility(layers, () => app.renderer.render(app.stage), capture, playerCamera);
-  }
-
-  /** Editor visuals of walls and lights that never reach the players. */
-  private lightingGmOverlays(): HideableLayer[] {
-    return this.wallRenderer ? [this.wallRenderer.getContainer()] : [];
   }
 
   getViewportInstance(): Viewport | null { return this.pixiAppManager.getViewport(); }
@@ -801,21 +764,7 @@ export class PixiRendererOrchestrator { // Renamed class
       const settings = SettingsService.forApp(this.obsApp);
       // Escape key
       if (matchesMapHotkey(e, 'cancel', settings)) {
-        // Wall tool: cancel door placement
-        if (this.store.getState().activeTool === 'wall' && this.wallInteraction?.isPlacingDoor()) {
-          this.wallInteraction.cancelDoorPlacement();
-          e.preventDefault();
-          return;
-        }
-        // Wall tool: cancel current drawing (removes uncommitted segments)
-        if (this.store.getState().activeTool === 'wall' && this.wallTool?.isCurrentlyDrawing()) {
-          this.wallTool.cancelDrawing();
-          e.preventDefault();
-          return;
-        }
-        // Wall tool: clear wall selection
-        if (this.store.getState().activeTool === 'wall' && this.wallInteraction?.hasSelection()) {
-          this.wallInteraction.clearSelection();
+        if (this.lighting?.handleEscape()) {
           e.preventDefault();
           return;
         }
@@ -828,9 +777,7 @@ export class PixiRendererOrchestrator { // Renamed class
       
       // Delete selected tokens on Delete or Backspace key
       if (!this.store.getState().isPlayerView && (matchesMapHotkey(e, 'delete', settings) || matchesMapHotkey(e, 'deleteAlt', settings))) {
-        // Wall tool: delete selected wall/light
-        if (this.store.getState().activeTool === 'wall') {
-          this.wallInteraction?.deleteSelected();
+        if (this.lighting?.handleDelete()) {
           e.preventDefault();
           return;
         }
@@ -910,32 +857,7 @@ export class PixiRendererOrchestrator { // Renamed class
       );
     }
 
-    // Wire wall tool viewport handlers
-    if (this.wallTool && this.wallInteraction) {
-      this.tokenRenderer.setWallPointerDownHandler((worldX, worldY, e) => {
-        return this.handleWallPointerDown(worldX, worldY, e.shiftKey, e.ctrlKey || e.metaKey);
-      });
-      this.tokenRenderer.setWallPointerMoveHandler((worldX, worldY, _e) => {
-        this.handleWallPointerMove(worldX, worldY);
-      });
-      this.tokenRenderer.setWallPointerUpHandler(() => {
-        this.handleWallPointerUp();
-      });
-      this.tokenRenderer.setWallDoubleClickHandler((worldX, worldY) => {
-        // Otherwise finish wall chain
-        this.wallTool?.finishChain();
-      });
-      this.tokenRenderer.setWallContextMenuHandler((worldX, worldY, screenX, screenY) => {
-        this.showWallContextMenu(worldX, worldY, screenX, screenY);
-      });
-      this.tokenRenderer.setWallCursorProvider((worldX, worldY) => {
-        if (!this.wallRenderer) return 'crosshair';
-        if (this.wallRenderer.hitTestVertices(worldX, worldY)) return 'grab';
-        if (this.wallRenderer.hitTestWalls(worldX, worldY)) return 'pointer';
-        if (this.wallRenderer.hitTestLights(worldX, worldY)) return 'pointer';
-        return 'crosshair';
-      });
-    }
+    this.lighting?.wire(this.tokenRenderer);
 
     // Wire audio tool viewport handlers
     if (this.audioRenderer && this.audioTool) {
@@ -953,128 +875,6 @@ export class PixiRendererOrchestrator { // Renamed class
     if (!this.measureRenderer) return;
     const assetService = AssetService.getInstance(this.obsApp);
     this.measureRenderer.measurementSettingsProvider = () => mapMeasurementSettings(assetService, this.store.getState());
-  }
-
-  // ─── Wall tool viewport handlers ─────────────────────────────────────
-
-  // Wall coordinates are never snapped to the grid — walls need freeform
-  // placement to align with map artwork regardless of grid settings.
-
-  private handleWallPointerDown(worldX: number, worldY: number, shiftHeld: boolean, ctrlHeld: boolean): boolean {
-    if (!this.wallInteraction || !this.wallTool) return false;
-
-    // Door placement mode: click confirms placement
-    if (this.wallInteraction.isPlacingDoor()) {
-      this.wallInteraction.confirmDoorPlacement();
-      return true;
-    }
-
-    const settings = this.wallTool.getSettings();
-
-    // Shift + click on existing vertex: continue drawing a new chain from that endpoint
-    if (shiftHeld && !ctrlHeld && settings.mode === 'point-to-point' && settings.subMode === 'draw' && this.wallRenderer) {
-      const vertexHit = this.wallRenderer.hitTestVertices(worldX, worldY);
-      if (vertexHit) {
-        const wall = this.store.getState().objects.walls[vertexHit.wallId];
-        if (wall) {
-          const endpoint = wall[vertexHit.vertex];
-          this.wallTool.continueFromEndpoint(endpoint.x, endpoint.y);
-          this.wallRenderer.setPreviewAnchor(endpoint);
-          return true;
-        }
-      }
-
-      // Shift + click on a wall LINE (not vertex): split the segment at click point
-      const wallId = this.wallRenderer.hitTestWalls(worldX, worldY);
-      if (wallId) {
-        this.splitWallAtPoint(wallId, worldX, worldY);
-        return true;
-      }
-    }
-
-    // Without Shift (or with Ctrl for multi-select): let WallInteraction handle
-    // selection, vertex dragging, door toggling, and light selection
-    if (!shiftHeld || ctrlHeld) {
-      const handled = this.wallInteraction.handlePointerDown(worldX, worldY, ctrlHeld);
-      if (handled) {
-        this.wallRenderer?.clearPreview();
-        return true;
-      }
-    }
-
-    if (settings.subMode === 'place-light') {
-      this.store.getState().addLight({ x: worldX, y: worldY, emission: { ...LIGHT_PRESETS.torch.emission } });
-      return true;
-    }
-
-    // Point-to-point mode: pass shiftHeld so the tool knows whether to chain
-    if (settings.mode === 'point-to-point') {
-      this.wallTool.addVertex(worldX, worldY, shiftHeld);
-      return true;
-    }
-
-    // Freeform mode — also check if clicking on an existing vertex to continue from there
-    if (settings.mode === 'freeform') {
-      let startX = worldX;
-      let startY = worldY;
-
-      if (this.wallRenderer) {
-        const vertexHit = this.wallRenderer.hitTestVertices(worldX, worldY);
-        if (vertexHit) {
-          const wall = this.store.getState().objects.walls[vertexHit.wallId];
-          if (wall) {
-            const ep = wall[vertexHit.vertex];
-            startX = ep.x;
-            startY = ep.y;
-          }
-        }
-      }
-
-      this.wallTool.startFreeform(startX, startY);
-      this.wallRenderer?.startFreeformPreview(startX, startY);
-      return true;
-    }
-
-    return false;
-  }
-
-  private handleWallPointerMove(worldX: number, worldY: number): void {
-    if (!this.wallInteraction || !this.wallTool) return;
-
-    // Door placement preview: slide door along the wall
-    if (this.wallInteraction.isPlacingDoor()) {
-      this.wallInteraction.updateDoorPlacement(worldX, worldY);
-      return;
-    }
-
-    // Vertex / light dragging
-    if (this.wallInteraction.isDragging()) {
-      this.wallInteraction.handlePointerMove(worldX, worldY);
-      return;
-    }
-
-    // Live preview: update cursor position for the preview line
-    if (this.wallTool.isCurrentlyDrawing() && this.wallTool.getSettings().mode === 'point-to-point') {
-      this.wallRenderer?.updatePreviewCursor(worldX, worldY);
-    }
-
-    // Freeform drawing — add point to tool AND preview
-    if (this.wallTool.isCurrentlyDrawing() && this.wallTool.getSettings().mode === 'freeform') {
-      this.wallTool.addFreeformPoint(worldX, worldY);
-      this.wallRenderer?.addFreeformPreviewPoint(worldX, worldY);
-    }
-  }
-
-  private handleWallPointerUp(): void {
-    if (!this.wallInteraction || !this.wallTool) return;
-
-    this.wallInteraction.handlePointerUp();
-
-    // Finish freeform drawing on pointer up — clear preview
-    if (this.wallTool.isCurrentlyDrawing() && this.wallTool.getSettings().mode === 'freeform') {
-      this.wallTool.finishFreeform();
-      this.wallRenderer?.clearFreeformPreview();
-    }
   }
 
   /** Handle audio tool pointer down: click to select existing source or place new one */
@@ -1151,140 +951,6 @@ export class PixiRendererOrchestrator { // Renamed class
     );
   }
 
-  /**
-   * Split a wall segment into two at the nearest point on the line to the click.
-   * Both new segments inherit the original's type, chainId, and properties.
-   */
-  private splitWallAtPoint(wallId: string, worldX: number, worldY: number): void {
-    const state = this.store.getState();
-    const wall = state.objects.walls[wallId];
-    if (!wall) return;
-
-    // Project the click onto the segment to get the exact split point
-    const dx = wall.p2.x - wall.p1.x;
-    const dy = wall.p2.y - wall.p1.y;
-    const lenSq = dx * dx + dy * dy;
-    if (lenSq === 0) return;
-
-    const t = Math.max(0.05, Math.min(0.95,
-      ((worldX - wall.p1.x) * dx + (worldY - wall.p1.y) * dy) / lenSq
-    ));
-    const splitPoint = {
-      x: wall.p1.x + t * dx,
-      y: wall.p1.y + t * dy,
-    };
-
-    // Delete the original segment
-    state.deleteWall(wallId);
-
-    // Create two new segments sharing the same chainId and properties
-    const shared = {
-      type: wall.type,
-      ...(wall.chainId !== undefined && { chainId: wall.chainId }),
-      ...(wall.closed !== undefined && { closed: wall.closed }),
-      ...(wall.direction !== undefined && { direction: wall.direction }),
-    };
-
-    state.addWall({ ...shared, p1: wall.p1, p2: splitPoint });
-    state.addWall({ ...shared, p1: splitPoint, p2: wall.p2 });
-  }
-
-  private showLightContextMenu(lightId: string, screenX: number, screenY: number): void {
-    const entries: ContextMenuEntry[] = [{
-      type: 'item',
-      label: 'Delete Light',
-      icon: 'trash-2',
-      onClick: () => this.store.getState().deleteLight(lightId),
-    }];
-    openContextMenuGlobal(entries, { x: screenX, y: screenY });
-  }
-
-  private showWallContextMenu(worldX: number, worldY: number, screenX: number, screenY: number): void {
-    if (!this.wallInteraction || !this.wallRenderer) return;
-
-    // Check if right-clicking a light source — show light menu instead
-    const hitLightId = this.wallRenderer.hitTestLights(worldX, worldY);
-    if (hitLightId) {
-      this.showLightContextMenu(hitLightId, screenX, screenY);
-      return;
-    }
-
-    // If right-clicking on a wall that isn't selected, select it first
-    const hitWallId = this.wallRenderer.hitTestWalls(worldX, worldY)
-      ?? this.wallRenderer.hitTestVertices(worldX, worldY)?.wallId;
-    if (hitWallId && !this.wallInteraction.getSelectedWallIds().includes(hitWallId)) {
-      this.wallInteraction.handlePointerDown(worldX, worldY, false);
-    }
-
-    if (!this.wallInteraction.hasSelection()) return;
-
-    const selectedWallIds = this.wallInteraction.getSelectedWallIds();
-    const walls = this.store.getState().objects.walls;
-
-    // Determine current state for showing checkmarks
-    const currentDirections = new Set(selectedWallIds.map(id => walls[id]?.direction ?? 'both'));
-
-    const entries: ContextMenuEntry[] = [];
-
-    // Door placement (only for single solid/non-door walls)
-    const isSingleWall = selectedWallIds.length === 1;
-    const singleWall = isSingleWall ? walls[selectedWallIds[0]!] : null;
-    const canPlaceDoor = singleWall && singleWall.type === 'solid';
-
-    if (canPlaceDoor) {
-      entries.push({
-        type: 'item',
-        label: 'Place Door',
-        icon: 'door-open',
-        onClick: () => this.wallInteraction!.startDoorPlacement(singleWall.id, 'door'),
-      });
-      entries.push({
-        type: 'item',
-        label: 'Place Secret Door',
-        icon: 'lock',
-        onClick: () => this.wallInteraction!.startDoorPlacement(singleWall.id, 'secret-door'),
-      });
-    }
-
-    // Light pass-through direction submenu
-    entries.push({
-      type: 'submenu',
-      label: 'Light Direction',
-      icon: 'arrow-left-right',
-      children: [
-        {
-          type: 'item' as const,
-          label: 'Block Both Sides',
-          checked: currentDirections.size === 1 && currentDirections.has('both'),
-          onClick: () => this.wallInteraction!.setSelectedDirection(undefined),
-        },
-        {
-          type: 'item' as const,
-          label: 'Allow From Left',
-          checked: currentDirections.size === 1 && currentDirections.has('left'),
-          onClick: () => this.wallInteraction!.setSelectedDirection('left'),
-        },
-        {
-          type: 'item' as const,
-          label: 'Allow From Right',
-          checked: currentDirections.size === 1 && currentDirections.has('right'),
-          onClick: () => this.wallInteraction!.setSelectedDirection('right'),
-        },
-      ],
-    });
-
-
-    // Delete
-    entries.push({
-      type: 'item',
-      label: `Delete${selectedWallIds.length > 1 ? ` (${selectedWallIds.length} walls)` : ''}`,
-      icon: 'trash-2',
-      onClick: () => this.wallInteraction!.deleteSelected(),
-    });
-
-    openContextMenuGlobal(entries, { x: screenX, y: screenY });
-  }
-
   destroy(): void {
     if (this._isDestroyed) return;
     this._isDestroyed = true;
@@ -1323,10 +989,7 @@ export class PixiRendererOrchestrator { // Renamed class
     this.drawingInteraction?.destroy();
     this.textRenderer?.destroy(); // Destroy TextRenderer
     this.textTool?.destroy(); // Destroy TextTool
-    this.unbindLightingPeek?.();
-    this.lightingRenderer?.destroy();
-    this.wallRenderer?.destroy();
-    this.wallInteraction?.destroy();
+    this.lighting?.destroy();
     this.audioRenderer?.destroy();
     this.spatialAudioEngine?.dispose();
     this.bufferCache?.dispose();
@@ -1375,56 +1038,6 @@ export class PixiRendererOrchestrator { // Renamed class
         // No token renderer, just call the callback
         callback();
       }
-    });
-
-    // Listen for wall tool settings changes from toolbar UI
-    on('wall-submode-changed', (subMode: WallToolSubMode) => {
-      this.wallTool?.setSubMode(subMode);
-    });
-    on('wall-type-changed', (type: WallType) => {
-      this.wallTool?.setWallType(type);
-    });
-    on('wall-mode-changed', (mode: WallToolMode) => {
-      this.wallTool?.setMode(mode);
-    });
-
-    // Listen for wall segment creation from WallTool
-    on('wall-segment-created', (data: { p1: { x: number; y: number }; p2: { x: number; y: number }; type: WallType; chainId: string }) => {
-      const id = this.store.getState().addWall({
-        type: data.type,
-        p1: data.p1,
-        p2: data.p2,
-        chainId: data.chainId,
-        closed: true,
-      });
-      // Track for Escape undo
-      this.currentChainWallIds.push(id);
-      // After placing a segment, update preview anchor to the new endpoint
-      if (this.wallTool?.isCurrentlyDrawing()) {
-        this.wallRenderer?.setPreviewAnchor(data.p2);
-      }
-    });
-
-    // Wall chain start: show preview anchor at the first placed point
-    on('wall-chain-start', (data: { x: number; y: number }) => {
-      this.currentChainWallIds = [];
-      this.wallRenderer?.setPreviewAnchor(data);
-    });
-
-    // Wall chain finish: clear preview, keep the walls (they're committed)
-    on('wall-chain-finish', () => {
-      this.currentChainWallIds = [];
-      this.wallRenderer?.clearPreview();
-    });
-
-    // Wall drawing cancelled (Escape): delete all segments from this chain
-    on('wall-drawing-cancelled', () => {
-      if (this.currentChainWallIds.length > 0) {
-        this.store.getState().deleteWalls(this.currentChainWallIds);
-        this.currentChainWallIds = [];
-      }
-      this.wallRenderer?.clearPreview();
-      this.wallRenderer?.clearFreeformPreview();
     });
   }
   

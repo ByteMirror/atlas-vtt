@@ -1,0 +1,53 @@
+import { describe, expect, it } from 'vitest';
+import { createViewAtlasStore } from '../../src/app/storeFactory';
+import { getHistoryStore } from '../../src/app/stores/history';
+import { WallDrawingSession } from '../../src/app/pixi/lighting/WallDrawingSession';
+import { createInMemoryApp } from '../mocks/inMemoryVault';
+
+function setup(): { store: ReturnType<typeof createViewAtlasStore>; session: WallDrawingSession; steps: () => number } {
+  const { app } = createInMemoryApp();
+  const store = createViewAtlasStore(app, `walls-${Math.random()}`);
+  store.setState({ persistenceEnabled: false });
+  const history = getHistoryStore(store)!;
+  return { store, session: new WallDrawingSession(store), steps: () => history.getState().pastStates.length };
+}
+
+const segment = (x: number): { type: 'solid'; p1: { x: number; y: number }; p2: { x: number; y: number } } =>
+  ({ type: 'solid', p1: { x, y: 0 }, p2: { x: x + 10, y: 0 } });
+
+describe('WallDrawingSession', () => {
+  it('makes a whole chain one undo step', () => {
+    const { store, session, steps } = setup();
+    const before = steps();
+    session.start();
+    session.add(segment(0));
+    session.add(segment(10));
+    session.add(segment(20));
+    session.finish();
+    expect(Object.keys(store.getState().objects.walls)).toHaveLength(3);
+    expect(steps()).toBe(before + 1);
+  });
+
+  it('leaves nothing, not even an undo step, when the chain is cancelled', () => {
+    const { store, session, steps } = setup();
+    const before = steps();
+    session.start();
+    session.add(segment(0));
+    session.add(segment(10));
+    session.cancel();
+    expect(store.getState().objects.walls).toEqual({});
+    expect(steps()).toBe(before);
+  });
+
+  it('closes the previous chain when a new one starts', () => {
+    const { session, steps } = setup();
+    const before = steps();
+    session.start();
+    session.add(segment(0));
+    session.start();
+    session.add(segment(10));
+    session.finish();
+    expect(steps()).toBe(before + 2);
+    expect(session.active).toBe(false);
+  });
+});

@@ -3,24 +3,32 @@ import { X, Check } from 'lucide-react';
 import { createRoot } from 'react-dom/client';
 import { TFile, type App } from 'obsidian';
 import type { StoreApi } from 'zustand';
-import type { ViewAtlasState } from '../../storeFactory';
+import type { TokenUpdates, ViewAtlasState } from '../../storeFactory';
 import type { TokenEntity } from '../../types';
 import { CloseButton } from '../../packages/components/primitives/CloseButton';
 import { Button } from '../../packages/components/primitives/button';
 import { NumberOverrideField, parseNumberInput } from './NumberOverrideField';
 import { readStatblockVitals } from './statblockFrontmatter';
 import { buildResourceUpdates, statblockResourceDefaults, type ResourceDefaults } from './tokenResourceEdits';
+import { TokenLightingFields, type LightChoice } from './TokenLightingFields';
+import { WALLS_AND_LIGHTING_ENABLED } from '../../featureFlags';
+import { unitLabelFor } from '../../grid/measurementFormat';
+import { presetOf } from '../../lighting/lightPresets';
+import { carriedLight, visionFromForm, type VisionForm } from '../../lighting/tokenLighting';
 
 interface EditTokenValues {
   name: string;
   showNameplate: boolean;
   maxHp: number | undefined;
   maxStress: number | undefined;
+  vision: VisionForm;
+  light: LightChoice;
 }
 
 interface EditTokenModalProps {
   initial: EditTokenValues;
   resourceDefaults: ResourceDefaults;
+  unit: string;
   onSave: (values: EditTokenValues) => void;
   onClose: () => void;
 }
@@ -30,11 +38,13 @@ const numberInput = (value: number | undefined): string => (value === undefined 
 const defaultPlaceholder = (value: number | undefined): string =>
   value === undefined ? 'None' : `Statblock default: ${value}`;
 
-function EditTokenModalInner({ initial, resourceDefaults, onSave, onClose }: EditTokenModalProps): React.ReactElement {
+function EditTokenModalInner({ initial, resourceDefaults, unit, onSave, onClose }: EditTokenModalProps): React.ReactElement {
   const [name, setName] = useState(initial.name);
   const [showNameplate, setShowNameplate] = useState(initial.showNameplate);
   const [maxHpInput, setMaxHpInput] = useState(numberInput(initial.maxHp));
   const [maxStressInput, setMaxStressInput] = useState(numberInput(initial.maxStress));
+  const [vision, setVision] = useState(initial.vision);
+  const [light, setLight] = useState(initial.light);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -50,6 +60,8 @@ function EditTokenModalInner({ initial, resourceDefaults, onSave, onClose }: Edi
       showNameplate,
       maxHp: parseNumberInput(maxHpInput),
       maxStress: parseNumberInput(maxStressInput),
+      vision,
+      light,
     });
   };
 
@@ -117,7 +129,9 @@ function EditTokenModalInner({ initial, resourceDefaults, onSave, onClose }: Edi
             placeholder={defaultPlaceholder(resourceDefaults.maxStress)}
             resetLabel="Reset to statblock default"
           />
-
+          {WALLS_AND_LIGHTING_ENABLED && (
+            <TokenLightingFields vision={vision} onVisionChange={setVision} light={light} onLightChange={setLight} unit={unit} />
+          )}
         </div>
 
         <div className="atlas-modal-footer">
@@ -127,6 +141,13 @@ function EditTokenModalInner({ initial, resourceDefaults, onSave, onClose }: Edi
       </div>
     </div>
   );
+}
+
+function lightingUpdates(vision: VisionForm, light: LightChoice): Pick<TokenUpdates, 'vision' | 'light'> {
+  return {
+    vision: visionFromForm(vision),
+    ...(light !== 'custom' && { light: carriedLight(light === 'none' ? null : light) }),
+  };
 }
 
 function readResourceDefaults(app: App, statblockPath: string | undefined): ResourceDefaults {
@@ -150,10 +171,11 @@ export function openEditTokenModal(token: TokenEntity, store: StoreApi<ViewAtlas
     container.remove();
   };
 
-  const handleSave = ({ name, showNameplate, maxHp, maxStress }: EditTokenValues): void => {
+  const handleSave = ({ name, showNameplate, maxHp, maxStress, vision, light }: EditTokenValues): void => {
     store.getState().updateToken(token.id, {
       name,
       showNameplate,
+      ...(WALLS_AND_LIGHTING_ENABLED ? lightingUpdates(vision, light) : {}),
       ...buildResourceUpdates(character ?? {}, { maxHp, maxStress }, resourceDefaults),
     });
     cleanup();
@@ -166,7 +188,14 @@ export function openEditTokenModal(token: TokenEntity, store: StoreApi<ViewAtlas
         showNameplate: token.showNameplate ?? false,
         maxHp: typeof character?.hp === 'object' ? character.hp.max : character?.hp,
         maxStress: typeof character?.stress === 'object' ? character.stress.max : character?.maxStress,
+        vision: {
+          enabled: token.vision?.enabled ?? false,
+          range: numberInput(token.vision?.range),
+          darkvision: numberInput(token.vision?.darkvision),
+        },
+        light: token.light ? presetOf(token.light) ?? 'custom' : 'none',
       }}
+      unit={unitLabelFor(store.getState().grid?.unitType)}
       resourceDefaults={resourceDefaults}
       onSave={handleSave}
       onClose={cleanup}

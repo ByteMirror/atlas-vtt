@@ -31,6 +31,7 @@ import { copyDragSelection } from './dragCopy';
 import type { DragRuler } from './DragRuler';
 import { runInBackground } from '../../utils/backgroundTask';
 import { tokenSizeSubmenu } from '../../react/components/context-menu/tokenSizeMenu';
+import { tokenLightingEntries } from '../../react/components/context-menu/tokenLightingMenu';
 import { conditionsSubmenu } from '../../react/components/context-menu/conditionsMenu';
 
 interface DragState {
@@ -540,15 +541,9 @@ export class InteractionController implements ITokenInteractionController {
       ),
     });
 
-    // Vision source toggle (player character token)
-    if (WALLS_AND_LIGHTING_ENABLED) {
-      const hasVision = currentToken?.vision?.enabled ?? false;
-      entries.push({
-        type: 'item',
-        label: hasVision ? 'Remove Vision' : 'Grant Vision',
-        icon: hasVision ? 'eye-off' : 'scan-eye',
-        onClick: () => this.store.getState().updateToken(token.id, { vision: { ...currentToken?.vision, enabled: !hasVision } }),
-      });
+    // Vision and carried light, for the selection the token belongs to
+    if (WALLS_AND_LIGHTING_ENABLED && !this.isPlayerView) {
+      entries.push(...tokenLightingEntries(this.store, token.id, this.contextMenuTargets(token.id)));
     }
 
 

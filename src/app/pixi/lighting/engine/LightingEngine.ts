@@ -1,0 +1,120 @@
+import { Container, Graphics, Matrix, Texture, type Renderer, type WebGLRenderer } from 'pixi.js';
+import { AdvancedBloomFilter } from 'pixi-filters';
+import { BLOOM } from '../../../lighting/lightingConstants';
+import type { Sight } from '../../../vision/sight';
+import { destroyTree } from '../../utils/destroyTree';
+import type { CapsuleField } from './CapsuleField';
+import { createCompositeFilter, type CompositeFilter, type LightingMode } from './compositeFilter';
+import { LightingWorld } from './LightingWorld';
+import { SightMeshes } from './SightMeshes';
+import type { EngineScene } from './types';
+
+/**
+ * Scene lighting, independent of the store: world-space caches (`LightingWorld`), sight meshes
+ * and a bounds rectangle in one layer, lit by the composite filter and then bloom.
+ */
+export class LightingEngine {
+  readonly layer = new Container({ label: 'lighting' });
+  private readonly boundsRect = new Graphics();
+  private readonly sightMeshes = new SightMeshes();
+  private readonly bloom = new AdvancedBloomFilter({ ...BLOOM });
+  private world: LightingWorld | null = null;
+  private composite: CompositeFilter | null = null;
+  private boundField: CapsuleField | null = null;
+  private explored: Texture = Texture.EMPTY;
+  private mode: LightingMode = 'gm';
+  private view = { screenToWorld: new Matrix(), zoom: 1 };
+  private sight: Sight | null = null;
+
+  constructor(private readonly renderer: Renderer) {
+    this.layer.eventMode = 'none';
+    this.layer.addChild(this.boundsRect, this.sightMeshes.view);
+  }
+
+  update(scene: EngineScene): void {
+    const { bounds } = scene;
+    if (!this.world || this.world.bounds.width !== bounds.width || this.world.bounds.height !== bounds.height) {
+      this.replaceWorld(new LightingWorld(this.renderer, bounds));
+    }
+    const world = this.world!;
+    const composite = this.composite!;
+    // Without it WebGL skips the composite and the layer shows the map unlit.
+    useBackBuffer(this.renderer, true);
+    world.update(scene.walls, scene.lights, scene.albedo);
+    if (world.fieldAll() !== this.boundField) {
+      this.boundField = world.fieldAll();
+      composite.setWorld(world);
+    }
+    if (scene.sight !== this.sight) {
+      this.sight = scene.sight;
+      this.sightMeshes.draw(scene.sight, scene.sightRadius);
+      composite.setAllSeen(scene.sight.all);
+    }
+    composite.setAmbient(scene.ambient, scene.ambientColor);
+  }
+
+  animate(now: number): boolean {
+    return this.world?.animate(now) ?? false;
+  }
+
+  busy(): boolean {
+    return this.world?.busy() ?? false;
+  }
+
+  flush(): void {
+    this.world?.flush();
+  }
+
+  setMode(mode: LightingMode): void {
+    this.mode = mode;
+    this.composite?.setMode(mode);
+  }
+
+  setView(screenToWorld: Matrix, zoom: number): void {
+    this.view.screenToWorld.copyFrom(screenToWorld);
+    this.view.zoom = zoom;
+    this.composite?.setView(screenToWorld, zoom);
+  }
+
+  /** The caller owns `texture`; set its replacement before destroying it. */
+  setExplored(texture: Texture): void {
+    this.explored = texture;
+    this.composite?.setExplored(texture);
+  }
+
+  destroy(): void {
+    this.layer.filters = null;
+    this.composite?.filter.destroy();
+    this.bloom.destroy();
+    this.world?.destroy();
+    this.sightMeshes.destroy();
+    destroyTree(this.layer);
+    useBackBuffer(this.renderer, false);
+  }
+
+  /** The composite moves to the new world before the old one's textures are destroyed. */
+  private replaceWorld(world: LightingWorld): void {
+    const previous = this.world;
+    this.world = world;
+    this.boundField = world.fieldAll();
+    if (this.composite) {
+      this.composite.setWorld(world);
+    } else {
+      this.composite = createCompositeFilter(world, this.explored);
+      this.composite.setMode(this.mode);
+      this.composite.setView(this.view.screenToWorld, this.view.zoom);
+      this.layer.filters = [this.composite.filter, this.bloom];
+    }
+    previous?.destroy();
+    const { width, height } = world.bounds;
+    // PIXI takes the filter area from the children's bounds: keep the whole map covered.
+    this.boundsRect.clear().rect(0, 0, width, height).fill({ color: 0, alpha: 0 });
+    this.sight = null;
+  }
+}
+
+/** The composite reads the scene beneath it, which WebGL only offers through a back buffer. */
+function useBackBuffer(renderer: Renderer, on: boolean): void {
+  if (renderer.name !== 'webgl') return;
+  (renderer as WebGLRenderer).backBuffer.useBackBuffer = on;
+}

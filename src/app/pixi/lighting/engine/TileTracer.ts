@@ -39,6 +39,8 @@ export class TileTracer {
     u.uHasOneWay = oneWay ? 1 : 0;
     Object.assign(this.shader.resources, (oneWay ?? this.noOneWay).resources());
     renderInto(this.renderer, this.mesh, tile, [0, 0, 0, 0]);
+    // The caller destroys `oneWay` after the trace; a destroyed texture must not stay bound.
+    if (oneWay) Object.assign(this.shader.resources, this.noOneWay.resources());
     return tile;
   }
 

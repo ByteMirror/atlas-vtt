@@ -23,9 +23,31 @@ export interface ThumbnailSize {
 }
 
 /** Map cards in the asset manager and dashboard. */
-const MAP_THUMBNAIL_SIZE: ThumbnailSize = { width: 400, height: 300 };
+export const MAP_THUMBNAIL_SIZE: ThumbnailSize = { width: 400, height: 300 };
 /** Scene snapshot cards: 16:9 and sharp enough for their larger preview. */
 export const SNAPSHOT_THUMBNAIL_SIZE: ThumbnailSize = { width: 640, height: 360 };
+
+/**
+ * Draws `source` into a `size` canvas as a centred cover crop, the framing every
+ * thumbnail uses, whether it comes from a rendered scene or from the map file itself.
+ */
+export function coverCanvas(source: CanvasImageSource, sourceSize: ThumbnailSize, size: ThumbnailSize): HTMLCanvasElement {
+  const canvas = createEl('canvas');
+  canvas.width = size.width;
+  canvas.height = size.height;
+
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return canvas;
+
+  const sourceWidth = Math.max(1, sourceSize.width);
+  const sourceHeight = Math.max(1, sourceSize.height);
+  const scale = Math.max(size.width / sourceWidth, size.height / sourceHeight);
+  const drawWidth = sourceWidth * scale;
+  const drawHeight = sourceHeight * scale;
+
+  ctx.drawImage(source, (size.width - drawWidth) / 2, (size.height - drawHeight) / 2, drawWidth, drawHeight);
+  return canvas;
+}
 
 /** Renders a map view into a thumbnail and stores it next to the scene's map file. */
 export class MapThumbnailService {
@@ -87,26 +109,7 @@ export class MapThumbnailService {
   }
 
   private fitIntoThumbnailCanvas(sourceCanvas: HTMLCanvasElement, size: ThumbnailSize): HTMLCanvasElement {
-    const canvas = createEl('canvas');
-    canvas.width = size.width;
-    canvas.height = size.height;
-
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return canvas;
-
-    const sourceWidth = Math.max(1, sourceCanvas.width);
-    const sourceHeight = Math.max(1, sourceCanvas.height);
-    const scale = Math.max(
-      size.width / sourceWidth,
-      size.height / sourceHeight
-    );
-    const drawWidth = sourceWidth * scale;
-    const drawHeight = sourceHeight * scale;
-    const drawX = (size.width - drawWidth) / 2;
-    const drawY = (size.height - drawHeight) / 2;
-
-    ctx.drawImage(sourceCanvas, drawX, drawY, drawWidth, drawHeight);
-    return canvas;
+    return coverCanvas(sourceCanvas, { width: sourceCanvas.width, height: sourceCanvas.height }, size);
   }
   
   /**

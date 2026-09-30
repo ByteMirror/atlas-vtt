@@ -2,6 +2,8 @@ import { App, Notice, TFile } from 'obsidian';
 import { AssetService } from '../../../../services/AssetService';
 import { createScene, sceneFilePath } from '../../../../services/sceneCreation';
 import { writeAssetFile, writeAssetImage } from '../../../../services/assetImageFiles';
+import { MapThumbnailService } from '../../../../services/MapThumbnailService';
+import { mapFileThumbnail } from './mapFileThumbnail';
 import { optimizeUpload } from '../token-creator/tokenImages';
 
 /** Map art the image pipeline converts, as everywhere else in Atlas. */
@@ -37,6 +39,16 @@ async function writeBackground(app: App, file: File, name: string, extension: st
   return writeAssetImage(app, name, await image.arrayBuffer());
 }
 
+/** Gives the new scene the card image it would otherwise only get by being opened. */
+async function saveDroppedMapThumbnail(thumbnails: MapThumbnailService, scene: TFile, file: File, isVideo: boolean): Promise<void> {
+  try {
+    const still = await mapFileThumbnail(file, isVideo);
+    if (still) await thumbnails.saveThumbnail(scene.path, still);
+  } catch (error) {
+    console.error('[Atlas] Could not save a thumbnail for the dropped map', file.name, error);
+  }
+}
+
 export interface DroppedMapImport {
   app: App;
   assetService: AssetService;
@@ -46,12 +58,14 @@ export interface DroppedMapImport {
 
 /**
  * Makes a scene of every map dropped onto the asset manager from outside Obsidian.
- * The scene's grid is measured from the map when it first opens, and its thumbnail
- * is rendered then too, so an import writes only the map and the scene.
+ * The scene's grid is measured from the map when it first opens; its card shows a
+ * still taken from the dropped file, since a scene that has never been opened has
+ * nothing to render a thumbnail from.
  *
  * Returns how many scenes were created.
  */
 export async function importDroppedMaps({ app, assetService, collectionId, files }: DroppedMapImport): Promise<number> {
+  const thumbnails = new MapThumbnailService(app);
   let created = 0;
 
   for (const file of Array.from(files)) {
@@ -63,9 +77,10 @@ export async function importDroppedMaps({ app, assetService, collectionId, files
 
     const baseName = file.name.slice(0, file.name.length - extension.length - 1) || file.name;
     let backgroundPath: string | null = null;
+    let scene: TFile | null = null;
     try {
       backgroundPath = await writeBackground(app, file, baseName, extension);
-      await createScene({
+      scene = await createScene({
         app,
         assetService,
         name: availableSceneName(app, collectionId, baseName),
@@ -82,6 +97,10 @@ export async function importDroppedMaps({ app, assetService, collectionId, files
         try { await app.fileManager.trashFile(written); } catch { /* Keep the copy if trash is unavailable. */ }
       }
     }
+
+    // Deliberately after the import and outside its catch: saveThumbnail needs the scene
+    // on disk, and a card with no image is worth far less than the map it would undo.
+    if (scene) await saveDroppedMapThumbnail(thumbnails, scene, file, MAP_VIDEO_EXTENSIONS.includes(extension));
   }
 
   if (created > 0) new Notice(created === 1 ? 'Imported 1 map as a scene.' : `Imported ${created} maps as scenes.`);

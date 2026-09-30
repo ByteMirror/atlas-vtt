@@ -17,7 +17,8 @@ void main() {
 
 // Height falloff E ∝ (d² + h²)^(−3/2): a lamp above the floor, round and hot under it, then
 // inverse-square; normalised to ½ at the bright radius and windowed to exactly zero at the
-// reach (Karis). A light without a bright radius uses a quarter of its reach as one. The tile
+// reach (Karis). A light without a bright radius uses a quarter of its reach as one; radii are
+// floored at 1 px so an empty light stays finite in the float target. The tile
 // is read with texelFetch: its rect sits on this map's texel grid, so a texel here is a texel there.
 const fragment = `${GLSL_VERSION}
 in vec2 vWorld;
@@ -36,10 +37,11 @@ void main() {
   ivec2 size = textureSize(uTile, 0);
   if (any(lessThan(texel, ivec2(0))) || any(greaterThanEqual(texel, size))) discard;
   float d = distance(vWorld, uLight);
-  float b = max(uBright, uReach * 0.25);
+  float reach = max(uReach, 1.0);
+  float b = max(max(uBright, reach * 0.25), 1.0);
   float h = b * uHeight;
   float e = 0.5 * pow((1.0 + d * d / (h * h)) / (1.0 + b * b / (h * h)), -1.5);
-  float q = d / uReach;
+  float q = d / reach;
   float window = clamp(1.0 - q * q * q * q, 0.0, 1.0);
   finalColor = vec4(uColor * uIntensity * e * window * window * texelFetch(uTile, texel, 0).r, 1.0);
 }`;
@@ -71,6 +73,9 @@ export class LightMap {
   private readonly scene = new Container();
   private readonly slots: Slot[] = [];
   private readonly quad: Quad = createQuad();
+  private readonly geometry: Geometry = quadGeometry(this.quad);
+  /** Bound to idle slots, so no slot keeps a tile texture its owner may destroy. */
+  private readonly placeholder: RenderTexture = createTarget(1, 1, 'r8unorm', 'nearest');
 
   constructor(private readonly renderer: Renderer, bounds: MapBounds, private readonly texel: number) {
     this.texture = createTarget(bounds.width / texel, bounds.height / texel, 'rgba16float');
@@ -85,15 +90,16 @@ export class LightMap {
       if (!light) return;
       const u = slot.uniforms.uniforms;
       slot.rect.set(light.tile.rect);
-      slot.light.set([light.tile.x, light.tile.y]);
+      slot.light[0] = light.tile.x;
+      slot.light[1] = light.tile.y;
       u.uBright = light.bright;
       u.uReach = light.reach;
       u.uIntensity = light.intensity;
       slot.color.set(light.color);
-      slot.uniforms.update();
       slot.mesh.shader!.resources.uTile = light.tile.texture.source;
     });
     renderInto(this.renderer, this.scene, this.texture, [0, 0, 0, 0]);
+    for (const slot of this.slots) slot.mesh.shader!.resources.uTile = this.placeholder.source;
   }
 
   private createSlot(): Slot {
@@ -113,9 +119,9 @@ export class LightMap {
     });
     const shader = Shader.from({
       gl: { vertex, fragment, name: 'atlas-light-map', preferredFragmentPrecision: 'highp' },
-      resources: { lightUniforms: uniforms, uTile: this.texture.source },
+      resources: { lightUniforms: uniforms, uTile: this.placeholder.source },
     });
-    const mesh = new Mesh({ geometry: quadGeometry(this.quad), shader });
+    const mesh = new Mesh({ geometry: this.geometry, shader });
     mesh.blendMode = 'add';
     this.scene.addChild(mesh);
     return { mesh, uniforms, rect, light, color };
@@ -126,6 +132,10 @@ export class LightMap {
       mesh.shader?.destroy();
       mesh.destroy();
     }
+    this.geometry.destroy();
+    this.quad.vertices.destroy();
+    this.quad.indices.destroy();
+    this.placeholder.destroy(true);
     this.texture.destroy(true);
   }
 }

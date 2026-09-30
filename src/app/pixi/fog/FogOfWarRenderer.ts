@@ -11,10 +11,12 @@ import type { Viewport } from 'pixi-viewport';
 import type { StoreApi } from 'zustand';
 import type { EventEmitter } from 'events';
 import type { ViewAtlasState } from '../../storeFactory';
-import type { FogBounds, FogOperation } from '../../types/fogTypes';
+import { displayedFogOps, type FogBounds, type FogOperation } from '../../types/fogTypes';
 import { FogCanvasCompositor } from './FogCanvasCompositor';
 import { FogCursorPreview } from './FogCursorPreview';
 import { FogOperationCanvas } from './FogOperationCanvas';
+import { FogCloudLayer } from './FogCloudLayer';
+import { readFogColor } from '../../tools/fogColors';
 import { calculateOperationBounds } from './fogRenderUtils';
 import { hitTestFogOp, findConnectedFogOps } from './fogHitTest';
 import { extractConnectedComponentRects } from './fogComponentDelete';
@@ -52,6 +54,8 @@ export class FogOfWarRenderer {
 
   // Compositing (for drawing preview only)
   private compositor: FogCanvasCompositor;
+  // Cloud fog modifier: what players see while it is on
+  private cloudLayer: FogCloudLayer;
   private cursorPreview: FogCursorPreview;
 
   // Drawing state
@@ -118,6 +122,12 @@ export class FogOfWarRenderer {
     this.previewSprite.eventMode = 'none';
     this.previewSprite.zIndex = 999; // Below per-op sprites during normal mode
     this.container.addChild(this.previewSprite);
+
+    // ── Cloud fog modifier ──────────────────────────────────────────
+    this.cloudLayer = new FogCloudLayer(_pixiApp);
+    this.cloudLayer.container.zIndex = 998;
+    this.cloudLayer.container.alpha = this.previewSprite.alpha;
+    this.container.addChild(this.cloudLayer.container);
 
     // ── Lasso & rectangle preview graphics ──────────────────────────
     this.lassoGraphics = new PIXI.Graphics();
@@ -188,8 +198,11 @@ export class FogOfWarRenderer {
 
   /** Local player captures share the DM renderer but must not share its fog preview opacity. */
   getPlayerViewLayers(): LayerVisibility[] {
+    // With clouds on, players see the fog from before the edit in progress, never the DM's preview
+    const clouds = this.store.getState().fogClouds === true;
     return [
-      { layer: this.previewSprite, visible: this.previewSprite.visible, alpha: 1 },
+      { layer: this.previewSprite, visible: !clouds && this.previewSprite.visible, alpha: 1 },
+      { layer: this.cloudLayer.container, visible: clouds, alpha: 1 },
       { layer: this.cursorPreview.getDisplayObject(), visible: false },
       { layer: this.lassoGraphics, visible: false },
       { layer: this.rectPreviewGraphics, visible: false },
@@ -263,6 +276,7 @@ export class FogOfWarRenderer {
     // Refresh compositor display with all committed ops
     this.renderPreviewFromStore();
     this.previewSprite.visible = true;
+    this.applyCloudMode(false);
 
     if (this.fogMode === 'brush') {
       this.cursorPreview.show(this.isErasing);
@@ -283,9 +297,9 @@ export class FogOfWarRenderer {
     this.clearPreviewGraphics();
     this.cursorPreview.hide();
 
-    // Rebuild per-op hit-test sprites and refresh compositor display
+    // Rebuild per-op hit-test sprites and refresh compositor display; clouds part over what the edit revealed
     if (!this.store.getState().isMapLoading) {
-      this.rebuildFogSprites();
+      this.rebuildFogSprites(true);
     }
 
     // Always disable sprite-level interactivity outside fog editing mode.
@@ -294,7 +308,7 @@ export class FogOfWarRenderer {
 
     // Update container visibility
     const fogOps = this.store.getState().objects?.fog;
-    if (!fogOps || Object.keys(fogOps).length === 0) {
+    if ((!fogOps || Object.keys(fogOps).length === 0) && !this.cloudLayer.isRevealing) {
       this.container.visible = false;
     } else {
       this.container.visible = true;
@@ -316,6 +330,7 @@ export class FogOfWarRenderer {
 
     this.cursorPreview.destroy();
     this.compositor.destroy();
+    this.cloudLayer.destroy();
 
     // Destroy per-op sprites
     for (const entry of this.fogSprites.values()) {
@@ -383,6 +398,8 @@ export class FogOfWarRenderer {
     let prevLoading = this.store.getState().isMapLoading;
     let prevMapPath = this.store.getState().mapPath;
     let prevGMView = this.store.getState().isGMView;
+    let prevClouds = this.store.getState().fogClouds;
+    let prevFogColor = this.store.getState().fogColor;
 
     this.unsubscribe = this.store.subscribe((state) => {
       // Tool changes → enable/disable fog mode or toggle interaction
@@ -403,7 +420,7 @@ export class FogOfWarRenderer {
         prevFog = state.objects?.fog;
         if (!this.isDrawing && !this.isLassoDrawing && !state.isMapLoading) {
           this.refreshBounds();
-          this.rebuildFogSprites();
+          this.rebuildFogSprites(true);
         }
       }
 
@@ -426,7 +443,14 @@ export class FogOfWarRenderer {
           this.currentMapPath = state.mapPath;
           this.resetDrawingState();
           this.clearAllFogSprites();
+          this.cloudLayer.reset();
         }
+      }
+
+      if (state.fogClouds !== prevClouds || state.fogColor !== prevFogColor) {
+        prevClouds = state.fogClouds;
+        prevFogColor = state.fogColor;
+        if (!state.isMapLoading) this.rebuildFogSprites();
       }
 
       // GM view toggle → adjust fog opacity
@@ -436,6 +460,7 @@ export class FogOfWarRenderer {
           isPlayerView: state.isPlayerView,
           isGMView: state.isGMView,
         });
+        this.cloudLayer.container.alpha = this.previewSprite.alpha;
       }
     });
   }
@@ -447,6 +472,7 @@ export class FogOfWarRenderer {
       isPlayerView: state.isPlayerView,
       isGMView: state.isGMView,
     });
+    this.cloudLayer.container.alpha = this.previewSprite.alpha;
 
     if (state.isMapLoading) {
       this.container.visible = false;
@@ -462,8 +488,8 @@ export class FogOfWarRenderer {
   // Per-operation sprite management
   // ═══════════════════════════════════════════════════════════════════
 
-  /** Rebuild all per-operation sprites from store. */
-  private rebuildFogSprites(): void {
+  /** Rebuild all per-operation sprites from store; with `animateReveal`, clouds part over fog that is gone. */
+  private rebuildFogSprites(animateReveal = false): void {
     try {
       const fogOps = this.store.getState().objects?.fog;
       const allOps = fogOps ? Object.values(fogOps) : [];
@@ -526,11 +552,35 @@ export class FogOfWarRenderer {
         }
         this.previewSprite.visible = false;
       }
+      this.applyCloudMode(animateReveal);
+      // A reveal of the last fog plays out before the layer hides
+      if (this.cloudLayer.isRevealing) this.container.visible = true;
 
       // Sprites stay non-interactive; viewport-level dispatch handles fog clicks.
       this.setFogSpritesInteractive(false);
     } catch (error) {
       console.error('[FogOfWarRenderer] Error rebuilding fog sprites:', error);
+    }
+  }
+
+  /**
+   * Cloud fog modifier: while fog is edited the DM sees the flat preview and
+   * players the clouds from before the edit; otherwise both see the clouds of
+   * the current fog, parting over what a change revealed when `animateReveal`.
+   */
+  private applyCloudMode(animateReveal: boolean): void {
+    const state = this.store.getState();
+    if (state.fogClouds !== true) {
+      this.cloudLayer.reset();
+      this.cloudLayer.container.visible = false;
+      return;
+    }
+    const editing = !state.isPlayerView && (state.activeTool === 'fog' || state.activeTool === 'eraser');
+    this.cloudLayer.container.visible = !editing;
+    if (editing) return;
+    this.previewSprite.visible = false;
+    if (!state.isMapLoading) {
+      this.cloudLayer.present(state.objects?.fog ?? {}, this.compositor.getBounds(), readFogColor(state.fogColor), animateReveal);
     }
   }
 
@@ -852,15 +902,13 @@ export class FogOfWarRenderer {
       brushRadius: this.brushSize,
     };
 
-    const committed = Object.values(this.store.getState().objects?.fog ?? {});
+    const committed = displayedFogOps(this.store.getState().objects?.fog);
     this.compositor.compositeAll([...committed, tempOp]);
     this.updatePreviewTexture();
   }
 
   private renderPreviewFromStore(): void {
-    const fogOps = this.store.getState().objects?.fog;
-    const ops = fogOps ? Object.values(fogOps) : [];
-    this.compositor.compositeAll(ops);
+    this.compositor.compositeAll(displayedFogOps(this.store.getState().objects?.fog));
     this.updatePreviewTexture();
   }
 

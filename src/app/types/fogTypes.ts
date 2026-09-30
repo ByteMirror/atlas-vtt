@@ -58,3 +58,13 @@ export interface FogBounds {
   width: number;
   height: number;
 }
+
+/**
+ * The operations that make up the fog people see: the DM's preview, the player
+ * frame, the clouds and their transitions all draw from this. Hit-testing and
+ * selection read every operation instead, so the DM can still reach fog kept
+ * out of view (the place for a future hidden-shape filter).
+ */
+export function displayedFogOps(fog: Record<string, FogOperation> | undefined): FogOperation[] {
+  return fog ? Object.values(fog) : [];
+}

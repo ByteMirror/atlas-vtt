@@ -20,6 +20,7 @@ import { normalizeImagePath } from './utils/pathUtils';
 import { createInitiativeActions } from './stores/initiativeSlice';
 import { createInitialUIState, createUIActions, type UISlice } from './stores/uiSlice';
 import { createPinnedNotePreviewActions, type PinnedNotePreviewSlice } from './stores/pinnedNotePreviewSlice';
+import { DEFAULT_FOG_COLOR, readFogColor } from './tools/fogColors';
 import { createInitialLootRollerState, createLootRollerActions, readLootRollerState, type LootRollerSlice } from './stores/lootRollerSlice';
 import { isRecord } from './services/assetMetadataGuards';
 import { createHistoryOptions } from './stores/history';
@@ -156,6 +157,12 @@ export interface ViewAtlasState {
   duplicateFogOperations: (ids: string[]) => void;
   setFogOperations: (fog: Record<string, FogOperation>) => void;
   clearFog: () => void;
+  /** Fog modifier (persisted per map): cloud-textured fog that parts when an edit is finished. */
+  fogClouds: boolean;
+  setFogClouds: (on: boolean) => void;
+  /** Colour of the cloud fog (persisted per map), `#rrggbb`. */
+  fogColor: string;
+  setFogColor: (color: string) => void;
 
   /** Dynamic lighting of the scene; saved with the map, never undo-tracked. */
   lighting: SceneLighting;
@@ -335,7 +342,7 @@ export const DEFAULT_TOKEN_SETTINGS: Readonly<ViewAtlasState['tokenSettings']> =
   tokenRingSize: 1,
 };
 
-const createInitialState = (): Pick<ViewAtlasState, 'schema' | 'version' | 'mapPath' | 'background' | 'grid' | 'objects' | 'camera' | 'persistenceEnabled' | 'widgetSettings' | 'widgetValues' | 'dmNotePath' | 'tokenSettings' | 'initiative' | 'diceLog' | 'pinnedNotePreviews' | 'lootRoller' | 'lighting' | 'exploredMask'> => ({
+const createInitialState = (): Pick<ViewAtlasState, 'schema' | 'version' | 'mapPath' | 'background' | 'grid' | 'objects' | 'camera' | 'persistenceEnabled' | 'widgetSettings' | 'widgetValues' | 'dmNotePath' | 'tokenSettings' | 'initiative' | 'diceLog' | 'pinnedNotePreviews' | 'lootRoller' | 'lighting' | 'exploredMask' | 'fogClouds' | 'fogColor'> => ({
   lighting: { ...DEFAULT_SCENE_LIGHTING },
   exploredMask: null,
   schema: ATLAS_SCHEMA,
@@ -380,6 +387,8 @@ const createInitialState = (): Pick<ViewAtlasState, 'schema' | 'version' | 'mapP
   diceLog: [],
   pinnedNotePreviews: {},
   lootRoller: createInitialLootRollerState(),
+  fogClouds: false,
+  fogColor: DEFAULT_FOG_COLOR,
 });
 
 /**
@@ -1129,6 +1138,16 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
             draft.exploredMask = dataUrl;
           }),
 
+          fogClouds: false,
+          setFogClouds: (on) => set((draft) => {
+            draft.fogClouds = on;
+          }),
+
+          fogColor: DEFAULT_FOG_COLOR,
+          setFogColor: (color) => set((draft) => {
+            draft.fogColor = readFogColor(color);
+          }),
+
           // Audio dirty flag
           _audioDirty: false,
           markAudioDirty: () => set((draft) => { draft._audioDirty = true; }),
@@ -1262,6 +1281,8 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
             draft.lootRoller = createInitialLootRollerState();
             draft.lighting = { ...DEFAULT_SCENE_LIGHTING };
             draft.exploredMask = null;
+            draft.fogClouds = false;
+            draft.fogColor = DEFAULT_FOG_COLOR;
 
             // Note: We don't clear background here - it will be set by the new map
             // Note: We don't clear mapPath - it must be preserved for storage adapter
@@ -1451,6 +1472,8 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
               lootRoller: state.lootRoller, // Loot roller window, filters and history
               lighting: state.lighting,
               exploredMask: state.exploredMask,
+              fogClouds: state.fogClouds, // Fog modifier
+              fogColor: state.fogColor,
             };
           },
           
@@ -1463,6 +1486,8 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
               lootRoller: readLootRollerState(saved.lootRoller),
               lighting: readSceneLighting(saved.lighting),
               exploredMask: readExploredMask(saved.exploredMask),
+              fogClouds: saved.fogClouds === true,
+              fogColor: readFogColor(saved.fogColor),
             };
           },
 

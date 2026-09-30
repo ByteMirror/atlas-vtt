@@ -13,5 +13,7 @@ export interface SceneLightingView {
   ambient(): number;
   refreshBounds(): void;
   resetExplored(): void;
+  /** The view's map is about to unload: finish pending saves for it. */
+  beforeMapUnload(): void;
   destroy(): void;
 }

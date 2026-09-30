@@ -16,6 +16,7 @@ import { saveExploredMask } from './exploredMaskSaving';
 import { LightLayers } from './LightLayers';
 import { activeLights } from './lightSources';
 import { SightLayer } from './SightLayer';
+import { ExploredSaveScheduler } from './ExploredSaveScheduler';
 import type { SceneLightingView } from './sceneLightingView';
 
 /** Above tokens, below their nameplates and bars (100): the GM keeps readable labels in the dark. */
@@ -51,7 +52,7 @@ export class LightingRenderer implements SceneLightingView {
   private sight: Sight = SEES_ALL;
   private previous: Watched | null = null;
   private loadedMask: string | null = null;
-  private saveTimer: number | null = null;
+  private readonly exploredSaver: ExploredSaveScheduler;
   private preview = false;
   private capturing = false;
   private readonly unsubscribe: () => void;
@@ -59,6 +60,7 @@ export class LightingRenderer implements SceneLightingView {
 
   constructor(private readonly deps: LightingRendererDeps) {
     this.composite = createCompositeFilter(Texture.EMPTY);
+    this.exploredSaver = new ExploredSaveScheduler(() => deps.store.getState().mapPath, () => this.saveExplored(), EXPLORED_SAVE_DELAY);
     this.layer.zIndex = LIGHTING_Z_INDEX;
     this.layer.eventMode = 'none';
     this.layer.filters = [this.composite.filter];
@@ -141,7 +143,7 @@ export class LightingRenderer implements SceneLightingView {
     const shapes = exploredShapes(this.sight, state.lighting.ambient, this.lights.reaches());
     if (!shapes || !this.explored) return;
     this.explored.add(shapes);
-    this.scheduleExploredSave();
+    this.exploredSaver.schedule();
   }
 
   private ensureExplored(bounds: MapBounds): void {
@@ -161,14 +163,18 @@ export class LightingRenderer implements SceneLightingView {
     requestRender(this.deps.app);
   }
 
-  private scheduleExploredSave(): void {
-    if (this.saveTimer !== null) return;
-    this.saveTimer = window.setTimeout(() => {
-      this.saveTimer = null;
-      if (!this.explored) return;
-      this.loadedMask = saveExploredMask(this.explored.toCanvas());
-      this.deps.store.getState().setExploredMask(this.loadedMask);
-    }, EXPLORED_SAVE_DELAY);
+  private saveExplored(): void {
+    if (!this.explored) return;
+    this.loadedMask = saveExploredMask(this.explored.toCanvas());
+    this.deps.store.getState().setExploredMask(this.loadedMask);
+  }
+
+  /** Before the map unloads: save the scene's pending memory into it, then start the next scene blank. */
+  beforeMapUnload(): void {
+    this.exploredSaver.flush();
+    this.explored?.clear();
+    this.loadedMask = null;
+    this.previous = null;
   }
 
   private applyMode(): void {
@@ -194,7 +200,7 @@ export class LightingRenderer implements SceneLightingView {
   destroy(): void {
     this.unsubscribe();
     this.deps.app.ticker.remove(this.tick);
-    if (this.saveTimer !== null) window.clearTimeout(this.saveTimer);
+    this.exploredSaver.cancel();
     setBackBuffer(this.deps.app.renderer, false);
     this.lights.destroy();
     this.sightLayer.destroy();

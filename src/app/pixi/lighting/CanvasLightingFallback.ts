@@ -57,6 +57,7 @@ export class CanvasLightingFallback implements SceneLightingView {
   ambient(): number { return 1; }
   refreshBounds(): void { this.update(this.deps.store.getState()); }
   resetExplored(): void { /* The fallback keeps no explored memory. */ }
+  beforeMapUnload(): void { /* Nothing is pending in the fallback. */ }
 
   private update(state: ViewAtlasState): void {
     const bounds = this.deps.bounds();

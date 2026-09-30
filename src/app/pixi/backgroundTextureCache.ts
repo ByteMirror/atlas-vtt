@@ -1,5 +1,6 @@
 import type { Texture } from 'pixi.js';
 import { loadAsset, unloadAsset } from './utils/assetLifecycle';
+import { isVideoSource, videoElementOf } from './utils/videoSource';
 
 /** Idle backgrounds kept for quick scene switches, in addition to the ones on screen. */
 const MAX_IDLE_ENTRIES = 3;
@@ -19,7 +20,16 @@ interface CacheEntry {
 function configureBackgroundTexture(texture: Texture): void {
   const { source } = texture;
   source.scaleMode = 'linear';
-  source.autoGenerateMipmaps = texture.width <= MIPMAP_SIZE_THRESHOLD && texture.height <= MIPMAP_SIZE_THRESHOLD;
+  // A video map is well under the threshold at 1080p, but its source re-uploads on every
+  // decoded frame, so mipmapping it regenerates the whole chain 24-60 times a second.
+  const isVideo = isVideoSource(source);
+  source.autoGenerateMipmaps = !isVideo
+    && texture.width <= MIPMAP_SIZE_THRESHOLD
+    && texture.height <= MIPMAP_SIZE_THRESHOLD;
+  // PIXI's VideoSource defaults to playing once. A battlemap is ambience, so it repeats;
+  // the flag lives on the element, which the source neither copies from its options nor exposes.
+  const video = videoElementOf(source);
+  if (video) video.loop = true;
   source.update();
   if (texture.width > MAX_RECOMMENDED_TEXTURE_SIZE || texture.height > MAX_RECOMMENDED_TEXTURE_SIZE) {
     console.warn(`[BackgroundTextureCache] Texture size (${texture.width}x${texture.height}) exceeds the recommended maximum of ${MAX_RECOMMENDED_TEXTURE_SIZE}px. Consider resizing the map for better performance.`);

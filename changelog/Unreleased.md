@@ -19,3 +19,4 @@
 ## Fixed
 
 - Collections can be deleted again when some of their files were already removed outside Obsidian, for example by git
+- Animated map backgrounds (`.webm`, `.mp4`) play smoothly and repeat instead of stuttering until you move the mouse and stopping after one pass.

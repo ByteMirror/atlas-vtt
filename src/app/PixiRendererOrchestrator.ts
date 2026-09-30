@@ -44,6 +44,7 @@ import { mapMeasurementSettings } from './services/mapMeasurementSettings';
 import { findAtlasLeafByViewId } from './utils/atlasLeafLookup';
 import { destroyTree } from './pixi/utils/destroyTree';
 import { requestRender } from './pixi/RenderScheduler';
+import { isVideoSource } from './pixi/utils/videoSource';
 
 export class PixiRendererOrchestrator { // Renamed class
   private _isDestroyed: boolean = false;
@@ -75,6 +76,8 @@ export class PixiRendererOrchestrator { // Renamed class
   private layerFog: Container | null = null; // Add fog layer
   private gridSystem?: GridSystem; // Instance of GridSystem
   private backgroundSprite: Sprite | null = null;
+  /** Detaches the frame listener of a video background; set only while one is shown. */
+  private unsubscribeFromVideoFrames?: () => void;
   private obsApp: App;
   private eventBus: EventEmitter;
   private activeHoverLinkAnchorEl: HTMLElement | null = null;
@@ -593,6 +596,8 @@ export class PixiRendererOrchestrator { // Renamed class
     const currentViewport = this.viewport;
     if (!currentViewport) return;
 
+    this.stopFollowingVideoFrames();
+
     // Remove old background from viewport if it's different from the new one
     if (this.backgroundSprite && this.backgroundSprite !== sprite) {
       if (this.backgroundSprite.parent) {
@@ -625,6 +630,29 @@ export class PixiRendererOrchestrator { // Renamed class
       // Don't pass empty options - this would reset the grid settings!
       // The updateBackgroundSprite call should trigger recreation with current options
     }
+
+    this.followVideoFrames(sprite);
+  }
+
+  /**
+   * A decoded video frame uploads pixels into a texture the stage already holds, which
+   * leaves no pending change for the render scheduler to find, so an animated map would
+   * only advance while something else redrew the view.
+   */
+  private followVideoFrames(sprite: Sprite): void {
+    const source = sprite.texture?.source;
+    if (!source || !isVideoSource(source)) return;
+
+    const onFrame = (): void => requestRender(this.pixiAppManager.app);
+    source.on('update', onFrame);
+    this.unsubscribeFromVideoFrames = (): void => {
+      source.off('update', onFrame);
+    };
+  }
+
+  private stopFollowingVideoFrames(): void {
+    this.unsubscribeFromVideoFrames?.();
+    delete this.unsubscribeFromVideoFrames;
   }
 
   /** The map image in world space; null until it has loaded. */
@@ -960,7 +988,8 @@ export class PixiRendererOrchestrator { // Renamed class
     this.eventBusUnsubscribers = [];
     this._unsubscribeFromToolChanges?.();
     delete this._unsubscribeFromToolChanges;
-    
+    this.stopFollowingVideoFrames();
+
     this._unsubscribeFromGridVisibility?.();
     delete this._unsubscribeFromGridVisibility;
     

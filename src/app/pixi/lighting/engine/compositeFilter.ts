@@ -12,6 +12,7 @@ import {
   type RenderSurface,
 } from 'pixi.js';
 import { BOUNCE, EXPOSURE, PURKINJE, wallBand, wallCore } from '../../../lighting/lightingConstants';
+import { DEFAULT_EXPLORED_COLOR, DEFAULT_UNEXPLORED_COLOR } from '../../../lighting/sceneLightingOptions';
 import { srgbToLinear } from '../../../lighting/srgb';
 import { compositeFragment } from './compositeShader';
 import { HIGHP } from './gpu';
@@ -29,6 +30,10 @@ export interface CompositeFilter {
   setMode(mode: LightingMode): void;
   /** No token has vision: line of sight hides nothing. */
   setAllSeen(all: boolean): void;
+  /** Off, the player view shows no explored memory: what no token sees takes the unexplored colour. */
+  setMemoryShown(shown: boolean): void;
+  /** Tint of remembered areas and fill of never-seen ones in the player view, picked in sRGB. */
+  setMemoryColours(explored: string | undefined, unexplored: string | undefined): void;
   /** The caller owns `texture` and rebinds before destroying it. */
   setExplored(texture: Texture): void;
   /** Maps screen pixels of the render being drawn to world pixels; `zoom` is screen px per world px. */
@@ -68,6 +73,8 @@ export function createCompositeFilter(world: LightingWorld, explored: Texture): 
   const lightWorld = new Float32Array(2);
   const mapSize = new Float32Array(2);
   const ambient = new Float32Array(3);
+  const exploredTint = new Float32Array([1, 1, 1]);
+  const unexplored = new Float32Array(3);
   const group = new UniformGroup({
     uScreenToWorld: { value: screenToWorld, type: 'mat3x3<f32>' },
     uPixelWorld: { value: 1, type: 'f32' },
@@ -83,6 +90,9 @@ export function createCompositeFilter(world: LightingWorld, explored: Texture): 
     uPurkinje: { value: PURKINJE, type: 'f32' },
     uMode: { value: 0, type: 'f32' },
     uAllSeen: { value: 1, type: 'f32' },
+    uMemory: { value: 1, type: 'f32' },
+    uExploredTint: { value: exploredTint, type: 'vec3<f32>' },
+    uUnexplored: { value: unexplored, type: 'vec3<f32>' },
     uFluSpacing: { value: BOUNCE.probe, type: 'f32' },
   });
   const u = group.uniforms;
@@ -110,8 +120,7 @@ export function createCompositeFilter(world: LightingWorld, explored: Texture): 
       group.update();
     },
     setAmbient(level, color): void {
-      const c = new Color(color ?? '#ffffff');
-      ambient.set([srgbToLinear(c.red) * level, srgbToLinear(c.green) * level, srgbToLinear(c.blue) * level]);
+      setLinear(ambient, color ?? '#ffffff', level);
       group.update();
     },
     setMode(mode): void {
@@ -120,6 +129,15 @@ export function createCompositeFilter(world: LightingWorld, explored: Texture): 
     },
     setAllSeen(all): void {
       u.uAllSeen = all ? 1 : 0;
+      group.update();
+    },
+    setMemoryShown(shown): void {
+      u.uMemory = shown ? 1 : 0;
+      group.update();
+    },
+    setMemoryColours(explored, unexploredColor): void {
+      setLinear(exploredTint, explored ?? DEFAULT_EXPLORED_COLOR);
+      setLinear(unexplored, unexploredColor ?? DEFAULT_UNEXPLORED_COLOR);
       group.update();
     },
     setExplored(texture): void {
@@ -133,4 +151,10 @@ export function createCompositeFilter(world: LightingWorld, explored: Texture): 
   };
   composite.setWorld(world);
   return composite;
+}
+
+/** Writes an sRGB colour into `out` in linear light, scaled by `level`. */
+function setLinear(out: Float32Array, color: string, level = 1): void {
+  const c = new Color(color);
+  out.set([srgbToLinear(c.red) * level, srgbToLinear(c.green) * level, srgbToLinear(c.blue) * level]);
 }

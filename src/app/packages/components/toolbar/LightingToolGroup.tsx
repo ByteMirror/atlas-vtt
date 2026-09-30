@@ -28,6 +28,7 @@ export function LightingToolGroup({ activeTool, selectTool, menuOpen, toggleMenu
   const emit = useEmitViewEvent()
   const lighting = useAtlasStore((state) => state.lighting)
   const setSceneLighting = useAtlasStore((state) => state.setSceneLighting)
+  const setSceneLightingPanelOpen = useAtlasStore((state) => state.setSceneLightingPanelOpen)
   const [subMode, setSubMode] = useState<'draw' | 'place-light'>('draw')
   const [drawMode, setDrawMode] = useState<'point-to-point' | 'freeform'>('point-to-point')
   const [preset, setPreset] = useState<LightPresetId>('torch')
@@ -93,6 +94,10 @@ export function LightingToolGroup({ activeTool, selectTool, menuOpen, toggleMenu
         }}
         onResetExplored={() => {
           emit('lighting-reset-explored')
+          closeMenu()
+        }}
+        onOpenSettings={() => {
+          setSceneLightingPanelOpen(true)
           closeMenu()
         }}
       />

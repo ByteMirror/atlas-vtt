@@ -5,7 +5,9 @@ import type { MeasurementSettings } from '../../grid/measurementFormat';
 import { unitScaleOf } from '../../lighting/lightingUnits';
 import { sealedWalls } from '../../lighting/sealWalls';
 import { worldTexel } from '../../lighting/lightingConstants';
-import { SEES_ALL, SightCache, computeSight, sightSources, type LightReach, type Sight } from '../../vision/sight';
+import { sceneLook, type SceneLook } from '../../lighting/sceneLightingOptions';
+import type { SceneLighting } from '../../types/lightingTypes';
+import { SEES_ALL, SightCache, sceneSight, sightSources, type AmbientLight, type LightReach, type Sight } from '../../vision/sight';
 import { wallList } from '../../vision/wallList';
 import { exploredShapes } from '../../vision/exploredShapes';
 import type { MapBounds } from '../../vision/visibility';
@@ -38,12 +40,13 @@ export interface LightingRendererDeps {
 }
 
 type Watched = Pick<ViewAtlasState, 'objects' | 'lighting' | 'grid' | 'exploredMask'>;
-type SceneWithoutAmbient = Omit<EngineScene, 'ambient' | 'ambientColor'>;
+type SceneWithoutLook = Omit<EngineScene, keyof SceneLook>;
 
 /**
  * Scene lighting for one map view: feeds the store's walls, lights and vision tokens to the
  * `LightingEngine`, which lights the scene beneath its layer, hides what no token sees in the
- * player view and ghosts it for the GM. Explored memory lives in a world-space texture.
+ * player view and ghosts it for the GM. Explored memory lives in a world-space texture; with the
+ * scene's explored memory off it records nothing but keeps (and saves) what it holds.
  */
 export class LightingRenderer implements SceneLightingView {
   readonly layer: Container;
@@ -57,8 +60,8 @@ export class LightingRenderer implements SceneLightingView {
   private exploredBounds: MapBounds | null = null;
   private sight: Sight = SEES_ALL;
   private previous: Watched | null = null;
-  /** The last scene without its ambient light, reused while only the ambient changes. */
-  private lastScene: SceneWithoutAmbient | null = null;
+  /** The last scene without its look (`SceneLook`), reused while only the look changes. */
+  private lastScene: SceneWithoutLook | null = null;
   /** The mask the texture holds; undefined after a failed load, so that the next update retries. */
   private loadedMask: string | null | undefined = null;
   /** Bumped whenever the texture's content is superseded, so a load decoded too late is dropped. */
@@ -101,7 +104,7 @@ export class LightingRenderer implements SceneLightingView {
 
   currentSight(): Sight { return this.sight; }
   lightReaches(): LightReach[] { return this.reaches; }
-  ambient(): number { return this.deps.store.getState().lighting.ambient; }
+  ambientLight(): AmbientLight { return this.deps.store.getState().lighting; }
 
   /** The map image changed size or finished loading. */
   refreshBounds(): void {
@@ -134,22 +137,20 @@ export class LightingRenderer implements SceneLightingView {
 
     const { walls, lights, tokens } = state.objects;
     const moved = !prev || prev.objects.walls !== walls || prev.objects.lights !== lights
-      || prev.objects.tokens !== tokens || prev.grid !== state.grid;
+      || prev.objects.tokens !== tokens || prev.grid !== state.grid || sightOptionsChanged(prev.lighting, lighting);
     const base = moved || !this.lastScene ? (this.lastScene = this.buildScene(state, bounds)) : this.lastScene;
-    const scene: EngineScene = { ...base, ambient: lighting.ambient };
-    if (lighting.ambientColor !== undefined) scene.ambientColor = lighting.ambientColor;
-    this.engine.update(scene);
+    this.engine.update({ ...base, ...sceneLook(lighting) });
     requestRender(this.deps.app);
   }
 
   /** Recomputes lights, their reaches and sight with sealed walls, and records what tokens now see. */
-  private buildScene(state: ViewAtlasState, bounds: MapBounds): SceneWithoutAmbient {
+  private buildScene(state: ViewAtlasState, bounds: MapBounds): SceneWithoutLook {
     const scale = unitScaleOf(this.deps.measurement(), state.grid);
     const walls = sealedWalls(wallList(state.objects.walls), worldTexel(bounds));
     const lights = activeLights(state.objects.lights, state.objects.tokens).map((light) => engineLight(light, scale));
     this.reaches = this.lightReachCache.sync(lights, walls);
-    this.sight = computeSight(sightSources(state.objects.tokens, scale, bounds), walls, this.sightCache);
-    this.recordExplored(state.lighting.ambient);
+    this.sight = sceneSight(state.lighting, sightSources(state.objects.tokens, scale, bounds), walls, this.sightCache);
+    this.recordExplored(state.lighting);
     return {
       bounds,
       albedo: this.deps.albedo(),
@@ -160,8 +161,8 @@ export class LightingRenderer implements SceneLightingView {
     };
   }
 
-  private recordExplored(ambient: number): void {
-    const shapes = exploredShapes(this.sight, ambient, this.reaches);
+  private recordExplored(lighting: SceneLighting): void {
+    const shapes = exploredShapes(this.sight, lighting, this.reaches);
     if (!shapes || !this.explored) return;
     this.explored.add(shapes);
     this.exploredSaver.schedule();
@@ -263,4 +264,9 @@ export class LightingRenderer implements SceneLightingView {
     this.engine.destroy();
     this.explored?.destroy();
   }
+}
+
+/** Options that change what tokens see or what explored memory records, so the scene is rebuilt. */
+function sightOptionsChanged(a: SceneLighting, b: SceneLighting): boolean {
+  return a.tokenVision !== b.tokenVision || a.exploredMemory !== b.exploredMemory || a.litThreshold !== b.litThreshold;
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { SightCache, computeSight, isFelt, isSeen, lightReach, sightSources, type SightSource } from '../sight';
+import { SEES_ALL, SightCache, computeSight, isFelt, isSeen, lightReach, sceneSight, sightSources, type SightSource } from '../sight';
 import type { TokenEntity } from '../../types';
 import type { WallSegment } from '../../types/wallTypes';
 
@@ -38,14 +38,14 @@ describe('computeSight', () => {
 
   it('keeps what lies behind a wall out of sight', () => {
     const sight = computeSight([source()], [wall]);
-    expect(isSeen({ x: 150, y: 100 }, sight, 1, [])).toBe(true);
-    expect(isSeen({ x: 300, y: 100 }, sight, 1, [])).toBe(false);
+    expect(isSeen({ x: 150, y: 100 }, sight, { ambient: 1 }, [])).toBe(true);
+    expect(isSeen({ x: 300, y: 100 }, sight, { ambient: 1 }, [])).toBe(false);
   });
 
   it('limits darkvision by walls', () => {
     const sight = computeSight([source({ darkvision: 400 })], [wall]);
-    expect(isSeen({ x: 150, y: 100 }, sight, 0, [])).toBe(true);
-    expect(isSeen({ x: 300, y: 100 }, sight, 0, [])).toBe(false);
+    expect(isSeen({ x: 150, y: 100 }, sight, { ambient: 0 }, [])).toBe(true);
+    expect(isSeen({ x: 300, y: 100 }, sight, { ambient: 0 }, [])).toBe(false);
   });
 });
 
@@ -65,17 +65,31 @@ describe('isSeen', () => {
   const sight = computeSight([source()], []);
 
   it('does not see into darkness', () => {
-    expect(isSeen({ x: 150, y: 150 }, sight, 0, [])).toBe(false);
+    expect(isSeen({ x: 150, y: 150 }, sight, { ambient: 0 }, [])).toBe(false);
   });
 
   it('sees what a light reaches', () => {
     const torch = lightReach({ x: 160, y: 160 }, 100, []);
-    expect(isSeen({ x: 150, y: 150 }, sight, 0, [torch])).toBe(true);
-    expect(isSeen({ x: 400, y: 400 }, sight, 0, [torch])).toBe(false);
+    expect(isSeen({ x: 150, y: 150 }, sight, { ambient: 0 }, [torch])).toBe(true);
+    expect(isSeen({ x: 400, y: 400 }, sight, { ambient: 0 }, [torch])).toBe(false);
   });
 
   it('sees everything in sight once the ambient light is bright enough', () => {
-    expect(isSeen({ x: 400, y: 400 }, sight, 0.5, [])).toBe(true);
+    expect(isSeen({ x: 400, y: 400 }, sight, { ambient: 0.5 }, [])).toBe(true);
+  });
+
+  it('counts the scene as lit from 25 % ambient light unless the scene sets its own threshold', () => {
+    expect(isSeen({ x: 400, y: 400 }, sight, { ambient: 0.25 }, [])).toBe(true);
+    expect(isSeen({ x: 400, y: 400 }, sight, { ambient: 0.24 }, [])).toBe(false);
+    expect(isSeen({ x: 400, y: 400 }, sight, { ambient: 0.3, litThreshold: 0.5 }, [])).toBe(false);
+    expect(isSeen({ x: 400, y: 400 }, sight, { ambient: 0.5, litThreshold: 0.5 }, [])).toBe(true);
+    expect(isSeen({ x: 400, y: 400 }, sight, { ambient: 0, litThreshold: 0 }, [])).toBe(true);
+  });
+
+  it('still needs light or darkvision where the threshold is out of reach', () => {
+    const torch = lightReach({ x: 160, y: 160 }, 100, []);
+    expect(isSeen({ x: 150, y: 150 }, sight, { ambient: 0.9, litThreshold: 1 }, [torch])).toBe(true);
+    expect(isSeen({ x: 400, y: 400 }, sight, { ambient: 0.9, litThreshold: 1 }, [torch])).toBe(false);
   });
 });
 
@@ -95,7 +109,7 @@ describe('vision cones', () => {
   const seenFrom = (vision: TokenEntity['vision'], rotation?: number): ((x: number, y: number, ambient?: number) => boolean) => {
     const viewer = { ...token('v', at.x, at.y, vision), ...(rotation !== undefined && { rotation }) };
     const sight = computeSight(sightSources({ v: viewer }, scale, bounds), []);
-    return (x: number, y: number, ambient = 1): boolean => isSeen({ x, y }, sight, ambient, []);
+    return (x: number, y: number, ambient = 1): boolean => isSeen({ x, y }, sight, { ambient: ambient }, []);
   };
 
   it('looks up at rotation 0, as the token art does', () => {
@@ -157,12 +171,25 @@ describe('tremorsense', () => {
 
   it('feels points within range through walls and darkness', () => {
     const sight = computeSight([source({ tremorsense: 300 })], [wall]);
-    expect(isSeen({ x: 300, y: 100 }, sight, 0, [])).toBe(false);
+    expect(isSeen({ x: 300, y: 100 }, sight, { ambient: 0 }, [])).toBe(false);
     expect(isFelt({ x: 300, y: 100 }, sight)).toBe(true);
     expect(isFelt({ x: 450, y: 100 }, sight)).toBe(false);
   });
 
   it('feels nothing without tremorsense', () => {
     expect(isFelt({ x: 110, y: 100 }, computeSight([source()], []))).toBe(false);
+  });
+});
+
+describe('sceneSight', () => {
+  it('computes the tokens\' sight while the scene uses token vision', () => {
+    expect(sceneSight({}, [source()], [wall]).polygons).toEqual(computeSight([source()], [wall]).polygons);
+    expect(sceneSight({ tokenVision: true }, [source()], [wall]).all).toBe(false);
+  });
+
+  it('sees everything when the scene switches token vision off', () => {
+    const sight = sceneSight({ tokenVision: false }, [source()], [wall]);
+    expect(sight).toBe(SEES_ALL);
+    expect(isSeen({ x: 300, y: 100 }, sight, { ambient: 1 }, [])).toBe(true);
   });
 });

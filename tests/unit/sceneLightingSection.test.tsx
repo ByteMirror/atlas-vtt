@@ -13,6 +13,7 @@ function renderSection(overrides: Partial<React.ComponentProps<typeof SceneLight
     preview: false,
     onPreviewChange: vi.fn(),
     onResetExplored: vi.fn(),
+    onOpenSettings: vi.fn(),
     ...overrides,
   };
   render(<SceneLightingSection {...props} />);
@@ -44,5 +45,24 @@ describe('SceneLightingSection', () => {
     expect(props.onResetExplored).toHaveBeenCalled();
     fireEvent.click(screen.getByText('Preview player view').parentElement!.querySelector('.atlas-toggle')!);
     expect(props.onPreviewChange).toHaveBeenCalledWith(true);
+  });
+
+  it('tints the ambient light with the colour beside its slider', () => {
+    const props = renderSection();
+    const swatch = screen.getByLabelText('Ambient colour') as HTMLInputElement;
+    expect(swatch.value).toBe('#ffffff');
+    fireEvent.change(swatch, { target: { value: '#3366cc' } });
+    expect(props.onChange).toHaveBeenCalledWith({ ambientColor: '#3366cc' });
+  });
+
+  it('shows the scene\'s ambient colour', () => {
+    renderSection({ lighting: { ...DEFAULT_SCENE_LIGHTING, enabled: true, ambientColor: '#aa8844' } });
+    expect((screen.getByLabelText('Ambient colour') as HTMLInputElement).value).toBe('#aa8844');
+  });
+
+  it('opens the lighting settings', () => {
+    const props = renderSection();
+    fireEvent.click(screen.getByText('Lighting settings…'));
+    expect(props.onOpenSettings).toHaveBeenCalled();
   });
 });

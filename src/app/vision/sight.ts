@@ -1,12 +1,17 @@
 import type { TokenEntity } from '../types';
+import type { SceneLighting } from '../types/lightingTypes';
 import type { Point } from '../types/visionTypes';
 import type { WallSegment } from '../types/wallTypes';
 import { gameUnitsToWorld, type UnitScale } from '../lighting/lightingUnits';
+import { litThresholdOf, tokenVisionOn } from '../lighting/sceneLightingOptions';
 import { computeVisibility, pointInPolygon, type MapBounds, type Polygon } from './visibility';
 import { visionCone, type VisionCone } from './visionCone';
 
-/** Light level at which a point counts as lit, so a token standing there can be seen. */
-export const LIT_THRESHOLD = 0.25;
+/**
+ * The scene's light without its sources: at or above `litThreshold` (unset: 0.25) ambient light,
+ * every point in sight counts as lit, so a token standing there can be seen.
+ */
+export type AmbientLight = Pick<SceneLighting, 'ambient' | 'litThreshold'>;
 
 /** A token that sees, in world pixels. */
 export interface SightSource {
@@ -104,6 +109,16 @@ function sameSource(a: SightSource, b: SightSource): boolean {
     && a.cone?.facing === b.cone?.facing && a.cone?.angle === b.cone?.angle;
 }
 
+/** The scene's sight: that of its vision tokens, or everything while the scene has token vision off. */
+export function sceneSight(
+  lighting: Pick<SceneLighting, 'tokenVision'>,
+  sources: readonly SightSource[],
+  walls: readonly WallSegment[],
+  cache?: SightCache,
+): Sight {
+  return tokenVisionOn(lighting) ? computeSight(sources, walls, cache) : SEES_ALL;
+}
+
 export function computeSight(sources: readonly SightSource[], walls: readonly WallSegment[], cache: SightCache = new SightCache()): Sight {
   if (sources.length === 0) return SEES_ALL;
   cache.retain(new Set(sources.map((source) => source.tokenId)));
@@ -123,8 +138,13 @@ export function lightReach(origin: Point, dim: number, walls: readonly WallSegme
   return { origin, dim, polygon: computeVisibility(origin, dim, walls) };
 }
 
-function isLit(point: Point, ambient: number, lights: readonly LightReach[]): boolean {
-  if (ambient >= LIT_THRESHOLD) return true;
+/** Whether the ambient light alone lights everything in sight. */
+export function ambientLights(light: AmbientLight): boolean {
+  return light.ambient >= litThresholdOf(light);
+}
+
+function isLit(point: Point, ambient: AmbientLight, lights: readonly LightReach[]): boolean {
+  if (ambientLights(ambient)) return true;
   return lights.some((light) => Math.hypot(point.x - light.origin.x, point.y - light.origin.y) <= light.dim && pointInPolygon(point, light.polygon));
 }
 
@@ -134,7 +154,7 @@ export function isFelt(point: Point, sight: Sight): boolean {
 }
 
 /** Whether a viewer can see `point`: in line of sight and lit, or within darkvision. */
-export function isSeen(point: Point, sight: Sight, ambient: number, lights: readonly LightReach[]): boolean {
+export function isSeen(point: Point, sight: Sight, ambient: AmbientLight, lights: readonly LightReach[]): boolean {
   if (!sight.all && !sight.polygons.some((polygon) => pointInPolygon(point, polygon))) return false;
   return isLit(point, ambient, lights) || sight.darkvision.some((polygon) => pointInPolygon(point, polygon));
 }

@@ -24,11 +24,30 @@ describe('scene lighting state', () => {
     expect(store.getState().lighting.ambient).toBe(0);
   });
 
+  it('clamps the lit threshold to 0..1 and keeps the other scene options as given', () => {
+    const store = createStore();
+    store.getState().setSceneLighting({ litThreshold: 1.5, tokenVision: false, exploredMemory: false, exploredColor: '#aabbcc', unexploredColor: '#112233' });
+    expect(store.getState().lighting).toEqual({
+      ...DEFAULT_SCENE_LIGHTING, litThreshold: 1, tokenVision: false, exploredMemory: false, exploredColor: '#aabbcc', unexploredColor: '#112233',
+    });
+    store.getState().setSceneLighting({ litThreshold: -0.5 });
+    expect(store.getState().lighting.litThreshold).toBe(0);
+    store.getState().setSceneLighting({ litThreshold: Number.NaN });
+    expect(store.getState().lighting.litThreshold).toBe(0.25);
+  });
+
+  it('leaves the lit threshold unset until the scene sets one', () => {
+    const store = createStore();
+    store.getState().setSceneLighting({ ambient: 0.4 });
+    expect(store.getState().lighting).not.toHaveProperty('litThreshold');
+  });
+
   it('never enters the undo history', () => {
     const store = createStore();
     const history = getHistoryStore(store)!;
     const before = history.getState().pastStates.length;
     store.getState().setSceneLighting({ enabled: true });
+    store.getState().setSceneLighting({ tokenVision: false, exploredMemory: false, litThreshold: 0.5, ambientColor: '#ff0000' });
     store.getState().setExploredMask('data:image/png;base64,AAAA');
     expect(history.getState().pastStates.length).toBe(before);
   });

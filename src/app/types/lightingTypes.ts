@@ -5,6 +5,16 @@ export interface SceneLighting {
   ambient: number;
   /** Tint of the ambient light; unset is neutral white. */
   ambientColor?: string;
+  /** Vision tokens limit what players see; unset is on. Off, players see everything the light shows. */
+  tokenVision?: boolean;
+  /** What tokens saw stays shown as explored; unset is on. Off records nothing and shows no memory, but keeps the saved memory. */
+  exploredMemory?: boolean;
+  /** Tint of remembered areas in the players' view; unset is neutral. */
+  exploredColor?: string;
+  /** Fill of never-seen areas in the players' view; unset is black. */
+  unexploredColor?: string;
+  /** Ambient light (0–1) from which everything in sight counts as lit; unset is 0.25. */
+  litThreshold?: number;
 }
 
 export const DEFAULT_SCENE_LIGHTING: SceneLighting = { enabled: false, ambient: 0.1 };

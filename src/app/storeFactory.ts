@@ -30,6 +30,7 @@ import { computeNextInstanceNumber } from './stores/tokenInstanceNumbers';
 import type { DiceRollResult } from './tools/DiceTool';
 import { isAtlasToolAvailable } from './tools/toolAvailability';
 import { readExploredMask } from './lighting/exploredMaskCodec';
+import { clampLitThreshold } from './lighting/sceneLightingOptions';
 import { isPinLabelKind, nextPinLabel } from './tools/pinLabels';
 import { movedPathOf, rewriteMapReferences } from './services/renamedPaths';
 import { conditionValue, removeCondition, setConditionValue } from './utils/conditionValues';
@@ -296,6 +297,8 @@ export interface ViewAtlasState {
   lightPanel: UISlice['lightPanel'];
   openLightPanel: UISlice['openLightPanel'];
   closeLightPanel: UISlice['closeLightPanel'];
+  isSceneLightingPanelOpen: UISlice['isSceneLightingPanelOpen'];
+  setSceneLightingPanelOpen: UISlice['setSceneLightingPanelOpen'];
   setGridSettingsOpen: UISlice['setGridSettingsOpen'];
   setDMDashboardOpen: UISlice['setDMDashboardOpen'];
   setGridAlignmentOpen: UISlice['setGridAlignmentOpen'];
@@ -1119,6 +1122,7 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
           setSceneLighting: (changes) => set((draft) => {
             Object.assign(draft.lighting, changes);
             draft.lighting.ambient = Math.min(1, Math.max(0, draft.lighting.ambient));
+            if (draft.lighting.litThreshold !== undefined) draft.lighting.litThreshold = clampLitThreshold(draft.lighting.litThreshold);
           }),
 
           setExploredMask: (dataUrl) => set((draft) => {

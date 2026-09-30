@@ -6,7 +6,6 @@ import type { LightPanelTarget } from '../../stores/uiSlice';
 import { CloseButton } from '../../packages/components/primitives/CloseButton';
 import { SegmentedControl } from '../../packages/components/primitives/SegmentedControl';
 import { Select } from '../../packages/components/primitives/Select';
-import { Slider } from '../../packages/components/primitives/slider';
 import { useDialogWindowVariants } from '../../packages/components/primitives/dialogMotion';
 import { useAtlasStore, useViewStoreHook } from '../../react/ViewStoreContext';
 import { useDraggablePosition, type PanelArea, type PanelPosition } from '../../react/hooks/useDraggablePosition';
@@ -14,6 +13,7 @@ import { beginHistoryTransaction, endHistoryTransaction } from '../../stores/his
 import { unitLabelFor } from '../../grid/measurementFormat';
 import { LIGHT_PRESETS, LIGHT_PRESET_IDS, presetOf } from '../../lighting/lightPresets';
 import { editEmission, emissionOfPreset, type EmissionNumberField } from '../../lighting/lightEmissionForm';
+import { ColorField, SliderField } from './lightingPanelFields';
 
 const GAP = 16;
 
@@ -105,7 +105,7 @@ function LightPanel({ target }: { target: LightPanelTarget }): React.ReactElemen
         <div className="atlas-light-panel__row">
           <NumberField label={`Bright (${unit})`} emission={emission} field="bright" onChange={update} />
           <NumberField label={`Dim (${unit})`} emission={emission} field="dim" onChange={update} />
-          <ColorField value={emission.color} onChange={(color) => update({ ...emission, color })} />
+          <ColorField label="Colour" value={emission.color} onChange={(color) => update({ ...emission, color })} />
         </div>
         <SliderField label="Intensity" value={emission.intensity} min={0} max={2} step={0.05} onPointerDown={onSliderPointerDown}
           onChange={(value) => update(editEmission(emission, 'intensity', String(value)))} />
@@ -141,37 +141,6 @@ function NumberField({ label, emission, field, onChange }: NumberFieldProps): Re
       <input id={id} type="number" min={0} value={text} onChange={(e) => setText(e.target.value)} onBlur={commit}
         onKeyDown={(e) => { if (e.key === 'Enter') commit(); }} />
     </label>
-  );
-}
-
-function ColorField({ value, onChange }: { value: string; onChange: (color: string) => void }): React.ReactElement {
-  const id = useId();
-  return (
-    <label className="atlas-light-panel__field atlas-light-panel__field--color" htmlFor={id}>
-      <span>Colour</span>
-      <input id={id} type="color" value={value} onChange={(e) => onChange(e.target.value)} />
-    </label>
-  );
-}
-
-interface SliderFieldProps {
-  label: string;
-  value: number;
-  min: number;
-  max: number;
-  step: number;
-  onPointerDown: (event: React.PointerEvent) => void;
-  onChange: (value: number) => void;
-}
-
-function SliderField({ label, value, min, max, step, onPointerDown, onChange }: SliderFieldProps): React.ReactElement {
-  const id = useId();
-  return (
-    <div className="atlas-light-panel__slider">
-      <span id={id}>{label}</span>
-      <Slider aria-labelledby={id} value={[value]} min={min} max={max} step={step}
-        onValueChange={([next]) => onChange(next ?? value)} onPointerDown={onPointerDown} />
-    </div>
   );
 }
 

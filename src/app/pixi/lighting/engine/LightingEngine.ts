@@ -1,4 +1,5 @@
 import { Container, Graphics, Matrix, Texture, type Renderer, type WebGLRenderer } from 'pixi.js';
+import { exploredMemoryOn } from '../../../lighting/sceneLightingOptions';
 import type { Sight } from '../../../vision/sight';
 import { destroyTree } from '../../utils/destroyTree';
 import type { CapsuleField } from './CapsuleField';
@@ -56,6 +57,8 @@ export class LightingEngine {
       composite.setAllSeen(scene.sight.all);
     }
     composite.setAmbient(scene.ambient, scene.ambientColor);
+    composite.setMemoryShown(exploredMemoryOn(scene));
+    composite.setMemoryColours(scene.exploredColor, scene.unexploredColor);
   }
 
   /**

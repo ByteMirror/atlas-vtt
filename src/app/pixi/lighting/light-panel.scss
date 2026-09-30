@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// Light settings — floating panel of the map view (GM only)
+// Light and scene lighting settings — floating panels of the map view (GM only)
 // ═══════════════════════════════════════════════════════════════════════════
 // Imported inside the `.atlas-vtt-plugin` scope of styles/main.scss.
 
@@ -65,20 +65,42 @@
   display: grid;
   grid-template-columns: 1fr 1fr auto;
   gap: $spacing-m;
+
+  &--pair {
+    grid-template-columns: 1fr 1fr;
+  }
 }
 
 .atlas-light-panel__field,
 .atlas-light-panel__slider {
   @include atlas-flex-col($spacing-xs);
 
-  > span {
-    @include atlas-field-label;
-  }
-
   input[type='number'] {
     @include atlas-text-input;
     width: 100%;
   }
+}
+
+.atlas-light-panel__field > span,
+.atlas-light-panel__slider-head > span,
+.atlas-light-panel__toggle > span {
+  @include atlas-field-label;
+}
+
+.atlas-light-panel__slider-head {
+  @include atlas-flex-row($spacing-s);
+  justify-content: space-between;
+
+  > output {
+    color: var(--text-muted);
+    font-size: $font-ui-small;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+.atlas-light-panel__toggle {
+  @include atlas-flex-row($spacing-m);
+  justify-content: space-between;
 }
 
 .atlas-light-panel__field--color input[type='color'] {

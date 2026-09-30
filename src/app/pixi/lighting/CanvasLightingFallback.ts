@@ -5,7 +5,7 @@ import type { MeasurementSettings } from '../../grid/measurementFormat';
 import { unitScaleOf } from '../../lighting/lightingUnits';
 import { sealedWalls } from '../../lighting/sealWalls';
 import { worldTexel } from '../../lighting/lightingConstants';
-import { SEES_ALL, SightCache, computeSight, sightSources, type LightReach, type Sight } from '../../vision/sight';
+import { SEES_ALL, SightCache, sceneSight, sightSources, type AmbientLight, type LightReach, type Sight } from '../../vision/sight';
 import { wallList } from '../../vision/wallList';
 import type { MapBounds } from '../../vision/visibility';
 import type { HideableLayer } from '../playerSafeFrame';
@@ -13,6 +13,9 @@ import { destroyTree } from '../utils/destroyTree';
 import { LIGHTING_Z_INDEX } from './LightingRenderer';
 import { PlayerView } from './PlayerView';
 import type { SceneLightingView } from './sceneLightingView';
+
+/** Full ambient light: everything in sight counts as lit. */
+const FULL_DAYLIGHT: AmbientLight = { ambient: 1 };
 
 export interface CanvasLightingDeps {
   viewport: Viewport;
@@ -23,8 +26,10 @@ export interface CanvasLightingDeps {
 
 /**
  * Scene lighting without WebGL, which has no shaders: players still see nothing their tokens
- * cannot see (the map is black outside line of sight), but there is no light, shadow or
- * explored memory, and everything in sight counts as lit. The GM's canvas is unchanged.
+ * cannot see (the map is black outside line of sight, unless the scene has token vision off),
+ * but there is no light, shadow or explored memory, and everything in sight counts as lit
+ * whatever the scene's lit threshold: without its lights, a dark scene would hide every token.
+ * The GM's canvas is unchanged.
  */
 // ponytail: overlapping sight polygons are cut as separate holes; earcut may darken their overlap. Union them if that shows.
 export class CanvasLightingFallback implements SceneLightingView {
@@ -48,7 +53,7 @@ export class CanvasLightingFallback implements SceneLightingView {
   setPreview(on: boolean): void { this.playerView.setPreview(on); }
   currentSight(): Sight { return this.sight; }
   lightReaches(): LightReach[] { return []; }
-  ambient(): number { return 1; }
+  ambientLight(): AmbientLight { return FULL_DAYLIGHT; }
   refreshBounds(): void { this.update(this.deps.store.getState()); }
   resetExplored(): void { /* The fallback keeps no explored memory. */ }
   beforeMapUnload(): void { /* Nothing is pending in the fallback. */ }
@@ -60,7 +65,8 @@ export class CanvasLightingFallback implements SceneLightingView {
       return;
     }
     const scale = unitScaleOf(this.deps.measurement(), state.grid);
-    this.sight = computeSight(sightSources(state.objects.tokens, scale, bounds), sealedWalls(wallList(state.objects.walls), worldTexel(bounds)), this.cache);
+    const walls = sealedWalls(wallList(state.objects.walls), worldTexel(bounds));
+    this.sight = sceneSight(state.lighting, sightSources(state.objects.tokens, scale, bounds), walls, this.cache);
     const g = this.darkness;
     g.clear();
     if (this.sight.all) return;

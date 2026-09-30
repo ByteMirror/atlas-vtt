@@ -724,7 +724,7 @@ export class PixiRendererOrchestrator { // Renamed class
     const lighting = this.lighting?.renderer;
     const lit = !!lighting?.isEnabled();
     const isSeen = lighting && lit
-      ? tokenSeenPredicate(lighting.currentSight(), lighting.ambient(), lighting.lightReaches(), this.store.getState().objects.tokens)
+      ? tokenSeenPredicate(lighting.currentSight(), lighting.ambientLight(), lighting.lightReaches(), this.store.getState().objects.tokens)
       : undefined;
     layers.push(...(this.tokenRenderer?.getPlayerViewLayers(settings, isSeen) ?? []));
     if (this.lighting) layers.push(...playerLightingLayers({ enabled: lit, modeLayer: this.lighting.renderer.modeLayer, gmOverlays: this.lighting.gmOverlays() }));

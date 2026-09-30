@@ -40,17 +40,23 @@ describe('tokenSeenPredicate', () => {
   const sight = computeSight([{ tokenId: 'hero', origin: { x: 100, y: 100 }, range: 1000, darkvision: 0 }], [wall]);
 
   it('hides tokens out of sight, even in daylight', () => {
-    const isSeen = tokenSeenPredicate(sight, 1, [], tokens);
+    const isSeen = tokenSeenPredicate(sight, { ambient: 1 }, [], tokens);
     expect(isSeen('hero')).toBe(true);
     expect(isSeen('lurker')).toBe(false);
   });
 
   it('always shows the tokens that see, even in the dark', () => {
-    expect(tokenSeenPredicate(sight, 0, [], tokens)('hero')).toBe(true);
+    expect(tokenSeenPredicate(sight, { ambient: 0 }, [], tokens)('hero')).toBe(true);
+  });
+
+  it('hides tokens in sight while the ambient light is below the scene\'s threshold', () => {
+    const inSight = { ...tokens, guard: { id: 'guard', kind: 'token' as const, imagePath: 'g.png', x: 150, y: 150 } };
+    expect(tokenSeenPredicate(sight, { ambient: 0.5 }, [], inSight)('guard')).toBe(true);
+    expect(tokenSeenPredicate(sight, { ambient: 0.5, litThreshold: 0.75 }, [], inSight)('guard')).toBe(false);
   });
 
   it('treats unknown tokens as unseen', () => {
-    expect(tokenSeenPredicate(sight, 1, [], tokens)('missing')).toBe(false);
+    expect(tokenSeenPredicate(sight, { ambient: 1 }, [], tokens)('missing')).toBe(false);
   });
 });
 
@@ -65,12 +71,12 @@ describe('tokenSeenPredicate with tremorsense', () => {
   const sight = computeSight([{ ...hero, tremorsense: 300 }], [wall]);
 
   it('senses tokens within range through walls, even in the dark', () => {
-    expect(tokenSeenPredicate(sight, 1, [], tokens)('near')).toBe(true);
-    expect(tokenSeenPredicate(sight, 0, [], tokens)('near')).toBe(true);
+    expect(tokenSeenPredicate(sight, { ambient: 1 }, [], tokens)('near')).toBe(true);
+    expect(tokenSeenPredicate(sight, { ambient: 0 }, [], tokens)('near')).toBe(true);
   });
 
   it('does not sense tokens out of range', () => {
-    expect(tokenSeenPredicate(sight, 1, [], tokens)('far')).toBe(false);
+    expect(tokenSeenPredicate(sight, { ambient: 1 }, [], tokens)('far')).toBe(false);
   });
 
   it('leaves the sight polygon as it is', () => {

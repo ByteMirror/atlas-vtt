@@ -1,5 +1,5 @@
 import type { Texture } from 'pixi.js';
-import type { LightAnimation } from '../../../types/lightingTypes';
+import type { LightAnimation, SceneLighting } from '../../../types/lightingTypes';
 import type { WallSegment } from '../../../types/wallTypes';
 import type { Sight } from '../../../vision/sight';
 import type { MapBounds } from '../../../vision/visibility';
@@ -18,8 +18,12 @@ export interface EngineLight {
   animation: LightAnimation;
 }
 
-/** Everything the engine lights, in world pixels. */
-export interface EngineScene {
+/**
+ * Everything the engine lights, in world pixels, with the scene options the composite draws:
+ * ambient light, and how the players' view shows what no token sees now (unset options keep
+ * their defaults, which draw exactly as before the options existed).
+ */
+export interface EngineScene extends Pick<SceneLighting, 'ambientColor' | 'exploredMemory' | 'exploredColor' | 'unexploredColor'> {
   bounds: MapBounds;
   /** The map image; bounce reads its colours (mid grey without one). */
   albedo: Texture | null;
@@ -30,5 +34,4 @@ export interface EngineScene {
   /** Footprint radius of a vision token, for the soft edges of its sight. */
   sightRadius: number;
   ambient: number;
-  ambientColor?: string;
 }

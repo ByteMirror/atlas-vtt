@@ -9,6 +9,8 @@ import { WALL_PUSH_GLSL } from './wallPushGlsl';
  * uPixelWorld is the size of a screen pixel in world pixels.
  * uAreaOrigin is where the filter's area starts on screen (PIXI's uOutputFrame holds it only
  * for the last filter of a chain; `AreaAwareFilter` computes it for any position in one).
+ * In the player view, what no token sees now shows its memory (uMemory 1): the dim grey map
+ * tinted by uExploredTint where explored, uUnexplored elsewhere; both colours are linear.
  */
 export const compositeFragment = `${GLSL_VERSION}
 in vec2 vTextureCoord;
@@ -33,6 +35,9 @@ uniform float uBounceGain;
 uniform float uPurkinje;
 uniform float uMode;
 uniform float uAllSeen;
+uniform float uMemory;
+uniform vec3 uExploredTint;
+uniform vec3 uUnexplored;
 ${fieldGlsl('uField')}
 float clearance(vec2 w) { return uFieldClearance(w); }
 ${TRACE_GLSL}
@@ -112,8 +117,9 @@ void main() {
   float grey = dot(albedo, LUMA);
   vec3 darkSight = mix(vec3(grey), albedo, 0.15) * 0.15;
   vec3 visible = mix(lit, brighter(lit, darkSight), sight.g);
-  float explored = uMode > 0.5 && seen < 1.0 ? exploredAt(world) : 0.0;
-  vec3 player = mix(vec3(grey) * 0.07 * explored, visible, seen);
+  float explored = uMode > 0.5 && uMemory > 0.5 && seen < 1.0 ? exploredAt(world) : 0.0;
+  vec3 memory = mix(uUnexplored, vec3(grey) * 0.07 * uExploredTint, explored);
+  vec3 player = mix(memory, visible, seen);
 
   // The GM always sees the map and every light at full strength: a dim floor screen-blended under
   // the light. What no token sees keeps its brightness and loses part of its colour.

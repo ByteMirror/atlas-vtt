@@ -1,5 +1,5 @@
 import type { TokenEntity } from '../../types';
-import { isFelt, isSeen, type LightReach, type Sight } from '../../vision/sight';
+import { isFelt, isSeen, type AmbientLight, type LightReach, type Sight } from '../../vision/sight';
 import type { HideableLayer, LayerVisibility } from '../playerSafeFrame';
 
 /** Things only the GM may see. A type, not an interface, so `Object.values` knows its layers. */
@@ -30,7 +30,7 @@ export function playerLightingLayers({ enabled, modeLayer, gmOverlays }: PlayerL
  */
 export function tokenSeenPredicate(
   sight: Sight,
-  ambient: number,
+  ambient: AmbientLight,
   lights: readonly LightReach[],
   tokens: Record<string, TokenEntity>,
 ): (tokenId: string) => boolean {

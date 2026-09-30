@@ -22,6 +22,10 @@ import { WallRenderer } from '../vision/WallRenderer';
 import { DoorIcons } from './DoorIcons';
 import { showWallMenu, type LightingMenuContext } from './lightingMenus';
 import { LightingRenderer } from './LightingRenderer';
+import { CanvasLightingFallback } from './CanvasLightingFallback';
+import type { SceneLightingView } from './sceneLightingView';
+import { usesCanvasRenderer } from '../utils/rendererType';
+import type { MeasurementSettings } from '../../grid/measurementFormat';
 import { WallDrawingSession } from './WallDrawingSession';
 import { splitWall } from './wallEdits';
 
@@ -43,7 +47,7 @@ interface SegmentEvent { p1: Point; p2: Point; type: WallType; chainId: string }
  * Walls are never snapped to the grid: they follow the map's artwork.
  */
 export class LightingController {
-  readonly renderer: LightingRenderer;
+  readonly renderer: SceneLightingView;
   private readonly wallRenderer: WallRenderer;
   private readonly walls: WallInteraction;
   private readonly tool: WallTool;
@@ -57,13 +61,10 @@ export class LightingController {
   constructor(private readonly deps: LightingControllerDeps) {
     const { viewport, app, store, obsApp } = deps;
     const assetService = AssetService.getInstance(obsApp);
-    this.renderer = new LightingRenderer({
-      viewport,
-      app,
-      store,
-      measurement: () => mapMeasurementSettings(assetService, store.getState()),
-      bounds: deps.bounds,
-    });
+    const measurement = (): MeasurementSettings => mapMeasurementSettings(assetService, store.getState());
+    this.renderer = usesCanvasRenderer(app.renderer)
+      ? new CanvasLightingFallback({ viewport, store, measurement, bounds: deps.bounds })
+      : new LightingRenderer({ viewport, app, store, measurement, bounds: deps.bounds });
     this.wallRenderer = new WallRenderer(viewport, store);
     this.walls = new WallInteraction(store, this.wallRenderer);
     this.tool = new WallTool(deps.eventBus);

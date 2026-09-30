@@ -36,7 +36,7 @@ describe('map hotkeys', () => {
   });
   it('allows bindings reserved only by disabled tools', () => {
     const { settings } = service();
-    expect(() => settings.setHotkey('assets', 'w')).not.toThrow();
+    expect(() => settings.setHotkey('assets', 's')).not.toThrow();
   });
   it('rejects collisions, allows clearing, and resets bindings', () => {
     const { settings } = service();

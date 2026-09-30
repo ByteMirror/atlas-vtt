@@ -3,7 +3,7 @@ import { AMBIENT_AUDIO_ENABLED, WALLS_AND_LIGHTING_ENABLED } from '../featureFla
 /**
  * Central release gate for tool availability.
  *
- * The ambient sound and wall & lighting tools are withheld from the beta release.
+ * The ambient sound tool is withheld from the release.
  *
  * This gates `setActiveTool` in the store, so it covers keyboard shortcuts as
  * well as the toolbar button.

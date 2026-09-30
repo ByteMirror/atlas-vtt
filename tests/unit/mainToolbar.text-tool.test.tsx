@@ -33,6 +33,8 @@ const storeState = {
   setLootRollerOpen: vi.fn(),
   setInitiativeTrackerOpen,
   objects: { tokens: {} },
+  lighting: { enabled: false, ambient: 0.1 },
+  setSceneLighting: vi.fn(),
   setSelection,
   openAssetManager,
   closeAssetManager,

@@ -14,6 +14,7 @@ import { saveExploredMask } from './exploredMaskSaving';
 import { LightLayers } from './LightLayers';
 import { activeLights } from './lightSources';
 import { SightLayer } from './SightLayer';
+import type { SceneLightingView } from './sceneLightingView';
 
 /** Above tokens, below their nameplates and bars (100): the GM keeps readable labels in the dark. */
 export const LIGHTING_Z_INDEX = 90;
@@ -35,7 +36,7 @@ type Watched = Pick<ViewAtlasState, 'objects' | 'lighting' | 'grid' | 'exploredM
  * one layer whose composite filter lights the scene beneath it, hides what no token sees in
  * the player view and ghosts it for the GM. Explored memory lives in a world-space texture.
  */
-export class LightingRenderer {
+export class LightingRenderer implements SceneLightingView {
   readonly layer = new Container({ label: 'lighting' });
   /** Flipped by the player-frame capture: visible means the player's view. */
   readonly modeLayer: HideableLayer;

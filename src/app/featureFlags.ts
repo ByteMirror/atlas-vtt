@@ -13,4 +13,4 @@
 export const AMBIENT_AUDIO_ENABLED = false;
 
 /** Walls & dynamic lighting: wall tool, light sources, token vision, collection vision settings. */
-export const WALLS_AND_LIGHTING_ENABLED = false;
+export const WALLS_AND_LIGHTING_ENABLED = true;

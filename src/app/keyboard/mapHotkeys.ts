@@ -19,7 +19,7 @@ export const MAP_HOTKEYS = [
   { id: 'text', label: 'Text tool', group: 'Tools', defaultKey: 't', dmOnly: true },
   { id: 'measure', label: 'Measure tools', group: 'Tools', defaultKey: 'm' },
   { id: 'pin', label: 'Note pin', group: 'Tools', defaultKey: 'p', dmOnly: true },
-  { id: 'wall', label: 'Walls and lighting', group: 'Tools', defaultKey: 'w', dmOnly: true, enabled: WALLS_AND_LIGHTING_ENABLED },
+  { id: 'wall', label: 'Lighting (walls and lights)', group: 'Tools', defaultKey: 'w', dmOnly: true, enabled: WALLS_AND_LIGHTING_ENABLED },
   { id: 'audio', label: 'Ambient audio', group: 'Tools', defaultKey: 's', dmOnly: true, enabled: AMBIENT_AUDIO_ENABLED },
   { id: 'selectAll', label: 'Select all tokens', group: 'Editing', defaultKey: 'Mod+a', dmOnly: true },
   { id: 'copy', label: 'Copy selection', group: 'Editing', defaultKey: 'Mod+c', dmOnly: true, yieldsToTextSelection: true },

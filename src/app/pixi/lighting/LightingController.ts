@@ -5,7 +5,8 @@ import type { Viewport } from 'pixi-viewport';
 import type { ViewAtlasStore } from '../../storeFactory';
 import { bindHoldHotkey } from '../../keyboard/holdHotkey';
 import { DEFAULT_MAP_HOTKEYS } from '../../keyboard/mapHotkeys';
-import { LIGHT_PRESETS } from '../../lighting/lightPresets';
+import { emissionOfPreset } from '../../lighting/lightEmissionForm';
+import type { LightPresetId } from '../../lighting/lightPresets';
 import { AssetService } from '../../services/AssetService';
 import { mapMeasurementSettings } from '../../services/mapMeasurementSettings';
 import { SettingsService } from '../../services/SettingsService';
@@ -49,6 +50,9 @@ export class LightingController {
   private readonly doors: DoorIcons;
   private readonly drawing: WallDrawingSession;
   private readonly cleanups: Array<() => void> = [];
+  /** The toolbar's preview switch and the held peek key both show the players' view. */
+  private previewing = false;
+  private peeking = false;
 
   constructor(private readonly deps: LightingControllerDeps) {
     const { viewport, app, store, obsApp } = deps;
@@ -68,7 +72,10 @@ export class LightingController {
     viewport.addChild(this.doors.view);
 
     const settings = SettingsService.forApp(obsApp);
-    this.cleanups.push(bindHoldHotkey(window, () => (settings?.getHotkeys() ?? DEFAULT_MAP_HOTKEYS).lightingPeek, deps.viewId, (held) => this.renderer.setPreview(held)));
+    this.cleanups.push(bindHoldHotkey(window, () => (settings?.getHotkeys() ?? DEFAULT_MAP_HOTKEYS).lightingPeek, deps.viewId, (held) => {
+      this.peeking = held;
+      this.renderer.setPreview(this.peeking || this.previewing);
+    }));
     this.cleanups.push(store.subscribe((state, previous) => {
       if (state.activeTool !== previous.activeTool || state.lighting.enabled !== previous.lighting.enabled) this.syncTool();
     }));
@@ -159,6 +166,12 @@ export class LightingController {
     on('wall-submode-changed', (subMode: WallToolSubMode) => this.tool.setSubMode(subMode));
     on('wall-type-changed', (type: WallType) => this.tool.setWallType(type));
     on('wall-mode-changed', (mode: WallToolMode) => this.tool.setMode(mode));
+    on('lighting-preset-changed', (preset: LightPresetId) => this.tool.setLightPreset(preset));
+    on('lighting-preview', (preview: boolean) => {
+      this.previewing = preview;
+      this.renderer.setPreview(this.peeking || this.previewing);
+    });
+    on('lighting-reset-explored', () => this.renderer.resetExplored());
     on('wall-chain-start', (point: Point) => {
       this.drawing.start();
       this.wallRenderer.setPreviewAnchor(point);
@@ -204,7 +217,7 @@ export class LightingController {
       return true;
     }
     if (settings.subMode === 'place-light') {
-      this.deps.store.getState().addLight({ x: point.x, y: point.y, emission: { ...LIGHT_PRESETS.torch.emission } });
+      this.deps.store.getState().addLight({ x: point.x, y: point.y, emission: emissionOfPreset(settings.lightPreset) });
       return true;
     }
     if (settings.mode === 'point-to-point') {

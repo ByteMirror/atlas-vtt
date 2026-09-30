@@ -1,5 +1,5 @@
 import type React from "react"
-import { BrickWall, Circle, Cloud, Eraser, Flashlight, Hand, Pencil, Ruler, Stamp, Triangle, Type } from "lucide-react"
+import { Circle, Cloud, Eraser, Flashlight, Hand, Lightbulb, Pencil, Ruler, Stamp, Triangle, Type } from "lucide-react"
 import type { AtlasState } from "../../../atlasStore"
 
 export type Tool = AtlasState["activeTool"]
@@ -69,6 +69,6 @@ export function textToolFace(activeTool: Tool): ToolFace {
   return singleToolFace("text", Type, "Text Tool", activeTool)
 }
 
-export function wallToolFace(activeTool: Tool): ToolFace {
-  return singleToolFace("wall", BrickWall, "Walls & Lighting", activeTool)
+export function lightingToolFace(activeTool: Tool): ToolFace {
+  return singleToolFace("wall", Lightbulb, "Lighting", activeTool)
 }

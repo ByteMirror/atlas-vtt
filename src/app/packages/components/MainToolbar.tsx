@@ -20,10 +20,10 @@ import { FogToolGroup } from "./toolbar/FogToolGroup"
 import { DrawToolGroup } from "./toolbar/DrawToolGroup"
 import { TextToolGroup } from "./toolbar/TextToolGroup"
 import { MeasureToolGroup } from "./toolbar/MeasureToolGroup"
-import { WallToolGroup } from "./toolbar/WallToolGroup"
+import { LightingToolGroup } from "./toolbar/LightingToolGroup"
 import { useToolbarHotkeys } from "./toolbar/useToolbarHotkeys"
 import {
-  drawToolFace, fogToolFace, measureToolFace, moveToolFace, textToolFace, wallToolFace,
+  drawToolFace, fogToolFace, measureToolFace, moveToolFace, textToolFace, lightingToolFace,
   type Tool, type ToolFace,
 } from "./toolbar/toolFaces"
 import type { ToolGroupControls } from "./toolbar/ToolGroup"
@@ -179,7 +179,7 @@ export const MainToolbar = forwardRef<HTMLDivElement, MainToolbarProps>(({ viewI
     toolGroupItem('measure', measureToolFace(activeTool), hotkeyLabel('measure'), <MeasureToolGroup {...groupControls('measure')} />),
     ...(dm ? [toolButtonItem('pin', "note-pin", MapPin, "Note Pin Tool", hotkeyLabel('pin'))] : []),
     ...(dm && WALLS_AND_LIGHTING_ENABLED
-      ? [toolGroupItem('wall', wallToolFace(activeTool), hotkeyLabel('wall'), <WallToolGroup {...groupControls('wall')} />)]
+      ? [toolGroupItem('wall', lightingToolFace(activeTool), hotkeyLabel('wall'), <LightingToolGroup {...groupControls('wall')} />)]
       : []),
     ...(dm && AMBIENT_AUDIO_ENABLED
       ? [toolButtonItem('audio', "audio", Volume2, "Ambient Sound", hotkeyLabel('audio'))]

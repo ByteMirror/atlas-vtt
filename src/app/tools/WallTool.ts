@@ -1,6 +1,7 @@
 import { EventEmitter } from 'events';
 import type { WallType } from '../types/wallTypes';
 import { simplifyStroke } from '../pixi/lighting/wallEdits';
+import type { LightPresetId } from '../lighting/lightPresets';
 
 export type WallToolMode = 'point-to-point' | 'freeform';
 export type WallToolSubMode = 'draw' | 'place-light';
@@ -9,8 +10,8 @@ export interface WallToolSettings {
   mode: WallToolMode;
   subMode: WallToolSubMode;
   wallType: WallType;
-  lightInnerRadius: number;
-  lightOuterRadius: number;
+  /** What the place-light mode puts down. */
+  lightPreset: LightPresetId;
 }
 
 /**
@@ -36,8 +37,7 @@ export class WallTool {
       mode: 'point-to-point',
       subMode: 'draw',
       wallType: 'solid',
-      lightInnerRadius: 300,
-      lightOuterRadius: 600,
+      lightPreset: 'torch',
     };
   }
 
@@ -60,9 +60,8 @@ export class WallTool {
     this.eventBus.emit('wall-type-changed', type);
   }
 
-  setLightRadii(inner: number, outer: number): void {
-    this.settings.lightInnerRadius = inner;
-    this.settings.lightOuterRadius = outer;
+  setLightPreset(preset: LightPresetId): void {
+    this.settings.lightPreset = preset;
   }
 
   getSettings(): WallToolSettings {

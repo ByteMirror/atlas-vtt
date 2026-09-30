@@ -66,7 +66,7 @@ export class LightingRenderer implements SceneLightingView {
   private readonly tick = (): void => this.animate();
 
   constructor(private readonly deps: LightingRendererDeps) {
-    this.engine = new LightingEngine(deps.app.renderer);
+    this.engine = new LightingEngine(deps.app.renderer, () => this.afterContextRestored());
     this.layer = this.engine.layer;
     this.exploredSaver = new ExploredSaveScheduler(() => deps.store.getState().mapPath, () => this.saveExplored(), EXPLORED_SAVE_DELAY);
     this.layer.zIndex = LIGHTING_Z_INDEX;
@@ -163,6 +163,12 @@ export class LightingRenderer implements SceneLightingView {
     this.loadedMask = null;
     this.engine.setExplored(this.explored.texture);
     previous?.destroy();
+  }
+
+  /** The engine rebuilt its world; the explored texture came back blank, so reload the saved memory. */
+  private afterContextRestored(): void {
+    this.loadedMask = null;
+    this.update(this.deps.store.getState());
   }
 
   private async loadExplored(mask: string | null): Promise<void> {

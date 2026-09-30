@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { WallSegment } from '../../../../types/wallTypes';
 import { SEES_ALL } from '../../../../vision/sight';
 import { LightingEngine } from '../LightingEngine';
+import { LightingWorld } from '../LightingWorld';
 import type { EngineLight, EngineScene } from '../types';
 import { createTestRenderer, readRgba } from './gpuTestUtils';
 
@@ -119,6 +120,43 @@ describe('LightingEngine', () => {
     engine.setEnabled(true);
     expect(renderer.backBuffer.useBackBuffer).toBe(true);
     expect(engine.layer.visible).toBe(true);
+  });
+
+  it('rebuilds its world from the last scene when the WebGL context is restored', async () => {
+    const renderer = await createTestRenderer(SIZE);
+    cleanup.push(() => renderer.destroy());
+    const restored = vi.fn();
+    const engine = new LightingEngine(renderer, restored);
+    cleanup.push(() => engine.destroy());
+    engine.setEnabled(true);
+    engine.setMode('player');
+    engine.update(scene({ walls: room }));
+    engine.flush();
+    expect(render(engine, renderer, 0.5, -22, -22)(128, 128)).toBeGreaterThan(150);
+    // PIXI's systems forget every GL object, as after a real restore: render textures come back blank.
+    renderer.runners.contextChange.emit(renderer.gl);
+    expect(restored).toHaveBeenCalledOnce();
+    engine.flush();
+    expect(render(engine, renderer, 0.5, -22, -22)(128, 128)).toBeGreaterThan(150);
+  });
+
+  it('frees its world while disabled and rebuilds it on the next enabled update', async () => {
+    const { renderer, engine } = await setup();
+    const destroyWorld = vi.spyOn(LightingWorld.prototype, 'destroy');
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    engine.setMode('player');
+    engine.update(scene({ walls: room }));
+    engine.flush();
+    engine.setEnabled(false);
+    expect(destroyWorld).toHaveBeenCalledOnce();
+    expect(engine.busy()).toBe(false);
+    engine.setEnabled(true);
+    engine.update(scene({ walls: room }));
+    engine.flush();
+    const at = render(engine, renderer, 0.5, -22, -22);
+    expect(at(128, 128)).toBeGreaterThan(150);
+    expect(at(250, 250)).toBe(0);
+    expect(warn).not.toHaveBeenCalled();
   });
 
   it('turns the back buffer off on destroy only if it turned it on', async () => {

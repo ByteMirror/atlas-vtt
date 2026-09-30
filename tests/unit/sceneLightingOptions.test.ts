@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { clampLitThreshold, exploredMemoryOn, litThresholdOf, sceneLook, tokenVisionOn } from '../../src/app/lighting/sceneLightingOptions';
+import { clampLitThreshold, exploredMemoryOn, litThresholdOf, readSceneLighting, sceneLook, tokenVisionOn } from '../../src/app/lighting/sceneLightingOptions';
 import { DEFAULT_SCENE_LIGHTING } from '../../src/app/types/lightingTypes';
 
 describe('scene lighting options', () => {
@@ -21,6 +21,12 @@ describe('scene lighting options', () => {
     expect(clampLitThreshold(0.4)).toBe(0.4);
     expect(clampLitThreshold(2)).toBe(1);
     expect(clampLitThreshold(Number.NaN)).toBe(0.25);
+  });
+
+  it('reads saved lighting with defaults for missing fields and without unreadable colours', () => {
+    expect(readSceneLighting(undefined)).toEqual(DEFAULT_SCENE_LIGHTING);
+    expect(readSceneLighting({ enabled: true, ambientColor: '#AABBCC', exploredColor: 'red', unexploredColor: '#12345' }))
+      .toEqual({ ...DEFAULT_SCENE_LIGHTING, enabled: true, ambientColor: '#AABBCC' });
   });
 
   it('passes the composite only the options it draws, and only those that are set', () => {

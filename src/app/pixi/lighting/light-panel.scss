@@ -104,10 +104,5 @@
 }
 
 .atlas-light-panel__field--color input[type='color'] {
-  width: var(--input-height);
-  height: var(--input-height);
-  padding: 0;
-  border: none;
-  background: none;
-  cursor: pointer;
+  @include atlas-colour-input(var(--input-height));
 }

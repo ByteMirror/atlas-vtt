@@ -1,5 +1,6 @@
 import React from "react"
 import { RotateCcw, SlidersHorizontal } from "lucide-react"
+import { DEFAULT_AMBIENT_COLOR } from "../../../lighting/sceneLightingOptions"
 import type { SceneLighting } from "../../../types/lightingTypes"
 import { DropdownMenuItem } from "../primitives/DropdownMenuItem"
 import { DropdownSliderRow } from "../primitives/DropdownSliderRow"
@@ -57,7 +58,7 @@ export function SceneLightingSection({ lighting, onChange, preview, onPreviewCha
               <input
                 type="color"
                 className="atlas-scene-lighting-ambient__swatch"
-                value={lighting.ambientColor ?? "#ffffff"}
+                value={lighting.ambientColor ?? DEFAULT_AMBIENT_COLOR}
                 onChange={(event) => onChange({ ambientColor: event.target.value })}
               />
             </LabelTooltip>

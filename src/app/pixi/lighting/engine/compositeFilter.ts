@@ -12,7 +12,7 @@ import {
   type RenderSurface,
 } from 'pixi.js';
 import { BOUNCE, EXPOSURE, PURKINJE, wallBand, wallCore } from '../../../lighting/lightingConstants';
-import { DEFAULT_EXPLORED_COLOR, DEFAULT_UNEXPLORED_COLOR } from '../../../lighting/sceneLightingOptions';
+import { DEFAULT_AMBIENT_COLOR, DEFAULT_EXPLORED_COLOR, DEFAULT_UNEXPLORED_COLOR } from '../../../lighting/sceneLightingOptions';
 import { srgbToLinear } from '../../../lighting/srgb';
 import { compositeFragment } from './compositeShader';
 import { HIGHP } from './gpu';
@@ -120,7 +120,7 @@ export function createCompositeFilter(world: LightingWorld, explored: Texture): 
       group.update();
     },
     setAmbient(level, color): void {
-      setLinear(ambient, color ?? '#ffffff', level);
+      setLinear(ambient, color ?? DEFAULT_AMBIENT_COLOR, level);
       group.update();
     },
     setMode(mode): void {

@@ -1,3 +1,5 @@
+import { isHexColor } from '../utils/hexColor';
+
 /** The laser pointer's look, kept in Atlas' settings so it follows the GM to every map. */
 export interface LaserPointerSettings {
   color: string;
@@ -36,11 +38,9 @@ export const DEFAULT_LASER_POINTER_SETTINGS: LaserPointerSettings = {
 /** How long a point of the trail stays visible, in milliseconds. */
 export const LASER_FADE_TIME = 800;
 
-const HEX_COLOR = /^#[0-9a-f]{6}$/i;
-
 /** Stored settings, with anything unusable (hand edits, older files) replaced by the default. */
 export function resolveLaserPointerSettings(raw: Partial<LaserPointerSettings> | undefined): LaserPointerSettings {
-  const color = typeof raw?.color === 'string' && HEX_COLOR.test(raw.color) ? raw.color : DEFAULT_LASER_POINTER_SETTINGS.color;
+  const color = isHexColor(raw?.color) ? raw.color : DEFAULT_LASER_POINTER_SETTINGS.color;
   const size = typeof raw?.size === 'number' && Number.isFinite(raw.size)
     ? Math.min(LASER_SIZE_MAX, Math.max(LASER_SIZE_MIN, raw.size))
     : DEFAULT_LASER_POINTER_SETTINGS.size;

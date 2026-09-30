@@ -18,6 +18,8 @@ export interface ToggleProps {
   tooltipOff: string
   /** Optional wrapper className */
   className?: string
+  /** Id of the visible label that names the switch. */
+  labelledBy?: string
 }
 
 export const Toggle: FC<ToggleProps> = ({
@@ -28,10 +30,23 @@ export const Toggle: FC<ToggleProps> = ({
   tooltipOn,
   tooltipOff,
   className,
+  labelledBy,
 }) => (
   <Tooltip>
     <TooltipTrigger asChild>
-      <div className={cn("atlas-toggle", className)} onClick={onChange}>
+      <div
+        className={cn("atlas-toggle", className)}
+        role="switch"
+        aria-checked={value}
+        aria-labelledby={labelledBy}
+        tabIndex={0}
+        onClick={onChange}
+        onKeyDown={(event) => {
+          if (event.key !== "Enter" && event.key !== " ") return
+          event.preventDefault()
+          onChange()
+        }}
+      >
         <div className={value ? "atlas-toggle__switch atlas-toggle__switch--on" : "atlas-toggle__switch atlas-toggle__switch--off"}>
           <div className={value ? "atlas-toggle__thumb atlas-toggle__thumb--on" : "atlas-toggle__thumb atlas-toggle__thumb--off"}>
             {value ? (

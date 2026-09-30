@@ -1,7 +1,11 @@
-import type { SceneLighting } from '../types/lightingTypes';
+import { DEFAULT_SCENE_LIGHTING, type SceneLighting } from '../types/lightingTypes';
+import { isRecord } from '../services/assetMetadataGuards';
+import { isHexColor } from '../utils/hexColor';
 
 /** Ambient light from which everything in sight counts as lit, when the scene sets none. */
 export const DEFAULT_LIT_THRESHOLD = 0.25;
+/** Ambient light without a tint. */
+export const DEFAULT_AMBIENT_COLOR = '#ffffff';
 /** Remembered areas keep the map's own (dimmed, desaturated) colours. */
 export const DEFAULT_EXPLORED_COLOR = '#ffffff';
 export const DEFAULT_UNEXPLORED_COLOR = '#000000';
@@ -35,4 +39,18 @@ export function sceneLook({ ambient, ambientColor, exploredMemory, exploredColor
     ...(exploredColor !== undefined && { exploredColor }),
     ...(unexploredColor !== undefined && { unexploredColor }),
   };
+}
+
+const COLOR_FIELDS = ['ambientColor', 'exploredColor', 'unexploredColor'] as const;
+
+/**
+ * A scene's lighting as loaded from its map file: missing fields take their defaults, and a colour
+ * that is not `#rrggbb` (a hand edit) is dropped, since the composite could not read it.
+ */
+export function readSceneLighting(saved: unknown): SceneLighting {
+  const lighting: SceneLighting = { ...DEFAULT_SCENE_LIGHTING, ...(isRecord(saved) ? saved : {}) };
+  for (const field of COLOR_FIELDS) {
+    if (field in lighting && !isHexColor(lighting[field])) delete lighting[field];
+  }
+  return lighting;
 }

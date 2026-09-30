@@ -390,6 +390,16 @@
   box-shadow: $shadow-sm;
 }
 
+/// A native colour input shown as its bare swatch, `$size` square.
+@mixin atlas-colour-input($size) {
+  width: $size;
+  height: $size;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
 /// Input accent focus state — accent border with soft glow.
 /// Use on text inputs and selects when focused.
 @mixin atlas-input-focus {

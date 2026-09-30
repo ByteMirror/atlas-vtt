@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { GripHorizontal, SlidersHorizontal } from 'lucide-react';
 import { CloseButton } from '../../packages/components/primitives/CloseButton';
@@ -32,7 +32,11 @@ function SceneLightingPanel(): React.ReactElement {
   const setOpen = useAtlasStore((state) => state.setSceneLightingPanelOpen);
   const windowVariants = useDialogWindowVariants();
   const { position, panelRef, startDrag, isDragging } = useDraggablePosition(topRight, { margin: MARGIN });
-  const threshold = Math.round(litThresholdOf(lighting) * 100);
+  // The value shows live while dragging and reaches the scene on release: every step would
+  // rebuild sight and record explored memory, and a pass below the ambient level would record
+  // everything in sight for good.
+  const [dragged, setDragged] = useState<number | null>(null);
+  const threshold = dragged ?? Math.round(litThresholdOf(lighting) * 100);
 
   return (
     <motion.section
@@ -73,7 +77,11 @@ function SceneLightingPanel(): React.ReactElement {
             onChange={(unexploredColor) => setSceneLighting({ unexploredColor })} />
         </div>
         <SliderField label="Counts as lit from" value={threshold} min={0} max={100} step={1} display={`${threshold} %`}
-          onChange={(percent) => setSceneLighting({ litThreshold: percent / 100 })} />
+          onChange={setDragged}
+          onCommit={(percent) => {
+            setDragged(null);
+            setSceneLighting({ litThreshold: percent / 100 });
+          }} />
       </div>
     </motion.section>
   );

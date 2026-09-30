@@ -30,7 +30,7 @@ import { computeNextInstanceNumber } from './stores/tokenInstanceNumbers';
 import type { DiceRollResult } from './tools/DiceTool';
 import { isAtlasToolAvailable } from './tools/toolAvailability';
 import { readExploredMask } from './lighting/exploredMaskCodec';
-import { clampLitThreshold } from './lighting/sceneLightingOptions';
+import { clampLitThreshold, readSceneLighting } from './lighting/sceneLightingOptions';
 import { isPinLabelKind, nextPinLabel } from './tools/pinLabels';
 import { movedPathOf, rewriteMapReferences } from './services/renamedPaths';
 import { conditionValue, removeCondition, setConditionValue } from './utils/conditionValues';
@@ -1461,7 +1461,7 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
               ...current,
               ...saved,
               lootRoller: readLootRollerState(saved.lootRoller),
-              lighting: { ...DEFAULT_SCENE_LIGHTING, ...(isRecord(saved.lighting) ? saved.lighting : {}) },
+              lighting: readSceneLighting(saved.lighting),
               exploredMask: readExploredMask(saved.exploredMask),
             };
           },

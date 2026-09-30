@@ -72,4 +72,11 @@ describe('scene lighting state', () => {
     expect(merge({ exploredMask: 'data:image/png;base64,AAAA' }, current).exploredMask).toBe('data:image/png;base64,AAAA');
     expect(merge({ lighting: 'broken' }, current).lighting).toEqual(DEFAULT_SCENE_LIGHTING);
   });
+
+  it('drops colours the composite could not read when a scene loads', () => {
+    const store = createStore();
+    const merge = store.persist.getOptions().merge!;
+    const lighting = { enabled: true, ambient: 0.4, ambientColor: 'not a colour', exploredColor: 42, unexploredColor: '#102030' };
+    expect(merge({ lighting }, store.getState()).lighting).toEqual({ enabled: true, ambient: 0.4, unexploredColor: '#102030' });
+  });
 });

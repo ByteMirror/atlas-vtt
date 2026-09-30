@@ -31,9 +31,11 @@ interface SliderFieldProps {
   display?: string;
   onPointerDown?: (event: React.PointerEvent) => void;
   onChange: (value: number) => void;
+  /** The drag ended or a key moved the value: where it came to rest. */
+  onCommit?: (value: number) => void;
 }
 
-export function SliderField({ label, value, min, max, step, display, onPointerDown, onChange }: SliderFieldProps): React.ReactElement {
+export function SliderField({ label, value, min, max, step, display, onPointerDown, onChange, onCommit }: SliderFieldProps): React.ReactElement {
   const id = useId();
   return (
     <div className="atlas-light-panel__slider">
@@ -42,7 +44,8 @@ export function SliderField({ label, value, min, max, step, display, onPointerDo
         {display !== undefined && <output aria-hidden="true">{display}</output>}
       </div>
       <Slider aria-labelledby={id} value={[value]} min={min} max={max} step={step}
-        onValueChange={([next]) => onChange(next ?? value)} {...(onPointerDown && { onPointerDown })} />
+        onValueChange={([next]) => onChange(next ?? value)} {...(onPointerDown && { onPointerDown })}
+        {...(onCommit && { onValueCommit: ([next]: number[]) => onCommit(next ?? value) })} />
     </div>
   );
 }
@@ -57,10 +60,11 @@ interface ToggleFieldProps {
 }
 
 export function ToggleField({ label, value, tooltipOn, tooltipOff, onChange }: ToggleFieldProps): React.ReactElement {
+  const id = useId();
   return (
     <div className="atlas-light-panel__toggle">
-      <span>{label}</span>
-      <Toggle value={value} onChange={() => onChange(!value)} tooltipOn={tooltipOn} tooltipOff={tooltipOff} />
+      <span id={id}>{label}</span>
+      <Toggle value={value} onChange={() => onChange(!value)} tooltipOn={tooltipOn} tooltipOff={tooltipOff} labelledBy={id} />
     </div>
   );
 }

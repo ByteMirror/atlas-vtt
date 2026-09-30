@@ -4,6 +4,7 @@
 // Imported inside the `.atlas-vtt-plugin` scope of styles/main.scss.
 
 @use '../../../../../styles/tokens' as *;
+@use '../../../../../styles/mixins' as *;
 
 .atlas-scene-lighting-ambient {
   display: flex;
@@ -18,12 +19,7 @@
 
 // Level with the slider's track: the slider row keeps 0.75rem below it.
 .atlas-scene-lighting-ambient__swatch {
+  @include atlas-colour-input(24px);
   flex-shrink: 0;
-  width: 24px;
-  height: 24px;
-  margin-bottom: 0.5rem;
-  padding: 0;
-  border: none;
-  background: none;
-  cursor: pointer;
+  margin-bottom: $spacing-s;
 }

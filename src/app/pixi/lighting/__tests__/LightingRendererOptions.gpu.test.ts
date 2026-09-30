@@ -91,6 +91,15 @@ describe('LightingRenderer scene options', () => {
     expect(setExploredMask).toHaveBeenCalledTimes(1);
   });
 
+  it('records everything in sight as soon as the ambient light rises past the threshold', async () => {
+    const { redAt } = await setup({ ambient: 0.1 }, { exploredMask: null, ...tokens(visionToken(100)) });
+    expect(redAt(200, 200)).toBe(0);
+    changeLighting({ ambient: 0.2 });
+    expect(redAt(200, 200)).toBe(0);
+    changeLighting({ ambient: 1 });
+    expect(redAt(200, 200)).toBe(255);
+  });
+
   it('records everything in sight only once the ambient light reaches the scene\'s threshold', async () => {
     const { redAt } = await setup({ ambient: 0.3, litThreshold: 0.5 }, { exploredMask: null, ...tokens(visionToken(100)) });
     expect(redAt(200, 200)).toBe(0);

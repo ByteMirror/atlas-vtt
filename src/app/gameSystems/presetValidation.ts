@@ -18,11 +18,11 @@ import { WIDGET_ICON_PATHS, resolveWidgetIcon, type WidgetIcon } from '../types/
 import type { AnyWidget } from '../types/widgetTypes';
 import { isValidClockSegments } from '../utils/clockWidget';
 import { parseVisionDefaults } from './visionDefaults';
+import { isHexColor } from '../utils/hexColor';
 
 const UNIT_TYPES: readonly GridUnitType[] = ['feet', 'yards', 'meters', 'units', 'custom'];
 const MEASUREMENT_MODES: readonly MeasurementMode[] = ['metric', 'abstract'];
 const DIAGONAL_RULES: readonly DiagonalRule[] = ['equidistant', 'alternating', 'euclidean'];
-const HEX_COLOR = /^#[0-9a-f]{6}$/i;
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -61,7 +61,7 @@ function parseGridDefaults(raw: unknown): CollectionGridDefaults | null {
 
 function parseCondition(raw: unknown): ConditionDefinition | null {
   if (!isRecord(raw) || !isNonEmptyString(raw.id) || typeof raw.name !== 'string') return null;
-  if (typeof raw.color !== 'string' || !HEX_COLOR.test(raw.color)) return null;
+  if (!isHexColor(raw.color)) return null;
   const icon = typeof raw.icon === 'string' && raw.icon in WIDGET_ICON_PATHS ? (raw.icon as WidgetIcon) : undefined;
   return { id: raw.id, name: raw.name, color: raw.color, ...(icon && { icon }), ...(raw.valued === true && { valued: true }) };
 }

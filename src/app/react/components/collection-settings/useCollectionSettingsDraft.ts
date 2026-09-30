@@ -6,7 +6,6 @@ import type {
   CollectionGridDefaults,
   CollectionSettings,
   ConditionDefinition,
-  VisionSettings,
 } from '../../../types/collectionSettingsTypes';
 import type { CreatureFilterDefinition } from '../../../types/creatureFilterTypes';
 import type { SystemPreset } from '../../../types/systemPresetTypes';
@@ -19,8 +18,6 @@ export interface CollectionSettingsDraft {
   setDefaultWidgets: (defaultWidgets: Record<string, boolean>) => void;
   conditions: ConditionDefinition[];
   setConditions: (conditions: ConditionDefinition[]) => void;
-  vision: VisionSettings | undefined;
-  setVision: (vision: VisionSettings | undefined) => void;
   /** The collection's filters on fields of its own. */
   customCreatureFilters: CreatureFilterDefinition[];
   setCustomCreatureFilters: (filters: CreatureFilterDefinition[]) => void;
@@ -51,7 +48,6 @@ export function useCollectionSettingsDraft(
   const [gridDefaults, setGridDefaults] = useState<CollectionGridDefaults>(() => structuredClone(DEFAULT_GRID_DEFAULTS));
   const [defaultWidgets, setDefaultWidgets] = useState<Record<string, boolean>>({});
   const [conditions, setConditions] = useState<ConditionDefinition[]>([]);
-  const [vision, setVision] = useState<VisionSettings | undefined>(undefined);
   const [systemPresetId, setSystemPresetId] = useState<string | undefined>(undefined);
   const [lootBases, setLootBases] = useState<string[]>([]);
   const [lootCurrency, setLootCurrency] = useState('');
@@ -65,7 +61,6 @@ export function useCollectionSettingsDraft(
     setGridDefaults(settings.gridDefaults ?? structuredClone(DEFAULT_GRID_DEFAULTS));
     setDefaultWidgets(settings.defaultWidgets ?? {});
     setConditions(settings.conditions ?? []);
-    setVision(settings.vision);
     setSystemPresetId(settings.systemPresetId);
     setLootBases(settings.lootBases ?? []);
     setLootCurrency(settings.lootCurrency ?? '');
@@ -100,14 +95,12 @@ export function useCollectionSettingsDraft(
     systemPresetId,
     lootBases,
     lootCurrency: lootCurrency.trim() || undefined,
-    ...(vision !== undefined && { vision }),
   });
 
   return {
     gridDefaults, setGridDefaults,
     defaultWidgets, setDefaultWidgets,
     conditions, setConditions,
-    vision, setVision,
     customCreatureFilters, setCustomCreatureFilters,
     hiddenCreatureFilters, setHiddenCreatureFilters,
     systemPresetId, setSystemPresetId,

@@ -4,7 +4,8 @@ import { Graphics, Container } from 'pixi.js';
 import type { Viewport } from 'pixi-viewport';
 import type { StoreApi } from 'zustand';
 import type { ViewAtlasState } from '../../storeFactory';
-import type { WallSegment, LightSource } from '../../types/wallTypes';
+import type { WallSegment } from '../../types/wallTypes';
+import type { LightSource } from '../../types/lightingTypes';
 import { WALLS_AND_LIGHTING_ENABLED } from '../../featureFlags';
 import { cssColorToHexNumber } from '../utils/colorUtils';
 import { destroyTree } from '../utils/destroyTree';
@@ -283,7 +284,7 @@ export class WallRenderer {
         break;
 
       case 'door': {
-        // Line only — door icon is rendered by VisionRenderer (always visible)
+        // Line only — door icons are drawn by the lighting layer
         g.moveTo(wall.p1.x, wall.p1.y);
         g.lineTo(wall.p2.x, wall.p2.y);
         g.stroke({ width: isOpen ? 1.5 : 2.5, color: isOpen ? 0x44dd44 : color, alpha: isOpen ? 0.5 : 1 });
@@ -291,7 +292,7 @@ export class WallRenderer {
       }
 
       case 'secret-door': {
-        // Dashed line only — door icon is rendered by VisionRenderer (GM only)
+        // Dashed line only — door icons are drawn by the lighting layer
         const dashColor = isOpen ? 0x44dd44 : color;
         this.drawDashedLine(g, wall.p1.x, wall.p1.y, wall.p2.x, wall.p2.y,
           dashColor, isOpen ? 1.5 : 2.5, 8, 5);
@@ -339,15 +340,6 @@ export class WallRenderer {
     // Inner dot for visual weight
     g.circle(light.x, light.y, 4);
     g.fill({ color: 0xffffff, alpha: 0.6 });
-
-    // Radius preview circles (inner + outer)
-    g.circle(light.x, light.y, light.innerRadius);
-    g.stroke({ width: 1, color: 0xffaa00, alpha: 0.25 });
-
-    if (light.outerRadius && light.outerRadius > light.innerRadius) {
-      g.circle(light.x, light.y, light.outerRadius);
-      g.stroke({ width: 1, color: 0xffaa00, alpha: 0.12 });
-    }
   }
 
   private getWallColor(wall: WallSegment): number {

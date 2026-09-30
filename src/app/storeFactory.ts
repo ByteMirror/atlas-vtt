@@ -8,7 +8,8 @@ import type { App, Plugin } from 'obsidian';
 import type AtlasVTTPlugin from '../../main';
 import type { TokenEntity, Character, NotePin, TextElement, DrawingStroke } from './types';
 import type { FogOperation, FogOperationInput } from './types/fogTypes';
-import type { WallSegment, WallInput, LightSource, LightInput } from './types/wallTypes';
+import type { WallSegment, WallInput } from './types/wallTypes';
+import { DEFAULT_SCENE_LIGHTING, type LightInput, type LightSource, type SceneLighting } from './types/lightingTypes';
 import type { AudioSource, AudioInput } from './types/audioTypes';
 import type { AnyWidget, WidgetSettings } from './types/widgetTypes';
 import type { InitiativeState, InitiativeEntry, InitiativeConfig } from './types/initiativeTypes';
@@ -154,10 +155,12 @@ export interface ViewAtlasState {
   setFogOperations: (fog: Record<string, FogOperation>) => void;
   clearFog: () => void;
 
-  // Vision dirty flag (non-persisted)
-  _visionDirty: boolean;
-  markVisionDirty: () => void;
-  consumeVisionDirty: () => boolean;
+  /** Dynamic lighting of the scene; saved with the map, never undo-tracked. */
+  lighting: SceneLighting;
+  setSceneLighting: (changes: Partial<SceneLighting>) => void;
+  /** What the players' tokens have explored, as a PNG data URL; saved with the map, never undo-tracked. */
+  exploredMask: string | null;
+  setExploredMask: (dataUrl: string | null) => void;
 
   // Wall actions
   addWall: (data: WallInput) => string;
@@ -325,7 +328,9 @@ export const DEFAULT_TOKEN_SETTINGS: Readonly<ViewAtlasState['tokenSettings']> =
   tokenRingSize: 1,
 };
 
-const createInitialState = (): Pick<ViewAtlasState, 'schema' | 'version' | 'mapPath' | 'background' | 'grid' | 'objects' | 'camera' | 'persistenceEnabled' | 'widgetSettings' | 'widgetValues' | 'dmNotePath' | 'tokenSettings' | 'initiative' | 'diceLog' | 'pinnedNotePreviews' | 'lootRoller'> => ({
+const createInitialState = (): Pick<ViewAtlasState, 'schema' | 'version' | 'mapPath' | 'background' | 'grid' | 'objects' | 'camera' | 'persistenceEnabled' | 'widgetSettings' | 'widgetValues' | 'dmNotePath' | 'tokenSettings' | 'initiative' | 'diceLog' | 'pinnedNotePreviews' | 'lootRoller' | 'lighting' | 'exploredMask'> => ({
+  lighting: { ...DEFAULT_SCENE_LIGHTING },
+  exploredMask: null,
   schema: ATLAS_SCHEMA,
   version: ATLAS_VERSION,
   mapPath: null,
@@ -604,7 +609,6 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
                 draft.objects.tokens[id] = { ...data, id, kind: data.kind ?? 'token', imagePath, instanceNumber } as TokenEntity;
                 ids.push(id);
               }
-              if (ids.length > 0) draft._visionDirty = true;
             });
             return ids;
           },
@@ -662,7 +666,6 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
             if (token) {
               token.x = x;
               token.y = y;
-              draft._visionDirty = true;
               draft._audioDirty = true;
             }
           }),
@@ -683,7 +686,6 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
 
           deleteToken: (id) => set((draft) => {
             delete draft.objects.tokens[id];
-            draft._visionDirty = true;
           }),
 
           setTokens: (map) => set((draft) => {
@@ -802,7 +804,6 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
                 token.y += dy;
               }
             });
-            draft._visionDirty = true;
             draft._audioDirty = true;
           }),
 
@@ -818,7 +819,6 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
                 token.y = y;
               }
             });
-            draft._visionDirty = true;
             draft._audioDirty = true;
           }),
 
@@ -878,14 +878,12 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
                 if (draft.objects.walls[id]) {
                   delete draft.objects.walls[id];
                   draft.selectedIds = draft.selectedIds.filter(selectedId => selectedId !== id);
-                  draft._visionDirty = true;
                 }
                 break;
               case 'light':
                 if (draft.objects.lights[id]) {
                   delete draft.objects.lights[id];
                   draft.selectedIds = draft.selectedIds.filter(selectedId => selectedId !== id);
-                  draft._visionDirty = true;
                 }
                 break;
               case 'audio':
@@ -1114,14 +1112,14 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
             draft.objects.fog = {};
           }),
 
-          // Vision dirty flag (non-persisted)
-          _visionDirty: false,
-          markVisionDirty: () => set((draft) => { draft._visionDirty = true; }),
-          consumeVisionDirty: () => {
-            const dirty = get()._visionDirty;
-            if (dirty) set((draft) => { draft._visionDirty = false; });
-            return dirty;
-          },
+          setSceneLighting: (changes) => set((draft) => {
+            Object.assign(draft.lighting, changes);
+            draft.lighting.ambient = Math.min(1, Math.max(0, draft.lighting.ambient));
+          }),
+
+          setExploredMask: (dataUrl) => set((draft) => {
+            draft.exploredMask = dataUrl;
+          }),
 
           // Audio dirty flag
           _audioDirty: false,
@@ -1137,7 +1135,6 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
             const id = `wall_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
             set((draft) => {
               draft.objects.walls[id] = { id, kind: 'wall', ...data };
-              draft._visionDirty = true;
               draft._audioDirty = true;
             });
             return id;
@@ -1147,7 +1144,6 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
             const wall = draft.objects.walls[id];
             if (wall) {
               Object.assign(wall, changes);
-              draft._visionDirty = true;
               draft._audioDirty = true;
             }
           }),
@@ -1155,7 +1151,6 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
           deleteWall: (id) => set((draft) => {
             delete draft.objects.walls[id];
             draft.selectedIds = draft.selectedIds.filter(sid => sid !== id);
-            draft._visionDirty = true;
             draft._audioDirty = true;
           }),
 
@@ -1164,7 +1159,6 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
               delete draft.objects.walls[id];
             }
             draft.selectedIds = draft.selectedIds.filter(sid => !ids.includes(sid));
-            draft._visionDirty = true;
             draft._audioDirty = true;
           }),
 
@@ -1172,7 +1166,6 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
             const wall = draft.objects.walls[id];
             if (wall && (wall.type === 'door' || wall.type === 'secret-door')) {
               wall.closed = !(wall.closed ?? true);
-              draft._visionDirty = true;
               draft._audioDirty = true;
             }
           }),
@@ -1182,7 +1175,6 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
             const id = `light_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
             set((draft) => {
               draft.objects.lights[id] = { id, kind: 'light', ...data };
-              draft._visionDirty = true;
             });
             return id;
           },
@@ -1191,14 +1183,12 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
             const light = draft.objects.lights[id];
             if (light) {
               Object.assign(light, changes);
-              draft._visionDirty = true;
             }
           }),
 
           deleteLight: (id) => set((draft) => {
             delete draft.objects.lights[id];
             draft.selectedIds = draft.selectedIds.filter(sid => sid !== id);
-            draft._visionDirty = true;
           }),
 
           // Audio actions
@@ -1262,6 +1252,8 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
             draft.widgetValues = {};
             draft.pinnedNotePreviews = {};
             draft.lootRoller = createInitialLootRollerState();
+            draft.lighting = { ...DEFAULT_SCENE_LIGHTING };
+            draft.exploredMask = null;
 
             // Note: We don't clear background here - it will be set by the new map
             // Note: We don't clear mapPath - it must be preserved for storage adapter
@@ -1449,13 +1441,21 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
               diceLog: state.diceLog, // Dice roll history (last 20 per map)
               pinnedNotePreviews: state.pinnedNotePreviews, // Pinned note preview windows
               lootRoller: state.lootRoller, // Loot roller window, filters and history
+              lighting: state.lighting,
+              exploredMask: state.exploredMask,
             };
           },
           
           // The map file arrives unchecked; fields that need it are checked here, once per load.
           merge: (persisted, current): ViewAtlasState => {
             const saved: Partial<ViewAtlasState> = isRecord(persisted) ? persisted : {};
-            return { ...current, ...saved, lootRoller: readLootRollerState(saved.lootRoller) };
+            return {
+              ...current,
+              ...saved,
+              lootRoller: readLootRollerState(saved.lootRoller),
+              lighting: { ...DEFAULT_SCENE_LIGHTING, ...(isRecord(saved.lighting) ? saved.lighting : {}) },
+              exploredMask: typeof saved.exploredMask === 'string' ? saved.exploredMask : null,
+            };
           },
 
           onRehydrateStorage: () => {

@@ -542,12 +542,12 @@ export class InteractionController implements ITokenInteractionController {
 
     // Vision source toggle (player character token)
     if (WALLS_AND_LIGHTING_ENABLED) {
-      const hasVision = currentToken?.hasVision || false;
+      const hasVision = currentToken?.vision?.enabled ?? false;
       entries.push({
         type: 'item',
         label: hasVision ? 'Remove Vision' : 'Grant Vision',
         icon: hasVision ? 'eye-off' : 'scan-eye',
-        onClick: () => this.store.getState().updateToken(token.id, { hasVision: !hasVision }),
+        onClick: () => this.store.getState().updateToken(token.id, { vision: { ...currentToken?.vision, enabled: !hasVision } }),
       });
     }
 

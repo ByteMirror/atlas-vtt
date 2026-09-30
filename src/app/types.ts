@@ -1,6 +1,8 @@
 // types.ts
 // Shared interfaces and types for Atlas VTT
 
+import type { LightEmission, TokenVision } from './types/lightingTypes';
+
 /**
  * Note pin object that links to an Obsidian note
  */
@@ -42,8 +44,10 @@ export interface BaseToken {
   conditionValues?: Record<string, number>;
   /** Whether the token is hidden (visible to DM but not players) */
   isHidden?: boolean;
-  /** Whether this token generates a vision source (player character tokens) */
-  hasVision?: boolean;
+  /** How the token sees when the scene has dynamic lighting. */
+  vision?: TokenVision;
+  /** Light the token carries; it moves with the token. */
+  light?: LightEmission;
   /** Whether to show the nameplate (defaults to false) */
   showNameplate?: boolean;
   /** Rotation in degrees (0-360) */
@@ -52,10 +56,6 @@ export interface BaseToken {
   size?: number;
   /** Layer for z-ordering (higher values appear on top) */
   layer?: number;
-  /** Override collection default inner vision radius (world pixels) */
-  visionInnerRadius?: number;
-  /** Override collection default outer vision radius (world pixels) */
-  visionOuterRadius?: number;
   /** Instance number for distinguishing multiple tokens of the same type (same imagePath) */
   instanceNumber?: number;
 }

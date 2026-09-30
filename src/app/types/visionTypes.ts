@@ -19,8 +19,3 @@ export interface VisionPolygon {
   origin: Point;        // Source position (for ring clipping)
   intensity: number;    // 0–1+ brightness multiplier (animated for torch/magic)
 }
-
-export interface VisionResult {
-  polygons: VisionPolygon[];
-  dirty: boolean;
-}

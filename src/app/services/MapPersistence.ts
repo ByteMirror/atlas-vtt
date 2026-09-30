@@ -1,7 +1,8 @@
 import type { PersistStorage, StorageValue } from 'zustand/middleware';
 import { App, Notice, TFile } from 'obsidian';
 import type { TokenEntity, TextElement, DrawingStroke, NotePin } from '../types';
-import type { WallSegment, LightSource } from '../types/wallTypes';
+import type { WallSegment } from '../types/wallTypes';
+import type { LightSource } from '../types/lightingTypes';
 import type { WidgetSettings } from '../types/widgetTypes';
 import type { HexNumberFormat } from '../grid/hexNumbering';
 import type AtlasVTTPlugin from '../../../main';

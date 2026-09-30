@@ -22,7 +22,6 @@ interface MapObjectsStoreState {
   objects: CopyableCollections;
   grid: GridState | null;
   selectedIds: string[];
-  _visionDirty: boolean;
   _audioDirty: boolean;
 }
 
@@ -57,7 +56,6 @@ function addCopies(draft: MapObjectsStoreState, content: MapObjectContent): stri
   }
   if (ids.length > 0) draft.selectedIds = ids;
   if (content.tokens.length > 0) {
-    draft._visionDirty = true;
     draft._audioDirty = true;
   }
   return ids;
@@ -94,7 +92,6 @@ export function createMapObjectsActions(set: ImmerSet, get: () => MapObjectsStor
       }
       draft.selectedIds = draft.selectedIds.filter((id) => !removed.has(id));
       if (removedToken) {
-        draft._visionDirty = true;
         draft._audioDirty = true;
       }
     }),

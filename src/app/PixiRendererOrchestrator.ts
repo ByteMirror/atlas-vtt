@@ -31,14 +31,12 @@ import { DrawingInteraction } from "./pixi/DrawingInteraction";
 import { isViewportPanEnabled } from "./pixi/utils/viewportPan";
 import { TextRenderer } from "./pixi/TextRenderer"; // Import TextRenderer
 import { TextTool } from "./tools/TextTool"; // Import TextTool
-import { VisionRenderer } from './pixi/vision/VisionRenderer';
 import { WallRenderer } from './pixi/vision/WallRenderer';
 import { WallInteraction } from './pixi/vision/WallInteraction';
+import { LIGHT_PRESETS } from './lighting/lightPresets';
 import { WallTool, type WallToolMode, type WallToolSubMode } from './tools/WallTool';
 import type { WallType } from './types/wallTypes';
 import { AudioTool } from './tools/AudioTool';
-import { openLightConfigPanel } from './pixi/vision/LightConfigPanel';
-import { WALLS_AND_LIGHTING_ENABLED } from './featureFlags';
 import { openAudioConfigPanel } from './pixi/audio/AudioConfigPanel';
 import { AudioRenderer } from './pixi/audio/AudioRenderer';
 import { SoundRegistry } from './audio/SoundRegistry';
@@ -67,7 +65,6 @@ export class PixiRendererOrchestrator { // Renamed class
   private textTool?: TextTool; // Add TextTool instance
   /** IDs of wall segments created during the current drawing chain (for Escape undo). */
   private currentChainWallIds: string[] = [];
-  private visionRenderer?: VisionRenderer;
   private wallRenderer?: WallRenderer;
   private wallInteraction?: WallInteraction;
   private wallTool?: WallTool;
@@ -76,8 +73,6 @@ export class PixiRendererOrchestrator { // Renamed class
   private soundRegistry?: SoundRegistry;
   private bufferCache?: AudioBufferCache;
   private spatialAudioEngine?: SpatialAudioEngine;
-  private peekKeydownHandler: ((e: KeyboardEvent) => void) | null = null;
-  private peekKeyupHandler: ((e: KeyboardEvent) => void) | null = null;
 
   private layerMap: Container | null = null;
   private layerGrid: Container | null = null;
@@ -397,9 +392,6 @@ export class PixiRendererOrchestrator { // Renamed class
     // Set the fog container to a high z-index to ensure it's on top when visible
     fogContainer.zIndex = 1000;
 
-    // Initialize VisionRenderer (z-index 900 — between tokens and fog)
-    this.visionRenderer = new VisionRenderer(viewport, this.pixiAppManager.app, this.store, this.obsApp);
-
     // Initialize WallRenderer (z-index 1100 — GM-only editor overlay)
     this.wallRenderer = new WallRenderer(viewport, this.store);
 
@@ -420,24 +412,6 @@ export class PixiRendererOrchestrator { // Renamed class
     this.bufferCache = new AudioBufferCache(new AudioContext(), this.obsApp, this.soundRegistry);
     this.spatialAudioEngine = new SpatialAudioEngine(this.store, this.bufferCache);
 
-    // GM peek: hold Alt to hide vision mask and show wall overlay
-    this.peekKeydownHandler = (e: KeyboardEvent) => {
-      if (e.key === 'Alt' && WALLS_AND_LIGHTING_ENABLED) {
-        this.visionRenderer?.setPeeking(true);
-        this.wallRenderer?.setVisible(true);
-        this.wallRenderer?.forceRedraw();
-      }
-    };
-    this.peekKeyupHandler = (e: KeyboardEvent) => {
-      if (e.key === 'Alt') {
-        this.visionRenderer?.setPeeking(false);
-        if (this.store.getState().activeTool !== 'wall') {
-          this.wallRenderer?.setVisible(false);
-        }
-      }
-    };
-    document.addEventListener('keydown', this.peekKeydownHandler);
-    document.addEventListener('keyup', this.peekKeyupHandler);
 
     // Wire viewport-level event dispatch providers (only if TokenRenderer is available now;
     // otherwise initGrid() will wire them when TokenRenderer is created later)
@@ -917,18 +891,6 @@ export class PixiRendererOrchestrator { // Renamed class
         this.handleWallPointerUp();
       });
       this.tokenRenderer.setWallDoubleClickHandler((worldX, worldY) => {
-        // Double-click on a light: open config panel near it
-        if (this.wallRenderer && this.viewport) {
-          const lightId = this.wallRenderer.hitTestLights(worldX, worldY);
-          if (lightId) {
-            const screenPos = this.viewport.toScreen(worldX, worldY);
-            const canvasRect = this.pixiAppManager.getCanvasElement()?.getBoundingClientRect();
-            const sx = (canvasRect?.left ?? 0) + screenPos.x;
-            const sy = (canvasRect?.top ?? 0) + screenPos.y;
-            openLightConfigPanel(lightId, this.store, sx, sy);
-            return;
-          }
-        }
         // Otherwise finish wall chain
         this.wallTool?.finishChain();
       });
@@ -1009,25 +971,8 @@ export class PixiRendererOrchestrator { // Renamed class
       }
     }
 
-    // Place-light sub-mode — default radii in game units (30ft bright, 60ft dim),
-    // converted to world pixels using the grid settings
     if (settings.subMode === 'place-light') {
-      const grid = this.store.getState().grid;
-      const gridSize = grid?.size ?? 70;
-      const unitDist = grid?.unitDistance ?? 5;
-      const defaultBrightUnits = 30;
-      const defaultDimUnits = 60;
-      const brightPx = (defaultBrightUnits / unitDist) * gridSize;
-      const dimPx = (defaultDimUnits / unitDist) * gridSize;
-
-      this.store.getState().addLight({
-        x: worldX,
-        y: worldY,
-        innerRadius: brightPx,
-        outerRadius: dimPx,
-        color: '#ff9933',
-        lightStyle: 'torch',
-      });
+      this.store.getState().addLight({ x: worldX, y: worldY, emission: { ...LIGHT_PRESETS.torch.emission } });
       return true;
     }
 
@@ -1214,81 +1159,12 @@ export class PixiRendererOrchestrator { // Renamed class
   }
 
   private showLightContextMenu(lightId: string, screenX: number, screenY: number): void {
-    const light = this.store.getState().objects.lights[lightId];
-    if (!light) return;
-
-    const currentStyle = light.lightStyle ?? 'torch';
-    const currentColor = light.color ?? '#ff9933';
-
-    const entries: ContextMenuEntry[] = [];
-
-    // Configure — opens the full config panel near the light
-    entries.push({
-      type: 'item',
-      label: 'Configure Light',
-      icon: 'settings',
-      onClick: () => openLightConfigPanel(lightId, this.store, screenX, screenY),
-    });
-
-
-    // Light style submenu
-    const styleOptions: Array<{ label: string; value: 'torch' | 'magic' | 'steady' }> = [
-      { label: 'Torch (Flickering)', value: 'torch' },
-      { label: 'Magic (Pulsing)', value: 'magic' },
-      { label: 'Steady (Static)', value: 'steady' },
-    ];
-
-    entries.push({
-      type: 'submenu',
-      label: 'Light Style',
-      icon: 'flame',
-      children: styleOptions.map(opt => ({
-        type: 'item' as const,
-        label: opt.label,
-        checked: currentStyle === opt.value,
-        onClick: () => {
-          this.store.getState().updateLight(lightId, { lightStyle: opt.value });
-        },
-      })),
-    });
-
-    // Light color submenu
-    const colorOptions = [
-      { label: 'Warm Orange (Torch)', value: '#ff9933' },
-      { label: 'Golden Yellow (Candle)', value: '#ffcc44' },
-      { label: 'Cool White (Moonlight)', value: '#ccddff' },
-      { label: 'Blue (Magic)', value: '#4488ff' },
-      { label: 'Purple (Arcane)', value: '#aa44ff' },
-      { label: 'Green (Fey)', value: '#44ff88' },
-      { label: 'Red (Infernal)', value: '#ff4433' },
-      { label: 'White (Daylight)', value: '#ffffff' },
-    ];
-
-    entries.push({
-      type: 'submenu',
-      label: 'Light Color',
-      icon: 'palette',
-      children: colorOptions.map(opt => ({
-        type: 'item' as const,
-        label: opt.label,
-        checked: currentColor === opt.value,
-        onClick: () => {
-          this.store.getState().updateLight(lightId, { color: opt.value });
-        },
-      })),
-    });
-
-
-    // Delete
-    entries.push({
+    const entries: ContextMenuEntry[] = [{
       type: 'item',
       label: 'Delete Light',
       icon: 'trash-2',
-      onClick: () => {
-        this.store.getState().deleteLight(lightId);
-      },
-    });
-
+      onClick: () => this.store.getState().deleteLight(lightId),
+    }];
     openContextMenuGlobal(entries, { x: screenX, y: screenY });
   }
 
@@ -1402,15 +1278,6 @@ export class PixiRendererOrchestrator { // Renamed class
       this.keyboardHandler = null;
     }
 
-    // Remove peek hotkey handlers
-    if (this.peekKeydownHandler) {
-      document.removeEventListener('keydown', this.peekKeydownHandler);
-      this.peekKeydownHandler = null;
-    }
-    if (this.peekKeyupHandler) {
-      document.removeEventListener('keyup', this.peekKeyupHandler);
-      this.peekKeyupHandler = null;
-    }
     
     // Remove drawing tool handlers
 
@@ -1425,7 +1292,6 @@ export class PixiRendererOrchestrator { // Renamed class
     this.drawingInteraction?.destroy();
     this.textRenderer?.destroy(); // Destroy TextRenderer
     this.textTool?.destroy(); // Destroy TextTool
-    this.visionRenderer?.destroy();
     this.wallRenderer?.destroy();
     this.wallInteraction?.destroy();
     this.audioRenderer?.destroy();

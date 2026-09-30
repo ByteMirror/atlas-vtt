@@ -5,28 +5,22 @@ import { TFile, type App } from 'obsidian';
 import type { StoreApi } from 'zustand';
 import type { ViewAtlasState } from '../../storeFactory';
 import type { TokenEntity } from '../../types';
-import { WALLS_AND_LIGHTING_ENABLED } from '../../featureFlags';
 import { CloseButton } from '../../packages/components/primitives/CloseButton';
 import { Button } from '../../packages/components/primitives/button';
 import { NumberOverrideField, parseNumberInput } from './NumberOverrideField';
 import { readStatblockVitals } from './statblockFrontmatter';
 import { buildResourceUpdates, statblockResourceDefaults, type ResourceDefaults } from './tokenResourceEdits';
-import { unitLabelFor } from '../../grid/measurementFormat';
 
 interface EditTokenValues {
   name: string;
   showNameplate: boolean;
   maxHp: number | undefined;
   maxStress: number | undefined;
-  visionInnerRadius: number | undefined;
-  visionOuterRadius: number | undefined;
 }
 
 interface EditTokenModalProps {
   initial: EditTokenValues;
-  playerLinked: boolean;
   resourceDefaults: ResourceDefaults;
-  unitLabel: string;
   onSave: (values: EditTokenValues) => void;
   onClose: () => void;
 }
@@ -36,13 +30,11 @@ const numberInput = (value: number | undefined): string => (value === undefined 
 const defaultPlaceholder = (value: number | undefined): string =>
   value === undefined ? 'None' : `Statblock default: ${value}`;
 
-function EditTokenModalInner({ initial, playerLinked, resourceDefaults, unitLabel, onSave, onClose }: EditTokenModalProps): React.ReactElement {
+function EditTokenModalInner({ initial, resourceDefaults, onSave, onClose }: EditTokenModalProps): React.ReactElement {
   const [name, setName] = useState(initial.name);
   const [showNameplate, setShowNameplate] = useState(initial.showNameplate);
   const [maxHpInput, setMaxHpInput] = useState(numberInput(initial.maxHp));
   const [maxStressInput, setMaxStressInput] = useState(numberInput(initial.maxStress));
-  const [visionInnerInput, setVisionInnerInput] = useState(numberInput(initial.visionInnerRadius));
-  const [visionOuterInput, setVisionOuterInput] = useState(numberInput(initial.visionOuterRadius));
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -58,8 +50,6 @@ function EditTokenModalInner({ initial, playerLinked, resourceDefaults, unitLabe
       showNameplate,
       maxHp: parseNumberInput(maxHpInput),
       maxStress: parseNumberInput(maxStressInput),
-      visionInnerRadius: parseNumberInput(visionInnerInput),
-      visionOuterRadius: parseNumberInput(visionOuterInput),
     });
   };
 
@@ -78,7 +68,6 @@ function EditTokenModalInner({ initial, playerLinked, resourceDefaults, unitLabe
     return () => window.removeEventListener('keydown', handleKeyDown);
   });
 
-  const unitSuffix = unitLabel ? ` (${unitLabel})` : '';
 
   return (
     <div className="atlas-modal-overlay" onClick={onClose}>
@@ -129,26 +118,6 @@ function EditTokenModalInner({ initial, playerLinked, resourceDefaults, unitLabe
             resetLabel="Reset to statblock default"
           />
 
-          {WALLS_AND_LIGHTING_ENABLED && playerLinked && (
-            <>
-              <div className="atlas-edit-token__section-divider" />
-              <div className="atlas-edit-token__section-label">Vision Override</div>
-              <NumberOverrideField
-                label={`Bright Vision Range${unitSuffix}`}
-                value={visionInnerInput}
-                onChange={setVisionInnerInput}
-                placeholder="(collection default)"
-                resetLabel="Reset to collection default"
-              />
-              <NumberOverrideField
-                label={`Dim Vision Range${unitSuffix}`}
-                value={visionOuterInput}
-                onChange={setVisionOuterInput}
-                placeholder="(collection default)"
-                resetLabel="Reset to collection default"
-              />
-            </>
-          )}
         </div>
 
         <div className="atlas-modal-footer">
@@ -181,18 +150,14 @@ export function openEditTokenModal(token: TokenEntity, store: StoreApi<ViewAtlas
     container.remove();
   };
 
-  const handleSave = ({ name, showNameplate, maxHp, maxStress, visionInnerRadius, visionOuterRadius }: EditTokenValues): void => {
+  const handleSave = ({ name, showNameplate, maxHp, maxStress }: EditTokenValues): void => {
     store.getState().updateToken(token.id, {
       name,
       showNameplate,
-      visionInnerRadius,
-      visionOuterRadius,
       ...buildResourceUpdates(character ?? {}, { maxHp, maxStress }, resourceDefaults),
     });
     cleanup();
   };
-
-  const unitLabel = unitLabelFor(store.getState().grid?.unitType);
 
   root.render(
     <EditTokenModalInner
@@ -201,12 +166,8 @@ export function openEditTokenModal(token: TokenEntity, store: StoreApi<ViewAtlas
         showNameplate: token.showNameplate ?? false,
         maxHp: typeof character?.hp === 'object' ? character.hp.max : character?.hp,
         maxStress: typeof character?.stress === 'object' ? character.stress.max : character?.maxStress,
-        visionInnerRadius: token.visionInnerRadius,
-        visionOuterRadius: token.visionOuterRadius,
       }}
-      playerLinked={character?.playerLinked ?? false}
       resourceDefaults={resourceDefaults}
-      unitLabel={unitLabel}
       onSave={handleSave}
       onClose={cleanup}
     />,

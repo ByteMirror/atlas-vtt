@@ -49,7 +49,8 @@ export class CapsuleField {
   // `min` blending applies only to a mesh below the render root, so the mesh is drawn from here.
   private readonly scene = new Container();
   private readonly empty = new Container();
-  private geometry: Geometry | null = null;
+  private readonly initialGeometry: Geometry;
+  private built: { geometry: Geometry; segments: Buffer } | null = null;
 
   constructor(private readonly renderer: Renderer, rect: Rect, readonly texel: number, wallRadius: number, readonly name = 'uField') {
     this.texture = createTarget(rect[2] / texel, rect[3] / texel, 'r16float');
@@ -63,7 +64,8 @@ export class CapsuleField {
       gl: { vertex, fragment, name: 'atlas-capsule-field', preferredFragmentPrecision: HIGHP },
       resources: { fieldBuild: this.buildUniforms },
     });
-    this.mesh = new Mesh({ geometry: quadGeometry(this.quad), shader: this.shader });
+    this.initialGeometry = quadGeometry(this.quad);
+    this.mesh = new Mesh({ geometry: this.initialGeometry, shader: this.shader });
     this.mesh.blendMode = 'min';
     this.scene.addChild(this.mesh);
   }
@@ -74,18 +76,26 @@ export class CapsuleField {
       renderInto(this.renderer, this.empty, this.texture, clear);
       return;
     }
+    const buffer = new Buffer({ data: new Float32Array(segments.flat()), usage: BufferUsage.VERTEX });
     const geometry = new Geometry({
       attributes: {
         aPosition: { buffer: this.quad.vertices, format: 'float32x2' },
-        aSegment: { buffer: new Buffer({ data: new Float32Array(segments.flat()), usage: BufferUsage.VERTEX }), format: 'float32x4', instance: true },
+        aSegment: { buffer, format: 'float32x4', instance: true },
       },
       indexBuffer: this.quad.indices,
       instanceCount: segments.length,
     });
     this.mesh.geometry = geometry;
     renderInto(this.renderer, this.scene, this.texture, clear);
-    this.geometry?.destroy();
-    this.geometry = geometry;
+    this.releaseBuilt();
+    this.built = { geometry, segments: buffer };
+  }
+
+  /** The quad buffers are shared with every geometry, so only the segment buffer goes with its geometry. */
+  private releaseBuilt(): void {
+    this.built?.geometry.destroy();
+    this.built?.segments.destroy();
+    this.built = null;
   }
 
   resources(): Record<string, UniformGroup | TextureSource> {
@@ -95,7 +105,10 @@ export class CapsuleField {
   destroy(): void {
     this.scene.destroy({ children: true });
     this.empty.destroy();
-    this.geometry?.destroy();
+    this.releaseBuilt();
+    this.initialGeometry.destroy();
+    this.quad.vertices.destroy();
+    this.quad.indices.destroy();
     this.shader.destroy();
     this.texture.destroy(true);
   }

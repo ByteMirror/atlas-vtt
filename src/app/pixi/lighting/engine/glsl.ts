@@ -47,7 +47,7 @@ bool reaches(vec2 p, vec2 t) {
 }`;
 
 /** Full-target pass: `aPosition` 0..1 covers the target, `vUv` is the texel centre. */
-export const FULLSCREEN_VERTEX = `
+export const FULLSCREEN_VERTEX = `${GLSL_VERSION}
 in vec2 aPosition;
 out vec2 vUv;
 void main() {

@@ -73,13 +73,15 @@ export class RadianceCascades {
   /**
    * Bounces the light map off the floor (tinted by `albedo`, the map image, or mid grey without
    * one) and the walls of `field`, which may hold walls the direct light passes (one-way ones).
+   * A map image destroyed before a throttled build (the map changed meanwhile) counts as none.
    */
   build(lightMap: LightMap, albedo: Texture | null, field: CapsuleField): void {
+    const map = albedo && !albedo.destroyed && !albedo.source.destroyed ? albedo : null;
     const emission = this.emission.shader!;
     this.lightWorld.set(lightMap.world);
-    this.emissionUniforms.uniforms.uHasAlbedo = albedo ? 1 : 0;
+    this.emissionUniforms.uniforms.uHasAlbedo = map ? 1 : 0;
     emission.resources.uLightMap = lightMap.texture.source;
-    if (albedo) emission.resources.uAlbedo = albedo.source;
+    if (map) emission.resources.uAlbedo = map.source;
     renderInto(this.renderer, this.emission, this.emit, [0, 0, 0, 0]);
     emission.resources.uLightMap = this.placeholder.source;
     emission.resources.uAlbedo = this.placeholder.source;

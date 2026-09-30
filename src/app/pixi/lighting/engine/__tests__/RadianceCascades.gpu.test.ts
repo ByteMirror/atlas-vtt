@@ -76,4 +76,12 @@ describe('RadianceCascades', () => {
     // White reflects twice what mid grey does.
     expect(opaque.probe(420, 256) / none.probe(420, 256)).toBeCloseTo(2, 1);
   });
+
+  it('bounces a map image destroyed before the build as mid grey', async () => {
+    const white = flatTexture([255, 255, 255, 255]);
+    white.destroy(true);
+    const none = await bounce(null);
+    const gone = await bounce(white);
+    expect(Array.from(gone.probes)).toEqual(Array.from(none.probes));
+  });
 });

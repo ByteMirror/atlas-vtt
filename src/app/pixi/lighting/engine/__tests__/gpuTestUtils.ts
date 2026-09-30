@@ -21,3 +21,16 @@ export function readFloats(renderer: WebGLRenderer, target: RenderTexture): Floa
 export function readRgba(renderer: WebGLRenderer, target: RenderTexture): Uint8ClampedArray {
   return renderer.extract.pixels({ target }).pixels;
 }
+
+/**
+ * Texels of a normalized 8-bit target as 0..1 floats in GL row order, like `readFloats`;
+ * WebGL2 allows FLOAT readback only from float targets, so this reads bytes.
+ */
+export function readUnorm(renderer: WebGLRenderer, target: RenderTexture): Float32Array {
+  const { gl } = renderer;
+  renderer.renderTarget.bind({ target, clear: false });
+  const { pixelWidth, pixelHeight } = target.source;
+  const bytes = new Uint8Array(pixelWidth * pixelHeight * 4);
+  gl.readPixels(0, 0, pixelWidth, pixelHeight, gl.RGBA, gl.UNSIGNED_BYTE, bytes);
+  return Float32Array.from(bytes, (v) => v / 255);
+}

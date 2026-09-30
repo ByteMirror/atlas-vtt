@@ -60,6 +60,8 @@ export class LightingRenderer implements SceneLightingView {
   /** The last scene without its ambient light, reused while only the ambient changes. */
   private lastScene: SceneWithoutAmbient | null = null;
   private loadedMask: string | null = null;
+  /** While a saved mask is being loaded the texture is not the memory, so it must not be saved. */
+  private loadsInFlight = 0;
   private readonly exploredSaver: ExploredSaveScheduler;
   private readonly playerView = new PlayerView((active) => this.engine.setMode(active ? 'player' : 'gm'));
   private readonly unsubscribe: () => void;
@@ -165,22 +167,34 @@ export class LightingRenderer implements SceneLightingView {
     previous?.destroy();
   }
 
-  /** The engine rebuilt its world; the explored texture came back blank, so reload the saved memory. */
+  /**
+   * The GPU reset: the explored texture came back blank, with lighting on or off, so reload the
+   * saved memory now. A save pending from before holds only what the lost texture had, and
+   * saves wait for the reload (`saveExplored`), so a blank texture never replaces the saved mask.
+   */
   private afterContextRestored(): void {
+    this.exploredSaver.cancel();
     this.loadedMask = null;
-    this.update(this.deps.store.getState());
+    const state = this.deps.store.getState();
+    if (this.explored) void this.loadExplored(state.exploredMask);
+    this.update(state);
   }
 
   private async loadExplored(mask: string | null): Promise<void> {
     this.loadedMask = mask;
     if (!this.explored) return;
-    if (mask) await this.explored.load(mask);
-    else this.explored.clear();
+    this.loadsInFlight++;
+    try {
+      if (mask) await this.explored.load(mask);
+      else this.explored.clear();
+    } finally {
+      this.loadsInFlight--;
+    }
     requestRender(this.deps.app);
   }
 
   private saveExplored(): void {
-    if (!this.explored) return;
+    if (!this.explored || this.loadsInFlight > 0) return;
     this.loadedMask = saveExploredMask(this.explored.toCanvas());
     this.deps.store.getState().setExploredMask(this.loadedMask);
   }

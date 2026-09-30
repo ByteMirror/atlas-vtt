@@ -109,12 +109,16 @@ export class LightingEngine {
     if (this.ownsBackBuffer) setBackBuffer(this.renderer, false);
   }
 
-  /** A restored context keeps no render texture's pixels: rebuild the world from the last scene. */
+  /**
+   * A restored context keeps no render texture's pixels: rebuild the world from the last scene
+   * if there is one. The owner hears of it either way, since its own textures went blank too.
+   */
   private restore(): void {
     const scene = this.scene;
-    if (!this.world || !scene) return;
-    this.dropWorld();
-    this.update(scene);
+    if (this.world && scene) {
+      this.dropWorld();
+      this.update(scene);
+    }
     this.onRestored();
   }
 

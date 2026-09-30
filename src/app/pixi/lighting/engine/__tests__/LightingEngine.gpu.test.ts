@@ -140,6 +140,24 @@ describe('LightingEngine', () => {
     expect(render(engine, renderer, 0.5, -22, -22)(128, 128)).toBeGreaterThan(150);
   });
 
+  it('reports a restored context while lighting is off, with no world to rebuild', async () => {
+    const renderer = await createTestRenderer(SIZE);
+    cleanup.push(() => renderer.destroy());
+    const restored = vi.fn();
+    const engine = new LightingEngine(renderer, restored);
+    cleanup.push(() => engine.destroy());
+    renderer.runners.contextChange.emit(renderer.gl);
+    expect(restored).toHaveBeenCalledTimes(1);
+
+    engine.setEnabled(true);
+    engine.update(scene({ walls: room }));
+    engine.setEnabled(false);
+    renderer.runners.contextChange.emit(renderer.gl);
+    expect(restored).toHaveBeenCalledTimes(2);
+    expect(engine.busy()).toBe(false);
+    expect(engine.layer.filters).toBeNull();
+  });
+
   it('frees its world while disabled and rebuilds it on the next enabled update', async () => {
     const { renderer, engine } = await setup();
     const destroyWorld = vi.spyOn(LightingWorld.prototype, 'destroy');

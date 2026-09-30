@@ -55,7 +55,7 @@ void main() {
   gl_Position = project(vWorld);
 }`;
 
-// Physically shaped falloff: inverse-square-like in linear light, half strength at the bright
+// Physically shaped falloff: inverse-square-like in linear light, a third at the bright
 // radius, one continuous curve with no plateau or ring, windowed smoothly to zero just past
 // the dim radius. It is stored perceptually encoded (gamma 2.2): the layers are 8-bit, and
 // linear values would leave too few steps for the dark tail of the light, which then bands.
@@ -66,7 +66,7 @@ ${LIGHT_UNIFORMS}
 void main() {
   float d = length(vWorld - uLight.xy) / max(uLight.z, 1.0);
   float b = clamp(uBright / max(uLight.z, 1.0), 0.05, 0.98);
-  float falloff = 1.0 / (1.0 + (d * d) / (b * b));
+  float falloff = 1.0 / (1.0 + 2.0 * (d * d) / (b * b));
   float window = 1.0 - smoothstep(0.9, ${LIGHT_EDGE.toFixed(2)}, d);
   float core = 0.2 * exp(-d * d * 80.0);
   float f = (falloff + core) * window * uIntensity;

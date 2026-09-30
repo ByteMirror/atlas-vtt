@@ -25,6 +25,9 @@ export function activeLights(lights: Record<string, LightSource>, tokens: Record
   return active;
 }
 
+/** Smallest flame, as a share of the dim radius, so shadow edges never look cut out. */
+export const MIN_SOFTNESS = 0.05;
+
 export function lightFrame(light: ActiveLight, scale: UnitScale, flicker: FlickerSample = STEADY): LightFrame {
   const { emission } = light;
   const bright = gameUnitsToWorld(Math.max(0, emission.bright), scale) * flicker.radiusScale;
@@ -35,14 +38,15 @@ export function lightFrame(light: ActiveLight, scale: UnitScale, flicker: Flicke
     y: light.y + flicker.jitterY,
     bright,
     dim,
-    sourceRadius: gameUnitsToWorld(emission.sourceRadius ?? 1, scale),
+    // Every light casts soft edges, however small its flame is set: at least a share of its reach.
+    sourceRadius: Math.max(gameUnitsToWorld(emission.sourceRadius ?? 1, scale), dim * MIN_SOFTNESS),
     color: [color.red, color.green, color.blue],
     intensity: emission.intensity * flicker.intensity,
   };
 }
 
 /** How far bounced light reaches, relative to the light's dim radius. */
-export const BOUNCE_REACH = 1.25;
+export const BOUNCE_REACH = 1.4;
 
 /**
  * Light that bounced off floors and walls, drawn as a faint, very large area light at the
@@ -53,5 +57,5 @@ export const BOUNCE_REACH = 1.25;
 export function bounceFrame(frame: LightFrame, clearance = Infinity): LightFrame {
   // The area light stays clear of the nearest wall; a source crossing a wall would shine past it.
   const sourceRadius = Math.max(frame.sourceRadius, Math.min(frame.dim * 0.3, clearance * 0.8));
-  return { ...frame, bright: 0, dim: frame.dim * BOUNCE_REACH, sourceRadius, intensity: frame.intensity * 0.22 };
+  return { ...frame, bright: 0, dim: frame.dim * BOUNCE_REACH, sourceRadius, intensity: frame.intensity * 0.3 };
 }

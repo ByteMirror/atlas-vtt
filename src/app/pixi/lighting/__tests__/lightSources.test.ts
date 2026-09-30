@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { activeLights, bounceFrame, lightFrame } from '../lightSources';
+import { MIN_SOFTNESS, activeLights, bounceFrame, lightFrame } from '../lightSources';
 import { LIGHT_PRESETS } from '../../../lighting/lightPresets';
 import type { LightSource } from '../../../types/lightingTypes';
 import type { TokenEntity } from '../../../types';
@@ -31,9 +31,14 @@ describe('lightFrame', () => {
     expect(frame.y).toBe(19);
     expect(frame.bright).toBeCloseTo(280 * 1.1);
     expect(frame.dim).toBeCloseTo(560 * 1.1);
-    expect(frame.sourceRadius).toBeCloseTo(28);
+    expect(frame.sourceRadius).toBeCloseTo(Math.max(28, frame.dim * MIN_SOFTNESS));
     expect(frame.intensity).toBeCloseTo(0.9);
     expect(frame.color[0]).toBeCloseTo(1);
+  });
+
+  it('never casts shadows with a flame smaller than a share of its reach', () => {
+    const frame = lightFrame({ key: 'k', x: 0, y: 0, emission: { ...torch, sourceRadius: 0 } }, scale);
+    expect(frame.sourceRadius).toBeCloseTo(frame.dim * MIN_SOFTNESS);
   });
 
   it('keeps dim at least as large as bright', () => {

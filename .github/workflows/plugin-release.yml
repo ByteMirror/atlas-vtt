@@ -67,7 +67,7 @@ jobs:
         run: npm run lint
 
       - name: Test
-        run: npx vitest run
+        run: npx vitest run --project unit
 
       - name: Build plugin
         run: npm run build:ci

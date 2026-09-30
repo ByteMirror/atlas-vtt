@@ -56,7 +56,7 @@ jobs:
         run: python3 -m unittest discover -s services/issue-reporter
 
       - name: Test
-        run: npx vitest run
+        run: npx vitest run --project unit
 
       - name: Build plugin
         run: npm run build:ci

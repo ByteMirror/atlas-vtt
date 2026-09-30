@@ -20,6 +20,20 @@ describe('sightWedges', () => {
     }
   });
 
+  it('keeps the edges of a vision cone hard when it keeps the viewer\'s own space', () => {
+    const origin = { x: 0, y: 0 };
+    for (const facing of [Math.PI / 2, 0, -1, Math.PI]) {
+      const polygon = computeVisibility(origin, 400, [], { facing, angle: Math.PI / 2, apex: 30 });
+      expect(sightWedges(origin, polygon, 20, 30)).toEqual([]);
+    }
+  });
+
+  it('keeps the soft edges of wall shadows beyond the viewer\'s own space', () => {
+    const origin = { x: 0, y: 0 };
+    const polygon = computeVisibility(origin, 400, [wall], { facing: 0, angle: Math.PI / 2, apex: 30 });
+    expect(sightWedges(origin, polygon, 20, 30)).toHaveLength(2);
+  });
+
   it('keeps the edges of a vision cone hard, whichever way it faces', () => {
     const origin = { x: 0, y: 0 };
     for (const facing of [Math.PI / 2, 0, -1, Math.PI]) {

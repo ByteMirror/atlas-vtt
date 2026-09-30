@@ -90,6 +90,60 @@ describe('computeVisibility with a vision cone', () => {
   });
 });
 
+describe('computeVisibility with a vision cone and the viewer\'s own space', () => {
+  const APEX = 30;
+  const cone = { facing: RIGHT, angle: QUARTER, apex: APEX };
+
+  it('sees everything within its radius, behind the cone too, and nothing just beyond it', () => {
+    const poly = computeVisibility(origin, 200, [], cone);
+    expect(pointInPolygon({ x: 150, y: 0 }, poly)).toBe(true);
+    for (const p of [{ x: -25, y: 0 }, { x: 0, y: 25 }, { x: 0, y: -25 }, { x: -18, y: -18 }]) expect(pointInPolygon(p, poly)).toBe(true);
+    for (const p of [{ x: -35, y: 0 }, { x: 0, y: 35 }, { x: 0, y: -35 }, { x: -23, y: -23 }]) expect(pointInPolygon(p, poly)).toBe(false);
+  });
+
+  it('never sees past a wall within its radius', () => {
+    const poly = computeVisibility(origin, 200, [wall({ x: -10, y: -50 }, { x: -10, y: 50 })], cone);
+    expect(pointInPolygon({ x: -5, y: 0 }, poly)).toBe(true);
+    expect(pointInPolygon({ x: -20, y: 0 }, poly)).toBe(false);
+    expect(pointInPolygon({ x: -15, y: 20 }, poly)).toBe(false);
+  });
+
+  it('only ever removes sight: nothing outside the full polygon, all of the cone and the radius kept', () => {
+    const full = computeVisibility(origin, 200, room);
+    for (const facing of [RIGHT, 0.7, LEFT, -2]) {
+      for (const angle of [0.3, 2, 5]) {
+        const poly = computeVisibility(origin, 200, room, { facing, angle, apex: 60 });
+        for (let y = -210; y <= 210; y += 5) {
+          for (let x = -210; x <= 210; x += 5) {
+            const p = { x: x + 0.5, y: y + 0.5 };
+            if (pointInPolygon(p, poly)) expect(pointInPolygon(p, full)).toBe(true);
+            const rel = relativeAngle(p, facing - angle / 2);
+            const wanted = (rel > 0.05 && rel < angle - 0.05) || Math.hypot(p.x, p.y) < 59;
+            if (wanted && pointInPolygon(p, full) && !nearBoundary(p, full)) expect(pointInPolygon(p, poly)).toBe(true);
+          }
+        }
+      }
+    }
+  });
+
+  it('stays star-shaped around the viewer, all the way round', () => {
+    for (const facing of [RIGHT, QUARTER, LEFT, -QUARTER, 2.5]) {
+      for (const angle of [0.2, QUARTER, Math.PI, 1.8 * Math.PI]) {
+        const poly = computeVisibility(origin, 200, room, { facing, angle, apex: 40 });
+        const start = facing - angle / 2;
+        // From the cone's first edge round to the same edge within the viewer's own space.
+        const rel = poly.map((p, i) => {
+          const r = relativeAngle(p, start);
+          return i > 0 && r < 1e-6 ? 2 * Math.PI : r;
+        });
+        expect(rel[0]).toBeLessThan(1e-6);
+        for (let i = 1; i < rel.length; i++) expect(rel[i]!).toBeGreaterThanOrEqual(rel[i - 1]! - 1e-9);
+        for (const p of poly) expect(Math.hypot(p.x, p.y)).toBeGreaterThan(0);
+      }
+    }
+  });
+});
+
 describe('visionCone', () => {
   it('faces the token art: rotation 0 looks up, rotation grows clockwise on screen', () => {
     expect(visionCone(0, 90)!.facing).toBeCloseTo(-QUARTER);

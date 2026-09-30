@@ -7,6 +7,7 @@ import type { TokenUpdates, ViewAtlasState } from '../../storeFactory';
 import type { TokenEntity } from '../../types';
 import { CloseButton } from '../../packages/components/primitives/CloseButton';
 import { Button } from '../../packages/components/primitives/button';
+import { TooltipProvider } from '../../packages/components/primitives/tooltip';
 import { NumberOverrideField, parseNumberInput } from './NumberOverrideField';
 import { readStatblockVitals } from './statblockFrontmatter';
 import { buildResourceUpdates, statblockResourceDefaults, type ResourceDefaults } from './tokenResourceEdits';
@@ -179,20 +180,23 @@ export function openEditTokenModal(token: TokenEntity, store: StoreApi<ViewAtlas
     cleanup();
   };
 
+  // Its own React root, so no provider above it: the vision switch's tooltip needs one.
   root.render(
-    <EditTokenModalInner
-      initial={{
-        name: character?.name ?? '',
-        showNameplate: token.showNameplate ?? false,
-        maxHp: typeof character?.hp === 'object' ? character.hp.max : character?.hp,
-        maxStress: typeof character?.stress === 'object' ? character.stress.max : character?.maxStress,
-        vision: visionForm(token.vision),
-        light: token.light ? presetOf(token.light) ?? 'custom' : 'none',
-      }}
-      unit={unitLabelFor(store.getState().grid?.unitType)}
-      resourceDefaults={resourceDefaults}
-      onSave={handleSave}
-      onClose={cleanup}
-    />,
+    <TooltipProvider delayDuration={300}>
+      <EditTokenModalInner
+        initial={{
+          name: character?.name ?? '',
+          showNameplate: token.showNameplate ?? false,
+          maxHp: typeof character?.hp === 'object' ? character.hp.max : character?.hp,
+          maxStress: typeof character?.stress === 'object' ? character.stress.max : character?.maxStress,
+          vision: visionForm(token.vision),
+          light: token.light ? presetOf(token.light) ?? 'custom' : 'none',
+        }}
+        unit={unitLabelFor(store.getState().grid?.unitType)}
+        resourceDefaults={resourceDefaults}
+        onSave={handleSave}
+        onClose={cleanup}
+      />
+    </TooltipProvider>,
   );
 }

@@ -68,13 +68,13 @@ export class SightMeshes {
   draw(sight: Sight, radius: number): void {
     this.clear();
     if (sight.all) return;
-    sight.polygons.forEach((polygon, i) => this.add(polygon, sight.origins[i]!, radius, RED));
-    sight.darkvision.forEach((polygon, i) => this.add(polygon, sight.darkvisionOrigins[i]!, radius, GREEN));
+    sight.polygons.forEach((polygon, i) => this.add(polygon, sight.origins[i]!, sight.apexes[i] ?? 0, radius, RED));
+    sight.darkvision.forEach((polygon, i) => this.add(polygon, sight.darkvisionOrigins[i]!, sight.darkvisionApexes[i] ?? 0, radius, GREEN));
   }
 
-  private add(polygon: Polygon, origin: Point, radius: number, channel: Channel): void {
+  private add(polygon: Polygon, origin: Point, apex: number, radius: number, channel: Channel): void {
     if (polygon.length < 3) return;
-    const wedges = sightWedges(origin, polygon, radius).slice(0, MAX_WEDGES);
+    const wedges = sightWedges(origin, polygon, radius, apex).slice(0, MAX_WEDGES);
     const wedgeSource = wedgeTexture(wedges);
     const uniforms = new UniformGroup({
       uWedgeCount: { value: wedges.length, type: 'i32' },

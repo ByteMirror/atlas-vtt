@@ -3,7 +3,6 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createViewAtlasStore, type ViewAtlasStore } from '../../src/app/storeFactory';
 import { ViewStoreProvider } from '../../src/app/react/ViewStoreContext';
-import { TooltipProvider } from '../../src/app/packages/components/primitives/tooltip';
 import { SceneLightingPanelHost } from '../../src/app/pixi/lighting/SceneLightingPanel';
 import { createInMemoryApp } from '../mocks/inMemoryVault';
 
@@ -19,7 +18,8 @@ function renderPanel(): { store: ViewAtlasStore; setSceneLighting: ReturnType<ty
   store.getState().setSceneLighting({ enabled: true });
   store.getState().setSceneLightingPanelOpen(true);
   const setSceneLighting = vi.spyOn(store.getState(), 'setSceneLighting');
-  render(<ViewStoreProvider store={store}><TooltipProvider><SceneLightingPanelHost /></TooltipProvider></ViewStoreProvider>);
+  // As `UIRoot` mounts it: outside every tooltip provider.
+  render(<ViewStoreProvider store={store}><SceneLightingPanelHost /></ViewStoreProvider>);
   return { store, setSceneLighting };
 }
 

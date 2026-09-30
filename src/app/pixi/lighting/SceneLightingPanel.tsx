@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { GripHorizontal, SlidersHorizontal } from 'lucide-react';
 import { CloseButton } from '../../packages/components/primitives/CloseButton';
+import { TooltipProvider } from '../../packages/components/primitives/tooltip';
 import { useDialogWindowVariants } from '../../packages/components/primitives/dialogMotion';
 import { useAtlasStore } from '../../react/ViewStoreContext';
 import { useDraggablePosition, type PanelArea, type PanelPosition } from '../../react/hooks/useDraggablePosition';
@@ -19,10 +20,17 @@ const MARGIN = 16;
 /** First placement: the top right of the map, below the scene tabs, like the other map windows. */
 const topRight = (area: PanelArea, panel: PanelArea): PanelPosition => ({ x: area.width - panel.width - MARGIN, y: 64 });
 
-/** The scene lighting settings panel, while it is open. */
+/**
+ * The scene lighting settings panel, while it is open. `UIRoot` mounts it outside the toolbar's
+ * tooltip provider, and its switches' tooltips need one.
+ */
 export function SceneLightingPanelHost(): React.ReactElement {
   const open = useAtlasStore((state) => state.isSceneLightingPanelOpen);
-  return <AnimatePresence>{open && <SceneLightingPanel key="scene-lighting" />}</AnimatePresence>;
+  return (
+    <TooltipProvider delayDuration={300}>
+      <AnimatePresence>{open && <SceneLightingPanel key="scene-lighting" />}</AnimatePresence>
+    </TooltipProvider>
+  );
 }
 
 /** How the scene's lighting treats sight and memory. Changes apply at once and are never undo steps. */

@@ -145,6 +145,31 @@ describe('vision cones', () => {
     expect(sees(500, 600, 0)).toBe(false);
   });
 
+  it('always sees its own space, even behind the cone', () => {
+    const sees = seenFrom({ enabled: true, angle: 90 }, 0);
+    expect(sees(500, 525)).toBe(true);
+    expect(sees(475, 500)).toBe(true);
+    expect(sees(500, 535)).toBe(false);
+  });
+
+  it('sees in the dark within its own space when it has darkvision', () => {
+    const sees = seenFrom({ enabled: true, angle: 90, darkvision: 30 }, 0);
+    expect(sees(500, 525, 0)).toBe(true);
+    expect(sees(500, 535, 0)).toBe(false);
+  });
+
+  it('takes its own space from the token\'s size', () => {
+    const viewer = (size?: number): TokenEntity => ({ ...token('v', 0, 0, { enabled: true, angle: 90 }), ...(size !== undefined && { size }) });
+    // A medium token on a 70 px grid is 62 px across, a large one twice that.
+    expect(sightSources({ v: viewer() }, scale, bounds)[0]!.cone!.apex).toBe(31);
+    expect(sightSources({ v: viewer(1.5) }, scale, bounds)[0]!.cone!.apex).toBe(62);
+    const cache = new SightCache();
+    const walls = [wall];
+    const first = computeSight(sightSources({ v: viewer() }, scale, bounds), walls, cache).polygons[0];
+    expect(computeSight(sightSources({ v: viewer() }, scale, bounds), walls, cache).polygons[0]).toBe(first);
+    expect(computeSight(sightSources({ v: viewer(1.5) }, scale, bounds), walls, cache).polygons[0]).not.toBe(first);
+  });
+
   it('recomputes the polygon when the token turns', () => {
     const cache = new SightCache();
     const walls = [wall];

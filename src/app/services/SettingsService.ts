@@ -2,6 +2,7 @@ import { App, Platform, normalizePath } from 'obsidian';
 import { availableHotkeys, canShareHotkey, type MapHotkeyId, type MapHotkeys } from '../keyboard/mapHotkeys';
 import { hotkeyOrigin, readHotkeyOverrides, resolveHotkeys, withHotkey, type HotkeyOrigin, type HotkeyOverrides } from '../keyboard/hotkeyOverrides';
 import { getDataFilePath } from '../utils/dataFileMigration';
+import { readToolbarControlOverrides, readToolbarOrder, withToolbarControl, type HideableToolbarControlId, type ToolbarControlOverrides } from '../settings/toolbarControls';
 import {
   DEFAULT_LASER_POINTER_SETTINGS,
   resolveLaserPointerSettings,
@@ -28,6 +29,10 @@ export interface AtlasSettings {
   changelogMajorUpdatesOnly: boolean;
   /** Only the bindings the user changed; read the effective ones with `getHotkeys`. */
   hotkeys: HotkeyOverrides;
+  /** Toolbar controls the user turned on or off; read with `getToolbarControls`. */
+  toolbarControls: ToolbarControlOverrides;
+  /** The order of the toolbar's controls the user chose; empty is the default order. Apply with `orderedToolbarIds`. */
+  toolbarOrder: string[];
   onboarding: { enabled: boolean; completed: Partial<Record<TutorialId, boolean>>; tokenImported: boolean };
   /** The starter tokens were added to the default collection once; deleted ones stay deleted. */
   starterTokensAdded: boolean;
@@ -55,6 +60,8 @@ const DEFAULT_SETTINGS: AtlasSettings = {
   showChangelogOnUpdate: true,
   changelogMajorUpdatesOnly: false,
   hotkeys: {},
+  toolbarControls: {},
+  toolbarOrder: [],
   onboarding: { enabled: true, completed: {}, tokenImported: false },
   starterTokensAdded: false,
   navigation: {
@@ -179,6 +186,8 @@ export class SettingsService {
   private applyStoredSettings(stored: Partial<AtlasSettings>): void {
     this.settings = this.deepMerge(DEFAULT_SETTINGS, stored);
     this.settings.hotkeys = readHotkeyOverrides(stored.hotkeys);
+    this.settings.toolbarControls = readToolbarControlOverrides(stored.toolbarControls);
+    this.settings.toolbarOrder = readToolbarOrder(stored.toolbarOrder);
     // Rewrite files from versions that saved every binding, so they keep only the user's.
     if (JSON.stringify(stored.hotkeys ?? {}) !== JSON.stringify(this.settings.hotkeys)) this.scheduleSave();
   }
@@ -254,6 +263,20 @@ export class SettingsService {
 
   resetHotkeys(): void {
     this.settings.hotkeys = {};
+    this.commit();
+  }
+
+  getToolbarControls(): ToolbarControlOverrides { return { ...this.settings.toolbarControls }; }
+
+  setToolbarControl(id: HideableToolbarControlId, shown: boolean): void {
+    this.settings.toolbarControls = withToolbarControl(this.settings.toolbarControls, id, shown);
+    this.commit();
+  }
+
+  getToolbarOrder(): string[] { return [...this.settings.toolbarOrder]; }
+
+  setToolbarOrder(order: string[]): void {
+    this.settings.toolbarOrder = readToolbarOrder(order);
     this.commit();
   }
 

@@ -45,9 +45,8 @@ export interface LightingControllerDeps {
 interface SegmentEvent { p1: Point; p2: Point; type: WallType; chainId: string }
 
 /**
- * Walls, lights and scene lighting for one map view: owns the lighting renderer, the wall
- * editor, the door badges and the light markers, and routes the wall tool's pointer input and events to them.
- * Walls are never snapped to the grid: they follow the map's artwork.
+ * Walls, lights and scene lighting for one map view: owns the lighting renderer, wall editor and GM
+ * overlays and routes the wall tool's input to them. Walls follow the map's artwork, never the grid.
  */
 export class LightingController {
   readonly renderer: SceneLightingView;
@@ -76,9 +75,8 @@ export class LightingController {
     this.doors = new DoorIcons(store);
     viewport.addChild(this.doors.view);
     this.lightMarkers = new LightMarkers(viewport, store);
-
-    const settings = SettingsService.forApp(obsApp);
-    this.cleanups.push(bindHoldHotkey(window, () => (settings?.getHotkeys() ?? DEFAULT_MAP_HOTKEYS).lightingPeek, deps.viewId, (held) => {
+    const peekKey = (): string => (SettingsService.forApp(obsApp)?.getHotkeys() ?? DEFAULT_MAP_HOTKEYS).lightingPeek;
+    this.cleanups.push(bindHoldHotkey(window, peekKey, deps.viewId, (held) => {
       this.peeking = held;
       this.applyPreview();
     }));
@@ -153,6 +151,7 @@ export class LightingController {
 
   private applyPreview(): void {
     this.renderer.setPreview(this.peeking || this.previewing);
+    this.lightMarkers.setSuppressed(this.peeking || this.previewing);
   }
 
   private syncTool(): void {
@@ -274,8 +273,7 @@ export class LightingController {
 
   private vertexAt(point: Point): Point | null {
     const hit = this.wallRenderer.hitTestVertices(point.x, point.y);
-    const wall = hit ? this.deps.store.getState().objects.walls[hit.wallId] : undefined;
-    return hit && wall ? wall[hit.vertex] : null;
+    return hit ? this.deps.store.getState().objects.walls[hit.wallId]?.[hit.vertex] ?? null : null;
   }
 
   private split(wallId: string, at: Point): void {

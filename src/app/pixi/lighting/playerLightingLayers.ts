@@ -2,14 +2,14 @@ import type { TokenEntity } from '../../types';
 import { isSeen, type LightReach, type Sight } from '../../vision/sight';
 import type { HideableLayer, LayerVisibility } from '../playerSafeFrame';
 
-/** Things only the GM may see. */
-export interface GmOverlays {
+/** Things only the GM may see. A type, not an interface, so `Object.values` knows its layers. */
+export type GmOverlays = {
   /** Wall lines and light handles, shown with the lighting tool. */
   wallEditor: HideableLayer;
   doorBadges: HideableLayer;
   /** Faint light icons, shown without the lighting tool. */
   lightMarkers: HideableLayer;
-}
+};
 
 export interface PlayerLightingInput {
   enabled: boolean;
@@ -20,8 +20,7 @@ export interface PlayerLightingInput {
 
 /** Layer changes for a player frame: the GM's overlays never show; with lighting on, the player's view. */
 export function playerLightingLayers({ enabled, modeLayer, gmOverlays }: PlayerLightingInput): LayerVisibility[] {
-  const { wallEditor, doorBadges, lightMarkers } = gmOverlays;
-  const hidden = [wallEditor, doorBadges, lightMarkers].map((layer) => ({ layer, visible: false }));
+  const hidden = Object.values<HideableLayer>(gmOverlays).map((layer) => ({ layer, visible: false }));
   return enabled ? [{ layer: modeLayer, visible: true }, ...hidden] : hidden;
 }
 

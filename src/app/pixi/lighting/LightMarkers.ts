@@ -45,12 +45,14 @@ export class LightMarkers {
   readonly view = new Container({ label: 'light-markers', zIndex: LIGHT_MARKERS_Z_INDEX, eventMode: 'none', interactiveChildren: false });
   private readonly markers = new Map<string, Marker>();
   private readonly unsubscribe: () => void;
+  /** The GM previews the players' view, which has no markers. */
+  private suppressed = false;
   private readonly rescale = (): void => {
     const scale = this.scale();
     for (const { graphics } of this.markers.values()) graphics.scale.set(scale);
   };
 
-  constructor(private readonly viewport: Viewport, store: ViewAtlasStore) {
+  constructor(private readonly viewport: Viewport, private readonly store: ViewAtlasStore) {
     viewport.addChild(this.view);
     viewport.on('zoomed', this.rescale);
     viewport.on('zoomed-end', this.rescale);
@@ -64,12 +66,18 @@ export class LightMarkers {
     this.sync(store.getState());
   }
 
+  /** Hides the markers while the GM previews the players' view (toolbar switch or peek key). */
+  setSuppressed(on: boolean): void {
+    this.suppressed = on;
+    this.sync(this.store.getState());
+  }
+
   private scale(): number {
     return mapMarkerScale(this.viewport.scale.x);
   }
 
   private sync(state: ViewAtlasState): void {
-    const shown = lightMarkersShown(state);
+    const shown = lightMarkersShown(state) && !this.suppressed;
     this.view.visible = shown;
     if (!shown) return;
     const { lights } = state.objects;

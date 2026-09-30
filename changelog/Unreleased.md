@@ -14,7 +14,7 @@
 - Large token imports are much faster. 1,000 tokens from Fantasy Statblocks now take about 40 seconds instead of 11 minutes, and imports of thousands of tokens no longer slow down as they go
 - The token creator and the Fantasy Statblocks list stay smooth with thousands of images
 - Statblocks that share one image read and convert it only once
-- In the GM view, every light shines at full strength and its icon stays visible; areas no token sees are shown slightly faded instead of dimmed
+- In the GM view, every light shines at full strength and a faint icon marks every light; areas no token sees are shown slightly faded instead of dimmed
 
 ## Fixed
 

@@ -73,6 +73,17 @@ describe('LightMarkers', () => {
     expect(markers.view.visible).toBe(true);
   });
 
+  it('hides while the GM previews the players\' view', () => {
+    const { markers, store } = setup();
+    store.getState().setSceneLighting({ enabled: true });
+    markers.setSuppressed(true);
+    addTorch(store, 100, 200);
+    expect(markers.view.visible).toBe(false);
+    markers.setSuppressed(false);
+    expect(markers.view.visible).toBe(true);
+    expect(markers.view.children).toHaveLength(1);
+  });
+
   it('moves a marker in place and drops the markers of deleted lights', () => {
     const { markers, store } = setup();
     store.getState().setSceneLighting({ enabled: true });

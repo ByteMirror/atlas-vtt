@@ -4,6 +4,7 @@ import type { ViewAtlasState, ViewAtlasStore } from '../../storeFactory';
 import type { MeasurementSettings } from '../../grid/measurementFormat';
 import { unitScaleOf, type UnitScale } from '../../lighting/lightingUnits';
 import { SEES_ALL, SightCache, computeSight, sightSources, type LightReach, type Sight } from '../../vision/sight';
+import { wallList } from '../../vision/wallList';
 import type { MapBounds } from '../../vision/visibility';
 import type { HideableLayer } from '../playerSafeFrame';
 import { requestRender } from '../RenderScheduler';
@@ -124,7 +125,7 @@ export class LightingRenderer implements SceneLightingView {
     const { walls, lights, tokens } = state.objects;
     const moved = !prev || prev.objects.walls !== walls || prev.objects.lights !== lights || prev.objects.tokens !== tokens || prev.grid !== state.grid;
     if (moved) {
-      this.lights.sync(activeLights(lights, tokens), Object.values(walls), scale);
+      this.lights.sync(activeLights(lights, tokens), wallList(walls), scale);
       this.updateSight(state, scale, bounds);
     }
     this.composite.setAmbient(lighting.ambient, lighting.ambientColor);
@@ -133,7 +134,7 @@ export class LightingRenderer implements SceneLightingView {
 
   private updateSight(state: ViewAtlasState, scale: UnitScale, bounds: MapBounds): void {
     const sources = sightSources(state.objects.tokens, scale, bounds);
-    this.sight = computeSight(sources, Object.values(state.objects.walls), this.sightCache);
+    this.sight = computeSight(sources, wallList(state.objects.walls), this.sightCache);
     this.sightLayer.draw(this.sight, bounds);
     this.composite.setAllSeen(this.sight.all);
     if (this.sight.all || !this.explored) return;

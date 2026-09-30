@@ -4,6 +4,7 @@ import type { ViewAtlasState, ViewAtlasStore } from '../../storeFactory';
 import type { MeasurementSettings } from '../../grid/measurementFormat';
 import { unitScaleOf } from '../../lighting/lightingUnits';
 import { SEES_ALL, SightCache, computeSight, sightSources, type LightReach, type Sight } from '../../vision/sight';
+import { wallList } from '../../vision/wallList';
 import type { MapBounds } from '../../vision/visibility';
 import type { HideableLayer } from '../playerSafeFrame';
 import { destroyTree } from '../utils/destroyTree';
@@ -64,7 +65,7 @@ export class CanvasLightingFallback implements SceneLightingView {
       return;
     }
     const scale = unitScaleOf(this.deps.measurement(), state.grid);
-    this.sight = computeSight(sightSources(state.objects.tokens, scale, bounds), Object.values(state.objects.walls), this.cache);
+    this.sight = computeSight(sightSources(state.objects.tokens, scale, bounds), wallList(state.objects.walls), this.cache);
     const g = this.darkness;
     g.clear();
     if (this.sight.all) return;

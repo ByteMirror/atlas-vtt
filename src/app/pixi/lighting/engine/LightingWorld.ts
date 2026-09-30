@@ -43,7 +43,7 @@ export class LightingWorld {
     this.field.build([]);
     this.lightMap = new LightMap(renderer, bounds, this.texel);
     this.cascades = new RadianceCascades(renderer, bounds, this.field);
-    this.tiles = new TileCache(renderer, this.field);
+    this.tiles = new TileCache(renderer, this.field, bounds);
   }
 
   /** The field with one-way walls too, which bounce and sight treat as blocking both ways. */

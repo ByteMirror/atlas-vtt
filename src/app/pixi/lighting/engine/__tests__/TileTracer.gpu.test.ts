@@ -89,8 +89,8 @@ describe('TileCache', () => {
   it('rebuilds only tiles a wall change touches, with the same result as a full rebuild', async () => {
     const renderer = await createTestRenderer(64);
     const field = new CapsuleField(renderer, [0, 0, 1024, 1024], TEXEL, wallRadius(TEXEL));
-    const cache = new TileCache(renderer, field);
-    const fresh = new TileCache(renderer, field);
+    const cache = new TileCache(renderer, field, { width: 1024, height: 1024 });
+    const fresh = new TileCache(renderer, field, { width: 1024, height: 1024 });
     try {
       const door = { id: 'd', kind: 'wall' as const, type: 'door' as const, closed: true, p1: { x: 100, y: 0 }, p2: { x: 100, y: 200 } };
       const lights = [light('near', 60, 100), light('far', 800, 800)];
@@ -115,10 +115,31 @@ describe('TileCache', () => {
     }
   });
 
+  it('clips tiles to the map, however far a light shines', async () => {
+    const renderer = await createTestRenderer(64);
+    const field = new CapsuleField(renderer, [0, 0, 1000, 600], TEXEL, wallRadius(TEXEL));
+    const cache = new TileCache(renderer, field, { width: 1000, height: 600 });
+    try {
+      field.build([]);
+      // A 500 ft light on a 5 ft grid of 70 px: 7,000 px dim, a 16k px tile unclipped.
+      const huge = { ...light('huge', 300, 200), bright: 3500, dim: 7000 };
+      cache.sync([huge, light('outside', -500, 200)], [], 'all');
+      const tile = cache.tiles().get('huge')!;
+      expect(tile.rect).toEqual([0, 0, 1000, 600]);
+      expect([tile.texture.source.pixelWidth, tile.texture.source.pixelHeight]).toEqual([500, 300]);
+      expect(litAt(renderer, tile, [990, 590])).toBeGreaterThan(0.5);
+      expect(cache.tiles().has('outside')).toBe(false);
+    } finally {
+      cache.destroy();
+      field.destroy();
+      renderer.destroy();
+    }
+  });
+
   it('binds a one-way wall only for lights on its blocking side', async () => {
     const renderer = await createTestRenderer(64);
     const field = new CapsuleField(renderer, [0, 0, 1024, 1024], TEXEL, wallRadius(TEXEL));
-    const cache = new TileCache(renderer, field);
+    const cache = new TileCache(renderer, field, { width: 1024, height: 1024 });
     try {
       const lit = (direction: 'left' | 'right'): number => {
         const wall = { id: 'o', kind: 'wall' as const, type: 'solid' as const, direction, p1: { x: 100, y: 0 }, p2: { x: 100, y: 200 } };

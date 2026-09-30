@@ -31,7 +31,7 @@ describe('sealing', () => {
   it('closes a gap for light exactly when it closes it for sight', async () => {
     const renderer = await createTestRenderer(64);
     const field = new CapsuleField(renderer, [0, 0, 1024, 1024], TEXEL, wallRadius(TEXEL));
-    const cache = new TileCache(renderer, field);
+    const cache = new TileCache(renderer, field, { width: 1024, height: 1024 });
     const light: EngineLight = { key: 'l', x: LIGHT.x, y: LIGHT.y, bright: 150, dim: 300, flame: 8, color: [1, 1, 1], intensity: 1, animation: 'none' };
     try {
       const results: Record<number, { light: boolean; sight: boolean }> = {};

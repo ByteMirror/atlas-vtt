@@ -3,7 +3,7 @@ import type { WallSegment } from '../../../types/wallTypes';
 import { LIGHT_REACH, TILE_MARGIN, wallRadius } from '../../../lighting/lightingConstants';
 import { placeLight } from '../../../lighting/lightPlacement';
 import { allSegments, segOf, splitBlocking, type BlockingWalls, type Rect } from '../../../lighting/segments';
-import { blocksFrom } from '../../../vision/visibility';
+import { blocksFrom, type MapBounds } from '../../../vision/visibility';
 import { CapsuleField } from './CapsuleField';
 import { TileTracer } from './TileTracer';
 import type { EngineLight } from './types';
@@ -31,7 +31,8 @@ export class TileCache {
   private readonly tracer: TileTracer;
   private readonly entries = new Map<string, Entry>();
 
-  constructor(private readonly renderer: Renderer, private readonly field: CapsuleField) {
+  /** Tiles never reach past the map (rounded up to the texel grid), however far a light shines. */
+  constructor(private readonly renderer: Renderer, private readonly field: CapsuleField, private readonly bounds: MapBounds) {
     this.tracer = new TileTracer(renderer, field);
   }
 
@@ -69,10 +70,8 @@ export class TileCache {
     const { texel } = this.field;
     const placed = placeLight(light.x, light.y, light.flame, allSegments(blocking), texel);
     if (!placed) return null;
-    const half = light.dim * LIGHT_REACH * TILE_MARGIN;
-    const x0 = Math.floor((placed.x - half) / texel) * texel, y0 = Math.floor((placed.y - half) / texel) * texel;
-    const x1 = Math.ceil((placed.x + half) / texel) * texel, y1 = Math.ceil((placed.y + half) / texel) * texel;
-    const rect: Rect = [x0, y0, x1 - x0, y1 - y0];
+    const rect = this.tileRect(placed.x, placed.y, light.dim * LIGHT_REACH * TILE_MARGIN);
+    if (!rect) return null;
     const blockingOneWay = blocking.oneWay.filter((wall) => blocksFrom(wall, placed));
     let oneWayField: CapsuleField | null = null;
     if (blockingOneWay.length > 0) {
@@ -82,6 +81,15 @@ export class TileCache {
     const texture = this.tracer.trace([placed.x, placed.y], placed.flame, rect, oneWayField);
     oneWayField?.destroy();
     return { x: placed.x, y: placed.y, flame: placed.flame, rect, texture };
+  }
+
+  /** The square of half-size `half` around (x, y) on the texel grid, clipped to the map; null if empty. */
+  private tileRect(x: number, y: number, half: number): Rect | null {
+    const { texel } = this.field;
+    const width = Math.ceil(this.bounds.width / texel) * texel, height = Math.ceil(this.bounds.height / texel) * texel;
+    const x0 = Math.max(0, Math.floor((x - half) / texel) * texel), y0 = Math.max(0, Math.floor((y - half) / texel) * texel);
+    const x1 = Math.min(width, Math.ceil((x + half) / texel) * texel), y1 = Math.min(height, Math.ceil((y + half) / texel) * texel);
+    return x1 > x0 && y1 > y0 ? [x0, y0, x1 - x0, y1 - y0] : null;
   }
 
   destroy(): void {

@@ -2,7 +2,11 @@ import { FULLSCREEN_VERTEX, GLSL_VERSION, SRGB_GLSL, fieldGlsl } from './glsl';
 
 export const cascadeVertex = FULLSCREEN_VERTEX;
 
-/** Lit floor: the light map times the map's colour (linear), over the emission grid. */
+/**
+ * Lit floor: the light map times the map's colour (linear), over the emission grid. Where the
+ * map is transparent (maps without an image, transparent PNG areas) or missing, the floor
+ * bounces as mid grey; PIXI textures are premultiplied, so colour is unpremultiplied first.
+ */
 export const emissionFragment = `${GLSL_VERSION}
 in vec2 vUv;
 uniform sampler2D uLightMap;
@@ -15,7 +19,11 @@ out vec4 finalColor;
 ${SRGB_GLSL}
 void main() {
   vec2 world = vUv * uEmitWorld;
-  vec3 albedo = uHasAlbedo > 0.5 ? toLinear(texture(uAlbedo, clamp(world / uMapSize, 0.0, 1.0)).rgb) : vec3(0.5);
+  vec3 albedo = vec3(0.5);
+  if (uHasAlbedo > 0.5) {
+    vec4 map = texture(uAlbedo, clamp(world / uMapSize, 0.0, 1.0));
+    albedo = mix(vec3(0.5), toLinear(min(map.rgb / max(map.a, 1e-4), 1.0)), map.a);
+  }
   finalColor = vec4(texture(uLightMap, world / uLightWorld).rgb * albedo, 1.0);
 }`;
 

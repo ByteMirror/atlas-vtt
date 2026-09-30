@@ -128,10 +128,10 @@ export class LightingRenderer implements SceneLightingView {
     if (state.exploredMask !== this.loadedMask) void this.loadExplored(state.exploredMask);
 
     const { walls, lights, tokens } = state.objects;
-    const moved = !prev || !this.lastScene || prev.objects.walls !== walls || prev.objects.lights !== lights
+    const moved = !prev || prev.objects.walls !== walls || prev.objects.lights !== lights
       || prev.objects.tokens !== tokens || prev.grid !== state.grid;
-    if (moved) this.lastScene = this.buildScene(state, bounds);
-    const scene: EngineScene = { ...this.lastScene!, ambient: lighting.ambient };
+    const base = moved || !this.lastScene ? (this.lastScene = this.buildScene(state, bounds)) : this.lastScene;
+    const scene: EngineScene = { ...base, ambient: lighting.ambient };
     if (lighting.ambientColor !== undefined) scene.ambientColor = lighting.ambientColor;
     this.engine.update(scene);
     requestRender(this.deps.app);

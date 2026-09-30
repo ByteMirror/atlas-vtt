@@ -1,5 +1,6 @@
 import type { WallSegment } from '../../../../types/wallTypes';
 import { distToSeg } from '../../../../lighting/segments';
+import { isOnBlockingSide } from '../../../../vision/visionGeometry';
 
 export type P = [number, number];
 
@@ -44,15 +45,19 @@ export interface FuzzRoom {
   walls: WallSegment[];
   roomWallCount: number;
   outline: P[];
-  light: P;
+  /** One light, two in every third room. */
+  lights: P[];
   handDrawn: boolean;
 }
 
 /**
  * Closed star-shaped rooms on a 2048 px map with zig-zag outlines; every third room has
  * hand-drawn joints (ends jittered ±1.4 px, not shared); four chains of three walls start on
- * the outline (T-junctions) and wander in or out. The light is inside: anywhere (50%),
- * 0–2 px from a wall (35%) or 0.5 px from a corner (15%). `gap` opens one wall: `true` the far half, a number that share (0–1) of it.
+ * the outline (T-junctions) and wander in or out. Every fourth room (from the second) has one
+ * outline wall as a closed door, every fourth (from the fourth) up to two one-way outline walls
+ * that block from the side of its lights. Lights are inside: anywhere (50%), 0–2 px from a wall
+ * (35%) or 0.5 px from a corner (15%). `gap` opens one wall: `true` the far half, a number that
+ * share (0–1) of it.
  */
 export function fuzzRooms(seed: number, count: number, gap: boolean | number = false): FuzzRoom[] {
   const rand = rng(seed);
@@ -86,22 +91,41 @@ export function fuzzRooms(seed: number, count: number, gap: boolean | number = f
         p = q;
       }
     }
-    const mode = rand();
-    let light: P;
-    if (mode < 0.35) {
-      const i = Math.floor(rand() * k), f = rand(), a = outline[i]!, b = outline[(i + 1) % k]!;
-      const p: P = [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f];
-      const d = Math.hypot(c[0] - p[0], c[1] - p[1]), off = rand() * 2;
-      light = [p[0] + ((c[0] - p[0]) / d) * off, p[1] + ((c[1] - p[1]) / d) * off];
-    } else if (mode < 0.5) {
-      const p = outline[Math.floor(rand() * k)]!;
-      const d = Math.hypot(c[0] - p[0], c[1] - p[1]);
-      light = [p[0] + ((c[0] - p[0]) / d) * 0.5, p[1] + ((c[1] - p[1]) / d) * 0.5];
-    } else {
-      do light = [c[0] + (rand() - 0.5) * 800, c[1] + (rand() - 0.5) * 800];
-      while (!insidePolygon(light, outline));
+    const lights = [randomLight(rand, c, outline)];
+    if (n % 3 === 1) lights.push(randomLight(rand, c, outline));
+    if (n % 4 === 1) {
+      const i = Math.floor(rand() * k);
+      walls[i] = { ...walls[i]!, type: 'door', closed: true };
     }
-    rooms.push({ walls, roomWallCount: k, outline, light, handDrawn });
+    if (n % 4 === 3) {
+      for (let t = 0; t < 2; t++) {
+        const i = Math.floor(rand() * k), w = walls[i]!;
+        const direction = (['left', 'right'] as const).find((d) => lights.every(([x, y]) => isOnBlockingSide({ x, y }, w.p1, w.p2, d)));
+        if (direction) walls[i] = { ...w, direction };
+      }
+    }
+    rooms.push({ walls, roomWallCount: k, outline, lights, handDrawn });
   }
   return rooms;
+}
+
+/** A spot inside the room: anywhere (50%), 0–2 px from a wall (35%) or 0.5 px from a corner (15%). */
+function randomLight(rand: () => number, c: P, outline: readonly P[]): P {
+  const k = outline.length;
+  const mode = rand();
+  let light: P;
+  if (mode < 0.35) {
+    const i = Math.floor(rand() * k), f = rand(), a = outline[i]!, b = outline[(i + 1) % k]!;
+    const p: P = [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f];
+    const d = Math.hypot(c[0] - p[0], c[1] - p[1]), off = rand() * 2;
+    light = [p[0] + ((c[0] - p[0]) / d) * off, p[1] + ((c[1] - p[1]) / d) * off];
+  } else if (mode < 0.5) {
+    const p = outline[Math.floor(rand() * k)]!;
+    const d = Math.hypot(c[0] - p[0], c[1] - p[1]);
+    light = [p[0] + ((c[0] - p[0]) / d) * 0.5, p[1] + ((c[1] - p[1]) / d) * 0.5];
+  } else {
+    do light = [c[0] + (rand() - 0.5) * 800, c[1] + (rand() - 0.5) * 800];
+    while (!insidePolygon(light, outline));
+  }
+  return light;
 }

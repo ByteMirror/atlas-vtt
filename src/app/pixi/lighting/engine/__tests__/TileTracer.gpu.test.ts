@@ -4,7 +4,7 @@ import { CapsuleField } from '../CapsuleField';
 import { TileTracer } from '../TileTracer';
 import { TileCache, type Tile } from '../TileCache';
 import { sealWalls } from '../../../../lighting/sealWalls';
-import { splitBlocking } from '../../../../lighting/segments';
+import { allSegments, splitBlocking } from '../../../../lighting/segments';
 import { sealTolerance, wallRadius } from '../../../../lighting/lightingConstants';
 import { placeLight } from '../../../../lighting/lightPlacement';
 import { createTestRenderer, readUnorm } from './gpuTestUtils';
@@ -27,16 +27,18 @@ async function litOutside(gap: boolean, count: number): Promise<LitCount> {
     for (const room of fuzzRooms(17, count, gap)) {
       const walls = sealWalls(room.walls, sealTolerance(TEXEL));
       const outline = roomOutline(room);
-      if (!insidePolygon(room.light, outline)) continue;
-      const { twoWay } = splitBlocking(walls);
-      const placed = placeLight(room.light[0], room.light[1], 40, twoWay, TEXEL);
+      const light = room.lights[0]!;
+      if (!insidePolygon(light, outline)) continue;
+      // One-way outline walls block from the light's side: trace them as two-way walls.
+      const blocking = allSegments(splitBlocking(walls));
+      const placed = placeLight(light[0], light[1], 40, blocking, TEXEL);
       if (!placed) continue;
       result.rooms++;
       const field = new CapsuleField(renderer, [0, 0, 2048, 2048], TEXEL, wallRadius(TEXEL));
       const tracer = new TileTracer(renderer, field);
       let tile: RenderTexture | null = null;
       try {
-        field.build(twoWay);
+        field.build(blocking);
         const reach = 500;
         const x0 = Math.floor((placed.x - reach) / TEXEL) * TEXEL, y0 = Math.floor((placed.y - reach) / TEXEL) * TEXEL;
         tile = tracer.trace([placed.x, placed.y], placed.flame, [x0, y0, 2 * reach, 2 * reach], null);

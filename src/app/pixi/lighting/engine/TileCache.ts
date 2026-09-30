@@ -45,6 +45,7 @@ export class TileCache {
   /** Brings tiles up to date; true when any was built or dropped. */
   sync(lights: readonly EngineLight[], walls: readonly WallSegment[], changed: readonly Rect[] | 'all'): boolean {
     let dirty = false;
+    let built = false;
     const keys = new Set(lights.map((light) => light.key));
     for (const [key, entry] of this.entries) {
       if (keys.has(key)) continue;
@@ -62,7 +63,11 @@ export class TileCache {
       entry?.tile?.texture.destroy(true);
       this.entries.set(light.key, { light, tile: this.build(light, blocking) });
       dirty = true;
+      built = true;
     }
+    // A light being dragged rebuilds its tile on every update: the tracer's raw targets are kept
+    // until an update rebuilds nothing (allocating them per rebuild made each about 40% slower).
+    if (!built) this.tracer.release();
     return dirty;
   }
 

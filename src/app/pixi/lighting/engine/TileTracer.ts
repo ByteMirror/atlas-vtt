@@ -25,12 +25,16 @@ export class TileTracer {
   private readonly geometry: Geometry = quadGeometry(this.quad);
   private readonly mesh: Mesh<Geometry, Shader>;
   private readonly smoothMesh: Mesh<Geometry, Shader>;
-  /** Bound as the smoothing input between traces, so the program never keeps the raw target. */
+  /** Bound as the smoothing input between traces, so the program never keeps a raw target. */
   private readonly placeholder: RenderTexture = createPlaceholder();
   /** Bound when a light has no one-way walls, so the program always has both fields. */
   private readonly noOneWay: CapsuleField;
-  /** The raw trace's target, kept between traces (grown to the largest tile): allocating one per tile costs more than the pass. */
-  private raw: RenderTexture | null = null;
+  /**
+   * The raw traces' targets, used in turn so a trace never waits for the previous tile's
+   * smoothing to finish reading; freed by `release`, grown to the largest tile each held.
+   */
+  private readonly raws: (RenderTexture | null)[] = [null, null];
+  private turn = 0;
 
   constructor(private readonly renderer: Renderer, private readonly field: CapsuleField) {
     this.noOneWay = new CapsuleField(renderer, [0, 0, 1, 1], 1, 0, 'uOneWay');
@@ -47,6 +51,7 @@ export class TileTracer {
     const { texel } = this.field;
     const tile = createTarget(rect[2] / texel, rect[3] / texel, 'r8unorm', 'nearest');
     const { pixelWidth: width, pixelHeight: height } = tile.source;
+    this.turn = 1 - this.turn;
     const raw = this.rawFor(width, height);
     const u = this.uniforms.uniforms;
     u.uTileRect.set([rect[0], rect[1], width * texel, height * texel]);
@@ -57,12 +62,13 @@ export class TileTracer {
     u.uTexels.set([width, height]);
     this.bindOneWay(oneWay ?? this.noOneWay);
     this.setExtent(raw, width, height);
-    renderInto(this.renderer, this.mesh, raw, [0, 0, 0, 0]);
+    // The quad writes every texel the smoothing reads, so the raw target needs no clear.
+    renderInto(this.renderer, this.mesh, raw);
     this.setExtent(tile, width, height);
     this.smoothShader.resources.uRaw = raw.source;
     renderInto(this.renderer, this.smoothMesh, tile, [0, 0, 0, 0]);
-    // The raw target is replaced when a larger tile comes and the caller destroys `oneWay` after
-    // the trace; a destroyed texture must not stay bound.
+    // Raw targets are replaced or released and the caller destroys `oneWay` after the trace;
+    // a destroyed texture must not stay bound.
     this.smoothShader.resources.uRaw = this.placeholder.source;
     if (oneWay) this.bindOneWay(this.noOneWay);
     return tile;
@@ -77,7 +83,15 @@ export class TileTracer {
     this.smoothShader.destroy();
     this.placeholder.destroy(true);
     this.noOneWay.destroy();
-    this.raw?.destroy(true);
+    this.release();
+  }
+
+  /** Frees the raw targets; the next trace allocates them again. */
+  release(): void {
+    for (let i = 0; i < this.raws.length; i++) {
+      this.raws[i]?.destroy(true);
+      this.raws[i] = null;
+    }
   }
 
   private setExtent(target: RenderTexture, width: number, height: number): void {
@@ -89,13 +103,14 @@ export class TileTracer {
     Object.assign(this.smoothShader.resources, field.resources());
   }
 
-  /** The raw target, at least `width` × `height`: grown to the largest tile traced so far. */
+  /** This turn's raw target, at least `width` × `height`: grown to the largest tile it held. */
   private rawFor(width: number, height: number): RenderTexture {
-    const current = this.raw?.source;
-    if (current && current.pixelWidth >= width && current.pixelHeight >= height) return this.raw!;
+    const raw = this.raws[this.turn];
+    const current = raw?.source;
+    if (raw && current && current.pixelWidth >= width && current.pixelHeight >= height) return raw;
     const grown = createTarget(Math.max(width, current?.pixelWidth ?? 0), Math.max(height, current?.pixelHeight ?? 0), 'r8unorm', 'nearest');
-    this.raw?.destroy(true);
-    this.raw = grown;
+    raw?.destroy(true);
+    this.raws[this.turn] = grown;
     return grown;
   }
 }

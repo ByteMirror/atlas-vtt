@@ -1,11 +1,12 @@
-import { REVEAL } from '../../../lighting/lightingConstants';
 import { BOUNCE_GATHER_GLSL } from './cascadeShaders';
 import { GLSL_VERSION, SRGB_GLSL, TRACE_GLSL, fieldGlsl } from './glsl';
+import { WALL_PUSH_GLSL } from './wallPushGlsl';
 
 /**
  * The lighting layer's final pass. uTexture is the layer itself (red = in sight, green =
  * darkvision); uBackTexture the scene beneath (map and tokens, sRGB). World textures are read
- * through uScreenToWorld, so every render (GM or player camera) lights its own view.
+ * through uScreenToWorld (uWorldToScreen back), so every render (GM or player camera) lights
+ * its own view; uPixelWorld is the size of a screen pixel in world pixels.
  * uAreaOrigin is where the filter's area starts on screen (PIXI's uOutputFrame holds it only
  * for the last filter of a chain; `AreaAwareFilter` computes it for any position in one).
  */
@@ -20,6 +21,11 @@ uniform sampler2D uLightMap;
 uniform sampler2D uExplored;
 uniform vec2 uAreaOrigin;
 uniform mat3 uScreenToWorld;
+uniform mat3 uWorldToScreen;
+uniform float uPixelWorld;
+uniform float uCore;
+uniform float uBand;
+uniform float uReveal;
 uniform vec2 uLightWorld;
 uniform vec2 uMapSize;
 uniform vec3 uAmbient;
@@ -28,10 +34,10 @@ uniform float uBounceGain;
 uniform float uPurkinje;
 uniform float uMode;
 uniform float uAllSeen;
-uniform float uRevealPx;
 ${fieldGlsl('uField')}
 float clearance(vec2 w) { return uFieldClearance(w); }
 ${TRACE_GLSL}
+${WALL_PUSH_GLSL}
 ${BOUNCE_GATHER_GLSL}
 ${SRGB_GLSL}
 
@@ -53,17 +59,13 @@ vec3 neutral(vec3 color) {
   return mix(color, vec3(newPeak), g);
 }
 
-// Sight stops at a wall's centre line; the drawn wall is revealed where a point ${REVEAL} px
-// away (any of eight directions) is seen. Bounded to ${REVEAL} px past the centre line.
-float revealed(float here, vec2 world) {
-  if (here >= 1.0 || uFieldDistance(world) >= uFieldParams.y + ${REVEAL.toFixed(1)}) return here;
-  vec2 step = uRevealPx / uInputSize.xy;
-  float best = here;
-  for (int i = 0; i < 8; i++) {
-    float a = float(i) * 0.78539816;
-    best = max(best, texture(uTexture, clamp(vTextureCoord + vec2(cos(a), sin(a)) * step, uInputClamp.xy, uInputClamp.zw)).r);
-  }
-  return best;
+// Sight of the screen pixel holding world point q (0 outside this render). Read at that pixel's
+// centre, within 0.71 px of q, so a q that far from every wall reads its own side.
+float sightAt(vec2 q) {
+  vec2 uv = ((uWorldToScreen * vec3(q, 1.0)).xy - uAreaOrigin) / uInputSize.xy;
+  uv = (floor(uv * uInputSize.xy) + 0.5) / uInputSize.xy;
+  if (any(lessThan(uv, uInputClamp.xy)) || any(greaterThan(uv, uInputClamp.zw))) return 0.0;
+  return texture(uTexture, uv).r;
 }
 
 // Whichever colour is brighter, blended near a tie (a per-channel max mixes them into pink).
@@ -76,13 +78,30 @@ void main() {
   vec2 world = (uScreenToWorld * vec3(screen, 1.0)).xy;
   vec3 albedo = toLinear(texture(uBackTexture, vTextureCoord).rgb);
   vec3 direct = texture(uLightMap, world / uLightWorld).rgb;
-  vec3 light = uAmbient + (direct + bounceAt(world) * uBounceGain) * uExposure;
+  vec4 sight = texture(uTexture, vTextureCoord);
+  float seen = sight.r;
+  // Sight stops at a wall's centre line and tiles fade out before the wall. Beyond its core, a
+  // wall's face takes the light (direct and bounce) of the floor in front of it, at uBand, and
+  // the sight a little further out, both on its own side: the far side is never lit or revealed.
+  float d = wallDistance(world);
+  float face = clamp((d - uCore) / uPixelWorld + 0.5, 0.0, 1.0);
+  vec2 lightAt = world;
+  if (face > 0.0 && d < uBand + uReveal) {
+    vec2 n = wallNormal(world);
+    float s = pushFromWall(world, n, uBand + uReveal - d, 0.71 * uPixelWorld + 0.01);
+    if (d < uBand) {
+      vec2 front = world + n * min(s, uBand - d);
+      direct = mix(direct, max(direct, texture(uLightMap, front / uLightWorld).rgb), face);
+      if (face >= 0.5) lightAt = front;
+    }
+    seen = mix(seen, max(seen, sightAt(world + n * s)), face);
+  }
+  seen = max(uAllSeen, seen);
+  vec3 light = uAmbient + (direct + bounceAt(lightAt) * uBounceGain) * uExposure;
   vec3 lit = neutral(albedo * light);
   float night = (1.0 - smoothstep(0.03, 0.35, dot(light, LUMA))) * uPurkinje;
   lit = mix(lit, vec3(dot(lit, LUMA)) * vec3(0.86, 0.96, 1.18), night);
 
-  vec4 sight = texture(uTexture, vTextureCoord);
-  float seen = max(uAllSeen, revealed(sight.r, world));
   float grey = dot(albedo, LUMA);
   vec3 darkSight = mix(vec3(grey), albedo, 0.15) * 0.15;
   vec3 visible = mix(lit, brighter(lit, darkSight), sight.g);

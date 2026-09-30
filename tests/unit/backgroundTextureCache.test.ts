@@ -7,10 +7,20 @@ const assets = vi.hoisted(() => ({
 
 vi.mock('pixi.js', () => ({ Assets: assets }));
 
+interface FakeSource {
+  pixelWidth: number;
+  pixelHeight: number;
+  autoGenerateMipmaps: boolean;
+  scaleMode: string;
+  update: () => void;
+  uploadMethodId?: string;
+  resource?: unknown;
+}
+
 interface FakeTexture {
   width: number;
   height: number;
-  source: { pixelWidth: number; pixelHeight: number; autoGenerateMipmaps: boolean; scaleMode: string; update: () => void };
+  source: FakeSource;
 }
 
 function fakeTexture(size: number): FakeTexture {
@@ -18,6 +28,24 @@ function fakeTexture(size: number): FakeTexture {
     width: size,
     height: size,
     source: { pixelWidth: size, pixelHeight: size, autoGenerateMipmaps: false, scaleMode: 'nearest', update: vi.fn() },
+  };
+}
+
+/** A background decoded from a video file, as PIXI's `VideoSource` presents it. */
+function fakeVideoTexture(width: number, height: number): FakeTexture {
+  const video = document.createElement('video');
+  return {
+    width,
+    height,
+    source: {
+      pixelWidth: width,
+      pixelHeight: height,
+      autoGenerateMipmaps: false,
+      scaleMode: 'nearest',
+      update: vi.fn(),
+      uploadMethodId: 'video',
+      resource: video,
+    },
   };
 }
 
@@ -46,6 +74,39 @@ describe('backgroundTextureCache', () => {
     expect(assets.load).toHaveBeenCalledTimes(1);
     expect(first.source.autoGenerateMipmaps).toBe(true);
     expect(first.source.scaleMode).toBe('linear');
+  });
+
+  it('never mipmaps an animated map, however small its frames', async () => {
+    const cache = await loadCache();
+    // Full HD is inside the mipmap threshold, so only the video check can keep them off
+    assets.load.mockImplementation(async () => fakeVideoTexture(1920, 1080));
+
+    const texture = await cache.acquire('animated.webm');
+
+    expect(texture.source.autoGenerateMipmaps).toBe(false);
+    expect(texture.source.scaleMode).toBe('linear');
+  });
+
+  it('recognises a video source by its element when the upload method is not set', async () => {
+    const cache = await loadCache();
+    assets.load.mockImplementation(async () => {
+      const texture = fakeVideoTexture(1280, 720);
+      delete texture.source.uploadMethodId;
+      return texture;
+    });
+
+    const texture = await cache.acquire('animated.mp4');
+
+    expect(texture.source.autoGenerateMipmaps).toBe(false);
+  });
+
+  it('loops an animated map, which PIXI would otherwise play once', async () => {
+    const cache = await loadCache();
+    assets.load.mockImplementation(async () => fakeVideoTexture(1920, 1080));
+
+    const texture = await cache.acquire('animated.webm');
+
+    expect((texture.source.resource as HTMLVideoElement).loop).toBe(true);
   });
 
   it('keeps a left map decoded while another map is open, so switching back skips decoding', async () => {

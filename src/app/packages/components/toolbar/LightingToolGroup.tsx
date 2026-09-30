@@ -2,12 +2,25 @@ import React, { useState } from "react"
 import { BrickWall, Flame, FlameKindling, Lamp, Lightbulb, MousePointer2, Pencil, Sparkles } from "lucide-react"
 import { useHotkeyLabels } from "../../../keyboard/useMapHotkeys"
 import { useAtlasStore } from "../../../react/ViewStoreContext"
-import type { LightPresetId } from "../../../lighting/lightPresets"
-import { DropdownModeSelector } from "../primitives/DropdownModeSelector"
+import { LIGHT_PRESETS, LIGHT_PRESET_IDS, type LightPresetId } from "../../../lighting/lightPresets"
+import { DropdownModeSelector, type ModeSelectorOption } from "../primitives/DropdownModeSelector"
 import { SceneLightingSection } from "./SceneLightingSection"
 import { ToolGroup, type ToolGroupControls } from "./ToolGroup"
 import { lightingToolFace } from "./toolFaces"
 import { useEmitViewEvent } from "./useEmitViewEvent"
+
+const PRESET_ICONS: Record<LightPresetId, ModeSelectorOption<LightPresetId>['icon']> = {
+  candle: Flame,
+  torch: FlameKindling,
+  lantern: Lamp,
+  magical: Sparkles,
+}
+
+const PRESET_OPTIONS: ModeSelectorOption<LightPresetId>[] = LIGHT_PRESET_IDS.map((id) => ({
+  value: id,
+  icon: PRESET_ICONS[id],
+  label: LIGHT_PRESETS[id].label,
+}))
 
 /** Walls, lights and the scene's lighting in one place. DM only, behind WALLS_AND_LIGHTING_ENABLED. */
 export function LightingToolGroup({ activeTool, selectTool, menuOpen, toggleMenu, closeMenu }: ToolGroupControls): React.ReactElement {
@@ -61,12 +74,7 @@ export function LightingToolGroup({ activeTool, selectTool, menuOpen, toggleMenu
         ) : (
           <DropdownModeSelector
             value={preset}
-            options={[
-              { value: 'candle' as const, icon: Flame, label: 'Candle' },
-              { value: 'torch' as const, icon: FlameKindling, label: 'Torch' },
-              { value: 'lantern' as const, icon: Lamp, label: 'Lantern' },
-              { value: 'magical' as const, icon: Sparkles, label: 'Magical light' },
-            ]}
+            options={PRESET_OPTIONS}
             onChange={(next) => {
               setPreset(next)
               emit('lighting-preset-changed', next)

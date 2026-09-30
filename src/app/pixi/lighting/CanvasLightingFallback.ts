@@ -3,7 +3,7 @@ import type { Viewport } from 'pixi-viewport';
 import type { ViewAtlasState, ViewAtlasStore } from '../../storeFactory';
 import type { MeasurementSettings } from '../../grid/measurementFormat';
 import { unitScaleOf } from '../../lighting/lightingUnits';
-import { SightCache, computeSight, sightSources, type LightReach, type Sight } from '../../vision/sight';
+import { SEES_ALL, SightCache, computeSight, sightSources, type LightReach, type Sight } from '../../vision/sight';
 import type { MapBounds } from '../../vision/visibility';
 import type { HideableLayer } from '../playerSafeFrame';
 import { destroyTree } from '../utils/destroyTree';
@@ -27,7 +27,7 @@ export class CanvasLightingFallback implements SceneLightingView {
   readonly modeLayer: HideableLayer;
   private readonly darkness = new Graphics();
   private readonly cache = new SightCache();
-  private sight: Sight = { all: true, polygons: [], darkvision: [] };
+  private sight: Sight = SEES_ALL;
   private capturing = false;
   private preview = false;
   private readonly unsubscribe: () => void;

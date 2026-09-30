@@ -2,7 +2,7 @@ import type { EventEmitter } from 'events';
 import type { App } from 'obsidian';
 import type { Application } from 'pixi.js';
 import type { Viewport } from 'pixi-viewport';
-import type { ViewAtlasStore } from '../../storeFactory';
+import type { MeasurementSettings } from '../../grid/measurementFormat';
 import { bindHoldHotkey } from '../../keyboard/holdHotkey';
 import { DEFAULT_MAP_HOTKEYS } from '../../keyboard/mapHotkeys';
 import { emissionOfPreset } from '../../lighting/lightEmissionForm';
@@ -10,6 +10,7 @@ import type { LightPresetId } from '../../lighting/lightPresets';
 import { AssetService } from '../../services/AssetService';
 import { mapMeasurementSettings } from '../../services/mapMeasurementSettings';
 import { SettingsService } from '../../services/SettingsService';
+import type { ViewAtlasStore } from '../../storeFactory';
 import { runHistoryTransaction } from '../../stores/history';
 import { WallTool, type WallToolMode, type WallToolSubMode } from '../../tools/WallTool';
 import type { Point } from '../../types/visionTypes';
@@ -17,15 +18,14 @@ import type { WallType } from '../../types/wallTypes';
 import type { MapBounds } from '../../vision/visibility';
 import type { HideableLayer } from '../playerSafeFrame';
 import type { TokenRenderer } from '../TokenRenderer';
+import { usesCanvasRenderer } from '../utils/rendererType';
 import { WallInteraction } from '../vision/WallInteraction';
 import { WallRenderer } from '../vision/WallRenderer';
+import { CanvasLightingFallback } from './CanvasLightingFallback';
 import { DoorIcons } from './DoorIcons';
 import { showWallMenu, type LightingMenuContext } from './lightingMenus';
 import { LightingRenderer } from './LightingRenderer';
-import { CanvasLightingFallback } from './CanvasLightingFallback';
 import type { SceneLightingView } from './sceneLightingView';
-import { usesCanvasRenderer } from '../utils/rendererType';
-import type { MeasurementSettings } from '../../grid/measurementFormat';
 import { WallDrawingSession } from './WallDrawingSession';
 import { splitWall } from './wallEdits';
 
@@ -75,7 +75,7 @@ export class LightingController {
     const settings = SettingsService.forApp(obsApp);
     this.cleanups.push(bindHoldHotkey(window, () => (settings?.getHotkeys() ?? DEFAULT_MAP_HOTKEYS).lightingPeek, deps.viewId, (held) => {
       this.peeking = held;
-      this.renderer.setPreview(this.peeking || this.previewing);
+      this.applyPreview();
     }));
     this.cleanups.push(store.subscribe((state, previous) => {
       if (state.activeTool !== previous.activeTool || state.lighting.enabled !== previous.lighting.enabled) this.syncTool();
@@ -147,6 +147,10 @@ export class LightingController {
     return { x: canvas.left + screen.x, y: canvas.top + screen.y };
   }
 
+  private applyPreview(): void {
+    this.renderer.setPreview(this.peeking || this.previewing);
+  }
+
   private syncTool(): void {
     const state = this.deps.store.getState();
     const active = state.activeTool === 'wall';
@@ -170,7 +174,7 @@ export class LightingController {
     on('lighting-preset-changed', (preset: LightPresetId) => this.tool.setLightPreset(preset));
     on('lighting-preview', (preview: boolean) => {
       this.previewing = preview;
-      this.renderer.setPreview(this.peeking || this.previewing);
+      this.applyPreview();
     });
     on('lighting-reset-explored', () => this.renderer.resetExplored());
     on('wall-chain-start', (point: Point) => {

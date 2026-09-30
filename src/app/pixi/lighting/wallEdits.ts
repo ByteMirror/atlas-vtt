@@ -1,5 +1,6 @@
 import type { Point } from '../../types/visionTypes';
 import type { WallInput, WallSegment } from '../../types/wallTypes';
+import { distSqToSegment } from '../../vision/visionGeometry';
 
 /** Splits never leave a piece shorter than this share of the wall. */
 const MIN_SPLIT_SHARE = 0.05;
@@ -17,14 +18,6 @@ export function splitWall(wall: WallSegment, at: Point): [WallInput, WallInput] 
   return [{ ...shared, p1, p2: split }, { ...shared, p1: split, p2 }];
 }
 
-function distanceToSegment(point: Point, a: Point, b: Point): number {
-  const dx = b.x - a.x;
-  const dy = b.y - a.y;
-  const lengthSq = dx * dx + dy * dy;
-  const t = lengthSq === 0 ? 0 : Math.max(0, Math.min(1, ((point.x - a.x) * dx + (point.y - a.y) * dy) / lengthSq));
-  return Math.hypot(point.x - (a.x + t * dx), point.y - (a.y + t * dy));
-}
-
 /** Ramer–Douglas–Peucker: the fewest points that stay within `tolerance` of a freehand stroke. */
 export function simplifyStroke(points: readonly Point[], tolerance: number): Point[] {
   if (points.length <= 2) return [...points];
@@ -33,7 +26,7 @@ export function simplifyStroke(points: readonly Point[], tolerance: number): Poi
   let farthest = 0;
   let farthestIndex = 0;
   for (let i = 1; i < points.length - 1; i++) {
-    const distance = distanceToSegment(points[i]!, first, last);
+    const distance = Math.sqrt(distSqToSegment(points[i]!, first, last));
     if (distance > farthest) {
       farthest = distance;
       farthestIndex = i;

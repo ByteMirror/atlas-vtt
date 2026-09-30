@@ -10,7 +10,7 @@ export interface FlickerSample {
   jitterY: number;
 }
 
-const STEADY: FlickerSample = { intensity: 1, radiusScale: 1, jitterX: 0, jitterY: 0 };
+export const STEADY: FlickerSample = { intensity: 1, radiusScale: 1, jitterX: 0, jitterY: 0 };
 
 /** A random walk channel: its range and how much of the previous value each step keeps. */
 interface Channel { min: number; max: number; keep: number }
@@ -50,7 +50,7 @@ export class LightFlicker {
   sample(id: string, animation: LightAnimation, timeMs: number): FlickerSample {
     if (animation === 'none') return STEADY;
     if (animation === 'pulse') {
-      return { intensity: 1 + 0.15 * Math.sin((timeMs * 2 * Math.PI) / 2000), radiusScale: 1, jitterX: 0, jitterY: 0 };
+      return { ...STEADY, intensity: 1 + 0.15 * Math.sin((timeMs * 2 * Math.PI) / 2000) };
     }
     const profile = WALKS[animation]!;
     const [intensity, radius, jx, jy] = this.walk(id, profile, timeMs);

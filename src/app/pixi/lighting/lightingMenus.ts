@@ -8,15 +8,14 @@ export interface LightingMenuContext {
   walls: WallInteraction;
   wallRenderer: WallRenderer;
   /** Opens the light's settings next to the given screen point. */
-  configureLight?: (lightId: string, screenX: number, screenY: number) => void;
+  configureLight: (lightId: string, screenX: number, screenY: number) => void;
 }
 
 export function showLightMenu(context: LightingMenuContext, lightId: string, screenX: number, screenY: number): void {
   const light = context.store.getState().objects.lights[lightId];
   if (!light) return;
-  const { configureLight } = context;
   const entries: ContextMenuEntry[] = [
-    ...(configureLight ? [{ type: 'item' as const, label: 'Configure light…', icon: 'settings', onClick: () => configureLight(lightId, screenX, screenY) }] : []),
+    { type: 'item', label: 'Configure light…', icon: 'settings', onClick: () => context.configureLight(lightId, screenX, screenY) },
     {
       type: 'item',
       label: light.hidden ? 'Turn on' : 'Turn off',

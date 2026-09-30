@@ -15,7 +15,7 @@ export class ExploredTexture {
   private readonly scale: number;
   private readonly painter = new Graphics();
 
-  constructor(private readonly renderer: Renderer, private readonly bounds: MapBounds) {
+  constructor(private readonly renderer: Renderer, bounds: MapBounds) {
     this.scale = Math.min(1, MAX_TEXELS / Math.max(bounds.width, bounds.height, 1));
     this.texture = RenderTexture.create({
       width: Math.max(1, Math.ceil(bounds.width * this.scale)),
@@ -23,11 +23,6 @@ export class ExploredTexture {
     });
     this.painter.blendMode = 'max';
     this.clear();
-  }
-
-  /** Map-pixel to texture-coordinate transform, to be combined with the screen-to-world one. */
-  worldToUv(): Matrix {
-    return new Matrix().scale(1 / Math.max(1, this.bounds.width), 1 / Math.max(1, this.bounds.height));
   }
 
   add(sight: Sight): void {

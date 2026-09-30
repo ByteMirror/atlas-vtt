@@ -8,7 +8,6 @@ export interface CompositeFilter {
   filter: Filter;
   setAmbient(level: number, color: string | undefined): void;
   setMode(mode: LightingMode): void;
-  getMode(): LightingMode;
   /** No token has vision: line of sight hides nothing. */
   setAllSeen(all: boolean): void;
   setExplored(texture: Texture): void;
@@ -89,9 +88,6 @@ export function createCompositeFilter(explored: Texture): CompositeFilter {
     setMode(mode): void {
       uniforms.uMode = mode === 'player' ? 1 : 0;
       update();
-    },
-    getMode(): LightingMode {
-      return uniforms.uMode > 0.5 ? 'player' : 'gm';
     },
     setAllSeen(all): void {
       uniforms.uAllSeen = all ? 1 : 0;

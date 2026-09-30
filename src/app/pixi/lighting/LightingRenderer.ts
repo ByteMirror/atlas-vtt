@@ -3,7 +3,7 @@ import type { Viewport } from 'pixi-viewport';
 import type { ViewAtlasState, ViewAtlasStore } from '../../storeFactory';
 import type { MeasurementSettings } from '../../grid/measurementFormat';
 import { unitScaleOf, type UnitScale } from '../../lighting/lightingUnits';
-import { SightCache, computeSight, sightSources, type LightReach, type Sight } from '../../vision/sight';
+import { SEES_ALL, SightCache, computeSight, sightSources, type LightReach, type Sight } from '../../vision/sight';
 import type { MapBounds } from '../../vision/visibility';
 import type { HideableLayer } from '../playerSafeFrame';
 import { requestRender } from '../RenderScheduler';
@@ -46,7 +46,7 @@ export class LightingRenderer implements SceneLightingView {
   private readonly sightCache = new SightCache();
   private explored: ExploredTexture | null = null;
   private exploredBounds: MapBounds | null = null;
-  private sight: Sight = { all: true, polygons: [], darkvision: [] };
+  private sight: Sight = SEES_ALL;
   private previous: Watched | null = null;
   private loadedMask: string | null = null;
   private saveTimer: number | null = null;

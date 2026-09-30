@@ -23,6 +23,9 @@ export interface Sight {
   darkvision: Polygon[];
 }
 
+/** Sight of a viewer without a vision token: line of sight hides nothing. */
+export const SEES_ALL: Sight = { all: true, polygons: [], darkvision: [] };
+
 /** The area a light illuminates, for deciding on the CPU whether a point is lit. */
 export interface LightReach {
   origin: Point;
@@ -82,7 +85,7 @@ function sameSource(a: SightSource, b: SightSource): boolean {
 }
 
 export function computeSight(sources: readonly SightSource[], walls: readonly WallSegment[], cache: SightCache = new SightCache()): Sight {
-  if (sources.length === 0) return { all: true, polygons: [], darkvision: [] };
+  if (sources.length === 0) return SEES_ALL;
   cache.retain(new Set(sources.map((source) => source.tokenId)));
   const entries = sources.map((source) => cache.get(source, walls));
   return {

@@ -51,6 +51,15 @@ export function distSq(a: Point, b: Point): number {
   return dx * dx + dy * dy;
 }
 
+/** Distance squared from `point` to the nearest point of segment `a`–`b`. */
+export function distSqToSegment(point: Point, a: Point, b: Point): number {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const lengthSq = dx * dx + dy * dy;
+  const t = lengthSq === 0 ? 0 : Math.max(0, Math.min(1, ((point.x - a.x) * dx + (point.y - a.y) * dy) / lengthSq));
+  return distSq(point, { x: a.x + t * dx, y: a.y + t * dy });
+}
+
 /** Angle from origin to point in radians [-PI, PI]. */
 export function angleTo(origin: Point, target: Point): number {
   return Math.atan2(target.y - origin.y, target.x - origin.x);

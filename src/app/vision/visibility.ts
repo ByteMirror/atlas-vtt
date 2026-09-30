@@ -1,6 +1,6 @@
 import type { Point } from '../types/visionTypes';
 import type { WallSegment } from '../types/wallTypes';
-import { angleTo, distSq, isOnBlockingSide, raySegmentIntersect } from './visionGeometry';
+import { angleTo, distSqToSegment, isOnBlockingSide, raySegmentIntersect } from './visionGeometry';
 
 export type Polygon = Point[];
 
@@ -19,17 +19,10 @@ export function blocksFrom(wall: WallSegment, origin: Point): boolean {
   return !wall.direction || isOnBlockingSide(origin, wall.p1, wall.p2, wall.direction);
 }
 
-function closestDistSq(origin: Point, wall: WallSegment): number {
-  const dx = wall.p2.x - wall.p1.x;
-  const dy = wall.p2.y - wall.p1.y;
-  const t = Math.max(0, Math.min(1, ((origin.x - wall.p1.x) * dx + (origin.y - wall.p1.y) * dy) / (dx * dx + dy * dy)));
-  return distSq(origin, { x: wall.p1.x + t * dx, y: wall.p1.y + t * dy });
-}
-
 /** Walls that block from `origin` and come within `radius` of it. */
 export function wallsInReach(walls: readonly WallSegment[], origin: Point, radius: number): WallSegment[] {
   const radiusSq = radius * radius;
-  return walls.filter((wall) => blocksFrom(wall, origin) && closestDistSq(origin, wall) <= radiusSq);
+  return walls.filter((wall) => blocksFrom(wall, origin) && distSqToSegment(origin, wall.p1, wall.p2) <= radiusSq);
 }
 
 /**

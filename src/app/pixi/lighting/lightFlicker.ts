@@ -50,12 +50,9 @@ export class LightFlicker {
       return { ...STEADY, intensity: 1 + 0.15 * Math.sin((timeMs * 2 * Math.PI) / 2000) };
     }
     const profile = WALKS[animation]!;
-    const [intensity, radius] = this.walk(id, profile, timeMs);
-    const breathing = animation === 'magic' ? 1 + 0.1 * Math.sin(timeMs / 700) + 0.05 * Math.sin(timeMs / 230) : channelValue(profile.intensity, intensity!);
-    return {
-      intensity: breathing,
-      radiusScale: channelValue(profile.radius, radius!),
-    };
+    const [intensityWalk, radiusWalk] = this.walk(id, profile, timeMs);
+    const intensity = animation === 'magic' ? magicBreathing(timeMs) : channelValue(profile.intensity, intensityWalk!);
+    return { intensity, radiusScale: channelValue(profile.radius, radiusWalk!) };
   }
 
   forget(id: string): void {
@@ -89,4 +86,8 @@ export class LightFlicker {
 
 function channelValue(channel: Channel, walk: number): number {
   return channel.min + ((walk + 1) / 2) * (channel.max - channel.min);
+}
+
+function magicBreathing(timeMs: number): number {
+  return 1 + 0.1 * Math.sin(timeMs / 700) + 0.05 * Math.sin(timeMs / 230);
 }

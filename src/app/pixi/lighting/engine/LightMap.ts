@@ -1,8 +1,8 @@
-import { Container, Mesh, Shader, UniformGroup, type Geometry, type Renderer, type RenderTexture } from 'pixi.js';
+import { Container, Mesh, UniformGroup, type Geometry, type Renderer, type RenderTexture, type Shader } from 'pixi.js';
 import { FALLOFF_HEIGHT, HALO } from '../../../lighting/lightingConstants';
 import type { MapBounds } from '../../../vision/visibility';
 import { GLSL_VERSION } from './glsl';
-import { createQuad, createTarget, quadGeometry, renderInto, type Quad } from './gpu';
+import { createPlaceholder, createQuad, createShader, createTarget, destroyQuad, quadGeometry, renderInto, type Quad } from './gpu';
 import type { Tile } from './TileCache';
 
 const vertex = `${GLSL_VERSION}
@@ -80,7 +80,7 @@ export class LightMap {
   private readonly quad: Quad = createQuad();
   private readonly geometry: Geometry = quadGeometry(this.quad);
   /** Bound to idle slots, so no slot keeps a tile texture its owner may destroy. */
-  private readonly placeholder: RenderTexture = createTarget(1, 1, 'r8unorm', 'nearest');
+  private readonly placeholder: RenderTexture = createPlaceholder();
 
   constructor(private readonly renderer: Renderer, bounds: MapBounds, private readonly texel: number) {
     this.texture = createTarget(bounds.width / texel, bounds.height / texel, 'rgba16float');
@@ -124,10 +124,7 @@ export class LightMap {
       uHaloSize: { value: HALO.size, type: 'f32' },
       uTexel: { value: this.texel, type: 'f32' },
     });
-    const shader = Shader.from({
-      gl: { vertex, fragment, name: 'atlas-light-map', preferredFragmentPrecision: 'highp' },
-      resources: { lightUniforms: uniforms, uTile: this.placeholder.source },
-    });
+    const shader = createShader(vertex, fragment, 'atlas-light-map', { lightUniforms: uniforms, uTile: this.placeholder.source });
     const mesh = new Mesh({ geometry: this.geometry, shader });
     mesh.blendMode = 'add';
     this.scene.addChild(mesh);
@@ -140,8 +137,7 @@ export class LightMap {
       mesh.destroy();
     }
     this.geometry.destroy();
-    this.quad.vertices.destroy();
-    this.quad.indices.destroy();
+    destroyQuad(this.quad);
     this.placeholder.destroy(true);
     this.texture.destroy(true);
   }

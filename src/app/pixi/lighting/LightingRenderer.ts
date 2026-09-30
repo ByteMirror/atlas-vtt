@@ -16,6 +16,7 @@ import { ExploredTexture } from './ExploredTexture';
 import { saveExploredMask } from './exploredMaskSaving';
 import { LightReaches } from './lightReaches';
 import { activeLights, engineLight } from './lightSources';
+import { PlayerView } from './PlayerView';
 import { ExploredSaveScheduler } from './ExploredSaveScheduler';
 import type { SceneLightingView } from './sceneLightingView';
 
@@ -59,8 +60,7 @@ export class LightingRenderer implements SceneLightingView {
   private lastScene: SceneWithoutAmbient | null = null;
   private loadedMask: string | null = null;
   private readonly exploredSaver: ExploredSaveScheduler;
-  private preview = false;
-  private capturing = false;
+  private readonly playerView = new PlayerView((active) => this.engine.setMode(active ? 'player' : 'gm'));
   private readonly unsubscribe: () => void;
   private readonly tick = (): void => this.animate();
 
@@ -71,15 +71,7 @@ export class LightingRenderer implements SceneLightingView {
     this.layer.zIndex = LIGHTING_Z_INDEX;
     this.layer.onRender = (): void => this.syncScreenTransform();
     deps.viewport.addChild(this.layer);
-    const isCapturing = (): boolean => this.capturing;
-    const setCapturing = (player: boolean): void => {
-      this.capturing = player;
-      this.applyMode();
-    };
-    this.modeLayer = {
-      get visible(): boolean { return isCapturing(); },
-      set visible(player: boolean) { setCapturing(player); },
-    };
+    this.modeLayer = this.playerView;
     this.unsubscribe = deps.store.subscribe((state) => this.update(state));
     deps.app.ticker.add(this.tick);
     this.update(deps.store.getState());
@@ -87,8 +79,7 @@ export class LightingRenderer implements SceneLightingView {
 
   /** Shows the GM exactly what the players see. */
   setPreview(on: boolean): void {
-    this.preview = on;
-    this.applyMode();
+    this.playerView.setPreview(on);
     requestRender(this.deps.app);
   }
 
@@ -193,10 +184,6 @@ export class LightingRenderer implements SceneLightingView {
     this.explored?.clear();
     this.loadedMask = null;
     this.previous = null;
-  }
-
-  private applyMode(): void {
-    this.engine.setMode(this.capturing || this.preview ? 'player' : 'gm');
   }
 
   /** The composite maps screen pixels to the world with the camera of the frame being rendered. */

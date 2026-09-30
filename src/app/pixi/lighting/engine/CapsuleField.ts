@@ -1,8 +1,8 @@
-import { Buffer, BufferUsage, Container, Geometry, Mesh, Shader, UniformGroup, type Renderer, type RenderTexture, type TextureSource } from 'pixi.js';
+import { Buffer, BufferUsage, Container, Geometry, Mesh, UniformGroup, type Renderer, type RenderTexture, type Shader, type TextureSource } from 'pixi.js';
 import { FIELD_MAX, fieldMargin } from '../../../lighting/lightingConstants';
-import type { Seg } from '../../../lighting/segments';
+import type { Rect, Seg } from '../../../lighting/segments';
 import { GLSL_VERSION } from './glsl';
-import { createQuad, createTarget, HIGHP, quadGeometry, renderInto, type Quad, type Rect } from './gpu';
+import { createQuad, createShader, createTarget, destroyQuad, quadGeometry, renderInto, type Quad } from './gpu';
 
 const vertex = `${GLSL_VERSION}
 in vec2 aPosition;
@@ -60,10 +60,7 @@ export class CapsuleField {
       [`${name}Rect`]: { value: new Float32Array(covered), type: 'vec4<f32>' },
       [`${name}Params`]: { value: new Float32Array([fieldMargin(texel), wallRadius]), type: 'vec2<f32>' },
     });
-    this.shader = Shader.from({
-      gl: { vertex, fragment, name: 'atlas-capsule-field', preferredFragmentPrecision: HIGHP },
-      resources: { fieldBuild: this.buildUniforms },
-    });
+    this.shader = createShader(vertex, fragment, 'atlas-capsule-field', { fieldBuild: this.buildUniforms });
     this.initialGeometry = quadGeometry(this.quad);
     this.mesh = new Mesh({ geometry: this.initialGeometry, shader: this.shader });
     this.mesh.blendMode = 'min';
@@ -107,8 +104,7 @@ export class CapsuleField {
     this.empty.destroy();
     this.releaseBuilt();
     this.initialGeometry.destroy();
-    this.quad.vertices.destroy();
-    this.quad.indices.destroy();
+    destroyQuad(this.quad);
     this.shader.destroy();
     this.texture.destroy(true);
   }

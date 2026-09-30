@@ -2,7 +2,7 @@ import type { Renderer, RenderTexture } from 'pixi.js';
 import type { WallSegment } from '../../../types/wallTypes';
 import { LIGHT_REACH, TILE_MARGIN, wallRadius } from '../../../lighting/lightingConstants';
 import { placeLight } from '../../../lighting/lightPlacement';
-import { segOf, splitBlocking, type Rect } from '../../../lighting/segments';
+import { allSegments, segOf, splitBlocking, type BlockingWalls, type Rect } from '../../../lighting/segments';
 import { blocksFrom } from '../../../vision/visibility';
 import { CapsuleField } from './CapsuleField';
 import { TileTracer } from './TileTracer';
@@ -65,15 +65,15 @@ export class TileCache {
     return dirty;
   }
 
-  private build(light: EngineLight, { twoWay, oneWay }: ReturnType<typeof splitBlocking>): Tile | null {
+  private build(light: EngineLight, blocking: BlockingWalls): Tile | null {
     const { texel } = this.field;
-    const placed = placeLight(light.x, light.y, light.flame, [...twoWay, ...oneWay.map(segOf)], texel);
+    const placed = placeLight(light.x, light.y, light.flame, allSegments(blocking), texel);
     if (!placed) return null;
     const half = light.dim * LIGHT_REACH * TILE_MARGIN;
     const x0 = Math.floor((placed.x - half) / texel) * texel, y0 = Math.floor((placed.y - half) / texel) * texel;
     const x1 = Math.ceil((placed.x + half) / texel) * texel, y1 = Math.ceil((placed.y + half) / texel) * texel;
     const rect: Rect = [x0, y0, x1 - x0, y1 - y0];
-    const blockingOneWay = oneWay.filter((wall) => blocksFrom(wall, placed));
+    const blockingOneWay = blocking.oneWay.filter((wall) => blocksFrom(wall, placed));
     let oneWayField: CapsuleField | null = null;
     if (blockingOneWay.length > 0) {
       oneWayField = new CapsuleField(this.renderer, rect, texel, wallRadius(texel), 'uOneWay');

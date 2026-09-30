@@ -10,6 +10,7 @@ import type { MapBounds } from '../../vision/visibility';
 import type { HideableLayer } from '../playerSafeFrame';
 import { destroyTree } from '../utils/destroyTree';
 import { LIGHTING_Z_INDEX } from './LightingRenderer';
+import { PlayerView } from './PlayerView';
 import type { SceneLightingView } from './sceneLightingView';
 
 export interface CanvasLightingDeps {
@@ -30,29 +31,20 @@ export class CanvasLightingFallback implements SceneLightingView {
   private readonly darkness = new Graphics();
   private readonly cache = new SightCache();
   private sight: Sight = SEES_ALL;
-  private capturing = false;
-  private preview = false;
+  private readonly playerView = new PlayerView((active) => { this.darkness.visible = active; });
   private readonly unsubscribe: () => void;
 
   constructor(private readonly deps: CanvasLightingDeps) {
     this.darkness.zIndex = LIGHTING_Z_INDEX;
     this.darkness.eventMode = 'none';
     deps.viewport.addChild(this.darkness);
-    const isCapturing = (): boolean => this.capturing;
-    const setCapturing = (player: boolean): void => {
-      this.capturing = player;
-      this.applyVisibility();
-    };
-    this.modeLayer = {
-      get visible(): boolean { return isCapturing(); },
-      set visible(player: boolean) { setCapturing(player); },
-    };
+    this.modeLayer = this.playerView;
     this.unsubscribe = deps.store.subscribe((state) => this.update(state));
     this.update(deps.store.getState());
   }
 
   isEnabled(): boolean { return this.deps.store.getState().lighting.enabled; }
-  setPreview(on: boolean): void { this.preview = on; this.applyVisibility(); }
+  setPreview(on: boolean): void { this.playerView.setPreview(on); }
   currentSight(): Sight { return this.sight; }
   lightReaches(): LightReach[] { return []; }
   ambient(): number { return 1; }
@@ -75,11 +67,7 @@ export class CanvasLightingFallback implements SceneLightingView {
     for (const polygon of this.sight.polygons) {
       if (polygon.length >= 3) g.poly(polygon.flatMap((p) => [p.x, p.y])).cut();
     }
-    this.applyVisibility();
-  }
-
-  private applyVisibility(): void {
-    this.darkness.visible = this.capturing || this.preview;
+    this.darkness.visible = this.playerView.active;
   }
 
   destroy(): void {

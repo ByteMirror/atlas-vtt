@@ -26,22 +26,33 @@ export function crosses(px: number, py: number, qx: number, qy: number, [ax, ay,
   return t > 1e-6 && t <= 1 && u >= 0 && u <= 1;
 }
 
-function isOpenDoor(wall: WallSegment): boolean {
-  return (wall.type === 'door' || wall.type === 'secret-door') && !(wall.closed ?? true);
+/** Open doors and walls shrunk to a point block nothing. */
+export function blocksNothing(wall: WallSegment): boolean {
+  const openDoor = (wall.type === 'door' || wall.type === 'secret-door') && !(wall.closed ?? true);
+  return openDoor || (wall.p1.x === wall.p2.x && wall.p1.y === wall.p2.y);
+}
+
+export interface BlockingWalls {
+  twoWay: Seg[];
+  oneWay: WallSegment[];
 }
 
 /**
  * Walls that block light: two-way ones as segments for the shared field, one-way ones kept
- * whole because whether they block depends on where the light is. Open doors and walls
- * shrunk to a point block nothing.
+ * whole because whether they block depends on where the light is.
  */
-export function splitBlocking(walls: readonly WallSegment[]): { twoWay: Seg[]; oneWay: WallSegment[] } {
+export function splitBlocking(walls: readonly WallSegment[]): BlockingWalls {
   const twoWay: Seg[] = [];
   const oneWay: WallSegment[] = [];
   for (const wall of walls) {
-    if (isOpenDoor(wall) || (wall.p1.x === wall.p2.x && wall.p1.y === wall.p2.y)) continue;
+    if (blocksNothing(wall)) continue;
     if (wall.direction) oneWay.push(wall);
     else twoWay.push(segOf(wall));
   }
   return { twoWay, oneWay };
+}
+
+/** Every blocking wall as a segment, for what treats one-way walls as blocking both ways. */
+export function allSegments({ twoWay, oneWay }: BlockingWalls): Seg[] {
+  return [...twoWay, ...oneWay.map(segOf)];
 }

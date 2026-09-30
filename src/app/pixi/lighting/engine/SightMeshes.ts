@@ -1,10 +1,11 @@
-import { Buffer, BufferImageSource, BufferUsage, Container, Geometry, Mesh, Shader, UniformGroup } from 'pixi.js';
+import { Buffer, BufferImageSource, BufferUsage, Container, Geometry, Mesh, UniformGroup, type Shader } from 'pixi.js';
 import type { Point } from '../../../types/visionTypes';
 import type { Sight } from '../../../vision/sight';
-import { sightWedges } from '../../../vision/sightWedges';
+import { sightWedges, type SightWedge } from '../../../vision/sightWedges';
 import type { Polygon } from '../../../vision/visibility';
 import { destroyTree } from '../../utils/destroyTree';
 import { DISC_SHARE_GLSL, GLSL_VERSION } from './glsl';
+import { createShader } from './gpu';
 
 /** Wedges a fragment tests at most; more corners than this per token stay hard. */
 const MAX_WEDGES = 256;
@@ -74,37 +75,13 @@ export class SightMeshes {
   private add(polygon: Polygon, origin: Point, radius: number, channel: Channel): void {
     if (polygon.length < 3) return;
     const wedges = sightWedges(origin, polygon, radius).slice(0, MAX_WEDGES);
-    const count = Math.max(1, wedges.length);
-    const data = new Float32Array(count * 2 * 4);
-    wedges.forEach((w, i) => {
-      data.set([w.a.x, w.a.y, w.e.x, w.e.y], i * 4);
-      data.set([w.side, w.phi, 0, 0], (count + i) * 4);
-    });
-    const positions = new Float32Array([origin.x, origin.y, ...polygon.flatMap((p) => [p.x, p.y])]);
-    const indices: number[] = [];
-    for (let i = 1; i <= polygon.length; i++) indices.push(0, i, (i % polygon.length) + 1);
-    const geometry = new Geometry({
-      attributes: { aPosition: { buffer: new Buffer({ data: positions, usage: BufferUsage.VERTEX }), format: 'float32x2' } },
-      indexBuffer: new Buffer({ data: new Uint32Array(indices), usage: BufferUsage.INDEX }),
-    });
-    // Premultiplying on upload is invalid for float data and leaves the texture empty.
-    const wedgeSource = new BufferImageSource({
-      resource: data,
-      width: count,
-      height: 2,
-      format: 'rgba32float',
-      scaleMode: 'nearest',
-      alphaMode: 'no-premultiply-alpha',
-    });
+    const wedgeSource = wedgeTexture(wedges);
     const uniforms = new UniformGroup({
       uWedgeCount: { value: wedges.length, type: 'i32' },
       uChannel: { value: new Float32Array(channel), type: 'vec4<f32>' },
     });
-    const shader = Shader.from({
-      gl: { vertex, fragment, name: 'atlas-sight', preferredFragmentPrecision: 'highp' },
-      resources: { sightUniforms: uniforms, uWedges: wedgeSource },
-    });
-    const mesh = new Mesh({ geometry, shader });
+    const shader = createShader(vertex, fragment, 'atlas-sight', { sightUniforms: uniforms, uWedges: wedgeSource });
+    const mesh = new Mesh({ geometry: fanGeometry(origin, polygon), shader });
     mesh.blendMode = 'max';
     this.view.addChild(mesh);
     this.meshes.push({ mesh, wedges: wedgeSource });
@@ -125,4 +102,33 @@ export class SightMeshes {
     this.clear();
     destroyTree(this.view);
   }
+}
+
+/** Two rows of `rgba32float` texels, one column per wedge: corner and edge, then side and angle. */
+function wedgeTexture(wedges: readonly SightWedge[]): BufferImageSource {
+  const count = Math.max(1, wedges.length);
+  const data = new Float32Array(count * 2 * 4);
+  wedges.forEach((w, i) => {
+    data.set([w.a.x, w.a.y, w.e.x, w.e.y], i * 4);
+    data.set([w.side, w.phi, 0, 0], (count + i) * 4);
+  });
+  // Premultiplying on upload is invalid for float data and leaves the texture empty.
+  return new BufferImageSource({
+    resource: data,
+    width: count,
+    height: 2,
+    format: 'rgba32float',
+    scaleMode: 'nearest',
+    alphaMode: 'no-premultiply-alpha',
+  });
+}
+
+function fanGeometry(origin: Point, polygon: Polygon): Geometry {
+  const positions = new Float32Array([origin.x, origin.y, ...polygon.flatMap((p) => [p.x, p.y])]);
+  const indices: number[] = [];
+  for (let i = 1; i <= polygon.length; i++) indices.push(0, i, (i % polygon.length) + 1);
+  return new Geometry({
+    attributes: { aPosition: { buffer: new Buffer({ data: positions, usage: BufferUsage.VERTEX }), format: 'float32x2' } },
+    indexBuffer: new Buffer({ data: new Uint32Array(indices), usage: BufferUsage.INDEX }),
+  });
 }

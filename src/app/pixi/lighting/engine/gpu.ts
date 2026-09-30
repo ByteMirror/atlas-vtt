@@ -1,6 +1,4 @@
-import { Buffer, BufferUsage, Geometry, RenderTexture, type Container, type Renderer, type TEXTURE_FORMATS } from 'pixi.js';
-
-export type { Rect } from '../../../lighting/segments';
+import { Buffer, BufferUsage, Geometry, RenderTexture, Shader, type Container, type Renderer, type TextureSource, type TEXTURE_FORMATS, type UniformGroup } from 'pixi.js';
 
 export const HIGHP = 'highp';
 
@@ -30,8 +28,22 @@ export function createQuad(): Quad {
   };
 }
 
+export function destroyQuad(quad: Quad): void {
+  quad.vertices.destroy();
+  quad.indices.destroy();
+}
+
 export function quadGeometry(quad: Quad): Geometry {
   return new Geometry({ attributes: { aPosition: { buffer: quad.vertices, format: 'float32x2' } }, indexBuffer: quad.indices });
+}
+
+/** A 1 px target bound in place of textures another object owns, so a shader never keeps one. */
+export function createPlaceholder(): RenderTexture {
+  return createTarget(1, 1, 'r8unorm', 'nearest');
+}
+
+export function createShader(vertex: string, fragment: string, name: string, resources: Record<string, UniformGroup | TextureSource>): Shader {
+  return Shader.from({ gl: { vertex, fragment, name, preferredFragmentPrecision: HIGHP }, resources });
 }
 
 /** Renders `container` into `target` outside the stage's render, like `ExploredTexture` does. */

@@ -2,7 +2,7 @@ import type { Renderer, Texture } from 'pixi.js';
 import type { WallSegment } from '../../../types/wallTypes';
 import { BOUNCE, LIGHT_REACH, fieldMargin, wallRadius, worldTexel } from '../../../lighting/lightingConstants';
 import { changedWallRects } from '../../../lighting/wallChanges';
-import { segOf, splitBlocking, type Rect } from '../../../lighting/segments';
+import { allSegments, splitBlocking, type Rect } from '../../../lighting/segments';
 import type { MapBounds } from '../../../vision/visibility';
 import { LightFlicker, STEADY, type FlickerSample } from '../lightFlicker';
 import { CapsuleField } from './CapsuleField';
@@ -122,12 +122,12 @@ export class LightingWorld {
   }
 
   private rebuildFields(walls: readonly WallSegment[]): void {
-    const { twoWay, oneWay } = splitBlocking(walls);
-    this.field.build(twoWay);
-    this.hasOneWay = oneWay.length > 0;
+    const blocking = splitBlocking(walls);
+    this.field.build(blocking.twoWay);
+    this.hasOneWay = blocking.oneWay.length > 0;
     if (!this.hasOneWay) return;
     this.allField ??= this.createField();
-    this.allField.build([...twoWay, ...oneWay.map(segOf)]);
+    this.allField.build(allSegments(blocking));
   }
 
   private forgetRemoved(lights: readonly EngineLight[]): void {

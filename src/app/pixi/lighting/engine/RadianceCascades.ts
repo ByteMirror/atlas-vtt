@@ -1,15 +1,17 @@
-import { Mesh, Shader, TextureSource, UniformGroup, type Geometry, type Renderer, type RenderTexture, type Texture } from 'pixi.js';
+import { Mesh, TextureSource, UniformGroup, type Geometry, type Renderer, type RenderTexture, type Shader, type Texture } from 'pixi.js';
 import { BOUNCE } from '../../../lighting/lightingConstants';
 import type { MapBounds } from '../../../vision/visibility';
 import type { CapsuleField } from './CapsuleField';
 import { cascadeFragment, cascadeVertex, emissionFragment, resolveFragment } from './cascadeShaders';
-import { createQuad, createTarget, HIGHP, quadGeometry, renderInto, type Quad } from './gpu';
+import { createPlaceholder, createQuad, createShader, createTarget, destroyQuad, quadGeometry, renderInto, type Quad } from './gpu';
 import type { LightMap } from './LightMap';
 
 type Pass = Mesh<Geometry, Shader>;
 
 /** Where cascade `i`'s intervals start; each is four times longer than the last. */
-const intervalStart = (i: number): number => (BOUNCE.interval * (4 ** i - 1)) / 3;
+function intervalStart(i: number): number {
+  return (BOUNCE.interval * (4 ** i - 1)) / 3;
+}
 
 /**
  * World-space Radiance Cascades over the wall field, from the light map (see `cascadeShaders`):
@@ -23,7 +25,7 @@ export class RadianceCascades {
   private readonly cascades: RenderTexture[];
   private readonly counts: Array<readonly [number, number]>;
   /** Bound in place of textures other objects own, so none is kept after a build. */
-  private readonly placeholder: RenderTexture = createTarget(1, 1, 'r8unorm', 'nearest');
+  private readonly placeholder: RenderTexture = createPlaceholder();
   private readonly emissionUniforms: UniformGroup;
   private readonly cascadeUniforms: UniformGroup;
   private readonly upCount = new Float32Array(2);
@@ -109,8 +111,7 @@ export class RadianceCascades {
       pass.destroy();
     }
     this.geometry.destroy();
-    this.quad.vertices.destroy();
-    this.quad.indices.destroy();
+    destroyQuad(this.quad);
     for (const texture of [this.placeholder, this.emit, this.fluence, ...this.cascades]) texture.destroy(true);
   }
 
@@ -120,7 +121,6 @@ export class RadianceCascades {
   }
 
   private pass(fragment: string, name: string, resources: Record<string, UniformGroup | TextureSource>): Pass {
-    const shader = Shader.from({ gl: { vertex: cascadeVertex, fragment, name, preferredFragmentPrecision: HIGHP }, resources });
-    return new Mesh({ geometry: this.geometry, shader });
+    return new Mesh({ geometry: this.geometry, shader: createShader(cascadeVertex, fragment, name, resources) });
   }
 }

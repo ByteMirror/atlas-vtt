@@ -1,5 +1,6 @@
 import type { Point } from '../types/visionTypes';
 import type { WallSegment } from '../types/wallTypes';
+import { blocksNothing } from '../lighting/segments';
 import { angleTo, distSqToSegment, isOnBlockingSide, raySegmentIntersect } from './visionGeometry';
 
 export type Polygon = Point[];
@@ -11,11 +12,12 @@ export interface MapBounds {
 
 const BOUNDARY_RAYS = 64;
 const RAY_OFFSET = 1e-5;
+/** Angles slightly beyond a wall's own, so rays at its ends always test it. */
+const SPAN_SLACK = 1e-4;
 
 /** Whether `wall` stops sight and light coming from `origin`: open doors never do, one-way walls only from one side. */
 export function blocksFrom(wall: WallSegment, origin: Point): boolean {
-  if ((wall.type === 'door' || wall.type === 'secret-door') && !(wall.closed ?? true)) return false;
-  if (wall.p1.x === wall.p2.x && wall.p1.y === wall.p2.y) return false;
+  if (blocksNothing(wall)) return false;
   return !wall.direction || isOnBlockingSide(origin, wall.p1, wall.p2, wall.direction);
 }
 
@@ -58,9 +60,6 @@ export function computeVisibility(origin: Point, radius: number, walls: readonly
     return { x: origin.x + Math.cos(angle) * reach, y: origin.y + Math.sin(angle) * reach };
   });
 }
-
-/** Angles slightly beyond a wall's own, so rays at its ends always test it. */
-const SPAN_SLACK = 1e-4;
 
 interface AngularSpan {
   wall: WallSegment;

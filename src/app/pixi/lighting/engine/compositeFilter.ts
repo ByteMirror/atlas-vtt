@@ -12,6 +12,7 @@ import {
   type RenderSurface,
 } from 'pixi.js';
 import { BOUNCE, EXPOSURE, PURKINJE, REVEAL } from '../../../lighting/lightingConstants';
+import { srgbToLinear } from '../../../lighting/srgb';
 import { compositeFragment } from './compositeShader';
 import { HIGHP } from './gpu';
 import type { LightingWorld } from './LightingWorld';
@@ -23,6 +24,7 @@ export interface CompositeFilter {
   filter: Filter;
   /** Binds `world`'s textures; call before the previous world is destroyed. */
   setWorld(world: LightingWorld): void;
+  /** The colour is picked in sRGB; the composite adds light in linear light. */
   setAmbient(level: number, color: string | undefined): void;
   setMode(mode: LightingMode): void;
   /** No token has vision: line of sight hides nothing. */
@@ -103,7 +105,7 @@ export function createCompositeFilter(world: LightingWorld, explored: Texture): 
     },
     setAmbient(level, color): void {
       const c = new Color(color ?? '#ffffff');
-      ambient.set([toLinear(c.red) * level, toLinear(c.green) * level, toLinear(c.blue) * level]);
+      ambient.set([srgbToLinear(c.red) * level, srgbToLinear(c.green) * level, srgbToLinear(c.blue) * level]);
       group.update();
     },
     setMode(mode): void {
@@ -125,9 +127,4 @@ export function createCompositeFilter(world: LightingWorld, explored: Texture): 
   };
   composite.setWorld(world);
   return composite;
-}
-
-/** The ambient colour is picked in sRGB; the composite adds light in linear light. */
-function toLinear(v: number): number {
-  return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
 }

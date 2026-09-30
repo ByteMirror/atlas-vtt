@@ -1,6 +1,7 @@
-import { Mesh, Shader, UniformGroup, type Geometry, type Renderer, type RenderTexture } from 'pixi.js';
+import { Mesh, UniformGroup, type Geometry, type Renderer, type RenderTexture, type Shader } from 'pixi.js';
+import type { Rect } from '../../../lighting/segments';
 import { CapsuleField } from './CapsuleField';
-import { createQuad, createTarget, quadGeometry, renderInto, type Rect } from './gpu';
+import { createQuad, createShader, createTarget, quadGeometry, renderInto } from './gpu';
 import { tileFragment, tileVertex } from './tileShader';
 
 /** Traces one light's visibility tile (`r8unorm`, one texel per field texel) through the wall field. */
@@ -20,10 +21,7 @@ export class TileTracer {
   constructor(private readonly renderer: Renderer, private readonly field: CapsuleField) {
     this.noOneWay = new CapsuleField(renderer, [0, 0, 1, 1], 1, 0, 'uOneWay');
     this.noOneWay.build([]);
-    this.shader = Shader.from({
-      gl: { vertex: tileVertex, fragment: tileFragment, name: 'atlas-visibility-tile', preferredFragmentPrecision: 'highp' },
-      resources: { tileUniforms: this.uniforms, ...field.resources(), ...this.noOneWay.resources() },
-    });
+    this.shader = createShader(tileVertex, tileFragment, 'atlas-visibility-tile', { tileUniforms: this.uniforms, ...field.resources(), ...this.noOneWay.resources() });
     this.mesh = new Mesh({ geometry: quadGeometry(createQuad()), shader: this.shader });
   }
 

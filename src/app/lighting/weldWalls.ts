@@ -1,10 +1,9 @@
+import type { Point } from '../types/visionTypes';
 import type { WallSegment } from '../types/wallTypes';
 import { BASE_TEXEL, weldTolerance } from './lightingConstants';
 
 /** A hair past the wall a T-junction lands on, so the two cross instead of merely touching. */
 const OVERSHOOT = 0.01;
-
-type Point = { x: number; y: number };
 
 /**
  * Closes the gaps of hand-drawn joints before walls reach light or sight: wall ends within

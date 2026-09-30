@@ -3,6 +3,7 @@ import type { TokenEntity } from '../../types';
 import type { LightEmission, LightSource } from '../../types/lightingTypes';
 import { gameUnitsToWorld, type UnitScale } from '../../lighting/lightingUnits';
 import { MIN_SOFTNESS, TINT_TO_WHITE } from '../../lighting/lightingConstants';
+import { srgbToLinear } from '../../lighting/srgb';
 import type { EngineLight } from './engine/types';
 
 /** A light that shines right now: placed on the map or carried by a token. */
@@ -46,9 +47,6 @@ export function engineLight(light: ActiveLight, scale: UnitScale): EngineLight {
 
 function tintedLinear(hex: string): [number, number, number] {
   const c = new Color(hex);
-  const linear = (v: number): number => {
-    const s = 1 + (v - 1) * TINT_TO_WHITE;
-    return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
-  };
+  const linear = (v: number): number => srgbToLinear(1 + (v - 1) * TINT_TO_WHITE);
   return [linear(c.red), linear(c.green), linear(c.blue)];
 }

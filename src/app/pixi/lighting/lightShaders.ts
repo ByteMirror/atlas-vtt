@@ -44,16 +44,14 @@ uniform float uBright;
 uniform vec3 uColor;
 uniform float uIntensity;`;
 
-// The quad is a unit square scaled to the glow's reach around the light, so a moving
-// light only changes uniforms.
+// The quad covers the glow's reach in world pixels (see LightLayer).
 const lightVertex = `
 in vec2 aPosition;
 out vec2 vWorld;
-${LIGHT_UNIFORMS}
 ${PROJECT}
 
 void main() {
-  vWorld = uLight.xy + aPosition * uLight.z * ${LIGHT_EDGE.toFixed(2)};
+  vWorld = aPosition;
   gl_Position = project(vWorld);
 }`;
 
@@ -138,7 +136,9 @@ void main() {
   float dist = length(toLight);
   vec2 n = vec2(a.y - b.y, b.x - a.x);
   bool sameSide = sign(dot(vWorld - a, n)) == sign(dot(uLight.xy - a, n));
-  if (dist < 0.001 || sameSide) discard;
+  // Nothing past the glow: the light adds nothing there, and if PIXI skips this light's filter
+  // (its bounds are off-screen) the raw shadows then stay off-screen with it.
+  if (dist < 0.001 || sameSide || dist > uLight.z * ${LIGHT_EDGE.toFixed(2)}) discard;
   vec2 dir = toLight / dist;
   vec2 perp = vec2(-dir.y, dir.x);
   float sa = project1d(a, dir, perp, dist);

@@ -1,4 +1,4 @@
-import { Buffer, BufferUsage, Container, Geometry, Mesh, Rectangle, type Filter, type Shader } from 'pixi.js';
+import { Buffer, BufferUsage, Container, Geometry, Mesh, type Filter, type Shader } from 'pixi.js';
 import type { WallSegment } from '../../types/wallTypes';
 import { destroyTree } from '../utils/destroyTree';
 import { buildShadowQuads } from './shadowGeometry';
@@ -12,14 +12,13 @@ import {
   type LightUniforms,
 } from './lightShaders';
 
-const UNIT_QUAD = new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]);
 const QUAD_INDICES = new Uint32Array([0, 1, 2, 1, 3, 2]);
 
 /**
  * One light in its own layer: the falloff quad writes colour, the shadow quads of its walls
  * add up their occlusion in alpha, and the layer filter adds colour × (1 − occlusion) to the
- * lighting layer. The layer covers the light's glow only (`boundsArea`), so each light costs
- * a pass the size of its own reach.
+ * lighting layer. The layer covers the light's glow only (the quad's bounds), so each light costs
+ * a pass the size of its own reach (the quad's bounds).
  */
 export class LightLayer {
   readonly view = new Container({ label: 'light' });
@@ -27,6 +26,10 @@ export class LightLayer {
   private readonly lightShader: Shader;
   private readonly shadowShader: Shader;
   private readonly lightGeometry: Geometry;
+  /** Corners of the light's glow in world pixels. PIXI takes a filter's area from its children's
+   * vertex bounds, so the quad must hold its real extent, not one the shader scales out. */
+  private readonly quad = new Float32Array(8);
+  private readonly quadBuffer = new Buffer({ data: this.quad, usage: BufferUsage.VERTEX | BufferUsage.COPY_DST });
   private readonly filter: Filter = createLightLayerFilter();
   private shadowGeometry: Geometry | null = null;
   private shadowMesh: Mesh<Geometry, Shader> | null = null;
@@ -35,7 +38,7 @@ export class LightLayer {
     this.lightShader = createLightShader(this.uniforms);
     this.shadowShader = createShadowShader(this.uniforms);
     this.lightGeometry = new Geometry({
-      attributes: { aPosition: { buffer: new Buffer({ data: UNIT_QUAD, usage: BufferUsage.VERTEX }), format: 'float32x2' } },
+      attributes: { aPosition: { buffer: this.quadBuffer, format: 'float32x2' } },
       indexBuffer: new Buffer({ data: QUAD_INDICES, usage: BufferUsage.INDEX }),
     });
     const lightMesh = new Mesh({ geometry: this.lightGeometry, shader: this.lightShader });
@@ -49,7 +52,9 @@ export class LightLayer {
   update(frame: LightFrame, casters: readonly WallSegment[] | null): void {
     this.uniforms.set(frame);
     const reach = frame.dim * LIGHT_EDGE;
-    this.view.boundsArea = new Rectangle(frame.x - reach, frame.y - reach, reach * 2, reach * 2);
+    const [left, top, right, bottom] = [frame.x - reach, frame.y - reach, frame.x + reach, frame.y + reach];
+    this.quad.set([left, top, right, top, left, bottom, right, bottom]);
+    this.quadBuffer.update();
     if (casters) this.setCasters(casters);
   }
 

@@ -1366,11 +1366,11 @@ export class TokenRenderer {
     }
   }
 
-  /** Player overlays prepared for the next mirrored frame. */
-  public getPlayerViewLayers(settings: AtlasSettings['localPlayerView']): LayerVisibility[] {
+  /** Player overlays prepared for the next mirrored frame; `isSeen` hides tokens out of the players' sight. */
+  public getPlayerViewLayers(settings: AtlasSettings['localPlayerView'], isSeen?: (tokenId: string) => boolean): LayerVisibility[] {
     return [
-      ...hiddenTokenLayers(this.store.getState().objects.tokens, this.tokenSprites),
-      ...this.uiManager.getPlayerViewLayers(settings),
+      ...hiddenTokenLayers(this.store.getState().objects.tokens, this.tokenSprites, isSeen),
+      ...this.uiManager.getPlayerViewLayers(settings, isSeen),
       ...this.dragRuler.getPlayerViewLayers(),
     ];
   }

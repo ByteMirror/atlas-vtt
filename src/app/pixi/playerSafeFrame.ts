@@ -25,14 +25,18 @@ export interface LayerVisibility {
   alpha?: number;
 }
 
-/** Sprites of hidden tokens: the DM sees them translucent, players must not see them at all. */
+/**
+ * Sprites of tokens players must not see: hidden ones (the DM sees them translucent) and,
+ * with dynamic lighting, those no player token sees (`isSeen`).
+ */
 export function hiddenTokenLayers(
   tokens: Record<string, { isHidden?: boolean }>,
   sprites: Record<string, HideableLayer | null>,
+  isSeen: (tokenId: string) => boolean = () => true,
 ): LayerVisibility[] {
   const layers: LayerVisibility[] = [];
   for (const [tokenId, sprite] of Object.entries(sprites)) {
-    if (sprite && tokens[tokenId]?.isHidden) layers.push({ layer: sprite, visible: false });
+    if (sprite && (tokens[tokenId]?.isHidden || !isSeen(tokenId))) layers.push({ layer: sprite, visible: false });
   }
   return layers;
 }

@@ -1,4 +1,4 @@
-import { canRunMapHotkeys, matchesMapHotkey } from './keyboard/mapHotkeys';
+import { DEFAULT_MAP_HOTKEYS, canRunMapHotkeys, matchesMapHotkey } from './keyboard/mapHotkeys';
 import { SettingsService, type AtlasSettings } from './services/SettingsService';
 import { DEFAULT_LASER_POINTER_SETTINGS } from './tools/laserPointerSettings';
 import { Application, Sprite, Container, type FederatedPointerEvent } from "pixi.js";
@@ -20,7 +20,7 @@ import { HexLinkRenderer } from "./pixi/hexLinks/HexLinkRenderer";
 import { HexLinkInteraction } from "./pixi/hexLinks/HexLinkInteraction";
 import type { MapRect } from "./grid/hexNumbering";
 import type { NotePin } from "./types";
-import { captureWithLayerVisibility, type LayerVisibility } from "./pixi/playerSafeFrame";
+import { captureWithLayerVisibility, type HideableLayer, type LayerVisibility } from "./pixi/playerSafeFrame";
 import type { PlayerCameraState } from "./local-player-view";
 import { SelectionManager } from "./pixi/SelectionManager"; // Import SelectionManager
 import { FogOfWarRenderer } from "./pixi/fog/FogOfWarRenderer";
@@ -35,6 +35,8 @@ import { WallRenderer } from './pixi/vision/WallRenderer';
 import { WallInteraction } from './pixi/vision/WallInteraction';
 import { LIGHT_PRESETS } from './lighting/lightPresets';
 import { LightingRenderer } from './pixi/lighting/LightingRenderer';
+import { bindHoldHotkey } from './keyboard/holdHotkey';
+import { playerLightingLayers, tokenSeenPredicate } from './pixi/lighting/playerLightingLayers';
 import { WALLS_AND_LIGHTING_ENABLED } from './featureFlags';
 import { WallTool, type WallToolMode, type WallToolSubMode } from './tools/WallTool';
 import type { WallType } from './types/wallTypes';
@@ -68,6 +70,7 @@ export class PixiRendererOrchestrator { // Renamed class
   /** IDs of wall segments created during the current drawing chain (for Escape undo). */
   private currentChainWallIds: string[] = [];
   private lightingRenderer?: LightingRenderer;
+  private unbindLightingPeek?: () => void;
   private wallRenderer?: WallRenderer;
   private wallInteraction?: WallInteraction;
   private wallTool?: WallTool;
@@ -404,6 +407,8 @@ export class PixiRendererOrchestrator { // Renamed class
         measurement: () => mapMeasurementSettings(assetService, this.store.getState()),
         bounds: () => (this.backgroundSprite?.width ? { width: this.backgroundSprite.width, height: this.backgroundSprite.height } : null),
       });
+      const settings = SettingsService.forApp(this.obsApp);
+      this.unbindLightingPeek = bindHoldHotkey(window, () => (settings?.getHotkeys() ?? DEFAULT_MAP_HOTKEYS).lightingPeek, this.viewId, (held) => this.lightingRenderer?.setPreview(held));
     }
 
     // Initialize WallRenderer (z-index 1100 — GM-only editor overlay)
@@ -747,13 +752,24 @@ export class PixiRendererOrchestrator { // Renamed class
     if (this.hexLinkRenderer) layers.push({ layer: this.hexLinkRenderer.container, visible: false });
     const grid = this.gridSystem?.getGridSprite();
     if (grid) layers.push({ layer: grid, visible: settings.showGrid });
-    layers.push(...(this.tokenRenderer?.getPlayerViewLayers(settings) ?? []));
+    const lighting = this.lightingRenderer;
+    const lit = !!lighting?.isEnabled();
+    const isSeen = lighting && lit
+      ? tokenSeenPredicate(lighting.currentSight(), lighting.ambient(), lighting.lightReaches(), this.store.getState().objects.tokens)
+      : undefined;
+    layers.push(...(this.tokenRenderer?.getPlayerViewLayers(settings, isSeen) ?? []));
+    if (lighting) layers.push(...playerLightingLayers({ enabled: lit, modeLayer: lighting.modeLayer, gmOverlays: this.lightingGmOverlays() }));
     layers.push(...(this.fogRenderer?.getPlayerViewLayers() ?? []));
     layers.push(...(this.selectionManager?.getPlayerViewLayers() ?? []));
     for (const overlay of this.dmScreenOverlays) layers.push({ layer: overlay, visible: false });
     const viewport = this.pixiAppManager.getViewport();
     const playerCamera = camera && viewport ? { target: viewport, camera } : undefined;
     captureWithLayerVisibility(layers, () => app.renderer.render(app.stage), capture, playerCamera);
+  }
+
+  /** Editor visuals of walls and lights that never reach the players. */
+  private lightingGmOverlays(): HideableLayer[] {
+    return this.wallRenderer ? [this.wallRenderer.getContainer()] : [];
   }
 
   getViewportInstance(): Viewport | null { return this.pixiAppManager.getViewport(); }
@@ -1307,6 +1323,7 @@ export class PixiRendererOrchestrator { // Renamed class
     this.drawingInteraction?.destroy();
     this.textRenderer?.destroy(); // Destroy TextRenderer
     this.textTool?.destroy(); // Destroy TextTool
+    this.unbindLightingPeek?.();
     this.lightingRenderer?.destroy();
     this.wallRenderer?.destroy();
     this.wallInteraction?.destroy();

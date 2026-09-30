@@ -9,6 +9,7 @@ export const MAP_HOTKEYS = [
   { id: 'dashboard', label: 'GM dashboard', group: 'Map', defaultKey: 'Tab', dmOnly: true },
   { id: 'gmView', label: 'Toggle GM view', group: 'Map', defaultKey: 'd', dmOnly: true },
   { id: 'sceneSwitcher', label: 'Switch between open maps', group: 'Map', defaultKey: 'g', dmOnly: true },
+  { id: 'lightingPeek', label: 'Hold to see what the players see', group: 'Map', defaultKey: 'h', dmOnly: true, enabled: WALLS_AND_LIGHTING_ENABLED },
   { id: 'fitMap', label: 'Fit map to view', group: 'Map', defaultKey: 'Shift+1' },
   { id: 'fitToken', label: 'Zoom to selected token', group: 'Map', defaultKey: 'Shift+2' },
   { id: 'move', label: 'Move / selection tools', group: 'Tools', defaultKey: 'v' },

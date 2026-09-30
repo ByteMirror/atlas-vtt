@@ -1,8 +1,10 @@
 /**
  * PIXI compiles a shader as GLSL ES 1.00 unless its source starts with this line; `texture()`,
  * `flat` and the other WebGL2 features the engine uses need ES 3.00, so every engine shader starts with it.
+ * ES 3.00 defaults `sampler2D` to lowp and PIXI only adds a float precision, so the line also lifts
+ * samplers to highp: every lighting texture is read at full precision.
  */
-export const GLSL_VERSION = '#version 300 es\n';
+export const GLSL_VERSION = '#version 300 es\nprecision highp sampler2D;\n';
 
 /** Steps a sphere trace may take; running out counts as blocked. */
 export const MAX_STEPS = 256;

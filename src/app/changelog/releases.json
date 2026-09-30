@@ -4,7 +4,7 @@
     {
       "version": "0.5.0-beta.1",
       "title": "Coming in 0.5.0",
-      "markdown": "## Improved\n\n- Large token imports are much faster. 1,000 tokens from Fantasy Statblocks now take about 40 seconds instead of 11 minutes, and imports of thousands of tokens no longer slow down as they go\n- The token creator and the Fantasy Statblocks list stay smooth with thousands of images\n- Statblocks that share one image read and convert it only once\n\n## Fixed\n\n- Collections can be deleted again when some of their files were already removed outside Obsidian, for example by git"
+      "markdown": "## New\n\n- Cairn is a built-in game system preset, with 5-foot squares and its conditions: Deprived, Fatigue, Critical Damage, Paralyzed, Delirious and Fleeing\n\n## Improved\n\n- Large token imports are much faster. 1,000 tokens from Fantasy Statblocks now take about 40 seconds instead of 11 minutes, and imports of thousands of tokens no longer slow down as they go\n- The token creator and the Fantasy Statblocks list stay smooth with thousands of images\n- Statblocks that share one image read and convert it only once\n\n## Fixed\n\n- Collections can be deleted again when some of their files were already removed outside Obsidian, for example by git"
     },
     {
       "version": "0.4.2",

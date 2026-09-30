@@ -5,6 +5,7 @@
  */
 
 import type { SystemPreset } from '../types/systemPresetTypes';
+import { CAIRN } from './presets/cairn';
 import { CALL_OF_CTHULHU } from './presets/callOfCthulhu';
 import { CYBERPUNK_RED } from './presets/cyberpunkRed';
 import { DAGGERHEART } from './presets/daggerheart';
@@ -16,6 +17,7 @@ import { SHADOWDARK } from './presets/shadowdark';
 export const BUILT_IN_SYSTEM_PRESETS: readonly SystemPreset[] = [
   DAGGERHEART,
   DND_5E,
+  CAIRN,
   CALL_OF_CTHULHU,
   CYBERPUNK_RED,
   OLD_SCHOOL_ESSENTIALS,

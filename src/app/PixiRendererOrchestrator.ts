@@ -727,7 +727,7 @@ export class PixiRendererOrchestrator { // Renamed class
       ? tokenSeenPredicate(lighting.currentSight(), lighting.ambient(), lighting.lightReaches(), this.store.getState().objects.tokens)
       : undefined;
     layers.push(...(this.tokenRenderer?.getPlayerViewLayers(settings, isSeen) ?? []));
-    if (lighting) layers.push(...playerLightingLayers({ enabled: lit, modeLayer: lighting.modeLayer, gmOverlays: this.lighting?.gmOverlays() ?? [] }));
+    if (lighting && this.lighting) layers.push(...playerLightingLayers({ enabled: lit, modeLayer: lighting.modeLayer, gmOverlays: this.lighting.gmOverlays() }));
     layers.push(...(this.fogRenderer?.getPlayerViewLayers() ?? []));
     layers.push(...(this.selectionManager?.getPlayerViewLayers() ?? []));
     for (const overlay of this.dmScreenOverlays) layers.push({ layer: overlay, visible: false });

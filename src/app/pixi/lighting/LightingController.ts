@@ -16,7 +16,6 @@ import { WallTool, type WallToolMode, type WallToolSubMode } from '../../tools/W
 import type { Point } from '../../types/visionTypes';
 import type { WallType } from '../../types/wallTypes';
 import type { MapBounds } from '../../vision/visibility';
-import type { HideableLayer } from '../playerSafeFrame';
 import type { TokenRenderer } from '../TokenRenderer';
 import { usesCanvasRenderer } from '../utils/rendererType';
 import { WallInteraction } from '../vision/WallInteraction';
@@ -25,6 +24,8 @@ import { CanvasLightingFallback } from './CanvasLightingFallback';
 import { DoorIcons } from './DoorIcons';
 import { showWallMenu, type LightingMenuContext } from './lightingMenus';
 import { LightingRenderer } from './LightingRenderer';
+import { LightMarkers } from './LightMarkers';
+import type { GmOverlays } from './playerLightingLayers';
 import type { SceneLightingView } from './sceneLightingView';
 import { WallDrawingSession } from './WallDrawingSession';
 import { splitWall } from './wallEdits';
@@ -45,7 +46,7 @@ interface SegmentEvent { p1: Point; p2: Point; type: WallType; chainId: string }
 
 /**
  * Walls, lights and scene lighting for one map view: owns the lighting renderer, the wall
- * editor and the door badges, and routes the wall tool's pointer input and events to them.
+ * editor, the door badges and the light markers, and routes the wall tool's pointer input and events to them.
  * Walls are never snapped to the grid: they follow the map's artwork.
  */
 export class LightingController {
@@ -54,6 +55,7 @@ export class LightingController {
   private readonly walls: WallInteraction;
   private readonly tool: WallTool;
   private readonly doors: DoorIcons;
+  private readonly lightMarkers: LightMarkers;
   private readonly drawing: WallDrawingSession;
   private readonly cleanups: Array<() => void> = [];
   /** The toolbar's preview switch and the held peek key both show the players' view. */
@@ -73,6 +75,7 @@ export class LightingController {
     this.drawing = new WallDrawingSession(store);
     this.doors = new DoorIcons(store);
     viewport.addChild(this.doors.view);
+    this.lightMarkers = new LightMarkers(viewport, store);
 
     const settings = SettingsService.forApp(obsApp);
     this.cleanups.push(bindHoldHotkey(window, () => (settings?.getHotkeys() ?? DEFAULT_MAP_HOTKEYS).lightingPeek, deps.viewId, (held) => {
@@ -108,9 +111,8 @@ export class LightingController {
     });
   }
 
-  /** Wall lines, handles and door badges: GM-only. */
-  gmOverlays(): HideableLayer[] {
-    return [this.wallRenderer.getContainer(), this.doors.view];
+  gmOverlays(): GmOverlays {
+    return { wallEditor: this.wallRenderer.getContainer(), doorBadges: this.doors.view, lightMarkers: this.lightMarkers.view };
   }
 
   /** Escape: stop placing a door, drop the chain being drawn, or clear the wall selection. */
@@ -292,6 +294,7 @@ export class LightingController {
     for (const cleanup of this.cleanups) cleanup();
     this.renderer.destroy();
     this.doors.destroy();
+    this.lightMarkers.destroy();
     this.wallRenderer.destroy();
     this.walls.destroy();
   }

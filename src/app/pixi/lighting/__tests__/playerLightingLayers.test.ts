@@ -1,26 +1,32 @@
 import { describe, expect, it } from 'vitest';
 import { Container } from 'pixi.js';
-import { playerLightingLayers, tokenSeenPredicate } from '../playerLightingLayers';
+import { playerLightingLayers, tokenSeenPredicate, type GmOverlays } from '../playerLightingLayers';
 import { hiddenTokenLayers } from '../../playerSafeFrame';
 import { computeSight } from '../../../vision/sight';
 import type { TokenEntity } from '../../../types';
 
 describe('playerLightingLayers', () => {
-  it('switches the lighting to the player view and hides every GM overlay', () => {
+  function overlays(): GmOverlays {
+    return { wallEditor: new Container(), doorBadges: new Container(), lightMarkers: new Container() };
+  }
+
+  it('switches the lighting to the player view and hides every GM overlay, light markers included', () => {
     const modeLayer = { visible: false };
-    const walls = new Container();
-    const doors = new Container();
-    expect(playerLightingLayers({ enabled: true, modeLayer, gmOverlays: [walls, doors] })).toEqual([
+    const gm = overlays();
+    expect(playerLightingLayers({ enabled: true, modeLayer, gmOverlays: gm })).toEqual([
       { layer: modeLayer, visible: true },
-      { layer: walls, visible: false },
-      { layer: doors, visible: false },
+      { layer: gm.wallEditor, visible: false },
+      { layer: gm.doorBadges, visible: false },
+      { layer: gm.lightMarkers, visible: false },
     ]);
   });
 
   it('still hides the GM overlays while the scene has no lighting', () => {
-    const walls = new Container();
-    expect(playerLightingLayers({ enabled: false, modeLayer: { visible: false }, gmOverlays: [walls] })).toEqual([
-      { layer: walls, visible: false },
+    const gm = overlays();
+    expect(playerLightingLayers({ enabled: false, modeLayer: { visible: false }, gmOverlays: gm })).toEqual([
+      { layer: gm.wallEditor, visible: false },
+      { layer: gm.doorBadges, visible: false },
+      { layer: gm.lightMarkers, visible: false },
     ]);
   });
 });

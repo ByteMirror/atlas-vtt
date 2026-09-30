@@ -4,6 +4,7 @@ import { EventEmitter } from 'events';
 import type { NotePin } from "../types";
 import { createPinIconTexture } from "./utils/pinIconTexture";
 import { destroyTree } from "./utils/destroyTree";
+import { mapMarkerScale } from "./utils/mapMarkerScale";
 import { isHandled } from "./utils/handledEvents";
 import type { ViewAtlasState, ViewAtlasStore } from '../storeFactory';
 import { beginHistoryTransaction, endHistoryTransaction } from '../stores/history';
@@ -193,28 +194,8 @@ export class PinRenderer {
     }
   }
 
-  /**
-   * Compute world-space scale so pins maintain (or exceed) a readable screen size.
-   * - Above zoom 0.5: pure 1/zoom → constant screen size.
-   * - Below zoom 0.5: power curve (exponent 1.35) so pins grow larger on screen
-   *   the further you zoom out, keeping them prominent on big maps.
-   * - Floor of 0.15 prevents pins from vanishing when zoomed very far in.
-   */
   private getPinScale(): number {
-    const zoom = this.viewport.scale.x;
-    const inverseScale = 1 / zoom;
-
-    // Below this zoom level, pins start growing beyond constant screen-size
-    const boostThreshold = 0.2;
-
-    if (zoom >= boostThreshold) {
-      return Math.max(0.15, inverseScale);
-    }
-
-    // Super-linear: pins grow faster than 1/zoom when zoomed out past threshold
-    const thresholdInverse = 1 / boostThreshold; // 2
-    const excess = inverseScale / thresholdInverse; // how far past the threshold (1 = at threshold)
-    return thresholdInverse * Math.pow(excess, 1.21);
+    return mapMarkerScale(this.viewport.scale.x);
   }
   
   private pinPosition(pin: NotePin): { x: number; y: number } {

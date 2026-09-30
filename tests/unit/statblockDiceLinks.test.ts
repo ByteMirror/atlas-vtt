@@ -47,6 +47,10 @@ describe('toRollFormula', () => {
     expect(toRollFormula('+4')).toBe('1d20+4');
   });
 
+  it('rolls a zero modifier as a plain d20', () => {
+    expect(toRollFormula('+0')).toBe('1d20+0');
+  });
+
   it('strips an ATK label before rolling the bonus', () => {
     expect(toRollFormula('ATK: +4')).toBe('1d20+4');
   });
@@ -90,6 +94,23 @@ describe('linkDiceIn + attachDiceRolling', () => {
       tokenImagePath: 'tokens/toad.png',
       abilityName: 'Bite',
     });
+
+    dispose();
+  });
+
+  it('titles the roll with the ability name the link carries', () => {
+    const rolls: Roll[] = [];
+    const el = host(
+      '<table><tr><th>STR</th></tr><tr><td>16 (<span class="atlas-dice-link" ' +
+        'data-formula="1d20+3" data-ability-name="STR">+3</span>)</td></tr></table>',
+    );
+    const dispose = attachDiceRolling(el, fakeApp(rolls), () => ({ tokenName: 'Ogre' }));
+
+    el.querySelector<HTMLElement>('.atlas-dice-link')!.click();
+
+    expect(rolls).toEqual([
+      { formula: '1d20+3', source: { type: 'statblock', tokenName: 'Ogre', abilityName: 'STR' } },
+    ]);
 
     dispose();
   });

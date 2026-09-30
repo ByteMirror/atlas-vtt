@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { activeLights, lightFrame } from '../lightSources';
+import { activeLights, bounceFrame, lightFrame } from '../lightSources';
 import { LIGHT_PRESETS } from '../../../lighting/lightPresets';
 import type { LightSource } from '../../../types/lightingTypes';
 import type { TokenEntity } from '../../../types';
@@ -39,5 +39,21 @@ describe('lightFrame', () => {
   it('keeps dim at least as large as bright', () => {
     const frame = lightFrame({ key: 'k', x: 0, y: 0, emission: { ...torch, bright: 50, dim: 10 } }, scale);
     expect(frame.dim).toBeGreaterThanOrEqual(frame.bright);
+  });
+});
+
+describe('bounceFrame', () => {
+  const frame = lightFrame({ key: 'k', x: 10, y: 20, emission: torch }, scale);
+
+  it('turns a light into a faint, wide area light around the same point', () => {
+    const bounce = bounceFrame(frame);
+    expect(bounce.x).toBe(frame.x);
+    expect(bounce.y).toBe(frame.y);
+    expect(bounce.color).toEqual(frame.color);
+    expect(bounce.bright).toBe(0);
+    expect(bounce.dim).toBeGreaterThan(frame.dim);
+    expect(bounce.sourceRadius).toBeGreaterThan(frame.sourceRadius * 5);
+    expect(bounce.intensity).toBeLessThan(frame.intensity * 0.35);
+    expect(bounce.intensity).toBeGreaterThan(0);
   });
 });

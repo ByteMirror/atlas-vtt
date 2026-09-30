@@ -40,3 +40,15 @@ export function lightFrame(light: ActiveLight, scale: UnitScale, flicker: Flicke
     intensity: emission.intensity * flicker.intensity,
   };
 }
+
+/** How far bounced light reaches, relative to the light's dim radius. */
+export const BOUNCE_REACH = 1.25;
+
+/**
+ * Light that bounced off floors and walls, drawn as a faint, very large area light at the
+ * same point: its shadows wrap softly around door frames and pillars, but long walls still
+ * hide it, so beams through doorways fade out instead of cutting to black.
+ */
+export function bounceFrame(frame: LightFrame): LightFrame {
+  return { ...frame, bright: 0, dim: frame.dim * BOUNCE_REACH, sourceRadius: frame.dim * 0.3, intensity: frame.intensity * 0.22 };
+}

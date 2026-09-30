@@ -1,6 +1,6 @@
 import type { Renderer, Texture } from 'pixi.js';
 import type { WallSegment } from '../../../types/wallTypes';
-import { BOUNCE, LIGHT_REACH, fieldMargin, wallRadius, worldTexel } from '../../../lighting/lightingConstants';
+import { BOUNCE, LIGHT_REACH, tileWallReach, wallRadius, worldTexel } from '../../../lighting/lightingConstants';
 import { changedWallRects } from '../../../lighting/wallChanges';
 import { allSegments, splitBlocking, type Rect } from '../../../lighting/segments';
 import type { MapBounds } from '../../../vision/visibility';
@@ -54,8 +54,7 @@ export class LightingWorld {
   update(walls: readonly WallSegment[], lights: readonly EngineLight[], albedo: Texture | null): void {
     let changed: Rect[] | 'all' = [];
     if (walls !== this.walls) {
-      // A tile's contact fade reaches two texels past the capsule, so changes that near count.
-      changed = this.walls ? changedWallRects(this.walls, walls, this.wallRadius + fieldMargin(this.texel) + 2 * this.texel) : 'all';
+      changed = this.walls ? changedWallRects(this.walls, walls, tileWallReach(this.texel)) : 'all';
       this.walls = walls;
       if (changed === 'all' || changed.length > 0) {
         this.rebuildFields(walls);

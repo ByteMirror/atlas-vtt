@@ -8,6 +8,11 @@ export const BASE_TEXEL = 2;
 export const MAX_TEXELS = 4096;
 /** Rays traced across a light's flame per tile texel in its penumbra. */
 export const TILE_RAYS = 32;
+/**
+ * Largest radius, in texels, over which a traced tile is smoothed: it melts the steps between
+ * ray counts into a ramp. Each texel smooths only within its wall clearance, so less near walls.
+ */
+export const TILE_SMOOTH = 4;
 /** A light's glow ends at this multiple of its dim radius. */
 export const LIGHT_REACH = 1.12;
 /** Tiles cover a little more than the reach, so flicker's radius breathing stays inside them. */
@@ -60,6 +65,14 @@ export function wallRadius(texel: number): number {
 /** Bilinear interpolation of a 1-Lipschitz field overestimates it by less than this. */
 export function fieldMargin(texel: number): number {
   return texel * 0.75;
+}
+
+/**
+ * How far from its centre line a wall still changes a tile: smoothing reads a texel's clearance
+ * up to `TILE_SMOOTH` texels (the contact fade only two), plus a texel for the bilinear field.
+ */
+export function tileWallReach(texel: number): number {
+  return wallRadius(texel) + fieldMargin(texel) + (TILE_SMOOTH + 1) * texel;
 }
 
 /**

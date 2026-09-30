@@ -1,31 +1,49 @@
 import { chordOffsets } from '../../../lighting/chordOffsets';
 import { TILE_RAYS } from '../../../lighting/lightingConstants';
-import { FULLSCREEN_VERTEX, GLSL_VERSION, MAX_STEPS, TRACE_GLSL, fieldGlsl } from './glsl';
+import { GLSL_VERSION, MAX_STEPS, TRACE_GLSL, fieldGlsl } from './glsl';
 
 const offsets = chordOffsets(TILE_RAYS).map((x) => x.toFixed(8)).join(', ');
 
-export const tileVertex = FULLSCREEN_VERTEX;
+/**
+ * A tile pass covers the corner `uExtent` (0..1) of its target, so passes can draw into scratch
+ * targets larger than the tile; `vUv` spans the tile and `gl_FragCoord` is its texel index.
+ */
+export const tileVertex = `${GLSL_VERSION}
+in vec2 aPosition;
+uniform vec2 uExtent;
+out vec2 vUv;
+void main() {
+  vUv = aPosition;
+  gl_Position = vec4(aPosition * uExtent * 2.0 - 1.0, 0.0, 1.0);
+}`;
+
+/**
+ * The walls one light's tile is traced through: two-way walls and, when `uHasOneWay` is set,
+ * the one-way walls that block from its side.
+ */
+export const TILE_CLEARANCE_GLSL = `
+uniform float uHasOneWay;
+${fieldGlsl('uField')}
+${fieldGlsl('uOneWay')}
+float clearance(vec2 w) {
+  float c = uFieldClearance(w);
+  return uHasOneWay > 0.5 ? min(c, uOneWayClearance(w)) : c;
+}`;
 
 /**
  * Share of the flame each texel sees. Leak-proof by construction: a texel is lit only through
  * straight paths that sphere tracing proved clear of every capsule. The cone test proves the
  * whole cone to the flame clear (each ball of clearance covers the widening cone up to the next
  * step); otherwise TILE_RAYS rays to equal-area strips of the flame, jittered within their strip.
+ * This is the raw tile: `tileSmoothFragment` smooths it and fades it into the walls.
  */
 export const tileFragment = `${GLSL_VERSION}
 in vec2 vUv;
 uniform vec4 uTileRect;
 uniform vec2 uLight;
 uniform float uFlame;
-uniform float uTexel;
-uniform float uHasOneWay;
 out vec4 finalColor;
-${fieldGlsl('uField')}
-${fieldGlsl('uOneWay')}
-float clearance(vec2 w) {
-  float c = uFieldClearance(w);
-  return uHasOneWay > 0.5 ? min(c, uOneWayClearance(w)) : c;
-}
+${TILE_CLEARANCE_GLSL}
 ${TRACE_GLSL}
 const float OFFSETS[${TILE_RAYS}] = float[${TILE_RAYS}](${offsets});
 
@@ -66,8 +84,5 @@ void main() {
       vis = hit / ${TILE_RAYS.toFixed(1)};
     }
   }
-  // Fade into the wall along the smooth field rather than stop at the binary hit, so capsule
-  // edges never show as texel steps. It only takes light away.
-  vis *= smoothstep(0.0, uTexel * 2.0, clearance(p));
   finalColor = vec4(vis, 0.0, 0.0, 1.0);
 }`;

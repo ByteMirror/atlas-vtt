@@ -1,29 +1,27 @@
-import { Container, Matrix, Texture, type Application, type Renderer, type WebGLRenderer } from 'pixi.js';
+import { Matrix, type Application, type Container, type Texture } from 'pixi.js';
 import type { Viewport } from 'pixi-viewport';
 import type { ViewAtlasState, ViewAtlasStore } from '../../storeFactory';
 import type { MeasurementSettings } from '../../grid/measurementFormat';
-import { unitScaleOf, type UnitScale } from '../../lighting/lightingUnits';
+import { unitScaleOf } from '../../lighting/lightingUnits';
+import { weldedWalls } from '../../lighting/weldWalls';
 import { SEES_ALL, SightCache, computeSight, sightSources, type LightReach, type Sight } from '../../vision/sight';
 import { wallList } from '../../vision/wallList';
 import { exploredShapes } from '../../vision/exploredShapes';
 import type { MapBounds } from '../../vision/visibility';
 import type { HideableLayer } from '../playerSafeFrame';
 import { requestRender } from '../RenderScheduler';
-import { destroyTree } from '../utils/destroyTree';
-import { createCompositeFilter, type CompositeFilter } from './compositeFilter';
+import { LightingEngine } from './engine/LightingEngine';
+import type { EngineScene } from './engine/types';
 import { ExploredTexture } from './ExploredTexture';
 import { saveExploredMask } from './exploredMaskSaving';
-import { LightLayers } from './LightLayers';
-import { activeLights } from './lightSources';
-import { SightLayer } from './SightLayer';
+import { LightReaches } from './lightReaches';
+import { activeLights, engineLight } from './lightSources';
 import { ExploredSaveScheduler } from './ExploredSaveScheduler';
 import type { SceneLightingView } from './sceneLightingView';
 
 /** Above tokens, below their nameplates and bars (100): the GM keeps readable labels in the dark. */
 export const LIGHTING_Z_INDEX = 90;
 const EXPLORED_SAVE_DELAY = 2000;
-/** How far the edge of what tokens see fades, in grid cells. */
-const SIGHT_SOFTNESS_CELLS = 0.5;
 const DEFAULT_CELL_SIZE = 70;
 
 export interface LightingRendererDeps {
@@ -33,27 +31,32 @@ export interface LightingRendererDeps {
   measurement: () => MeasurementSettings;
   /** Size of the map image in world pixels, or null before it loaded. */
   bounds: () => MapBounds | null;
+  /** The map image, covering world `[0, width] × [0, height]`; bounce reads its colours. */
+  albedo: () => Texture | null;
 }
 
 type Watched = Pick<ViewAtlasState, 'objects' | 'lighting' | 'grid' | 'exploredMask'>;
+type SceneWithoutAmbient = Omit<EngineScene, 'ambient' | 'ambientColor'>;
 
 /**
- * Scene lighting: lights (`LightLayers`) and the viewer's sight (`SightLayer`) are drawn into
- * one layer whose composite filter lights the scene beneath it, hides what no token sees in
- * the player view and ghosts it for the GM. Explored memory lives in a world-space texture.
+ * Scene lighting for one map view: feeds the store's walls, lights and vision tokens to the
+ * `LightingEngine`, which lights the scene beneath its layer, hides what no token sees in the
+ * player view and ghosts it for the GM. Explored memory lives in a world-space texture.
  */
 export class LightingRenderer implements SceneLightingView {
-  readonly layer = new Container({ label: 'lighting' });
+  readonly layer: Container;
   /** Flipped by the player-frame capture: visible means the player's view. */
   readonly modeLayer: HideableLayer;
-  private readonly composite: CompositeFilter;
-  private readonly sightLayer = new SightLayer();
-  private readonly lights = new LightLayers(this.layer);
+  private readonly engine: LightingEngine;
   private readonly sightCache = new SightCache();
+  private readonly lightReachCache = new LightReaches();
+  private reaches: LightReach[] = [];
   private explored: ExploredTexture | null = null;
   private exploredBounds: MapBounds | null = null;
   private sight: Sight = SEES_ALL;
   private previous: Watched | null = null;
+  /** The last scene without its ambient light, reused while only the ambient changes. */
+  private lastScene: SceneWithoutAmbient | null = null;
   private loadedMask: string | null = null;
   private readonly exploredSaver: ExploredSaveScheduler;
   private preview = false;
@@ -62,12 +65,10 @@ export class LightingRenderer implements SceneLightingView {
   private readonly tick = (): void => this.animate();
 
   constructor(private readonly deps: LightingRendererDeps) {
-    this.composite = createCompositeFilter(Texture.EMPTY);
+    this.engine = new LightingEngine(deps.app.renderer);
+    this.layer = this.engine.layer;
     this.exploredSaver = new ExploredSaveScheduler(() => deps.store.getState().mapPath, () => this.saveExplored(), EXPLORED_SAVE_DELAY);
     this.layer.zIndex = LIGHTING_Z_INDEX;
-    this.layer.eventMode = 'none';
-    this.layer.filters = [this.composite.filter];
-    this.layer.addChild(this.sightLayer.view);
     this.layer.onRender = (): void => this.syncScreenTransform();
     deps.viewport.addChild(this.layer);
     const isCapturing = (): boolean => this.capturing;
@@ -96,7 +97,7 @@ export class LightingRenderer implements SceneLightingView {
   }
 
   currentSight(): Sight { return this.sight; }
-  lightReaches(): LightReach[] { return this.lights.reaches(); }
+  lightReaches(): LightReach[] { return this.reaches; }
   ambient(): number { return this.deps.store.getState().lighting.ambient; }
 
   /** The map image changed size or finished loading. */
@@ -115,8 +116,7 @@ export class LightingRenderer implements SceneLightingView {
   private update(state: ViewAtlasState): void {
     const { lighting } = state;
     const bounds = lighting.enabled ? this.deps.bounds() : null;
-    this.layer.visible = !!bounds;
-    setBackBuffer(this.deps.app.renderer, !!bounds);
+    this.engine.setEnabled(!!bounds);
     if (!bounds) {
       // Nothing is drawn while off; the next update after switching on rebuilds everything.
       this.previous = null;
@@ -127,35 +127,50 @@ export class LightingRenderer implements SceneLightingView {
     this.ensureExplored(bounds);
     if (state.exploredMask !== this.loadedMask) void this.loadExplored(state.exploredMask);
 
-    const scale = unitScaleOf(this.deps.measurement(), state.grid);
     const { walls, lights, tokens } = state.objects;
-    const moved = !prev || prev.objects.walls !== walls || prev.objects.lights !== lights || prev.objects.tokens !== tokens || prev.grid !== state.grid;
-    if (moved) {
-      this.lights.sync(activeLights(lights, tokens), wallList(walls), scale);
-      this.updateSight(state, scale, bounds);
-    }
-    this.composite.setAmbient(lighting.ambient, lighting.ambientColor);
+    const moved = !prev || !this.lastScene || prev.objects.walls !== walls || prev.objects.lights !== lights
+      || prev.objects.tokens !== tokens || prev.grid !== state.grid;
+    if (moved) this.lastScene = this.buildScene(state, bounds);
+    const scene: EngineScene = { ...this.lastScene!, ambient: lighting.ambient };
+    if (lighting.ambientColor !== undefined) scene.ambientColor = lighting.ambientColor;
+    this.engine.update(scene);
     requestRender(this.deps.app);
   }
 
-  private updateSight(state: ViewAtlasState, scale: UnitScale, bounds: MapBounds): void {
-    const sources = sightSources(state.objects.tokens, scale, bounds);
-    this.sight = computeSight(sources, wallList(state.objects.walls), this.sightCache);
-    this.sightLayer.draw(this.sight, bounds);
-    this.composite.setAllSeen(this.sight.all);
-    const shapes = exploredShapes(this.sight, state.lighting.ambient, this.lights.reaches());
+  /** Recomputes lights, their reaches and sight with welded walls, and records what tokens now see. */
+  private buildScene(state: ViewAtlasState, bounds: MapBounds): SceneWithoutAmbient {
+    const scale = unitScaleOf(this.deps.measurement(), state.grid);
+    const walls = weldedWalls(wallList(state.objects.walls));
+    const lights = activeLights(state.objects.lights, state.objects.tokens).map((light) => engineLight(light, scale));
+    this.reaches = this.lightReachCache.sync(lights, walls);
+    this.sight = computeSight(sightSources(state.objects.tokens, scale, bounds), walls, this.sightCache);
+    this.recordExplored(state.lighting.ambient);
+    return {
+      bounds,
+      albedo: this.deps.albedo(),
+      walls,
+      lights,
+      sight: this.sight,
+      sightRadius: (state.grid?.size ?? DEFAULT_CELL_SIZE) * 0.5,
+    };
+  }
+
+  private recordExplored(ambient: number): void {
+    const shapes = exploredShapes(this.sight, ambient, this.reaches);
     if (!shapes || !this.explored) return;
     this.explored.add(shapes);
     this.exploredSaver.schedule();
   }
 
+  /** The engine holds the explored texture: it takes the new one before the old one is destroyed. */
   private ensureExplored(bounds: MapBounds): void {
     if (this.explored && this.exploredBounds?.width === bounds.width && this.exploredBounds.height === bounds.height) return;
-    this.explored?.destroy();
+    const previous = this.explored;
     this.explored = new ExploredTexture(this.deps.app.renderer, bounds);
     this.exploredBounds = bounds;
     this.loadedMask = null;
-    this.composite.setExplored(this.explored.texture);
+    this.engine.setExplored(this.explored.texture);
+    previous?.destroy();
   }
 
   private async loadExplored(mask: string | null): Promise<void> {
@@ -181,42 +196,27 @@ export class LightingRenderer implements SceneLightingView {
   }
 
   private applyMode(): void {
-    this.composite.setMode(this.capturing || this.preview ? 'player' : 'gm');
+    this.engine.setMode(this.capturing || this.preview ? 'player' : 'gm');
   }
 
-  /** The composite maps screen pixels to the explored texture with the camera of the frame being rendered. */
+  /** The composite maps screen pixels to the world with the camera of the frame being rendered. */
   private syncScreenTransform(): void {
-    const bounds = this.exploredBounds;
-    if (!bounds) return;
     const { viewport } = this.deps;
     const worldToScreen = new Matrix(viewport.scale.x, 0, 0, viewport.scale.y, viewport.x, viewport.y);
-    const cellOnScreen = (this.deps.store.getState().grid?.size ?? DEFAULT_CELL_SIZE) * viewport.scale.x;
-    this.composite.setSightSoftness(cellOnScreen * SIGHT_SOFTNESS_CELLS);
-    this.composite.setScreenToExplored(worldToScreen.clone().invert().scale(1 / bounds.width, 1 / bounds.height));
+    this.engine.setView(worldToScreen.invert(), viewport.scale.x);
   }
 
   private animate(): void {
-    if (!this.layer.visible || !this.lights.hasAnimation()) return;
-    // ponytail: animates every light while any is animated; cull to the viewport if many lights get slow.
-    this.lights.animate(performance.now());
-    requestRender(this.deps.app);
+    if (!this.layer.visible || !this.engine.busy()) return;
+    // ponytail: animated lights redraw the whole light map even while off-screen; cull to the viewport if that gets slow.
+    if (this.engine.animate(performance.now())) requestRender(this.deps.app);
   }
 
   destroy(): void {
     this.unsubscribe();
     this.deps.app.ticker.remove(this.tick);
     this.exploredSaver.cancel();
-    setBackBuffer(this.deps.app.renderer, false);
-    this.lights.destroy();
-    this.sightLayer.destroy();
+    this.engine.destroy();
     this.explored?.destroy();
-    this.composite.filter.destroy();
-    destroyTree(this.layer);
   }
-}
-
-/** The composite reads the scene beneath it, which WebGL only offers through a back buffer. */
-function setBackBuffer(renderer: Renderer, on: boolean): void {
-  if (renderer.name !== 'webgl') return;
-  (renderer as WebGLRenderer).backBuffer.useBackBuffer = on;
 }

@@ -385,6 +385,7 @@ export class PixiRendererOrchestrator { // Renamed class
         obsApp: this.obsApp,
         viewId: this.viewId,
         bounds: () => (this.backgroundSprite?.width ? { width: this.backgroundSprite.width, height: this.backgroundSprite.height } : null),
+        albedo: () => (this.backgroundSprite && !this.backgroundSprite.destroyed ? this.backgroundSprite.texture : null),
       });
     }
 

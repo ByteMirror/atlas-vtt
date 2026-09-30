@@ -1,6 +1,6 @@
 import type { EventEmitter } from 'events';
 import type { App } from 'obsidian';
-import type { Application } from 'pixi.js';
+import type { Application, Texture } from 'pixi.js';
 import type { Viewport } from 'pixi-viewport';
 import type { MeasurementSettings } from '../../grid/measurementFormat';
 import { bindHoldHotkey } from '../../keyboard/holdHotkey';
@@ -37,6 +37,8 @@ export interface LightingControllerDeps {
   obsApp: App;
   viewId: string;
   bounds: () => MapBounds | null;
+  /** The map image, for the colours light bounces off. */
+  albedo: () => Texture | null;
 }
 
 interface SegmentEvent { p1: Point; p2: Point; type: WallType; chainId: string }
@@ -64,7 +66,7 @@ export class LightingController {
     const measurement = (): MeasurementSettings => mapMeasurementSettings(assetService, store.getState());
     this.renderer = usesCanvasRenderer(app.renderer)
       ? new CanvasLightingFallback({ viewport, store, measurement, bounds: deps.bounds })
-      : new LightingRenderer({ viewport, app, store, measurement, bounds: deps.bounds });
+      : new LightingRenderer({ viewport, app, store, measurement, bounds: deps.bounds, albedo: deps.albedo });
     this.wallRenderer = new WallRenderer(viewport, store);
     this.walls = new WallInteraction(store, this.wallRenderer);
     this.tool = new WallTool(deps.eventBus);

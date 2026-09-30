@@ -10,7 +10,7 @@ export async function createTestRenderer(size = 512): Promise<WebGLRenderer> {
 /** Texels of a float target in GL row order (row 0 is where clip y = −1 wrote). */
 export function readFloats(renderer: WebGLRenderer, target: RenderTexture): Float32Array {
   const { gl } = renderer;
-  renderer.renderTarget.bind(target, false);
+  renderer.renderTarget.bind({ target, clear: false });
   const { pixelWidth, pixelHeight } = target.source;
   const out = new Float32Array(pixelWidth * pixelHeight * 4);
   gl.readPixels(0, 0, pixelWidth, pixelHeight, gl.RGBA, gl.FLOAT, out);

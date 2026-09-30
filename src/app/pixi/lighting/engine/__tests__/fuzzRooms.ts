@@ -33,9 +33,9 @@ export interface FuzzRoom {
  * Closed star-shaped rooms on a 2048 px map with zig-zag outlines; every third room has
  * hand-drawn joints (ends jittered ±1.4 px, not shared); four chains of three walls start on
  * the outline (T-junctions) and wander in or out. The light is inside: anywhere (50%),
- * 0–2 px from a wall (35%) or 0.5 px from a corner (15%). `gap` opens half of one wall.
+ * 0–2 px from a wall (35%) or 0.5 px from a corner (15%). `gap` opens one wall: `true` the far half, a number that share (0–1) of it.
  */
-export function fuzzRooms(seed: number, count: number, gap = false): FuzzRoom[] {
+export function fuzzRooms(seed: number, count: number, gap: boolean | number = false): FuzzRoom[] {
   const rand = rng(seed);
   const rooms: FuzzRoom[] = [];
   let id = 0;
@@ -53,7 +53,8 @@ export function fuzzRooms(seed: number, count: number, gap = false): FuzzRoom[] 
     const walls = outline.map((p, i) => wall(jitter(p), jitter(outline[(i + 1) % k]!)));
     if (gap) {
       const g = walls[0]!;
-      walls[0] = { ...g, p2: { x: (g.p1.x + g.p2.x) / 2, y: (g.p1.y + g.p2.y) / 2 } };
+      const kept = 1 - (gap === true ? 0.5 : gap);
+      walls[0] = { ...g, p2: { x: g.p1.x + (g.p2.x - g.p1.x) * kept, y: g.p1.y + (g.p2.y - g.p1.y) * kept } };
     }
     for (let t = 0; t < 4; t++) {
       const i = Math.floor(rand() * k), f = rand();

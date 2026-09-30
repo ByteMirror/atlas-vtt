@@ -121,6 +121,21 @@ describe('LightingEngine', () => {
     expect(engine.layer.visible).toBe(true);
   });
 
+  it('turns the back buffer off on destroy only if it turned it on', async () => {
+    const renderer = await createTestRenderer(SIZE);
+    cleanup.push(() => renderer.destroy());
+    const never = new LightingEngine(renderer);
+    renderer.backBuffer.useBackBuffer = true;
+    never.destroy();
+    expect(renderer.backBuffer.useBackBuffer).toBe(true);
+    renderer.backBuffer.useBackBuffer = false;
+    const enabled = new LightingEngine(renderer);
+    enabled.setEnabled(true);
+    expect(renderer.backBuffer.useBackBuffer).toBe(true);
+    enabled.destroy();
+    expect(renderer.backBuffer.useBackBuffer).toBe(false);
+  });
+
   it('keeps no destroyed texture bound when one-way walls come and go or the map changes', async () => {
     const { renderer, engine } = await setup();
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);

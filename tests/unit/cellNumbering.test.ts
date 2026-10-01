@@ -140,4 +140,15 @@ describe('square grid', () => {
     const first = cells.find((cell) => cell.label === '0101');
     expect(first!.center).toEqual({ x: 0, y: 0 });
   });
+
+  it('counts sequential numbers in reading order', () => {
+    const lattice = squareLattice(SIZE, 0, 0);
+    const map: MapRect = { x: 0, y: 0, width: 3 * SIZE, height: 2 * SIZE };
+    const cells = numberCells(lattice, map, 'sequential');
+    const byPosition = new Map(cells.map((cell) => [`${cell.center.x},${cell.center.y}`, cell.label]));
+    expect(byPosition.get('50,50')).toBe('1');
+    expect(byPosition.get('150,50')).toBe('2');
+    expect(byPosition.get('250,50')).toBe('3');
+    expect(byPosition.get('50,150')).toBe('4');
+  });
 });

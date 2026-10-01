@@ -7,7 +7,7 @@ import { Viewport } from "pixi-viewport"; // Keep for type, but instance comes f
 import { WorkspaceLeaf } from 'obsidian';
 import { GridOptions, GridSystem, GridType } from "./grid/GridSystem";
 import { parseGridColor } from "./grid/gridContrastColor";
-import { hexNumberStyleOfGrid } from "./grid/hexNumbering";
+import { cellNumberStyleOfGrid } from "./grid/cellNumbering";
 import type { App } from 'obsidian';
 import type { ViewAtlasState, ViewAtlasStore } from './storeFactory';
 import { EventEmitter } from 'events';
@@ -17,7 +17,7 @@ import { TokenRenderer } from "./pixi/token-renderer"; // Import TokenRenderer
 import { PinRenderer } from "./pixi/PinRenderer"; // Import PinRenderer
 import { HexLinkRenderer } from "./pixi/hexLinks/HexLinkRenderer";
 import { HexLinkInteraction } from "./pixi/hexLinks/HexLinkInteraction";
-import type { MapRect } from "./grid/hexNumbering";
+import type { MapRect } from "./grid/cellNumbering";
 import type { NotePin } from "./types";
 import { captureBeforeRender, captureWithLayerVisibility, type LayerVisibility } from "./pixi/playerSafeFrame";
 import type { PlayerCameraState } from "./local-player-view";
@@ -191,13 +191,13 @@ export class PixiRendererOrchestrator { // Renamed class
             const lineWidthChanged = grid.lineWidth !== undefined && grid.lineWidth !== currentOptions.lineWidth;
             const lineTypeChanged = grid.lineType !== undefined && grid.lineType !== currentOptions.lineType;
             const colorChanged = gridColorNum !== currentOptions.color;
-            const hexNumbers = hexNumberStyleOfGrid(grid);
-            const hexNumberFormatChanged = hexNumbers?.format !== currentOptions.hexNumbers?.format;
-            const hexNumberOpacityChanged = hexNumbers?.opacity !== currentOptions.hexNumbers?.opacity;
-            
-            const hasChanges = visibleChanged || typeChanged || offsetXChanged || offsetYChanged || 
+            const cellNumbers = cellNumberStyleOfGrid(grid);
+            const cellNumberFormatChanged = cellNumbers?.format !== currentOptions.cellNumbers?.format;
+            const cellNumberOpacityChanged = cellNumbers?.opacity !== currentOptions.cellNumbers?.opacity;
+
+            const hasChanges = visibleChanged || typeChanged || offsetXChanged || offsetYChanged ||
                              sizeChanged || opacityChanged || lineWidthChanged || lineTypeChanged || colorChanged ||
-                             hexNumberFormatChanged || hexNumberOpacityChanged;
+                             cellNumberFormatChanged || cellNumberOpacityChanged;
             
             if (!hasChanges) {
               return;
@@ -238,11 +238,11 @@ export class PixiRendererOrchestrator { // Renamed class
               updates.color = gridColorNum;
               needsOptionsUpdate = true;
             }
-            if (hexNumberFormatChanged) {
-              updates.hexNumbers = hexNumbers;
+            if (cellNumberFormatChanged) {
+              updates.cellNumbers = cellNumbers;
               needsOptionsUpdate = true;
-            } else if (hexNumbers && hexNumberOpacityChanged) {
-              this.gridSystem.setHexNumberOpacity(hexNumbers.opacity);
+            } else if (cellNumbers && cellNumberOpacityChanged) {
+              this.gridSystem.setCellNumberOpacity(cellNumbers.opacity);
             }
             if (grid.lineType !== undefined && grid.lineType !== currentOptions.lineType) {
               updates.lineType = grid.lineType;

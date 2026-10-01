@@ -1,19 +1,27 @@
 import { describe, it, expect } from 'vitest';
 import { createHexLayout, hexCellExtent } from '../../src/app/grid/hexGeometry';
-import { axialKey, hexLabelsByCoord, numberHexes } from '../../src/app/grid/hexNumbering';
-import type { MapRect } from '../../src/app/grid/hexNumbering';
+import type { AxialCoord } from '../../src/app/grid/hexGeometry';
+import { axialKey, hexLattice } from '../../src/app/grid/hexLattice';
+import { cellLabelsByKey, numberCells } from '../../src/app/grid/cellNumbering';
+import type { MapRect } from '../../src/app/grid/cellNumbering';
 
 const SIZE = 100;
 
-describe('numberHexes', () => {
+function axialOf(key: string): AxialCoord {
+  const [q, r] = key.split(',').map(Number);
+  return { q: q!, r: r! };
+}
+
+describe('numberCells', () => {
   describe('flat-top grid (columns)', () => {
     const layout = createHexLayout('hex-horizontal', SIZE, 0, 0);
+    const lattice = hexLattice(layout);
     const { width } = hexCellExtent(layout);
     // Four columns and three whole hexes per column; odd columns sit half a hex lower
     const map: MapRect = { x: 0, y: 0, width: width + 1.5 * (width / 2) * 3, height: 3.5 * SIZE };
 
     it('numbers column then row, counting each column from its first whole hex', () => {
-      const labels = hexLabelsByCoord(numberHexes(layout, map, 'column-row'));
+      const labels = cellLabelsByKey(numberCells(lattice, map, 'column-row'));
       expect(labels.get(axialKey({ q: 0, r: 0 }))).toBe('0101');
       expect(labels.get(axialKey({ q: 0, r: 1 }))).toBe('0102');
       // Column 2 is staggered down half a hex, so its first hex is still row 1
@@ -23,10 +31,10 @@ describe('numberHexes', () => {
     });
 
     it('leaves out hexes the map edge cuts in half', () => {
-      const hexes = numberHexes(layout, map, 'column-row');
+      const hexes = numberCells(lattice, map, 'column-row');
       // The fourth hex of each column would cross the bottom edge
-      expect(hexes.filter((hex) => hex.coord.q === 0)).toHaveLength(3);
-      expect(hexes.filter((hex) => hex.coord.q === 1)).toHaveLength(3);
+      expect(hexes.filter((hex) => axialOf(hex.key).q === 0)).toHaveLength(3);
+      expect(hexes.filter((hex) => axialOf(hex.key).q === 1)).toHaveLength(3);
       for (const hex of hexes) {
         expect(hex.center.x).toBeGreaterThan(map.x + 0.4 * SIZE - 1e-6);
         expect(hex.center.y).toBeLessThan(map.y + map.height - 0.4 * SIZE + 1e-6);
@@ -34,7 +42,7 @@ describe('numberHexes', () => {
     });
 
     it('counts sequential numbers in reading order', () => {
-      const labels = hexLabelsByCoord(numberHexes(layout, map, 'sequential'));
+      const labels = cellLabelsByKey(numberCells(lattice, map, 'sequential'));
       expect(labels.get(axialKey({ q: 0, r: 0 }))).toBe('1');
       expect(labels.get(axialKey({ q: 1, r: 0 }))).toBe('2');
       expect(labels.get(axialKey({ q: 3, r: -1 }))).toBe('4');
@@ -44,11 +52,12 @@ describe('numberHexes', () => {
 
   describe('pointy-top grid (rows)', () => {
     const layout = createHexLayout('hex-vertical', SIZE, 0, 0);
+    const lattice = hexLattice(layout);
     const { height } = hexCellExtent(layout);
     const map: MapRect = { x: 0, y: 0, width: 4 * SIZE, height: height + 1.5 * (height / 2) };
 
     it('numbers column then row', () => {
-      const labels = hexLabelsByCoord(numberHexes(layout, map, 'column-row'));
+      const labels = cellLabelsByKey(numberCells(lattice, map, 'column-row'));
       expect(labels.get(axialKey({ q: 0, r: 0 }))).toBe('0101');
       expect(labels.get(axialKey({ q: 3, r: 0 }))).toBe('0401');
       // Row 2 is shifted half a hex right, so its first whole hex is q = 0
@@ -56,16 +65,17 @@ describe('numberHexes', () => {
     });
 
     it('drops the half hex at the end of the shifted row', () => {
-      const hexes = numberHexes(layout, map, 'column-row');
-      expect(hexes.filter((hex) => hex.coord.r === 0)).toHaveLength(4);
-      expect(hexes.filter((hex) => hex.coord.r === 1)).toHaveLength(3);
+      const hexes = numberCells(lattice, map, 'column-row');
+      expect(hexes.filter((hex) => axialOf(hex.key).r === 0)).toHaveLength(4);
+      expect(hexes.filter((hex) => axialOf(hex.key).r === 1)).toHaveLength(3);
     });
   });
 
   it('follows the grid offset', () => {
     const layout = createHexLayout('hex-horizontal', SIZE, -300, -200);
+    const lattice = hexLattice(layout);
     const map: MapRect = { x: 0, y: 0, width: 400, height: 400 };
-    const hexes = numberHexes(layout, map, 'column-row');
+    const hexes = numberCells(lattice, map, 'column-row');
     const first = hexes.find((hex) => hex.label === '0101');
     expect(first).toBeDefined();
     expect(first!.center.x).toBeGreaterThanOrEqual(0.4 * SIZE);
@@ -75,13 +85,15 @@ describe('numberHexes', () => {
 
   it('pads labels to the widest number', () => {
     const layout = createHexLayout('hex-vertical', 10, 0, 0);
-    const hexes = numberHexes(layout, { x: 0, y: 0, width: 1200, height: 100 }, 'column-row');
+    const lattice = hexLattice(layout);
+    const hexes = numberCells(lattice, { x: 0, y: 0, width: 1200, height: 100 }, 'column-row');
     expect(hexes[0]!.label).toBe('00101');
     expect(hexes.some((hex) => hex.label.startsWith('100'))).toBe(true);
   });
 
   it('numbers nothing on an empty map', () => {
     const layout = createHexLayout('hex-vertical', SIZE, 0, 0);
-    expect(numberHexes(layout, { x: 0, y: 0, width: 0, height: 0 }, 'sequential')).toEqual([]);
+    const lattice = hexLattice(layout);
+    expect(numberCells(lattice, { x: 0, y: 0, width: 0, height: 0 }, 'sequential')).toEqual([]);
   });
 });

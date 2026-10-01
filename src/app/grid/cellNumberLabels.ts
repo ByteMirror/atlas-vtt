@@ -1,7 +1,7 @@
 import { BitmapText, Cache, Container, DynamicBitmapFont, TextStyle } from 'pixi.js';
-import { hexNumberAnchor, hexNumberFontSize } from './hexNumbering';
-import type { NumberedHex } from './hexNumbering';
-import type { HexLayout, Point } from './hexGeometry';
+import { cellNumberAnchor, cellNumberFontSize } from './cellNumbering';
+import type { NumberedCell } from './cellNumbering';
+import type { Point } from './hexGeometry';
 
 /**
  * Glyph atlas sizes in device pixels. Labels read from the smallest atlas at
@@ -14,7 +14,7 @@ type RasterSize = (typeof RASTER_SIZES)[number];
 const MIN_SCREEN_FONT_SIZE = 7;
 
 function fontName(size: RasterSize): string {
-  return `atlas-hex-numbers-${size}`;
+  return `atlas-cell-numbers-${size}`;
 }
 
 function rasterSizeFor(devicePixels: number): RasterSize {
@@ -22,11 +22,11 @@ function rasterSizeFor(devicePixels: number): RasterSize {
 }
 
 /**
- * A white digit atlas at one raster size, shared by every hex number. Labels
+ * A white digit atlas at one raster size, shared by every cell number. Labels
  * take the grid colour as a tint. Built like `BitmapFontManager.install`, but
  * without mipmaps: a mip level is picked for any downscale and blurs the digits.
  */
-function ensureHexNumberFont(size: RasterSize): string {
+function ensureCellNumberFont(size: RasterSize): string {
   const name = fontName(size);
   const cacheKey = `${name}-bitmap`;
   if (Cache.has(cacheKey)) return name;
@@ -44,41 +44,41 @@ function ensureHexNumberFont(size: RasterSize): string {
   return name;
 }
 
-export interface HexNumberLabelStyle {
+export interface CellNumberLabelStyle {
   color: number;
   opacity: number;
 }
 
 /** How the viewport shows the grid: its zoom and the renderer's device pixel ratio. */
-export interface HexNumberView {
+export interface CellNumberView {
   zoom: number;
   pixelRatio: number;
 }
 
-/** The numbers of a hex grid, laid out in the grid container's local space. */
-export class HexNumberLabels {
+/** The numbers of a grid, laid out in the grid container's local space. */
+export class CellNumberLabels {
   readonly container: Container;
   private readonly labels: BitmapText[] = [];
   private readonly fontSize: number;
   private rasterSize: RasterSize;
 
   constructor(
-    hexes: readonly NumberedHex[],
-    layout: HexLayout,
+    cells: readonly NumberedCell[],
+    size: number,
     localOrigin: Point,
-    style: HexNumberLabelStyle,
-    view: HexNumberView,
+    style: CellNumberLabelStyle,
+    view: CellNumberView,
   ) {
-    this.fontSize = hexNumberFontSize(layout);
-    this.container = new Container({ label: 'hex-numbers', eventMode: 'none', interactiveChildren: false });
+    this.fontSize = cellNumberFontSize(size);
+    this.container = new Container({ label: 'cell-numbers', eventMode: 'none', interactiveChildren: false });
     this.container.alpha = style.opacity;
     this.container.visible = this.isReadable(view.zoom);
     this.rasterSize = rasterSizeFor(this.fontSize * view.zoom * view.pixelRatio);
-    const fontFamily = ensureHexNumberFont(this.rasterSize);
+    const fontFamily = ensureCellNumberFont(this.rasterSize);
 
-    for (const hex of hexes) {
-      const anchor = hexNumberAnchor(layout, hex.center);
-      const label = new BitmapText({ text: hex.label, style: { fontFamily, fontSize: this.fontSize } });
+    for (const cell of cells) {
+      const anchor = cellNumberAnchor(size, cell.center);
+      const label = new BitmapText({ text: cell.label, style: { fontFamily, fontSize: this.fontSize } });
       label.anchor.set(0.5);
       label.position.set(anchor.x - localOrigin.x, anchor.y - localOrigin.y);
       label.tint = style.color;
@@ -96,7 +96,7 @@ export class HexNumberLabels {
   }
 
   /** Picks the glyph atlas for the numbers' size on screen and hides them while too small to read. */
-  setView({ zoom, pixelRatio }: HexNumberView): void {
+  setView({ zoom, pixelRatio }: CellNumberView): void {
     const readable = this.isReadable(zoom);
     if (this.container.visible !== readable) this.container.visible = readable;
     if (!readable) return;
@@ -104,7 +104,7 @@ export class HexNumberLabels {
     const rasterSize = rasterSizeFor(this.fontSize * zoom * pixelRatio);
     if (rasterSize === this.rasterSize) return;
     this.rasterSize = rasterSize;
-    const fontFamily = ensureHexNumberFont(rasterSize);
+    const fontFamily = ensureCellNumberFont(rasterSize);
     for (const label of this.labels) label.style.fontFamily = fontFamily;
   }
 }

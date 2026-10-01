@@ -4,7 +4,7 @@ import type { TokenEntity, TextElement, DrawingStroke, NotePin } from '../types'
 import type { WallSegment } from '../types/wallTypes';
 import type { LightSource, LightZone } from '../types/lightingTypes';
 import type { WidgetSettings } from '../types/widgetTypes';
-import type { HexNumberFormat } from '../grid/hexNumbering';
+import type { CellNumberFormat } from '../grid/cellNumbering';
 import type AtlasVTTPlugin from '../../../main';
 import { migrateWidgetsToCollection, needsWidgetMigration } from '../utils/widgetMigration';
 import { lightZonesFromFile } from '../lighting/lightZones';
@@ -43,7 +43,7 @@ export interface GridState {
   /** Set on new scenes: align the grid to the map image on the first load, then cleared. */
   autoDetect?: boolean;
   /** Numbers every hex on hex grids in this format; unset shows no numbers. */
-  hexNumbers?: HexNumberFormat;
+  hexNumbers?: CellNumberFormat;
   /** Opacity of the hex numbers (0 to 1), separate from the grid lines; unset is `DEFAULT_HEX_NUMBER_OPACITY`. */
   hexNumberOpacity?: number;
 }

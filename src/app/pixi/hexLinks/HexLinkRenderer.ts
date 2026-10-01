@@ -6,8 +6,9 @@ import type { ViewAtlasState, ViewAtlasStore } from '../../storeFactory';
 import { axialToPixel, hexCellExtent, hexVertices, pixelToAxial } from '../../grid/hexGeometry';
 import type { AxialCoord, HexLayout, Point } from '../../grid/hexGeometry';
 import { hexLayoutOfGrid, hexLinkAt, isShownAsHex, linkedHexOf } from '../../grid/hexLinks';
-import { axialKey, hexLabelsByCoord, numberHexes } from '../../grid/hexNumbering';
-import type { MapRect } from '../../grid/hexNumbering';
+import { axialKey, hexLattice } from '../../grid/hexLattice';
+import { cellLabelsByKey, numberCells } from '../../grid/cellNumbering';
+import type { MapRect } from '../../grid/cellNumbering';
 import { noteLinkTitle } from '../../utils/pathUtils';
 import { cssColorToHexNumber, getObsidianAccentColor } from '../utils/colorUtils';
 import { destroyTree } from '../utils/destroyTree';
@@ -122,7 +123,7 @@ export class HexLinkRenderer {
     const format = this.state.grid?.hexNumbers ?? 'column-row';
     const key = JSON.stringify([layout, map, format]);
     if (this.numbering?.key !== key) {
-      this.numbering = { key, labels: hexLabelsByCoord(numberHexes(layout, map, format)) };
+      this.numbering = { key, labels: cellLabelsByKey(numberCells(hexLattice(layout), map, format)) };
     }
     return this.numbering.labels.get(axialKey(hex));
   }

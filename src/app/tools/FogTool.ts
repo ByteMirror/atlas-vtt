@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events';
 
-export type FogToolMode = 'brush' | 'lasso' | 'rectangle';
+export type FogToolMode = 'brush' | 'lasso' | 'rectangle' | 'cell';
 
 export interface FogSettings {
   brushSize: number;
@@ -33,7 +33,7 @@ export class FogTool {
   }
 
   /**
-   * Switch between brush, lasso, and rectangle fog modes.
+   * Switch between brush, lasso, rectangle and grid-cell fog modes.
    */
   public setMode(mode: FogToolMode): void {
     if (this.settings.mode === mode) return;

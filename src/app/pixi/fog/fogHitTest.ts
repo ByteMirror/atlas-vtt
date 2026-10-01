@@ -5,7 +5,10 @@
  * Tests whether a world-space point falls on visible fog by checking
  * paint shapes minus erase shapes.
  */
-import type { FogBrushStroke, FogLassoFill, FogOperation, FogRectangleFill } from '../../types/fogTypes';
+import type { FogBrushStroke, FogCellFill, FogLassoFill, FogOperation, FogRectangleFill } from '../../types/fogTypes';
+
+/** Cell centroids sampled for overlap testing; a long drag can fill far more cells than this. */
+const MAX_CELL_SAMPLES = 64;
 
 /** Squared distance from point P to the nearest point on segment AB. */
 function sqDistToSegment(
@@ -80,6 +83,28 @@ function pointInLasso(x: number, y: number, op: FogLassoFill): boolean {
   return pointInPolygon(x, y, op.points, op.offsetX ?? 0, op.offsetY ?? 0);
 }
 
+/** Point inside any of the filled grid cells? */
+function pointInCells(x: number, y: number, op: FogCellFill): boolean {
+  const ox = op.offsetX ?? 0;
+  const oy = op.offsetY ?? 0;
+  for (const cell of op.cells ?? []) {
+    if (cell.length < 3) continue;
+    if (pointInPolygon(x, y, cell, ox, oy)) return true;
+  }
+  return false;
+}
+
+/** Average of a cell's corners — always strictly inside, since grid cells are convex. */
+function cellCentroid(cell: Array<{ x: number; y: number }>): { x: number; y: number } {
+  let x = 0;
+  let y = 0;
+  for (const p of cell) {
+    x += p.x;
+    y += p.y;
+  }
+  return { x: x / cell.length, y: y / cell.length };
+}
+
 /** Point inside a rectangle fill? */
 function pointInRectangle(x: number, y: number, op: FogRectangleFill): boolean {
   const ox = op.offsetX ?? 0;
@@ -94,6 +119,7 @@ function pointInShape(x: number, y: number, op: FogOperation): boolean {
     case 'brush': return pointInBrush(x, y, op);
     case 'lasso': return pointInLasso(x, y, op);
     case 'rectangle': return pointInRectangle(x, y, op);
+    case 'cells': return pointInCells(x, y, op);
     default: return false;
   }
 }
@@ -207,6 +233,19 @@ function opBounds(op: FogOperation): { x: number; y: number; w: number; h: numbe
     }
     case 'rectangle':
       return { x: (op.x ?? 0) + ox, y: (op.y ?? 0) + oy, w: op.width ?? 0, h: op.height ?? 0 };
+    case 'cells': {
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (const cell of op.cells ?? []) {
+        for (const p of cell) {
+          minX = Math.min(minX, p.x);
+          minY = Math.min(minY, p.y);
+          maxX = Math.max(maxX, p.x);
+          maxY = Math.max(maxY, p.y);
+        }
+      }
+      if (!Number.isFinite(minX)) return { x: 0, y: 0, w: 0, h: 0 };
+      return { x: minX + ox, y: minY + oy, w: maxX - minX, h: maxY - minY };
+    }
     default:
       return { x: 0, y: 0, w: 0, h: 0 };
   }
@@ -232,6 +271,20 @@ function samplePoints(op: FogOperation): Array<{ x: number; y: number }> {
         { x: rx, y: ry + rh }, { x: rx + rw, y: ry + rh },
         { x: rx + rw / 2, y: ry + rh / 2 },
       ];
+    }
+    case 'cells': {
+      // Centroids rather than corners: a cell's corners sit exactly on its
+      // neighbours' edges, where point-in-polygon is a coin toss.
+      const cells = op.cells ?? [];
+      const stride = Math.max(1, Math.ceil(cells.length / MAX_CELL_SAMPLES));
+      const samples: Array<{ x: number; y: number }> = [];
+      for (let i = 0; i < cells.length; i += stride) {
+        const cell = cells[i]!;
+        if (cell.length < 3) continue;
+        const c = cellCentroid(cell);
+        samples.push({ x: c.x + ox, y: c.y + oy });
+      }
+      return samples;
     }
     default:
       return [];

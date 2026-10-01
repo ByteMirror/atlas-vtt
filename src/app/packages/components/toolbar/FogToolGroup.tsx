@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react"
-import { Cloud, Eraser, Lasso, Paintbrush, Square, Trash2 } from "lucide-react"
+import { Cloud, Eraser, Grid3x3, Lasso, Paintbrush, Square, Trash2 } from "lucide-react"
 import { useAtlasUI } from "src/app/react/root/AtlasUIContext"
 import { useHotkeyLabels } from "../../../keyboard/useMapHotkeys"
 import { DropdownMenuItem } from "../primitives/DropdownMenuItem"
@@ -9,7 +9,7 @@ import { ToolGroup, type ToolGroupControls } from "./ToolGroup"
 import { fogToolFace } from "./toolFaces"
 import { useEmitViewEvent } from "./useEmitViewEvent"
 
-type FogMode = 'brush' | 'lasso' | 'rectangle'
+type FogMode = 'brush' | 'lasso' | 'rectangle' | 'cell'
 
 /** Fog and fog eraser, with the brush shape and size. DM only. */
 export function FogToolGroup({ activeTool, selectTool, menuOpen, toggleMenu, closeMenu }: ToolGroupControls): React.ReactElement {
@@ -59,6 +59,7 @@ export function FogToolGroup({ activeTool, selectTool, menuOpen, toggleMenu, clo
               { value: 'brush' as const, icon: Paintbrush, label: 'Brush' },
               { value: 'lasso' as const, icon: Lasso, label: 'Lasso' },
               { value: 'rectangle' as const, icon: Square, label: 'Rectangle' },
+              { value: 'cell' as const, icon: Grid3x3, label: 'Cell' },
             ]}
             onChange={(mode) => {
               setFogMode(mode);

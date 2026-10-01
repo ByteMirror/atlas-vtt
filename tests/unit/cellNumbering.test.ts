@@ -125,4 +125,11 @@ describe('square grid', () => {
     const cells = numberCells(lattice, map, 'column-row');
     expect(cells).toHaveLength(2);
   });
+
+  it('keeps a column that is 90% inside the map', () => {
+    const lattice = squareLattice(SIZE, 0, 0);
+    const map: MapRect = { x: 0, y: 0, width: 2.9 * SIZE, height: SIZE };
+    const cells = numberCells(lattice, map, 'column-row');
+    expect(cells).toHaveLength(3);
+  });
 });

@@ -6,7 +6,6 @@ import { ObsidianMenuDropdown } from '../ObsidianMenuDropdown';
 import { SettingRow, SettingSliderRow, SettingToggleRow } from './SettingRows';
 import type { AtlasView } from '../../../atlas-view';
 import type { GridType } from '../../../grid/GridSystem';
-import { isHexGridType } from '../../../grid/hexGeometry';
 import { DEFAULT_CELL_NUMBER_OPACITY, isCellNumberFormat, type CellNumberFormat } from '../../../grid/cellNumbering';
 import { debounce } from '../../../../utils/debounce';
 
@@ -137,22 +136,20 @@ export function GridSettingsPanel({
         />
       </SettingRow>
 
-      {isHexGridType(currentType) && (
-        <SettingRow label="Hex numbers">
-          <ObsidianMenuDropdown
-            className="atlas-setting-dropdown"
-            value={hexNumbers ?? 'off'}
-            options={HEX_NUMBER_OPTIONS}
-            onChange={(value) => {
-              const format = isCellNumberFormat(value) ? value : undefined;
-              setHexNumbers(format);
-              patchGrid({ cellNumbers: format });
-            }}
-          />
-        </SettingRow>
-      )}
+      <SettingRow label="Cell numbers">
+        <ObsidianMenuDropdown
+          className="atlas-setting-dropdown"
+          value={hexNumbers ?? 'off'}
+          options={HEX_NUMBER_OPTIONS}
+          onChange={(value) => {
+            const format = isCellNumberFormat(value) ? value : undefined;
+            setHexNumbers(format);
+            patchGrid({ cellNumbers: format });
+          }}
+        />
+      </SettingRow>
 
-      {isHexGridType(currentType) && hexNumbers && (
+      {hexNumbers && (
         <SettingSliderRow
           label="Number opacity"
           value={hexNumberOpacity * 100}

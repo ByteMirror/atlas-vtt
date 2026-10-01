@@ -120,7 +120,7 @@ export class HexLinkRenderer {
     const layout = this.layout();
     const map = this.options.getMapRect();
     if (!layout || !map) return undefined;
-    const format = this.state.grid?.hexNumbers ?? 'column-row';
+    const format = this.state.grid?.cellNumbers ?? 'column-row';
     const key = JSON.stringify([layout, map, format]);
     if (this.numbering?.key !== key) {
       this.numbering = { key, labels: cellLabelsByKey(numberCells(hexLattice(layout), map, format)) };

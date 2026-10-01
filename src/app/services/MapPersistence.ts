@@ -42,10 +42,10 @@ export interface GridState {
   measurementType?: 'units' | 'abstract'; // Measurement system to use
   /** Set on new scenes: align the grid to the map image on the first load, then cleared. */
   autoDetect?: boolean;
-  /** Numbers every hex on hex grids in this format; unset shows no numbers. */
-  hexNumbers?: CellNumberFormat;
-  /** Opacity of the hex numbers (0 to 1), separate from the grid lines; unset is `DEFAULT_HEX_NUMBER_OPACITY`. */
-  hexNumberOpacity?: number;
+  /** Numbers every cell of the grid in this format; unset shows no numbers. */
+  cellNumbers?: CellNumberFormat;
+  /** Opacity of the cell numbers (0 to 1), separate from the grid lines; unset is `DEFAULT_CELL_NUMBER_OPACITY`. */
+  cellNumberOpacity?: number;
 }
 
 import type { FogOperation } from '../types/fogTypes';
@@ -88,6 +88,9 @@ export type LegacyToken = TokenEntity & { statuses?: string[] };
 /** Grid settings as found in older map files ('daggerheart' was renamed to 'abstract'). */
 export type LegacyGridState = Omit<GridState, 'measurementType'> & {
   measurementType?: NonNullable<GridState['measurementType']> | 'daggerheart';
+  /** Before numbering covered square grids. */
+  hexNumbers?: CellNumberFormat;
+  hexNumberOpacity?: number;
 };
 
 /**
@@ -368,10 +371,18 @@ function migrateFogData(fogData: unknown): Record<string, FogOperation> {
 const LEGACY_DEFAULT_GRID_COLOR = '#00FFFF';
 
 function migrateGrid(grid: LegacyGridState): GridState {
-  const { measurementType, color, ...rest } = grid;
-  const migrated: GridState = color === undefined || color.toUpperCase() === LEGACY_DEFAULT_GRID_COLOR ? rest : { ...rest, color };
-  if (measurementType === undefined) return migrated;
-  return { ...migrated, measurementType: measurementType === 'daggerheart' ? 'abstract' : measurementType };
+  const { measurementType, color, hexNumbers, hexNumberOpacity, ...rest } = grid;
+  let migrated: GridState = color === undefined || color.toUpperCase() === LEGACY_DEFAULT_GRID_COLOR ? rest : { ...rest, color };
+  if (measurementType !== undefined) {
+    migrated = { ...migrated, measurementType: measurementType === 'daggerheart' ? 'abstract' : measurementType };
+  }
+  if (migrated.cellNumbers === undefined && hexNumbers !== undefined) {
+    migrated = { ...migrated, cellNumbers: hexNumbers };
+  }
+  if (migrated.cellNumberOpacity === undefined && hexNumberOpacity !== undefined) {
+    migrated = { ...migrated, cellNumberOpacity: hexNumberOpacity };
+  }
+  return migrated;
 }
 
 /**

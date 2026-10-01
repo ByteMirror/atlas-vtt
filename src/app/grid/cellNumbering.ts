@@ -22,10 +22,10 @@ export const DEFAULT_CELL_NUMBER_OPACITY = 0.8;
 
 /** The cell number style a grid's settings ask for, or undefined when numbers are off. */
 export function cellNumberStyleOfGrid(
-  grid: { hexNumbers?: CellNumberFormat | undefined; hexNumberOpacity?: number | undefined } | null | undefined,
+  grid: { cellNumbers?: CellNumberFormat | undefined; cellNumberOpacity?: number | undefined } | null | undefined,
 ): CellNumberStyle | undefined {
-  if (!grid || !isCellNumberFormat(grid.hexNumbers)) return undefined;
-  return { format: grid.hexNumbers, opacity: grid.hexNumberOpacity ?? DEFAULT_CELL_NUMBER_OPACITY };
+  if (!grid || !isCellNumberFormat(grid.cellNumbers)) return undefined;
+  return { format: grid.cellNumbers, opacity: grid.cellNumberOpacity ?? DEFAULT_CELL_NUMBER_OPACITY };
 }
 
 /** The map image in world space. */

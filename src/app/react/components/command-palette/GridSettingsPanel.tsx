@@ -82,9 +82,9 @@ export function GridSettingsPanel({
   const currentColor: string | undefined = currentGrid?.color;
   const currentLineType: string = currentGrid?.lineType ?? 'solid';
   // Held locally: the palette does not re-render when the store's grid changes
-  const [hexNumbers, setHexNumbers] = React.useState<CellNumberFormat | undefined>(currentGrid?.hexNumbers);
+  const [hexNumbers, setHexNumbers] = React.useState<CellNumberFormat | undefined>(currentGrid?.cellNumbers);
   const [hexNumberOpacity, setHexNumberOpacity] = React.useState(
-    currentGrid?.hexNumberOpacity ?? DEFAULT_CELL_NUMBER_OPACITY,
+    currentGrid?.cellNumberOpacity ?? DEFAULT_CELL_NUMBER_OPACITY,
   );
 
   const patchGrid = React.useCallback((patch: Record<string, unknown>): void => {
@@ -96,7 +96,7 @@ export function GridSettingsPanel({
 
   // Dragging the slider settles into one grid change (and one undo step)
   const debouncedNumberOpacityUpdate = React.useMemo(
-    () => debounce((opacity: number) => patchGrid({ hexNumberOpacity: opacity }), 100),
+    () => debounce((opacity: number) => patchGrid({ cellNumberOpacity: opacity }), 100),
     [patchGrid],
   );
 
@@ -146,7 +146,7 @@ export function GridSettingsPanel({
             onChange={(value) => {
               const format = isCellNumberFormat(value) ? value : undefined;
               setHexNumbers(format);
-              patchGrid({ hexNumbers: format });
+              patchGrid({ cellNumbers: format });
             }}
           />
         </SettingRow>

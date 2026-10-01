@@ -346,9 +346,7 @@
   }
 }
 
-// Statblock feeds. `StatblockFeeds` measures the pane and every statblock and places them itself
-// (dm-screen/feedLayout.ts): the pane's width decides how many feeds there are and how wide,
-// and each statblock goes to the feed with the first free space.
+// `StatblockFeeds` sizes and places the statblocks itself (dm-screen/feedLayout.ts).
 .atlas-dm-statblock-feeds {
   position: relative;
   width: 100%;

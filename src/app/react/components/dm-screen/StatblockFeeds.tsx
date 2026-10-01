@@ -1,4 +1,5 @@
-import React, { useCallback, useLayoutEffect, useRef, useState } from 'react';
+import React, { useLayoutEffect, useRef, useState } from 'react';
+import { observeResize } from '../../../utils/observeResize';
 import { FEED_GAP, feedLayout, placeInFeeds } from './feedLayout';
 
 interface StatblockFeedsProps {
@@ -24,24 +25,20 @@ export function StatblockFeeds({ children }: StatblockFeedsProps): React.JSX.Ele
   const { count, width } = feedLayout(paneWidth, itemCount);
   const { placements, height } = placeInFeeds(items.map((_, index) => heights?.[index] ?? 0), count);
 
-  const measure = useCallback((): void => {
-    const pane = paneRef.current;
-    if (!pane) return;
-    setPaneWidth(pane.clientWidth);
-    // Layout sizes ignore the DM screen's entrance animation, which scales the whole panel.
-    const next = Array.from(pane.querySelectorAll<HTMLElement>(':scope > .atlas-dm-statblock-feed-item'), (item) => item.offsetHeight);
-    setHeights((current) => (current && sameNumbers(current, next) ? current : next));
-  }, []);
-
   useLayoutEffect(() => {
-    measure();
     const pane = paneRef.current;
-    if (!pane || typeof ResizeObserver === 'undefined') return;
-    const observer = new ResizeObserver(measure);
-    observer.observe(pane);
-    Array.from(pane.children).forEach((child) => observer.observe(child));
-    return () => observer.disconnect();
-  }, [measure, itemCount]);
+    if (!pane) return undefined;
+
+    const measure = (): void => {
+      // Layout sizes ignore the DM screen's entrance animation, which scales the whole panel.
+      setPaneWidth(pane.clientWidth);
+      const feedItems = pane.querySelectorAll<HTMLElement>(':scope > .atlas-dm-statblock-feed-item');
+      const next = Array.from(feedItems, (item) => item.offsetHeight);
+      setHeights((current) => (current && sameNumbers(current, next) ? current : next));
+    };
+    measure();
+    return observeResize([pane, ...pane.children], measure);
+  }, [itemCount]);
 
   return (
     <div
@@ -51,15 +48,15 @@ export function StatblockFeeds({ children }: StatblockFeedsProps): React.JSX.Ele
       style={{ height: `${height}px` }}
     >
       {items.map((item, index) => {
-        const placement = placements[index];
+        const { feed, top } = placements[index] ?? { feed: 0, top: 0 };
         return (
           <div
             key={React.isValidElement(item) ? item.key : index}
             className="atlas-dm-statblock-feed-item"
             style={{
               width: `${width}px`,
-              left: `${(placement?.feed ?? 0) * (width + FEED_GAP)}px`,
-              top: `${placement?.top ?? 0}px`,
+              left: `${feed * (width + FEED_GAP)}px`,
+              top: `${top}px`,
             }}
           >
             {item}

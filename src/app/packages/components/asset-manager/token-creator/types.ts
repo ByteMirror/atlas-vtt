@@ -1,3 +1,4 @@
+import type { ScaleDown } from '../../../../imageProcessing/imageJob';
 
 export type CreatorMode = 'token' | 'map';
 
@@ -37,6 +38,8 @@ export interface TokenPreview {
   file: File | null;
   /** Percentage by which the background conversion shrank the upload. */
   compressionRatio?: number;
+  /** Pixels the conversion took from an upload larger than Atlas keeps. */
+  scaledDown?: ScaleDown | undefined;
   previewUrl: string;
   name: string;
   imageScale: number;

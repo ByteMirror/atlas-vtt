@@ -171,6 +171,7 @@ export function useTokenPreviews(mode: CreatorMode): TokenPreviewsApi {
       if (!signal.aborted && liveIds.current.has(preview.id)) {
         queuePatch(preview.id, {
           compressionRatio: Math.round((1 - result.image.size / file.size) * 100),
+          scaledDown: result.scaledDown,
           previewUrl: URL.createObjectURL(result.sourcePreview ?? result.preview ?? result.image),
           isOptimizing: false,
         });

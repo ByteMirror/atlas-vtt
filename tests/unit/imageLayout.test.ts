@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fitWithin, frameImageRect, frameSize } from '../../src/app/imageProcessing/imageLayout';
+import { fitWithin, frameImageRect, frameSize, vectorRasterSize } from '../../src/app/imageProcessing/imageLayout';
 import { renderedImageRect, TOKEN_CROP_FRACTION, tokenCropPlacement } from '../../src/app/packages/components/asset-manager/token-creator/cropMath';
 
 describe('fitWithin', () => {
@@ -10,6 +10,20 @@ describe('fitWithin', () => {
 
   it('never scales up', () => {
     expect(fitWithin({ width: 300, height: 120 }, 400, 400)).toEqual({ width: 300, height: 120 });
+  });
+});
+
+describe('vectorRasterSize', () => {
+  it('fills the bounds of a fit, however small the vector says it is', () => {
+    const map = { kind: 'fit', maxWidth: 8192, maxHeight: 8192 } as const;
+    expect(vectorRasterSize({ width: 2592, height: 1728 }, map)).toEqual({ width: 8192, height: 5461 });
+    expect(vectorRasterSize({ width: 30000, height: 40000 }, map)).toEqual({ width: 6144, height: 8192 });
+    expect(vectorRasterSize({ width: 24, height: 24 }, { kind: 'fit', maxWidth: 400, maxHeight: 400 })).toEqual({ width: 400, height: 400 });
+  });
+
+  it('gives a frame enough pixels to crop from', () => {
+    const frame = { kind: 'frame', placement: tokenCropPlacement(1, { x: 0, y: 0 }), minSize: 256, maxSize: 400 } as const;
+    expect(vectorRasterSize({ width: 100, height: 50 }, frame)).toEqual({ width: 2048, height: 1024 });
   });
 });
 

@@ -1,7 +1,7 @@
-import type { FramePlacement, ImageJob, ImageJobResult, ThumbnailSpec } from './imageJob';
+import type { FramePlacement, ImageJob, ImageJobResult, ImageLayout, ThumbnailSpec } from './imageJob';
 import { imageDimensions } from './imageDimensions';
 import { withDecodedImage } from './imageElement';
-import type { Size } from './imageLayout';
+import { vectorRasterSize, type Size } from './imageLayout';
 import { ImageDecodeError, ImageWorkerPool, type ImageJobOptions } from './ImageWorkerPool';
 import ImageWorker from './imageWorker?worker&inline';
 
@@ -42,8 +42,8 @@ const MAX_WORKERS = 6;
  * parallel; a huge map (150 megapixels hold 1.2 GB while converting) runs alone.
  */
 const MEMORY_BUDGET_BYTES = 1024 ** 3;
-/** Longer side of a vector image (SVG) once rasterized; vectors have no pixels of their own. */
-const VECTOR_RASTER_SIZE = 2048;
+/** Side assumed for an image that reports no size of its own, such as an SVG without dimensions. */
+const UNSIZED_IMAGE_SIDE = 2048;
 const SVG = 'image/svg+xml';
 
 let pool: ImageWorkerPool | null = null;
@@ -72,13 +72,16 @@ export function disposeImageProcessing(): void {
   pool = null;
 }
 
-/** Rasterizes `blob` on the main thread for formats workers cannot decode. */
-function rasterize(blob: Blob): Promise<ImageBitmap> {
+/**
+ * Rasterizes `blob` on the main thread for formats workers cannot decode. A
+ * vector image is drawn at the size `layout` asks for, so an SVG map gets a
+ * map's pixels rather than a token's.
+ */
+function rasterize(blob: Blob, layout: ImageLayout): Promise<ImageBitmap> {
   return withDecodedImage(blob, (image) => {
-    const width = image.naturalWidth || VECTOR_RASTER_SIZE;
-    const height = image.naturalHeight || VECTOR_RASTER_SIZE;
-    const scale = blob.type === SVG ? VECTOR_RASTER_SIZE / Math.max(width, height) : 1;
-    const canvas = new OffscreenCanvas(Math.max(1, Math.round(width * scale)), Math.max(1, Math.round(height * scale)));
+    const natural = { width: image.naturalWidth || UNSIZED_IMAGE_SIDE, height: image.naturalHeight || UNSIZED_IMAGE_SIDE };
+    const { width, height } = blob.type === SVG ? vectorRasterSize(natural, layout) : natural;
+    const canvas = new OffscreenCanvas(width, height);
     const context = canvas.getContext('2d');
     if (!context) throw new Error('Could not create a drawing surface for the image.');
     context.drawImage(image, 0, 0, canvas.width, canvas.height);
@@ -100,7 +103,7 @@ async function process(source: Blob, job: Omit<ImageJob, 'source'>, options: Pro
     return await workers.run({ ...withCopies, source }, run);
   } catch (error) {
     if (!(error instanceof ImageDecodeError)) throw error;
-    const bitmap = await rasterize(source);
+    const bitmap = await rasterize(source, job.layout);
     return workers.run({ ...withCopies, source: bitmap }, { ...run, cost: jobCost(bitmap), transfer: [bitmap] });
   }
 }

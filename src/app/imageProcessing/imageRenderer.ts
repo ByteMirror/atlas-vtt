@@ -1,4 +1,4 @@
-import type { ImageJob, ImageJobResult, ImageLayout, ThumbnailSpec } from './imageJob';
+import type { ImageJob, ImageJobResult, ImageLayout, ScaleDown, ThumbnailSpec } from './imageJob';
 import { fitWithin, frameImageRect, frameSize, type Size } from './imageLayout';
 
 /**
@@ -124,6 +124,12 @@ function render(bitmap: ImageBitmap, layout: ImageLayout): OffscreenCanvas {
     : renderFrame(bitmap, layout);
 }
 
+/** What a fit took from the source, or undefined when the output keeps every pixel. */
+function scaleDown(layout: ImageLayout, source: Size, output: Size): ScaleDown | undefined {
+  if (layout.kind !== 'fit' || (output.width >= source.width && output.height >= source.height)) return undefined;
+  return { from: { width: source.width, height: source.height }, to: { width: output.width, height: output.height } };
+}
+
 export async function renderImageJob(job: ImageJob): Promise<ImageJobResult> {
   const bitmap = await decode(job.source);
   try {
@@ -132,9 +138,10 @@ export async function renderImageJob(job: ImageJob): Promise<ImageJobResult> {
       return { image: job.source, sourcePreview, ...await renderCopies(bitmap, job) };
     }
     const canvas = render(bitmap, job.layout);
+    const scaledDown = scaleDown(job.layout, bitmap, canvas);
     // The output no longer needs the decoded source; free it before the slow encode.
     bitmap.close();
-    return { image: await encode(canvas, job.quality), sourcePreview, ...await renderCopies(canvas, job) };
+    return { image: await encode(canvas, job.quality), sourcePreview, ...await renderCopies(canvas, job), scaledDown };
   } finally {
     bitmap.close();
   }

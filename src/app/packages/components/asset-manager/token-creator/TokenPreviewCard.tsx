@@ -56,6 +56,32 @@ function useWellSize(element: HTMLDivElement | null): number {
   return size;
 }
 
+function pixels(size: { width: number; height: number }): string {
+  return `${size.width} × ${size.height}`;
+}
+
+/**
+ * What the conversion did to the upload. A map that lost pixels says so with
+ * its new size, since small labels may no longer be readable; token art always
+ * shrinks to token size, so there the saved file size is the news.
+ */
+function ConversionBadge({ preview, mode }: Pick<TokenPreviewCardProps, 'preview' | 'mode'>): React.JSX.Element | null {
+  const { scaledDown, compressionRatio } = preview;
+  if (mode === 'map' && scaledDown) {
+    return (
+      <LabelTooltip label={`Scaled down from ${pixels(scaledDown.from)} px to the largest size a map can have`}>
+        <div className="atlas-token-card__badge atlas-token-card__badge--scaled">{pixels(scaledDown.to)} px</div>
+      </LabelTooltip>
+    );
+  }
+  if (compressionRatio === undefined || compressionRatio <= 0) return null;
+  return (
+    <LabelTooltip label="Size reduction from optimization">
+      <div className="atlas-token-card__badge">−{compressionRatio}%</div>
+    </LabelTooltip>
+  );
+}
+
 /**
  * One preview in the grid. Tokens get a crop editor (drag to reposition, wheel
  * or slider to zoom, double-click to reset) with the image beyond the circle
@@ -184,13 +210,7 @@ export const TokenPreviewCard = React.memo(function TokenPreviewCard({ preview, 
           <span>Optimizing</span>
         </div>
       )}
-      {preview.compressionRatio !== undefined && preview.compressionRatio > 0 && (
-        <LabelTooltip label="Size reduction from optimization">
-          <div className="atlas-token-card__badge">
-            −{preview.compressionRatio}%
-          </div>
-        </LabelTooltip>
-      )}
+      <ConversionBadge preview={preview} mode={mode} />
     </div>
   );
 

@@ -46,12 +46,20 @@ export interface ImageJob {
   sourcePreview?: ThumbnailSpec | undefined;
 }
 
+/** Pixel sizes of a source and of the smaller image a fit made of it. */
+export interface ScaleDown {
+  from: { width: number; height: number };
+  to: { width: number; height: number };
+}
+
 export interface ImageJobResult {
   /** WebP bytes. A WebP source that needs no scaling is returned as it is, avoiding a lossy re-encode. */
   image: Blob;
   thumbnail: Blob | null;
   preview: Blob | null;
   sourcePreview: Blob | null;
+  /** Set when the source had more pixels than its bounds allow and lost them. */
+  scaledDown?: ScaleDown | undefined;
 }
 
 export interface ImageJobRequest {

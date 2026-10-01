@@ -16,6 +16,7 @@
 
 ## Improved
 
+- A map larger than 8192 pixels on a side is scaled down when you add it. Its card now shows the new size, so you know before saving that small labels may be harder to read
 - The GM dashboard is now called the DM screen. Press Tab on a map to open it; a custom key you set for it is kept
 - Large token imports are much faster. 1,000 tokens from Fantasy Statblocks now take about 40 seconds instead of 11 minutes, and imports of thousands of tokens no longer slow down as they go
 - The token creator and the Fantasy Statblocks list stay smooth with thousands of images
@@ -27,6 +28,7 @@
 
 ## Fixed
 
+- SVG maps are sharp. They were drawn at 2048 pixels and are now drawn at the full map size of 8192 pixels
 - The DM screen shows its statblocks side by side again. As many columns as fit share the space, and each statblock goes into the column with the first free space, so no column stays empty
 - Collections can be deleted again when some of their files were already removed outside Obsidian, for example by git
 - Edit Token opens again instead of crashing on its Vision switch

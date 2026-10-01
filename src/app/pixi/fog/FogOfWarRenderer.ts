@@ -82,6 +82,13 @@ export class FogOfWarRenderer {
   private pointerDownHandler: (e: PIXI.FederatedPointerEvent) => void;
   private pointerMoveHandler: (e: PIXI.FederatedPointerEvent) => void;
   private pointerUpHandler: () => void;
+  private lastPointerScreen: { x: number; y: number } | null = null;
+  private viewportMovedHandler = (): void => {
+    const tool = this.store.getState().activeTool;
+    if (!this.lastPointerScreen || this.fogMode !== 'brush' || (tool !== 'fog' && tool !== 'eraser')) return;
+    const world = this.viewport.toWorld(this.lastPointerScreen);
+    this.cursorPreview.updatePosition(world.x, world.y);
+  };
   private fogBrushSizeChangedHandler: (size: number) => void;
   private fogClearAllHandler: () => void;
   private fogModeChangedHandler: (mode: FogMode) => void;
@@ -255,7 +262,7 @@ export class FogOfWarRenderer {
     this.container.eventMode = 'static';
     this.container.interactiveChildren = true;
     this.container.visible = true;
-    this.viewport.pause = true;
+    // Keep wheel/pinch zoom running; the orchestrator manages drag separately.
 
     // Disable interaction on hit-test sprites during drawing
     this.setFogSpritesInteractive(false);
@@ -271,7 +278,7 @@ export class FogOfWarRenderer {
 
   disableFogMode(): void {
     this.container.interactiveChildren = false;
-    this.viewport.pause = false;
+    this.lastPointerScreen = null;
 
     // Reset drawing state
     this.isDrawing = false;
@@ -308,6 +315,7 @@ export class FogOfWarRenderer {
     this.viewport.off('pointermove', this.pointerMoveHandler);
     this.viewport.off('pointerup', this.pointerUpHandler);
     this.viewport.off('pointerupoutside', this.pointerUpHandler);
+    this.viewport.off('moved', this.viewportMovedHandler);
 
     this.eventBus.off('fog-brush-size-changed', this.fogBrushSizeChangedHandler);
     this.eventBus.off('fog-clear-all', this.fogClearAllHandler);
@@ -370,6 +378,7 @@ export class FogOfWarRenderer {
     this.viewport.on('pointermove', this.pointerMoveHandler);
     this.viewport.on('pointerup', this.pointerUpHandler);
     this.viewport.on('pointerupoutside', this.pointerUpHandler);
+    this.viewport.on('moved', this.viewportMovedHandler);
 
     this.eventBus.on('fog-brush-size-changed', this.fogBrushSizeChangedHandler);
     this.eventBus.on('fog-clear-all', this.fogClearAllHandler);
@@ -740,9 +749,11 @@ export class FogOfWarRenderer {
   // ═══════════════════════════════════════════════════════════════════
 
   private onPointerDown(event: PIXI.FederatedPointerEvent): void {
+    if (event.button !== 0) return;
     const tool = this.store.getState().activeTool;
     if (tool !== 'fog' && tool !== 'eraser') return;
 
+    this.lastPointerScreen = { x: event.global.x, y: event.global.y };
     const worldPos = this.viewport.toWorld(event.global);
 
     if (this.fogMode === 'lasso') {
@@ -772,6 +783,7 @@ export class FogOfWarRenderer {
 
   private onPointerMove(event: PIXI.FederatedPointerEvent): void {
     const tool = this.store.getState().activeTool;
+    this.lastPointerScreen = { x: event.global.x, y: event.global.y };
     const worldPos = this.viewport.toWorld(event.global);
 
     if (this.fogMode === 'brush' && (tool === 'fog' || tool === 'eraser')) {

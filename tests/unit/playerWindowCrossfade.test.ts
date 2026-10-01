@@ -18,7 +18,8 @@ vi.mock('../../src/app/pixi/sceneTransition', () => ({
 }));
 vi.mock('../../src/app/atlas-view', () => ({ AtlasView: class {}, ATLAS_VIEW_TYPE: 'atlas-vtt' }));
 
-import { PlayerWindowService, type PlayerFrameSource } from '../../src/app/services/PlayerWindowService';
+import type { PlayerFrameSource } from '../../src/app/services/PlayerFrameMirror';
+import { PlayerWindowService } from '../../src/app/services/PlayerWindowService';
 import { freezeCanvasFrame } from '../../src/app/pixi/sceneTransition';
 
 afterEach(() => {

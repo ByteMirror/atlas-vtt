@@ -5,7 +5,10 @@ import { createStore } from 'zustand/vanilla';
 import { createTabMetaStore } from '../../src/app/stores/tabMetaStore';
 import { playerWindowStore, resetPlayerWindowStore } from '../../src/app/stores/playerWindowStore';
 import { SettingsService } from '../../src/app/services/SettingsService';
-import type { PlayerFrameSource } from '../../src/app/services/PlayerWindowService';
+import type { PlayerFrameSource } from '../../src/app/services/PlayerFrameMirror';
+import { RenderScheduler } from '../../src/app/pixi/RenderScheduler';
+import type { Application } from 'pixi.js';
+import { fakeApp, fakeGroup } from '../mocks/schedulerApp';
 
 vi.mock('../../src/app/atlas-view', () => ({
   AtlasView: class AtlasView {},
@@ -61,12 +64,13 @@ interface FakeView {
   atlasStore: ReturnType<typeof createStore<{ isMapLoading: boolean }>>;
 }
 
-function createFakeView(): FakeView {
+/** A view whose map canvas belongs to `app`, by default one that renders on every tick. */
+function createFakeView(app?: Application): FakeView {
   const tabMetaStore = createTabMetaStore();
   const atlasStore = createStore<{ isMapLoading: boolean }>(() => ({ isMapLoading: false }));
   const canvas = document.createElement('canvas');
   const withPlayerSafeFrame = vi.fn((capture: () => void) => capture());
-  const renderer = { getAppInstance: () => ({ canvas }), withPlayerSafeFrame };
+  const renderer = { getAppInstance: () => (app ? Object.assign(app, { canvas }) : { canvas }), withPlayerSafeFrame };
   const view = {
     tabMetaStore,
     atlasStore,
@@ -113,6 +117,38 @@ describe('PlayerWindowPresenter', () => {
     source.withPlayerSafeFrame(capture, settings);
     expect(withPlayerSafeFrame).toHaveBeenCalledWith(capture, settings, undefined);
     expect(capture).toHaveBeenCalledTimes(1);
+    expect(source.beforeRender).toBeUndefined();
+  });
+
+  test('offers captures right before the renders of a canvas that renders on change', async () => {
+    const { app, ticker } = fakeApp(fakeGroup());
+    const scheduler = new RenderScheduler(app);
+    ticker.update(16);
+    const { view, withPlayerSafeFrame } = createFakeView(app);
+    const tavern = view.tabMetaStore.getState().addTab('maps/tavern.md', 'Tavern');
+
+    await presentTabInPlayerWindow({} as any, view, tavern);
+    const source: PlayerFrameSource = serviceMock.openPlayerWindow.mock.calls[0][0];
+    const beforeRender = source.beforeRender!;
+    const listener = vi.fn();
+    const stop = beforeRender.listen(listener);
+
+    ticker.update(32);
+    expect(listener).not.toHaveBeenCalled();
+    beforeRender.requestRender();
+    ticker.update(48);
+    expect(listener).toHaveBeenCalledWith(48);
+
+    const capture = vi.fn();
+    const settings = new SettingsService({} as any).getLocalPlayerViewSettings();
+    beforeRender.withPlayerSafeFrame(capture, settings);
+    expect(withPlayerSafeFrame).toHaveBeenCalledWith(capture, settings, undefined, true);
+
+    stop();
+    beforeRender.requestRender();
+    ticker.update(64);
+    expect(listener).toHaveBeenCalledTimes(1);
+    scheduler.destroy();
   });
 
   test('holds the frame while the DM browses another tab and releases it on return', async () => {

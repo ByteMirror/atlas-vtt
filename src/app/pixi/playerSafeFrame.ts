@@ -74,6 +74,31 @@ function applyCamera({ target, camera }: PlayerFrameCamera): () => void {
 }
 
 /**
+ * Apply the player frame's visibility, opacity and (optionally) frozen camera. Returns the
+ * function that restores the DM's, and whether anything differs from the DM's frame.
+ */
+function applyPlayerFrame(layers: readonly LayerVisibility[], camera?: PlayerFrameCamera): { differs: boolean; restore: () => void } {
+  const changed = layers.filter(({ layer, visible, alpha }) =>
+    layer.visible !== visible || (alpha !== undefined && layer.alpha !== alpha))
+    .map(entry => ({ ...entry, previous: entry.layer.visible, previousAlpha: entry.layer.alpha }));
+  for (const { layer, visible, alpha } of changed) {
+    layer.visible = visible;
+    if (alpha !== undefined) layer.alpha = alpha;
+  }
+  const restoreCamera = camera ? applyCamera(camera) : null;
+  return {
+    differs: changed.length > 0 || !!camera,
+    restore: (): void => {
+      restoreCamera?.();
+      for (const { layer, previous, alpha, previousAlpha } of changed) {
+        layer.visible = previous;
+        if (alpha !== undefined) layer.alpha = previousAlpha;
+      }
+    },
+  };
+}
+
+/**
  * Temporarily apply player visibility, opacity and (optionally) a frozen player
  * camera, then restore the DM frame.
  */
@@ -83,27 +108,36 @@ export function captureWithLayerVisibility(
   capture: () => void,
   camera?: PlayerFrameCamera,
 ): void {
-  const changed = layers.filter(({ layer, visible, alpha }) =>
-    layer.visible !== visible || (alpha !== undefined && layer.alpha !== alpha))
-    .map(entry => ({ ...entry, previous: entry.layer.visible, previousAlpha: entry.layer.alpha }));
-  if (changed.length === 0 && !camera) {
+  const { differs, restore } = applyPlayerFrame(layers, camera);
+  if (!differs) {
     capture();
     return;
   }
-  for (const { layer, visible, alpha } of changed) {
-    layer.visible = visible;
-    if (alpha !== undefined) layer.alpha = alpha;
-  }
-  const restoreCamera = camera ? applyCamera(camera) : null;
   try {
     render();
     capture();
   } finally {
-    restoreCamera?.();
-    for (const { layer, previous, alpha, previousAlpha } of changed) {
-      layer.visible = previous;
-      if (alpha !== undefined) layer.alpha = previousAlpha;
-    }
+    restore();
     render();
+  }
+}
+
+/**
+ * `captureWithLayerVisibility` for a caller whose own render of the DM frame follows in the
+ * same task (`RenderScheduler`'s before-render hook), so restoring costs no render. The
+ * player frame is always rendered: the canvas still holds the previous frame.
+ */
+export function captureBeforeRender(
+  layers: readonly LayerVisibility[],
+  render: () => void,
+  capture: () => void,
+  camera?: PlayerFrameCamera,
+): void {
+  const { restore } = applyPlayerFrame(layers, camera);
+  try {
+    render();
+    capture();
+  } finally {
+    restore();
   }
 }

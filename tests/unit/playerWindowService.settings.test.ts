@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createStore, type StoreApi } from 'zustand/vanilla';
 import { SettingsService } from '../../src/app/services/SettingsService';
-import { PlayerWindowService, type PlayerFrameSource } from '../../src/app/services/PlayerWindowService';
+import type { PlayerFrameSource } from '../../src/app/services/PlayerFrameMirror';
+import { PlayerWindowService } from '../../src/app/services/PlayerWindowService';
 import type { ViewAtlasState } from '../../src/app/storeFactory';
 import { attachFakePlayerWindow } from '../mocks/playerPopout';
 

@@ -1,6 +1,7 @@
 import { vi } from 'vitest';
 import type { LocalPlayerView } from '../../src/app/local-player-view';
-import type { PlayerFrameSource, PlayerWindowService } from '../../src/app/services/PlayerWindowService';
+import type { PlayerFrameSource } from '../../src/app/services/PlayerFrameMirror';
+import type { PlayerWindowService } from '../../src/app/services/PlayerWindowService';
 
 /** Attaches `service` to a loaded fake popout, as `openPlayerWindow` does with a real one. */
 export function attachFakePlayerWindow(service: PlayerWindowService, source: PlayerFrameSource, tabId = 'scene-a'): Document {

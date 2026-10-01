@@ -1,7 +1,7 @@
 import { App, Notice } from 'obsidian';
 import type { ViewAtlasState } from '../storeFactory';
 import type { StoreApi } from 'zustand';
-import type { AtlasSettings, SettingsService } from './SettingsService';
+import type { SettingsService } from './SettingsService';
 import { playerWindowStore, resetPlayerWindowStore } from '../stores/playerWindowStore';
 import './player-window.scss';
 import { PlayerInitiativePanel } from './PlayerInitiativePanel';
@@ -10,6 +10,7 @@ import { PlayerDiceRolls } from './PlayerDiceRolls';
 import { PlayerWidgetBar } from './PlayerWidgetBar';
 import { LocalPlayerView, LOCAL_PLAYER_VIEW_TYPE, type PlayerCameraState } from '../local-player-view';
 import { freezeCanvasFrame, type SceneTransition } from '../pixi/sceneTransition';
+import { PlayerFrameMirror, type PlayerFrameSource } from './PlayerFrameMirror';
 
 /** Scopes the rules in `player-window.scss` to the popout document. */
 const PLAYER_WINDOW_BODY_CLASS = 'atlas-player-window';
@@ -19,20 +20,6 @@ const PLAYER_WINDOW_LIVE_CLASS = 'atlas-player-window--live';
 /** Identifies a stylesheet node so the same sheet is not added to the popout twice. */
 function getStyleNodeKey(node: Element): string {
   return node.instanceOf(HTMLLinkElement) ? `link:${node.href}` : `style:${node.textContent ?? ''}`;
-}
-
-/** A DM map canvas that can briefly render itself without DM-only layers. */
-export interface PlayerFrameSource {
-  canvas: HTMLCanvasElement;
-  store?: StoreApi<ViewAtlasState>;
-  getCamera?(): PlayerCameraState | undefined;
-  /**
-   * Runs `capture` while `canvas` holds a frame that is safe to show players,
-   * rendered from `camera` when given instead of the DM's camera.
-   */
-  withPlayerSafeFrame(capture: () => void, settings: AtlasSettings['localPlayerView'], camera?: PlayerCameraState): void;
-  /** Renders of `canvas` so far. When given, frames are only mirrored after the canvas changed. */
-  getRenderedFrames?(): number | undefined;
 }
 
 /**
@@ -69,8 +56,8 @@ export class PlayerWindowService {
     this.cleanup(false);
   };
   private isCleaningUp = false;
-  /** Set when the next live frame must be mirrored even if the DM canvas did not render. */
-  private isMirrorStale = true;
+  /** Copies the presented canvas into the window; exists while frames are being mirrored. */
+  private mirror: PlayerFrameMirror | null = null;
   /** Identifies the running copy loop; a newer loop ends older ones. */
   private mirrorLoopId = 0;
 
@@ -135,6 +122,8 @@ export class PlayerWindowService {
     this.holdCurrentFrame();
     const heldFrame = this.heldFrame ?? createEl('canvas');
     this.streamSource = { canvas: heldFrame, withPlayerSafeFrame: (capture) => capture() };
+    // Not on the window's next display frame, which never comes while it is hidden: the view would stay referenced
+    this.mirror?.frame();
   }
 
   /**
@@ -144,7 +133,7 @@ export class PlayerWindowService {
   public releaseHeldFrame(source: PlayerFrameSource): void {
     if (!this.isWindowOpen()) return;
     this.streamSource = source;
-    this.isMirrorStale = true;
+    this.mirror?.markStale();
     this.presentScene();
     this.heldFrame = null;
     this.updateFreezeIndicator();
@@ -161,7 +150,7 @@ export class PlayerWindowService {
     }
     if (playerWindowStore.getState().presentedTabId !== tabId) this.crossfadeToNextMap();
     this.streamSource = source;
-    this.isMirrorStale = true;
+    this.mirror?.markStale();
     this.presentScene();
     this.heldFrame = null;
     this.setFrozenCamera(null);
@@ -184,7 +173,7 @@ export class PlayerWindowService {
     this.playerView = view;
     this.playerWindow = view.contentEl.win;
     this.streamSource = source;
-    this.isMirrorStale = true;
+    this.mirror?.markStale();
     playerWindowStore.setState({ presentedTabId: tabId });
     // Bind now: the popout may still be loading, and the DM can switch tabs before it has
     this.destroySceneOverlays();
@@ -199,7 +188,7 @@ export class PlayerWindowService {
 
   private setFrozenCamera(camera: PlayerCameraState | null): void {
     this.frozenCamera = camera ? { ...camera } : null;
-    this.isMirrorStale = true;
+    this.mirror?.markStale();
     this.updateFreezeIndicator();
     playerWindowStore.setState({ isFrozen: this.isFrozen() });
     this.playerView?.updateSession({ frozen: this.isFrozen(), ...(camera ? { camera: { ...camera } } : {}) });
@@ -300,7 +289,7 @@ export class PlayerWindowService {
       this.sceneOverlays.forEach((overlay) => overlay.mount(content));
       this.settingsUnsubscribe?.();
       // Player view settings decide which layers players see
-      this.settingsUnsubscribe = this.settingsService.onChange(() => { this.isMirrorStale = true; });
+      this.settingsUnsubscribe = this.settingsService.onChange(() => this.mirror?.markStale());
 
       // Create freeze indicator
       const freezeIndicator = content.createDiv();
@@ -385,20 +374,16 @@ export class PlayerWindowService {
 
     this.playerWindow.document.body.classList.add(PLAYER_WINDOW_LIVE_CLASS);
 
-    let lastHeldFrame: HTMLCanvasElement | null = null;
-    let lastDrawnCanvas: HTMLCanvasElement | null = null;
-    let lastRenderedFrames: number | undefined;
     const loopId = ++this.mirrorLoopId;
-    this.isMirrorStale = true;
-
-    const draw = (source: HTMLCanvasElement): void => {
-      if (targetCanvas.width !== source.width || targetCanvas.height !== source.height) {
-        targetCanvas.width = source.width;
-        targetCanvas.height = source.height;
-      }
-      targetCtx.clearRect(0, 0, source.width, source.height);
-      targetCtx.drawImage(source, 0, 0);
-    };
+    this.mirror?.stop();
+    const mirror = new PlayerFrameMirror(targetCanvas, targetCtx, {
+      source: () => this.streamSource,
+      heldFrame: () => this.heldFrame,
+      frozenCamera: () => this.frozenCamera,
+      settings: () => this.settingsService.getLocalPlayerViewSettings(),
+      onFrame: (camera) => this.recordPlayerCamera(camera),
+    });
+    this.mirror = mirror;
 
     const copyCanvas = (): void => {
       if (loopId !== this.mirrorLoopId) return;
@@ -408,34 +393,7 @@ export class PlayerWindowService {
       }
 
       this.animationFrame = this.playerWindow.requestAnimationFrame(copyCanvas);
-
-      try {
-        const held = this.heldFrame;
-        if (held) {
-          // A held frame is static: draw it once, then idle until it changes.
-          if (held !== lastHeldFrame) draw(held);
-          lastHeldFrame = held;
-          return;
-        }
-        if (lastHeldFrame) this.isMirrorStale = true;
-        lastHeldFrame = null;
-
-        // A live frame only changes when the DM canvas rendered something new
-        const source = this.streamSource;
-        const renderedFrames = source.getRenderedFrames?.();
-        const isUnchanged = !this.isMirrorStale && lastDrawnCanvas === source.canvas
-          && renderedFrames !== undefined && renderedFrames === lastRenderedFrames;
-        if (isUnchanged) return;
-        lastDrawnCanvas = source.canvas;
-        lastRenderedFrames = renderedFrames;
-        this.isMirrorStale = false;
-
-        const frozenCamera = this.frozenCamera ?? undefined;
-        source.withPlayerSafeFrame(() => draw(source.canvas), this.settingsService.getLocalPlayerViewSettings(), frozenCamera);
-        this.recordPlayerCamera(frozenCamera ?? source.getCamera?.());
-      } catch (error) {
-        console.error('[PlayerWindowService] Error copying canvas:', error);
-      }
+      mirror.frame();
     };
 
     // Start the copy loop
@@ -460,6 +418,8 @@ export class PlayerWindowService {
 
     this.isCleaningUp = true;
     this.mirrorLoopId++;
+    this.mirror?.stop();
+    this.mirror = null;
 
     if (this.animationFrame) {
       this.playerWindow?.cancelAnimationFrame(this.animationFrame);

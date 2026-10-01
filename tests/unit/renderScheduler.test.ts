@@ -1,39 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { Container, Ticker, type Application, type RenderGroup } from 'pixi.js';
-import { RenderScheduler, getRenderedFrames, hasPendingChanges, requestRender } from '../../src/app/pixi/RenderScheduler';
-
-interface GroupState {
-  structureDidChange?: boolean;
-  renderables?: number;
-  updates?: number;
-  children?: RenderGroup[];
-}
-
-function fakeGroup({ structureDidChange = false, renderables = 0, updates = 0, children = [] }: GroupState = {}): RenderGroup {
-  return {
-    structureDidChange,
-    childrenRenderablesToUpdate: { list: [], index: renderables },
-    childrenToUpdate: { 1: { list: [], index: updates } },
-    renderGroupChildren: children,
-  } as unknown as RenderGroup;
-}
-
-function fakeApp(group: RenderGroup): { app: Application; render: ReturnType<typeof vi.fn>; ticker: Ticker } {
-  const ticker = new Ticker();
-  ticker.autoStart = false;
-  const render = vi.fn();
-  const stage = new Container();
-  Object.defineProperty(stage, 'renderGroup', { value: group });
-  const app = {
-    ticker,
-    stage,
-    render,
-    renderer: { runners: { contextChange: { add: vi.fn(), remove: vi.fn() } } },
-  } as unknown as Application;
-  // What Application's TickerPlugin does on init
-  ticker.add(app.render, app);
-  return { app, render, ticker };
-}
+import { RenderScheduler, hasPendingChanges, rendersOnChange, requestRender, setBeforeRender } from '../../src/app/pixi/RenderScheduler';
+import { fakeApp, fakeGroup, type GroupState } from '../mocks/schedulerApp';
 
 describe('hasPendingChanges', () => {
   it('is false for a render group without queued updates', () => {
@@ -55,6 +22,7 @@ describe('RenderScheduler', () => {
     const group = fakeGroup();
     const { app, render, ticker } = fakeApp(group);
     const scheduler = new RenderScheduler(app);
+    expect(rendersOnChange(app)).toBe(true);
 
     ticker.update(16);
     expect(render).toHaveBeenCalledTimes(1);
@@ -65,8 +33,6 @@ describe('RenderScheduler', () => {
     group.structureDidChange = true;
     ticker.update(64);
     expect(render).toHaveBeenCalledTimes(2);
-    expect(scheduler.renderedFrames).toBe(2);
-    expect(getRenderedFrames(app)).toBe(2);
     scheduler.destroy();
   });
 
@@ -74,7 +40,7 @@ describe('RenderScheduler', () => {
     const { app, render, ticker } = fakeApp(fakeGroup());
     const scheduler = new RenderScheduler(app);
     ticker.update(16);
-    render.mockClear();
+    vi.mocked(render).mockClear();
 
     requestRender(app);
     ticker.update(32);
@@ -92,6 +58,68 @@ describe('RenderScheduler', () => {
     ticker.update(16);
 
     expect(render).not.toHaveBeenCalled();
-    expect(getRenderedFrames(app)).toBeUndefined();
+    expect(rendersOnChange(app)).toBe(false);
+  });
+});
+
+describe('before-render hook', () => {
+  it('runs with the frame time right before each render, and never without one', () => {
+    const events: string[] = [];
+    const { app, ticker } = fakeApp(fakeGroup(), () => events.push('render'));
+    const scheduler = new RenderScheduler(app);
+    setBeforeRender(app, (frameTime) => events.push(`hook:${frameTime}`));
+
+    ticker.update(16);
+    ticker.update(32);
+    requestRender(app);
+    ticker.update(48);
+
+    expect(events).toEqual(['hook:16', 'render', 'hook:48', 'render']);
+    scheduler.destroy();
+  });
+
+  it('serves a render requested inside the hook with the render that follows', () => {
+    const { app, render, ticker } = fakeApp(fakeGroup());
+    const scheduler = new RenderScheduler(app);
+    setBeforeRender(app, () => requestRender(app));
+
+    ticker.update(16);
+    ticker.update(32);
+    ticker.update(48);
+
+    expect(render).toHaveBeenCalledTimes(1);
+    scheduler.destroy();
+  });
+
+  it('stops running once removed, and a removed hook never removes its successor', () => {
+    const { app, ticker } = fakeApp(fakeGroup());
+    const scheduler = new RenderScheduler(app);
+    const first = vi.fn();
+    const second = vi.fn();
+    const removeFirst = setBeforeRender(app, first);
+    const removeSecond = setBeforeRender(app, second);
+
+    removeFirst();
+    ticker.update(16);
+    expect(first).not.toHaveBeenCalled();
+    expect(second).toHaveBeenCalledTimes(1);
+
+    removeSecond();
+    requestRender(app);
+    ticker.update(32);
+    expect(second).toHaveBeenCalledTimes(1);
+    scheduler.destroy();
+  });
+
+  it('is dropped with the scheduler', () => {
+    const { app, ticker } = fakeApp(fakeGroup());
+    const hook = vi.fn();
+    const scheduler = new RenderScheduler(app);
+    setBeforeRender(app, hook);
+    scheduler.destroy();
+
+    ticker.update(16);
+
+    expect(hook).not.toHaveBeenCalled();
   });
 });

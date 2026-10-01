@@ -19,7 +19,7 @@ import { HexLinkRenderer } from "./pixi/hexLinks/HexLinkRenderer";
 import { HexLinkInteraction } from "./pixi/hexLinks/HexLinkInteraction";
 import type { MapRect } from "./grid/hexNumbering";
 import type { NotePin } from "./types";
-import { captureWithLayerVisibility, type LayerVisibility } from "./pixi/playerSafeFrame";
+import { captureBeforeRender, captureWithLayerVisibility, type LayerVisibility } from "./pixi/playerSafeFrame";
 import type { PlayerCameraState } from "./local-player-view";
 import { SelectionManager } from "./pixi/SelectionManager"; // Import SelectionManager
 import { FogOfWarRenderer } from "./pixi/fog/FogOfWarRenderer";
@@ -712,8 +712,9 @@ export class PixiRendererOrchestrator { // Renamed class
   /**
    * Capture player settings without changing the DM's scene or preferences.
    * With `camera`, the frame is rendered from that camera instead of the DM's.
+   * `renderFollows`: called right before the stage's own render, which puts the DM's frame back.
    */
-  public withPlayerSafeFrame(capture: () => void, settings: AtlasSettings['localPlayerView'], camera?: PlayerCameraState): void {
+  public withPlayerSafeFrame(capture: () => void, settings: AtlasSettings['localPlayerView'], camera?: PlayerCameraState, renderFollows = false): void {
     const app = this.pixiAppManager.getApp();
     if (!app?.renderer) return;
     const layers: LayerVisibility[] = [];
@@ -733,7 +734,8 @@ export class PixiRendererOrchestrator { // Renamed class
     for (const overlay of this.dmScreenOverlays) layers.push({ layer: overlay, visible: false });
     const viewport = this.pixiAppManager.getViewport();
     const playerCamera = camera && viewport ? { target: viewport, camera } : undefined;
-    captureWithLayerVisibility(layers, () => app.renderer.render(app.stage), capture, playerCamera);
+    const captureFrame = renderFollows ? captureBeforeRender : captureWithLayerVisibility;
+    captureFrame(layers, () => app.renderer.render(app.stage), capture, playerCamera);
   }
 
   getViewportInstance(): Viewport | null { return this.pixiAppManager.getViewport(); }

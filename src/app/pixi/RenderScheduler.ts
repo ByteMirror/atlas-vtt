@@ -1,4 +1,7 @@
-import { UPDATE_PRIORITY, type Application, type RenderGroup } from 'pixi.js';
+import { UPDATE_PRIORITY, type Application, type RenderGroup, type Ticker } from 'pixi.js';
+
+/** Runs right before a stage render, with the time of the display frame being rendered. */
+export type BeforeRenderHook = (frameTime: number) => void;
 
 const schedulers = new WeakMap<Application, RenderScheduler>();
 
@@ -18,7 +21,7 @@ const schedulers = new WeakMap<Application, RenderScheduler>();
  */
 export class RenderScheduler {
   private renderRequested = true;
-  private frameCount = 0;
+  private beforeRender: BeforeRenderHook | null = null;
   private readonly contextChangeListener = { contextChange: (): void => this.requestRender() };
 
   constructor(private readonly app: Application) {
@@ -36,23 +39,33 @@ export class RenderScheduler {
     this.renderRequested = true;
   }
 
-  /** How many times the stage has been rendered; lets canvas mirrors skip unchanged frames. */
-  public get renderedFrames(): number {
-    return this.frameCount;
+  /**
+   * Run `hook` right before each stage render, in the same task: whatever it draws on the canvas
+   * is replaced by that render before the browser composites. One hook at a time; returns the
+   * function that removes it.
+   */
+  public setBeforeRender(hook: BeforeRenderHook): () => void {
+    this.beforeRender = hook;
+    return (): void => {
+      if (this.beforeRender === hook) this.beforeRender = null;
+    };
   }
 
   public destroy(): void {
     this.app.ticker?.remove(this.renderIfChanged);
     this.app.renderer?.runners.contextChange.remove(this.contextChangeListener);
+    this.beforeRender = null;
     schedulers.delete(this.app);
   }
 
-  private readonly renderIfChanged = (): void => {
+  private readonly renderIfChanged = (ticker: Ticker): void => {
     const group = this.app.stage.renderGroup;
     if (!this.renderRequested && group && !hasPendingChanges(group)) return;
+    // `lastTime` is still the previous frame's while the ticker runs its callbacks
+    this.beforeRender?.(ticker.lastTime + ticker.elapsedMS);
+    // Cleared after the hook: the render below shows whatever the hook changed or requested
     this.renderRequested = false;
     this.app.render();
-    this.frameCount++;
   };
 }
 
@@ -61,9 +74,17 @@ export function requestRender(app: Application): void {
   schedulers.get(app)?.requestRender();
 }
 
-/** Stage renders of `app` so far, or undefined when it renders on every tick. */
-export function getRenderedFrames(app: Application): number | undefined {
-  return schedulers.get(app)?.renderedFrames;
+/** Whether `app` renders only when its stage changed, through a scheduler, rather than on every tick. */
+export function rendersOnChange(app: Application): boolean {
+  return schedulers.has(app);
+}
+
+/**
+ * Run `hook` right before each stage render of `app` (see {@link RenderScheduler.setBeforeRender}).
+ * Returns the function that removes it; does nothing for apps without a scheduler.
+ */
+export function setBeforeRender(app: Application, hook: BeforeRenderHook): () => void {
+  return schedulers.get(app)?.setBeforeRender(hook) ?? ((): void => undefined);
 }
 
 /** Whether `group` or a nested render group holds updates that the next render would apply. */

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { captureWithoutLayers, captureWithLayerVisibility } from '../playerSafeFrame';
+import { captureBeforeRender, captureWithoutLayers, captureWithLayerVisibility } from '../playerSafeFrame';
 
 describe('captureWithoutLayers', () => {
   it('captures a frame rendered without the DM-only layers, then restores them', () => {
@@ -78,5 +78,56 @@ describe('captureWithLayerVisibility', () => {
     expect(dm.visible).toBe(true);
     expect(player.visible).toBe(false);
     expect(render).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('captureBeforeRender', () => {
+  it('captures the player frame and leaves the DM frame to the render that follows', () => {
+    const pins = { visible: true };
+    const fog = { visible: true, alpha: 0.5 };
+    const events: string[] = [];
+
+    captureBeforeRender(
+      [{ layer: pins, visible: false }, { layer: fog, visible: true, alpha: 1 }],
+      () => events.push(`render:${pins.visible ? 'pins' : 'no-pins'}:${fog.alpha}`),
+      () => events.push('capture'),
+    );
+
+    expect(events).toEqual(['render:no-pins:1', 'capture']);
+    expect(pins.visible).toBe(true);
+    expect(fog.alpha).toBe(0.5);
+  });
+
+  it('renders even when nothing needs hiding: the canvas still holds the previous frame', () => {
+    const events: string[] = [];
+    captureBeforeRender([{ layer: { visible: false }, visible: false }], () => events.push('render'), () => events.push('capture'));
+    expect(events).toEqual(['render', 'capture']);
+  });
+
+  it('renders from the player camera and restores the DM camera', () => {
+    const point = (x: number, y: number): { x: number; y: number; set(nx: number, ny: number): void } => ({
+      x, y, set(nx, ny) { this.x = nx; this.y = ny; },
+    });
+    const target = { screenWidth: 800, screenHeight: 600, position: point(5, 6), scale: point(1, 1) };
+    let rendered = '';
+
+    captureBeforeRender([], () => { rendered = `${target.position.x},${target.position.y}@${target.scale.x}`; }, () => undefined, {
+      target, camera: { centerX: 100, centerY: 50, scale: 2 },
+    });
+
+    expect(rendered).toBe('200,200@2');
+    expect([target.position.x, target.position.y, target.scale.x]).toEqual([5, 6, 1]);
+  });
+
+  it.each(['render', 'capture'])('restores the layers without a render when %s fails', (failure) => {
+    const pins = { visible: true };
+    const render = vi.fn(() => { if (failure === 'render') throw new Error('failed'); });
+
+    expect(() => captureBeforeRender([{ layer: pins, visible: false }], render, () => {
+      if (failure === 'capture') throw new Error('failed');
+    })).toThrow('failed');
+
+    expect(pins.visible).toBe(true);
+    expect(render).toHaveBeenCalledTimes(1);
   });
 });

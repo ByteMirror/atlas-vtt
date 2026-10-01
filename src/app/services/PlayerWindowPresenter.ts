@@ -5,8 +5,9 @@ import { AtlasView, ATLAS_VIEW_TYPE } from '../atlas-view';
 import type { ViewAtlasState } from '../storeFactory';
 import { playerWindowStore } from '../stores/playerWindowStore';
 import type { SceneTab } from '../types/sceneTabTypes';
-import { PlayerWindowService, type PlayerFrameSource } from './PlayerWindowService';
-import { getRenderedFrames } from '../pixi/RenderScheduler';
+import type { PlayerFrameSource } from './PlayerFrameMirror';
+import { PlayerWindowService } from './PlayerWindowService';
+import { rendersOnChange, requestRender, setBeforeRender } from '../pixi/RenderScheduler';
 
 /** Unsubscribes the tab watcher of the view whose tab is currently presented. */
 let stopWatchingPresentedTab: (() => void) | null = null;
@@ -152,13 +153,20 @@ async function waitForRenderedFrameSource(view: AtlasView): Promise<PlayerFrameS
   await waitForMapLoaded(view.atlasStore);
   await nextAnimationFrames(2);
   const renderer = view.serviceManager.getRendererService().getRenderer();
-  const canvas = renderer?.getAppInstance()?.canvas;
-  if (!renderer || !canvas?.instanceOf(HTMLCanvasElement)) return null;
+  const app = renderer?.getAppInstance();
+  const canvas = app?.canvas;
+  if (!renderer || !app || !canvas?.instanceOf(HTMLCanvasElement)) return null;
   return {
     canvas,
     store: view.atlasStore,
     withPlayerSafeFrame: (capture, settings, camera) => renderer.withPlayerSafeFrame(capture, settings, camera),
-    getRenderedFrames: () => getRenderedFrames(renderer.getAppInstance()),
+    ...(rendersOnChange(app) ? {
+      beforeRender: {
+        listen: (listener) => setBeforeRender(app, listener),
+        requestRender: () => requestRender(app),
+        withPlayerSafeFrame: (capture, settings, camera) => renderer.withPlayerSafeFrame(capture, settings, camera, true),
+      },
+    } : {}),
     getCamera: () => {
       const viewport = view.serviceManager.getRendererService().getViewport();
       return viewport ? { centerX: viewport.center.x, centerY: viewport.center.y, scale: viewport.scale.x } : undefined;

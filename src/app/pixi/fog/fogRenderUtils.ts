@@ -4,7 +4,7 @@
  * Used by both FogCanvasCompositor (full-canvas preview) and
  * FogOperationCanvas (per-operation sprite rendering).
  */
-import type { FogBounds, FogOperation, FogBrushStroke, FogLassoFill, FogRectangleFill } from '../../types/fogTypes';
+import type { FogBounds, FogOperation, FogBrushStroke, FogCellFill, FogLassoFill, FogRectangleFill } from '../../types/fogTypes';
 
 export const FOG_COLOR = 'rgba(0, 0, 0, 1)';
 
@@ -83,6 +83,44 @@ export function renderLasso(
   ctx.fill();
 }
 
+/**
+ * Render filled grid cells.
+ *
+ * Every cell is a subpath of one path filled once, so neighbouring units merge
+ * into a single shape with no seam along their shared edge.
+ */
+export function renderCells(
+  ctx: CanvasRenderingContext2D,
+  op: FogCellFill,
+  bounds: FogBounds,
+  scale: number,
+  offsetX: number,
+  offsetY: number
+): void {
+  ctx.beginPath();
+  let drew = false;
+
+  for (const cell of op.cells) {
+    if (cell.length < 3) continue;
+    const p0 = cell[0]!;
+    ctx.moveTo(
+      (p0.x + offsetX - bounds.x) * scale,
+      (p0.y + offsetY - bounds.y) * scale
+    );
+    for (let i = 1; i < cell.length; i++) {
+      const p = cell[i]!;
+      ctx.lineTo(
+        (p.x + offsetX - bounds.x) * scale,
+        (p.y + offsetY - bounds.y) * scale
+      );
+    }
+    ctx.closePath();
+    drew = true;
+  }
+
+  if (drew) ctx.fill();
+}
+
 /** Render a filled rectangle. */
 export function renderRectangle(
   ctx: CanvasRenderingContext2D,
@@ -121,6 +159,9 @@ export function renderOperation(
       break;
     case 'rectangle':
       renderRectangle(ctx, op, bounds, scale, offsetX, offsetY);
+      break;
+    case 'cells':
+      renderCells(ctx, op, bounds, scale, offsetX, offsetY);
       break;
   }
 
@@ -172,6 +213,24 @@ export function calculateOperationBounds(op: FogOperation): FogBounds {
         width: op.width ?? 0,
         height: op.height ?? 0,
       };
+    case 'cells': {
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (const cell of op.cells ?? []) {
+        for (const p of cell) {
+          minX = Math.min(minX, p.x);
+          minY = Math.min(minY, p.y);
+          maxX = Math.max(maxX, p.x);
+          maxY = Math.max(maxY, p.y);
+        }
+      }
+      if (!Number.isFinite(minX)) return { x: 0, y: 0, width: 0, height: 0 };
+      return {
+        x: minX + ox,
+        y: minY + oy,
+        width: maxX - minX,
+        height: maxY - minY,
+      };
+    }
     default: {
       // Unreachable for typed data; map files from a newer version may carry other types
       const unknownOp: { type?: unknown } = op;

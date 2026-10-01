@@ -3,7 +3,8 @@
  *
  * Each operation is painted in timestamp order. Brush strokes interpolate
  * circles along the point path; lasso fills render a closed polygon; rectangle
- * fills use fillRect.  Erasing is achieved via `destination-out` composite
+ * fills use fillRect; cell fills render one closed polygon per grid unit.
+ * Erasing is achieved via `destination-out` composite
  * mode (Canvas 2D, not PIXI — avoids PixiJS v8 erase-blend bug #11377).
  */
 import type { FogBounds, FogOperation } from '../../types/fogTypes';

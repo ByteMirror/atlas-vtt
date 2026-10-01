@@ -2,10 +2,12 @@ import { describe, it, expect } from 'vitest';
 import { hitTestFogOp, findConnectedFogOps } from '../../src/app/pixi/fog/fogHitTest';
 import type {
   FogBrushStroke,
+  FogCellFill,
   FogLassoFill,
   FogOperation,
   FogRectangleFill,
 } from '../../src/app/types/fogTypes';
+import { gridCellAt } from '../../src/app/grid/gridCells';
 
 // ── helpers ──────────────────────────────────────────────────────────────
 
@@ -50,6 +52,23 @@ function makeRect(overrides: Partial<FogRectangleFill> = {}): FogRectangleFill {
     y: 0,
     width: 100,
     height: 100,
+    ...overrides,
+  };
+}
+
+/** Cells built from the real grid helper, so the hit test is checked against shapes the tool actually produces. */
+function makeCells(
+  grid: Parameters<typeof gridCellAt>[0],
+  points: Array<{ x: number; y: number }>,
+  overrides: Partial<FogCellFill> = {},
+): FogCellFill {
+  return {
+    id: 'c1',
+    kind: 'fog',
+    timestamp: 1,
+    isErasing: false,
+    type: 'cells',
+    cells: points.map((p) => gridCellAt(grid, p)!.polygon),
     ...overrides,
   };
 }
@@ -319,5 +338,76 @@ describe('findConnectedFogOps – mixed shapes', () => {
     });
     const group = findConnectedFogOps('left', [left, right], [left, right, eraseBridge]);
     expect(group).toEqual(['left']);
+  });
+});
+
+// ── Grid cell hit testing ────────────────────────────────────────────────
+
+const SQUARE_GRID = { type: 'square' as const, size: 70, offsetX: 0, offsetY: 0 };
+const HEX_GRID = { type: 'hex-vertical' as const, size: 70, offsetX: 0, offsetY: 0 };
+
+describe('hitTestFogOp – cells', () => {
+  it('hits inside a filled square cell', () => {
+    const op = makeCells(SQUARE_GRID, [{ x: 35, y: 35 }]);
+    expect(hitTestFogOp(35, 35, op, [op])).toBe(true);
+  });
+
+  it('misses a square cell that was not filled', () => {
+    const op = makeCells(SQUARE_GRID, [{ x: 35, y: 35 }]);
+    expect(hitTestFogOp(105, 35, op, [op])).toBe(false);
+  });
+
+  it('hits any of several cells filled by one gesture', () => {
+    const op = makeCells(SQUARE_GRID, [{ x: 35, y: 35 }, { x: 175, y: 35 }]);
+    expect(hitTestFogOp(35, 35, op, [op])).toBe(true);
+    expect(hitTestFogOp(175, 35, op, [op])).toBe(true);
+    // The gap between them stays clear — the cells are separate shapes, not a bounding box.
+    expect(hitTestFogOp(105, 35, op, [op])).toBe(false);
+  });
+
+  it('hits inside a filled hex cell', () => {
+    const op = makeCells(HEX_GRID, [{ x: 35, y: 40 }]);
+    expect(hitTestFogOp(35, 40, op, [op])).toBe(true);
+  });
+
+  it('misses the corner of a hex cell bounding box, which lies outside the hex', () => {
+    const op = makeCells(HEX_GRID, [{ x: 35, y: 40 }]);
+    // Top-left of hex (0, 0)'s bounding box: inside the box, outside the hex itself.
+    expect(hitTestFogOp(1, 1, op, [op])).toBe(false);
+  });
+
+  it('applies offset', () => {
+    const op = makeCells(SQUARE_GRID, [{ x: 35, y: 35 }], { offsetX: 100, offsetY: 0 });
+    expect(hitTestFogOp(135, 35, op, [op])).toBe(true);
+    expect(hitTestFogOp(35, 35, op, [op])).toBe(false);
+  });
+
+  it('is erased by a later erase operation covering the cell', () => {
+    const op = makeCells(SQUARE_GRID, [{ x: 35, y: 35 }]);
+    const erase = makeCells(SQUARE_GRID, [{ x: 35, y: 35 }], {
+      id: 'c2',
+      timestamp: 2,
+      isErasing: true,
+    });
+    expect(hitTestFogOp(35, 35, op, [op, erase])).toBe(false);
+  });
+
+  it('never hits an empty cell fill', () => {
+    const op = makeCells(SQUARE_GRID, [], { cells: [] });
+    expect(hitTestFogOp(35, 35, op, [op])).toBe(false);
+  });
+});
+
+describe('findConnectedFogOps – cells', () => {
+  it('groups two cell fills that share a grid unit', () => {
+    const a = makeCells(SQUARE_GRID, [{ x: 35, y: 35 }], { id: 'a', timestamp: 1 });
+    const b = makeCells(SQUARE_GRID, [{ x: 35, y: 35 }, { x: 105, y: 35 }], { id: 'b', timestamp: 2 });
+    expect(findConnectedFogOps('a', [a, b], [a, b]).sort()).toEqual(['a', 'b']);
+  });
+
+  it('leaves cell fills in separate parts of the map apart', () => {
+    const a = makeCells(SQUARE_GRID, [{ x: 35, y: 35 }], { id: 'a', timestamp: 1 });
+    const b = makeCells(SQUARE_GRID, [{ x: 735, y: 735 }], { id: 'b', timestamp: 2 });
+    expect(findConnectedFogOps('a', [a, b], [a, b])).toEqual(['a']);
   });
 });

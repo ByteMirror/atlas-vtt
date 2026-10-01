@@ -13,6 +13,7 @@
 - Open and close doors by clicking the door badges, with any tool.
 - Double-click a light, or right-click it, to change its kind, colour, range, brightness, softness and flicker.
 - Cairn is a built-in game system preset, with 5-foot squares and its conditions: Deprived, Fatigue, Critical Damage, Paralyzed, Delirious and Fleeing
+- **Cell** is a fourth fog shape, beside Brush, Lasso and Rectangle in the fog tool's menu. Clicking fills exactly one grid unit — a square on a square map, a hex on a hex map — and dragging fills every unit the cursor crosses. The fog eraser uses it the same way to clear a map a unit at a time. The unit under the cursor is outlined before you click, so you can see what a click will take.
 
 ## Improved
 

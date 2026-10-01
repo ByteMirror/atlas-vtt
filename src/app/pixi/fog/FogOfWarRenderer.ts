@@ -4,7 +4,7 @@
  * Paint operations each get their own PIXI Sprite that can be selected
  * and deleted via context menu.  Erase operations are rendered as holes in the
  * affected paint sprites.  A single FogCanvasCompositor is kept for live
- * drawing preview (during brush/lasso/rectangle drawing).
+ * drawing preview (during brush, lasso, rectangle or grid-cell drawing).
  */
 import * as PIXI from 'pixi.js';
 import type { Viewport } from 'pixi-viewport';
@@ -12,6 +12,9 @@ import type { StoreApi } from 'zustand';
 import type { EventEmitter } from 'events';
 import type { ViewAtlasState } from '../../storeFactory';
 import type { FogBounds, FogOperation } from '../../types/fogTypes';
+import { gridCellAt } from '../../grid/gridCells';
+import type { GridCell } from '../../grid/gridCells';
+import type { Point } from '../../grid/hexGeometry';
 import { FogCanvasCompositor } from './FogCanvasCompositor';
 import { FogCursorPreview } from './FogCursorPreview';
 import { FogOperationCanvas } from './FogOperationCanvas';
@@ -30,7 +33,7 @@ const COMPONENT_DELETE_CELL_SIZE = 2;
 const COMPONENT_DELETE_ALPHA_THRESHOLD = 12;
 const COMPONENT_DELETE_MAX_RECTS = 320;
 
-type FogMode = 'brush' | 'lasso' | 'rectangle';
+type FogMode = 'brush' | 'lasso' | 'rectangle' | 'cell';
 
 interface FogSpriteEntry {
   sprite: PIXI.Sprite;
@@ -46,6 +49,7 @@ export class FogOfWarRenderer {
   private previewTexture: PIXI.Texture;
   private lassoGraphics: PIXI.Graphics;
   private rectPreviewGraphics: PIXI.Graphics;
+  private cellPreviewGraphics: PIXI.Graphics;
 
   // Per-operation sprites (paint ops only)
   private fogSprites: Map<string, FogSpriteEntry> = new Map();
@@ -70,6 +74,11 @@ export class FogOfWarRenderer {
   // Rectangle state
   private rectStart: { x: number; y: number } | null = null;
   private lastRectBounds: { x: number; y: number; width: number; height: number } | null = null;
+
+  // Cell state — the grid units touched by the current gesture, keyed so a
+  // drag that re-crosses a unit fills it once.
+  private pendingCells: Map<string, Point[]> = new Map();
+  private hoveredCell: GridCell | null = null;
 
   // Map tracking
   private currentMapPath: string | null = null;
@@ -129,6 +138,11 @@ export class FogOfWarRenderer {
     this.rectPreviewGraphics.eventMode = 'none';
     this.rectPreviewGraphics.zIndex = 1001;
     this.container.addChild(this.rectPreviewGraphics);
+
+    this.cellPreviewGraphics = new PIXI.Graphics();
+    this.cellPreviewGraphics.eventMode = 'none';
+    this.cellPreviewGraphics.zIndex = 1001;
+    this.container.addChild(this.cellPreviewGraphics);
 
     // ── Cursor preview ──────────────────────────────────────────────
     this.cursorPreview = new FogCursorPreview();
@@ -193,6 +207,7 @@ export class FogOfWarRenderer {
       { layer: this.cursorPreview.getDisplayObject(), visible: false },
       { layer: this.lassoGraphics, visible: false },
       { layer: this.rectPreviewGraphics, visible: false },
+      { layer: this.cellPreviewGraphics, visible: false },
     ];
   }
 
@@ -280,6 +295,8 @@ export class FogOfWarRenderer {
     this.lassoPoints = [];
     this.rectStart = null;
     this.lastRectBounds = null;
+    this.pendingCells.clear();
+    this.hoveredCell = null;
     this.clearPreviewGraphics();
     this.cursorPreview.hide();
 
@@ -331,6 +348,9 @@ export class FogOfWarRenderer {
     if (this.rectPreviewGraphics && !this.rectPreviewGraphics.destroyed) {
       this.rectPreviewGraphics.destroy();
     }
+    if (this.cellPreviewGraphics && !this.cellPreviewGraphics.destroyed) {
+      this.cellPreviewGraphics.destroy();
+    }
     if (this.previewTexture && !this.previewTexture.destroyed) {
       this.previewTexture.destroy(true);
     }
@@ -350,6 +370,8 @@ export class FogOfWarRenderer {
 
   setFogMode(mode: FogMode): void {
     this.fogMode = mode;
+    this.pendingCells.clear();
+    this.hoveredCell = null;
     this.clearPreviewGraphics();
 
     const tool = this.store.getState().activeTool;
@@ -752,6 +774,11 @@ export class FogOfWarRenderer {
     } else if (this.fogMode === 'rectangle') {
       this.isDrawing = true;
       this.rectStart = this.snapToGridCorner(worldPos.x, worldPos.y);
+    } else if (this.fogMode === 'cell') {
+      this.isDrawing = true;
+      this.pendingCells.clear();
+      this.collectCellAt(worldPos.x, worldPos.y);
+      this.drawCellPreview();
     } else {
       // Brush mode
       this.isDrawing = true;
@@ -776,6 +803,15 @@ export class FogOfWarRenderer {
 
     if (this.fogMode === 'brush' && (tool === 'fog' || tool === 'eraser')) {
       this.cursorPreview.updatePosition(worldPos.x, worldPos.y);
+    }
+
+    if (this.fogMode === 'cell' && (tool === 'fog' || tool === 'eraser')) {
+      // The unit under the cursor is highlighted whether or not a drag is in
+      // progress, so a single click lands where the user expects it to.
+      this.hoveredCell = gridCellAt(this.store.getState().grid, worldPos);
+      if (this.isDrawing) this.collectCellAt(worldPos.x, worldPos.y);
+      this.drawCellPreview();
+      return;
     }
 
     if (this.fogMode === 'lasso' && this.isLassoDrawing) {
@@ -820,6 +856,17 @@ export class FogOfWarRenderer {
       this.rectStart = null;
       this.lastRectBounds = null;
       this.rectPreviewGraphics.clear();
+    } else if (this.fogMode === 'cell' && this.isDrawing) {
+      this.isDrawing = false;
+      if (this.pendingCells.size > 0) {
+        this.store.getState().addFogOperation({
+          type: 'cells',
+          isErasing,
+          cells: Array.from(this.pendingCells.values(), (cell) => cell.map((p) => ({ x: p.x, y: p.y }))),
+        });
+      }
+      this.pendingCells.clear();
+      this.drawCellPreview();
     } else if (this.fogMode === 'brush' && this.isDrawing) {
       this.isDrawing = false;
       if (this.currentBrushPoints.length > 0) {
@@ -880,6 +927,42 @@ export class FogOfWarRenderer {
     this.lassoGraphics.closePath();
     this.lassoGraphics.stroke({ width: 2, color, alpha: 0.6 });
     this.lassoGraphics.fill({ color, alpha: 0.15 });
+  }
+
+  /** Adds the grid unit under (x, y) to the current gesture. A unit already in it stays as it is. */
+  private collectCellAt(x: number, y: number): void {
+    const cell = gridCellAt(this.store.getState().grid, { x, y });
+    if (!cell || this.pendingCells.has(cell.key)) return;
+    this.pendingCells.set(cell.key, cell.polygon);
+  }
+
+  /** The units committed by this gesture, plus the one under the cursor. */
+  private drawCellPreview(): void {
+    this.cellPreviewGraphics.clear();
+
+    const tool = this.store.getState().activeTool;
+    const color = tool === 'eraser' ? 0xff4444 : 0xffffff;
+
+    if (this.pendingCells.size > 0) {
+      for (const polygon of this.pendingCells.values()) {
+        this.tracePolygon(this.cellPreviewGraphics, polygon);
+      }
+      this.cellPreviewGraphics.fill({ color, alpha: 0.3 });
+    }
+
+    if (this.hoveredCell && !this.pendingCells.has(this.hoveredCell.key)) {
+      this.tracePolygon(this.cellPreviewGraphics, this.hoveredCell.polygon);
+      this.cellPreviewGraphics.stroke({ width: 2, color, alpha: 0.9 });
+    }
+  }
+
+  private tracePolygon(graphics: PIXI.Graphics, polygon: Point[]): void {
+    if (polygon.length < 3) return;
+    graphics.moveTo(polygon[0]!.x, polygon[0]!.y);
+    for (let i = 1; i < polygon.length; i++) {
+      graphics.lineTo(polygon[i]!.x, polygon[i]!.y);
+    }
+    graphics.closePath();
   }
 
   private drawRectPreview(currentPos: { x: number; y: number }): void {
@@ -1101,6 +1184,8 @@ export class FogOfWarRenderer {
     this.lassoPoints = [];
     this.rectStart = null;
     this.lastRectBounds = null;
+    this.pendingCells.clear();
+    this.hoveredCell = null;
     this.clearPreviewGraphics();
   }
 
@@ -1110,6 +1195,9 @@ export class FogOfWarRenderer {
     }
     if (this.rectPreviewGraphics && !this.rectPreviewGraphics.destroyed) {
       this.rectPreviewGraphics.clear();
+    }
+    if (this.cellPreviewGraphics && !this.cellPreviewGraphics.destroyed) {
+      this.cellPreviewGraphics.clear();
     }
   }
 }

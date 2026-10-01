@@ -23,7 +23,8 @@ export function DropdownModeSelector<T extends string>({
   return (
     <div className="space-y-2">
       {label && <span className="text-sm text-[var(--text-normal)]">{label}</span>}
-      <div className="flex gap-1.5">
+      {/* Four or more options squash their labels on one row, so they pair up instead. */}
+      <div className={options.length > 3 ? "grid grid-cols-2 gap-1.5" : "flex gap-1.5"}>
         {options.map(({ value: optionValue, icon: Icon, label: optionLabel }) => (
           <Button
             key={optionValue}

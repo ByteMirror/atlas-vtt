@@ -7,8 +7,9 @@ type PlayerViewSettings = AtlasSettings['localPlayerView'];
 
 /** Most frames per second the player window mirrors, however fast the DM canvas renders. */
 export const PLAYER_MIRROR_FPS = 60;
-/** A millisecond short of a frame, so display frames a full interval apart always count as due. */
-const MIRROR_INTERVAL_MS = 1000 / PLAYER_MIRROR_FPS - 1;
+const MIRROR_INTERVAL_MS = 1000 / PLAYER_MIRROR_FPS;
+/** A display frame may come this much early for its slot, so frames a full interval apart are never just short of it. */
+const FRAME_TIME_SLACK_MS = 1;
 /**
  * A window without a display frame for this long is hidden, and its animation frames sleep. A
  * hidden player window is mirrored nothing; for a hidden DM window, whose requested renders do
@@ -70,7 +71,8 @@ export interface MirrorInputs {
  */
 export class PlayerFrameMirror {
   private stale = true;
-  private lastMirrorAt = -Infinity;
+  /** Start of the slot, one mirror interval long, that the last mirrored frame filled. */
+  private slotAt = -Infinity;
   private lastFrameAt = -Infinity;
   /** Since when a requested render is awaited. */
   private requestedAt: number | null = null;
@@ -146,13 +148,14 @@ export class PlayerFrameMirror {
   }
 
   private isDue(time: number): boolean {
-    return time - this.lastMirrorAt >= MIRROR_INTERVAL_MS;
+    return time - this.slotAt >= MIRROR_INTERVAL_MS - FRAME_TIME_SLACK_MS;
   }
 
   /** Copy a live frame of `source`, rendered through `frames`. */
   private mirror(source: PlayerFrameSource, frames: { withPlayerSafeFrame: PlayerSafeFrame }, time: number): void {
     this.stale = false;
-    this.lastMirrorAt = time;
+    // Slots follow each other without gaps, so a display that is no multiple of the cap still gets every slot; after a pause they start anew
+    this.slotAt = time - this.slotAt >= 2 * MIRROR_INTERVAL_MS ? time : this.slotAt + MIRROR_INTERVAL_MS;
     this.requestedAt = null;
     const camera = this.inputs.frozenCamera() ?? undefined;
     frames.withPlayerSafeFrame(() => this.draw(source.canvas), this.inputs.settings(), camera);
@@ -174,7 +177,7 @@ export class PlayerFrameMirror {
     try {
       run();
     } catch (error) {
-      if (!this.failing) console.error('[PlayerWindowService] Error copying canvas:', error);
+      if (!this.failing) console.error('[PlayerFrameMirror] Error copying canvas:', error);
       this.failing = true;
     }
   }

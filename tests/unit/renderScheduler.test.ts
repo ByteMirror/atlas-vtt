@@ -111,6 +111,22 @@ describe('before-render hook', () => {
     scheduler.destroy();
   });
 
+  it('never keeps a frame from rendering when it throws, and reports the failure once', () => {
+    const { app, render, ticker } = fakeApp(fakeGroup());
+    const scheduler = new RenderScheduler(app);
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    setBeforeRender(app, () => { throw new Error('lost context'); });
+
+    expect(() => ticker.update(16)).not.toThrow();
+    requestRender(app);
+    ticker.update(32);
+
+    expect(render).toHaveBeenCalledTimes(2);
+    expect(error).toHaveBeenCalledTimes(1);
+    error.mockRestore();
+    scheduler.destroy();
+  });
+
   it('is dropped with the scheduler', () => {
     const { app, ticker } = fakeApp(fakeGroup());
     const hook = vi.fn();

@@ -122,7 +122,14 @@ export class PlayerWindowService {
     this.holdCurrentFrame();
     const heldFrame = this.heldFrame ?? createEl('canvas');
     this.streamSource = { canvas: heldFrame, withPlayerSafeFrame: (capture) => capture() };
-    // Not on the window's next display frame, which never comes while it is hidden: the view would stay referenced
+    this.followSource();
+  }
+
+  /**
+   * Point the mirror at the new `streamSource` now. The window's next display frame, which
+   * would do it, never comes while the window is hidden, and the previous view would stay referenced.
+   */
+  private followSource(): void {
     this.mirror?.frame();
   }
 
@@ -137,6 +144,7 @@ export class PlayerWindowService {
     this.presentScene();
     this.heldFrame = null;
     this.updateFreezeIndicator();
+    this.followSource();
   }
 
   /**
@@ -156,6 +164,7 @@ export class PlayerWindowService {
     this.setFrozenCamera(null);
     playerWindowStore.setState({ presentedTabId: tabId });
     this.playerView?.updateSession({ tabId, ...(filePath ? { filePath } : {}), frozen: false });
+    this.followSource();
   }
 
   /** Opens a player window mirroring `source`, which shows the scene tab `tabId`. */

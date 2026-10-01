@@ -22,6 +22,7 @@ const schedulers = new WeakMap<Application, RenderScheduler>();
 export class RenderScheduler {
   private renderRequested = true;
   private beforeRender: BeforeRenderHook | null = null;
+  private hookFailed = false;
   private readonly contextChangeListener = { contextChange: (): void => this.requestRender() };
 
   constructor(private readonly app: Application) {
@@ -46,6 +47,7 @@ export class RenderScheduler {
    */
   public setBeforeRender(hook: BeforeRenderHook): () => void {
     this.beforeRender = hook;
+    this.hookFailed = false;
     return (): void => {
       if (this.beforeRender === hook) this.beforeRender = null;
     };
@@ -62,11 +64,21 @@ export class RenderScheduler {
     const group = this.app.stage.renderGroup;
     if (!this.renderRequested && group && !hasPendingChanges(group)) return;
     // `lastTime` is still the previous frame's while the ticker runs its callbacks
-    this.beforeRender?.(ticker.lastTime + ticker.elapsedMS);
+    this.runBeforeRender(ticker.lastTime + ticker.elapsedMS);
     // Cleared after the hook: the render below shows whatever the hook changed or requested
     this.renderRequested = false;
     this.app.render();
   };
+
+  /** A throwing hook must not skip the render, nor end the ticker, which stops at an uncaught error. */
+  private runBeforeRender(frameTime: number): void {
+    try {
+      this.beforeRender?.(frameTime);
+    } catch (error) {
+      if (!this.hookFailed) console.error('[RenderScheduler] The before-render hook failed:', error);
+      this.hookFailed = true;
+    }
+  }
 }
 
 /** Ask `app`'s scheduler for a render on the next tick. Does nothing for apps without one. */

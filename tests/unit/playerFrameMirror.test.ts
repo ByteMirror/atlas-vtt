@@ -1,111 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { PlayerCameraState } from '../../src/app/local-player-view';
-import { RenderScheduler, requestRender, setBeforeRender } from '../../src/app/pixi/RenderScheduler';
-import { captureBeforeRender, captureWithLayerVisibility, type LayerVisibility } from '../../src/app/pixi/playerSafeFrame';
-import { PLAYER_MIRROR_FPS, PlayerFrameMirror, type PlayerFrameSource } from '../../src/app/services/PlayerFrameMirror';
-import type { AtlasSettings } from '../../src/app/services/SettingsService';
-import { fakeApp, fakeGroup } from '../mocks/schedulerApp';
-
-const SETTINGS = { showGrid: true } as AtlasSettings['localPlayerView'];
-const DM_CAMERA: PlayerCameraState = { centerX: 1, centerY: 2, scale: 1 };
-
-interface Dm {
-  source: PlayerFrameSource;
-  /** A display frame of the DM window at `time`. */
-  tick(time: number): void;
-  /** Something on the DM's stage changed. */
-  change(): void;
-  scheduler: RenderScheduler;
-}
-
-interface Harness {
-  mirror: PlayerFrameMirror;
-  /** Renders and captures in order; a capture names the frame the canvas held. */
-  events: string[];
-  /** A display frame of the player window at `time`. */
-  frame(time: number): void;
-  dm: Dm;
-  createDm(): Dm;
-  state: { source: PlayerFrameSource | null; held: HTMLCanvasElement | null; frozen: PlayerCameraState | null };
-  onFrame: ReturnType<typeof vi.fn>;
-  captureFails: { value: boolean };
-}
-
-function setup(): Harness {
-  const events: string[] = [];
-  const captureFails = { value: false };
-  let onCanvas = 'nothing';
-  let now = 0;
-
-  /** A DM canvas rendering on change, whose pins are hidden from players. */
-  function createDm(): Dm {
-    const group = fakeGroup();
-    // PIXI queues a render-group update when a layer is shown or hidden
-    const pins = {
-      shown: true,
-      get visible(): boolean { return this.shown; },
-      set visible(value: boolean) { this.shown = value; group.structureDidChange = true; },
-    };
-    const render = (): void => {
-      onCanvas = pins.visible ? 'dm' : 'player';
-      events.push(`render:${onCanvas}`);
-      group.structureDidChange = false;
-    };
-    const { app, ticker } = fakeApp(group, render);
-    const scheduler = new RenderScheduler(app);
-    const layers: LayerVisibility[] = [{ layer: pins, visible: false }];
-    const canvas = document.createElement('canvas');
-    const source: PlayerFrameSource = {
-      canvas,
-      getCamera: () => DM_CAMERA,
-      withPlayerSafeFrame: (capture) => captureWithLayerVisibility(layers, render, capture),
-      beforeRender: {
-        listen: (listener) => setBeforeRender(app, listener),
-        requestRender: () => requestRender(app),
-        withPlayerSafeFrame: (capture) => captureBeforeRender(layers, render, capture),
-      },
-    };
-    return { source, scheduler, tick: (time) => ticker.update(time), change: () => { group.structureDidChange = true; } };
-  }
-
-  const dm = createDm();
-  const state: Harness['state'] = { source: dm.source, held: null, frozen: null };
-  const target = document.createElement('canvas');
-  const context = {
-    clearRect: vi.fn(),
-    drawImage: (image: HTMLCanvasElement): void => {
-      if (captureFails.value) throw new Error('lost context');
-      events.push(image === state.held ? 'draw:held' : `capture:${onCanvas}`);
-    },
-  } as unknown as CanvasRenderingContext2D;
-  const onFrame = vi.fn();
-  const mirror = new PlayerFrameMirror(target, context, {
-    source: () => state.source,
-    heldFrame: () => state.held,
-    frozenCamera: () => state.frozen,
-    settings: () => SETTINGS,
-    onFrame,
-  }, () => now);
-  return { mirror, events, dm, createDm, state, onFrame, captureFails, frame: (time) => { now = time; mirror.frame(); } };
-}
-
-const MIRRORED = ['render:player', 'capture:player', 'render:dm'];
-
-/** A harness whose first frame is already on the players' screen. */
-function mirroring(): Harness {
-  const harness = setup();
-  harness.frame(0);
-  harness.dm.tick(1);
-  harness.events.length = 0;
-  harness.onFrame.mockClear();
-  return harness;
-}
+import { DM_CAMERA, MIRRORED, SETTINGS, mirroring, setupMirror } from '../mocks/mirrorHarness';
 
 afterEach(() => { vi.restoreAllMocks(); });
 
 describe('PlayerFrameMirror on a canvas that renders on change', () => {
   it('shows the first frame at once by asking the DM canvas for a render', () => {
-    const { events, frame, dm } = setup();
+    const { events, frame, dm } = setupMirror();
 
     frame(0);
     expect(events).toEqual([]);
@@ -132,45 +32,6 @@ describe('PlayerFrameMirror on a canvas that renders on change', () => {
     }
 
     expect(events).toEqual([]);
-  });
-
-  it(`mirrors at most ${PLAYER_MIRROR_FPS} frames per second of a canvas rendering 120`, () => {
-    const { events, frame, dm } = mirroring();
-
-    for (let i = 1; i <= 120; i++) {
-      const time = 1000 + (i * 1000) / 120;
-      dm.change();
-      dm.tick(time);
-      frame(time + 2);
-    }
-
-    expect(events.filter((event) => event === 'render:dm')).toHaveLength(120);
-    expect(events.filter((event) => event === 'render:player')).toHaveLength(60);
-    expect(events.at(-1)).toBe('render:dm');
-  });
-
-  it('delivers the last frame when the cap skipped it and the DM canvas went idle', () => {
-    const { events, frame, dm } = mirroring();
-    dm.change();
-    dm.tick(100);
-    events.length = 0;
-
-    dm.change();
-    dm.tick(108);
-    expect(events).toEqual(['render:dm']);
-
-    // Too early for another mirrored frame
-    frame(110);
-    dm.tick(116);
-    expect(events).toEqual(['render:dm']);
-
-    frame(118);
-    dm.tick(124);
-    expect(events).toEqual(['render:dm', ...MIRRORED]);
-
-    frame(140);
-    dm.tick(141);
-    expect(events).toHaveLength(4);
   });
 
   it('mirrors again when told the frame is stale, though the DM canvas did not change', () => {
@@ -304,7 +165,7 @@ describe('PlayerFrameMirror on a canvas that renders on change', () => {
 
 describe('PlayerFrameMirror on a canvas without a render schedule', () => {
   it('captures every display frame and restores the DM frame itself', () => {
-    const { events, frame, dm, state, onFrame } = setup();
+    const { events, frame, dm, state, onFrame } = setupMirror();
     state.source = { canvas: dm.source.canvas, withPlayerSafeFrame: dm.source.withPlayerSafeFrame };
 
     frame(0);

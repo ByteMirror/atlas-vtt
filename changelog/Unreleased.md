@@ -20,9 +20,9 @@
 - The token creator and the Fantasy Statblocks list stay smooth with thousands of images
 - Statblocks that share one image read and convert it only once
 - In the GM view, every light shines at full strength and a faint icon marks every light; areas no token sees are shown slightly faded instead of dimmed
-- Maps with flickering lights no longer keep the graphics card busy while nothing moves
+- Flickering lights take about a quarter of the graphics card time they did on a 120 Hz display, and half on a 60 Hz one
 - Dynamic lighting costs far less on high-density displays such as Retina screens, so panning a lit map stays smooth
-- An open player window costs far less: the GM view stays smooth on large maps with lighting, and nothing is drawn for the players while nothing changes
+- An open player window costs far less, so the GM view stays smooth on large maps with lighting
 
 ## Fixed
 

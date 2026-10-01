@@ -107,6 +107,23 @@ describe('player window mirroring', () => {
     expect(renders.capture).toHaveBeenCalledTimes(1);
   });
 
+  it.each(['presentCanvas', 'releaseHeldFrame'] as const)('lets go of the previous canvas at once on %s', (swap) => {
+    const previous = scheduledRenders();
+    const next = scheduledRenders();
+    const { service } = mirror(previous);
+    previous.render();
+    const source: PlayerFrameSource = { canvas: document.createElement('canvas'), withPlayerSafeFrame: vi.fn(), beforeRender: next.beforeRender };
+
+    vi.spyOn(performance, 'now').mockReturnValue(performance.now() + 100);
+    // No frame of the player window in between: it may be hidden
+    if (swap === 'presentCanvas') service.presentCanvas(source, 'scene-b');
+    else service.releaseHeldFrame(source);
+
+    expect(previous.stopListening).toHaveBeenCalledTimes(1);
+    next.render();
+    expect(next.capture).toHaveBeenCalledTimes(1);
+  });
+
   it('stops listening to the DM canvas when the window closes', () => {
     const renders = scheduledRenders();
     const { service } = mirror(renders);

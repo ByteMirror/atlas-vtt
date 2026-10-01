@@ -1,11 +1,21 @@
 import { Container, Matrix, RenderTexture, Sprite, Texture, WebGLRenderer } from 'pixi.js';
 import type { LightingEngine } from '../LightingEngine';
 
-/** A WebGL2 renderer on an offscreen canvas, as the plugin uses; `resolution` 2 as on a Retina display. */
-export async function createTestRenderer(size = 512, resolution = 1): Promise<WebGLRenderer> {
+/**
+ * A WebGL2 renderer on an offscreen canvas, as the plugin uses; `resolution` 2 as on a Retina
+ * display. The plugin's canvas is antialiased; most tests render to textures, where it is not read.
+ */
+export async function createTestRenderer(size = 512, resolution = 1, antialias = false): Promise<WebGLRenderer> {
   const renderer = new WebGLRenderer();
-  await renderer.init({ width: size, height: size, antialias: false, backgroundAlpha: 1, resolution });
+  await renderer.init({ width: size, height: size, antialias, backgroundAlpha: 1, resolution });
   return renderer;
+}
+
+/** What a 2D copy of `canvas` shows at device pixel (x, y), read in the task that rendered it. */
+export function copiedPixel(canvas: HTMLCanvasElement, x: number, y: number): number[] {
+  const context = new OffscreenCanvas(canvas.width, canvas.height).getContext('2d')!;
+  context.drawImage(canvas, 0, 0);
+  return Array.from(context.getImageData(x, y, 1, 1).data.slice(0, 3));
 }
 
 /** Texels of a float target in GL row order (row 0 is where clip y = −1 wrote). */

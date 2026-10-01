@@ -21,6 +21,7 @@
 - Statblocks that share one image read and convert it only once
 - In the GM view, every light shines at full strength and a faint icon marks every light; areas no token sees are shown slightly faded instead of dimmed
 - Maps with flickering lights no longer keep the graphics card busy while nothing moves
+- Dynamic lighting costs far less on high-density displays such as Retina screens, so panning a lit map stays smooth
 - An open player window costs far less: the GM view stays smooth on large maps with lighting, and nothing is drawn for the players while nothing changes
 
 ## Fixed

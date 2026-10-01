@@ -2,20 +2,11 @@ import { Application, Container, Graphics } from 'pixi.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { RenderScheduler, hasPendingChanges, requestRender, setBeforeRender } from '../RenderScheduler';
 import { captureBeforeRender, type PlayerFrameCamera } from '../playerSafeFrame';
+import { copiedPixel } from '../lighting/engine/__tests__/gpuTestUtils';
 
 const SIZE = 64;
 const MAP = [0, 0, 255];
 const DM_ONLY = [255, 0, 0];
-
-/** What a 2D copy of `canvas` shows at (x, y), as the player window copies it. */
-function copiedPixel(canvas: HTMLCanvasElement, x: number, y: number): number[] {
-  const copy = document.createElement('canvas');
-  copy.width = canvas.width;
-  copy.height = canvas.height;
-  const context = copy.getContext('2d')!;
-  context.drawImage(canvas, 0, 0);
-  return Array.from(context.getImageData(x, y, 1, 1).data.slice(0, 3));
-}
 
 describe('mirroring a real stage right before its render', () => {
   const cleanup: (() => void)[] = [];

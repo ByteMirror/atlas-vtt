@@ -1,7 +1,8 @@
-import { Container, Graphics, Matrix, Texture, type Renderer, type WebGLRenderer } from 'pixi.js';
+import { Container, Graphics, Matrix, Texture, type Renderer } from 'pixi.js';
 import { exploredMemoryOn } from '../../../lighting/sceneLightingOptions';
 import type { Sight } from '../../../vision/sight';
 import { destroyTree } from '../../utils/destroyTree';
+import { setBackBuffer } from './backBuffer';
 import type { CapsuleField } from './CapsuleField';
 import { createCompositeFilter, type CompositeFilter, type LightingMode } from './compositeFilter';
 import { LightingWorld } from './LightingWorld';
@@ -156,10 +157,4 @@ export class LightingEngine {
     this.boundsRect.clear().rect(0, 0, width, height).fill({ color: 0, alpha: 0 });
     this.sight = null;
   }
-}
-
-/** WebGL only offers the scene beneath a filter through a back buffer. */
-function setBackBuffer(renderer: Renderer, on: boolean): void {
-  if (renderer.name !== 'webgl') return;
-  (renderer as WebGLRenderer).backBuffer.useBackBuffer = on;
 }

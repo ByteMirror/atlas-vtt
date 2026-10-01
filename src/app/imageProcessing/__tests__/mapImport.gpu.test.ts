@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it, vi } from 'vitest';
 import { disposeImageProcessing, IMAGE_PRESETS, optimizeImage } from '../imageProcessing';
 import type { Size } from '../imageLayout';
 
@@ -47,6 +47,21 @@ describe('importing maps with the real workers', () => {
     const darkest = Math.min(...[-1, 0, 1].map((dy) => map.luminanceAt(MAP_SIDE / 2, lineY + dy)));
     expect(darkest).toBeLessThan(140);
     expect(map.luminanceAt(MAP_SIDE / 2, lineY + 8)).toBeGreaterThan(240);
+  });
+
+  it('rasterizes vectors one at a time, each only once the one before is converted', async () => {
+    const svg = (): Blob => new Blob(['<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><rect width="40" height="40"/></svg>'], { type: 'image/svg+xml' });
+    // Workers have their own OffscreenCanvas, so the spy counts the main thread's rasters only.
+    const raster = vi.spyOn(OffscreenCanvas.prototype, 'transferToImageBitmap');
+    const rastersWhenConverted: number[] = [];
+
+    await Promise.all([0, 1, 2].map(async () => {
+      await optimizeImage(svg(), IMAGE_PRESETS.token);
+      rastersWhenConverted.push(raster.mock.calls.length);
+    }));
+    raster.mockRestore();
+
+    expect(rastersWhenConverted).toEqual([1, 2, 3]);
   });
 
   it('reports the pixels a map above the limit lost', async () => {

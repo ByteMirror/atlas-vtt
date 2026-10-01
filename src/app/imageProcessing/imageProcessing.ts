@@ -46,6 +46,19 @@ const MEMORY_BUDGET_BYTES = 1024 ** 3;
 const UNSIZED_IMAGE_SIDE = 2048;
 const SVG = 'image/svg+xml';
 
+/**
+ * Main-thread rasters go one at a time, each until its worker is done: the
+ * bitmap waits outside the pool's memory budget, and an SVG map's holds up to
+ * 256 MB.
+ */
+let lastRaster: Promise<unknown> = Promise.resolve();
+
+function afterEarlierRasters<T>(task: () => Promise<T>): Promise<T> {
+  const result = lastRaster.then(task);
+  lastRaster = result.catch(() => undefined);
+  return result;
+}
+
 let pool: ImageWorkerPool | null = null;
 /** Set on unload, so work finishing afterwards cannot start new workers for a plugin that is gone. */
 let disposed = false;
@@ -103,8 +116,11 @@ async function process(source: Blob, job: Omit<ImageJob, 'source'>, options: Pro
     return await workers.run({ ...withCopies, source }, run);
   } catch (error) {
     if (!(error instanceof ImageDecodeError)) throw error;
-    const bitmap = await rasterize(source, job.layout);
-    return workers.run({ ...withCopies, source: bitmap }, { ...run, cost: jobCost(bitmap), transfer: [bitmap] });
+    return afterEarlierRasters(async () => {
+      options.signal?.throwIfAborted();
+      const bitmap = await rasterize(source, job.layout);
+      return workers.run({ ...withCopies, source: bitmap }, { ...run, cost: jobCost(bitmap), transfer: [bitmap] });
+    });
   }
 }
 

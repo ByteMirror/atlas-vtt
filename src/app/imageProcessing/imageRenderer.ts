@@ -1,5 +1,5 @@
-import type { ImageJob, ImageJobResult, ImageLayout, ScaleDown, ThumbnailSpec } from './imageJob';
-import { fitWithin, frameImageRect, frameSize, type Size } from './imageLayout';
+import type { ImageJob, ImageJobResult, ImageLayout, ThumbnailSpec } from './imageJob';
+import { fitWithin, frameImageRect, frameSize, scaleDown, type Size } from './imageLayout';
 
 /**
  * Runs inside an image worker: one decode per job, scaling on a 2D canvas,
@@ -122,12 +122,6 @@ function render(bitmap: ImageBitmap, layout: ImageLayout): OffscreenCanvas {
   return layout.kind === 'fit'
     ? renderFit(bitmap, fitWithin(bitmap, layout.maxWidth, layout.maxHeight))
     : renderFrame(bitmap, layout);
-}
-
-/** What a fit took from the source, or undefined when the output keeps every pixel. */
-function scaleDown(layout: ImageLayout, source: Size, output: Size): ScaleDown | undefined {
-  if (layout.kind !== 'fit' || (output.width >= source.width && output.height >= source.height)) return undefined;
-  return { from: { width: source.width, height: source.height }, to: { width: output.width, height: output.height } };
 }
 
 export async function renderImageJob(job: ImageJob): Promise<ImageJobResult> {

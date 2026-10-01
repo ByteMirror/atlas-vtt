@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fitWithin, frameImageRect, frameSize, vectorRasterSize } from '../../src/app/imageProcessing/imageLayout';
+import { fitWithin, frameImageRect, frameSize, scaleDown, vectorRasterSize } from '../../src/app/imageProcessing/imageLayout';
 import { renderedImageRect, TOKEN_CROP_FRACTION, tokenCropPlacement } from '../../src/app/packages/components/asset-manager/token-creator/cropMath';
 
 describe('fitWithin', () => {
@@ -10,6 +10,22 @@ describe('fitWithin', () => {
 
   it('never scales up', () => {
     expect(fitWithin({ width: 300, height: 120 }, 400, 400)).toEqual({ width: 300, height: 120 });
+  });
+});
+
+describe('scaleDown', () => {
+  const map = { kind: 'fit', maxWidth: 8192, maxHeight: 8192 } as const;
+
+  it('reports the pixels a fit took from the source', () => {
+    const source = { width: 9000, height: 90 };
+    expect(scaleDown(map, source, fitWithin(source, 8192, 8192))).toEqual({ from: source, to: { width: 8192, height: 82 } });
+  });
+
+  it('reports nothing when the output keeps every pixel, or for a frame', () => {
+    const source = { width: 4000, height: 40 };
+    expect(scaleDown(map, source, fitWithin(source, 8192, 8192))).toBeUndefined();
+    const frame = { kind: 'frame', placement: tokenCropPlacement(1, { x: 0, y: 0 }), minSize: 256, maxSize: 400 } as const;
+    expect(scaleDown(frame, { width: 2048, height: 2048 }, { width: 400, height: 400 })).toBeUndefined();
   });
 });
 

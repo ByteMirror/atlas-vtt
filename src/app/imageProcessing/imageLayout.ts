@@ -1,4 +1,4 @@
-import type { FramePlacement, ImageLayout } from './imageJob';
+import type { FramePlacement, ImageLayout, ScaleDown } from './imageJob';
 
 export interface Size {
   width: number;
@@ -24,6 +24,12 @@ function scaled(size: Size, scale: number): Size {
 /** `size` scaled down to fit within the bounds, keeping its aspect ratio; never scaled up. */
 export function fitWithin(size: Size, maxWidth: number, maxHeight: number): Size {
   return scaled(size, Math.min(1, maxWidth / size.width, maxHeight / size.height));
+}
+
+/** What a fit took from `source`, or undefined when `output` keeps every pixel. */
+export function scaleDown(layout: ImageLayout, source: Size, output: Size): ScaleDown | undefined {
+  if (layout.kind !== 'fit' || (output.width >= source.width && output.height >= source.height)) return undefined;
+  return { from: { width: source.width, height: source.height }, to: { width: output.width, height: output.height } };
 }
 
 /**

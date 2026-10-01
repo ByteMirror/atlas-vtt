@@ -67,17 +67,18 @@ export function contentCenter(content: MapObjectContent): Point {
 
 /**
  * Fresh copies of the content moved by `offset`. Token positions then pass through
- * `placeToken`, which lets callers snap them to the grid.
+ * `placeToken`, which lets callers snap them to the grid; it is given the token's size
+ * multiplier, since a 2×2 token rests between cells rather than on one.
  */
 export function translateMapObjects(
   content: MapObjectContent,
   offset: Point,
-  placeToken: (position: Point) => Point = (position) => position,
+  placeToken: (position: Point, sizeInCells: number) => Point = (position) => position,
 ): MapObjectContent {
   const shift = (point: Point): Point => ({ x: point.x + offset.x, y: point.y + offset.y });
   const move = <T extends Point>(object: T): T => ({ ...structuredClone(object), ...shift(object) });
   return {
-    tokens: content.tokens.map((token) => ({ ...structuredClone(token), ...placeToken(shift(token)) })),
+    tokens: content.tokens.map((token) => ({ ...structuredClone(token), ...placeToken(shift(token), token.size ?? 1) })),
     drawings: content.drawings.map((drawing) => ({
       ...structuredClone(drawing),
       points: drawing.points.map(shift),
@@ -93,6 +94,8 @@ export interface ObjectAnchor {
   point: Point;
   /** Tokens snap to the grid when placed; other objects keep their exact offset. */
   isToken: boolean;
+  /** Size multiplier of the token this anchors, which decides where it snaps; 1 for anything else. */
+  sizeInCells: number;
 }
 
 export function anchorKey(kind: string, point: Point): string {
@@ -103,10 +106,10 @@ export function anchorKey(kind: string, point: Point): string {
 export function objectAnchors(objects: CopyableCollections | MapObjectContent): ObjectAnchor[] {
   const values = <T>(collection: Record<string, T> | T[]): T[] => (Array.isArray(collection) ? collection : Object.values(collection));
   const anchors: ObjectAnchor[] = [];
-  const add = (kind: string, point: Point | undefined, isToken = false): void => {
-    if (point) anchors.push({ kind, point: { x: point.x, y: point.y }, isToken });
+  const add = (kind: string, point: Point | undefined, isToken = false, sizeInCells = 1): void => {
+    if (point) anchors.push({ kind, point: { x: point.x, y: point.y }, isToken, sizeInCells });
   };
-  values(objects.tokens).forEach((token) => add(`token:${token.imagePath}`, token, true));
+  values(objects.tokens).forEach((token) => add(`token:${token.imagePath}`, token, true, token.size ?? 1));
   values(objects.texts).forEach((text) => add('text', text));
   values(objects.pins).forEach((pin) => add('pin', pin));
   values(objects.drawings).forEach((drawing) => add('drawing', drawing.points[0]));

@@ -429,18 +429,19 @@ export class InteractionController implements ITokenInteractionController {
       const dy = worldPos.y - this.dragState.dragStartPointer.y;
       
       const tokenUpdates: Array<{id: string, x: number, y: number}> = [];
-      const snapToGrid = this.store.getState().grid?.snapToGrid ?? true;
-      
+      const state = this.store.getState();
+      const snapToGrid = state.grid?.snapToGrid ?? true;
+
       for (const id of this.dragState.dragIds) {
         const initPos = this.dragState.initialPositions[id];
         if (!initPos) continue;
-        
+
         const newX = initPos.x + dx;
         const newY = initPos.y + dy;
-        
-        // Snap to grid if enabled
-        const finalPos = snapToGrid 
-          ? this.gridSystem.snapToCellCenter(newX, newY)
+
+        // Snap to grid if enabled; the token's footprint decides where its centre may rest
+        const finalPos = snapToGrid
+          ? this.gridSystem.snapTokenToGrid(newX, newY, state.objects.tokens[id]?.size ?? 1)
           : { x: newX, y: newY };
         
         const sprite = this.getTokenSprite?.(id);

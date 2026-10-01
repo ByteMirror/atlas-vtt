@@ -9,6 +9,7 @@ import type { HexLayout } from './hexGeometry';
 import { contrastColorForSprite } from './gridContrastColor';
 import { numberHexes, type HexNumberStyle } from './hexNumbering';
 import { HexNumberLabels, type HexNumberView } from './hexNumberLabels';
+import { snapTokenToGrid } from './tokenSnap';
 import { destroyTree } from '../pixi/utils/destroyTree';
 
 export type GridType = 'square' | 'hex-horizontal' | 'hex-vertical';
@@ -427,6 +428,15 @@ export class GridSystem {
       x: col * size + offsetX + size / 2,
       y: row * size + offsetY + size / 2,
     };
+  }
+
+  /**
+   * Snap a token's centre so its footprint lines up with the grid: a 1×1 or 3×3 token
+   * on a cell centre, a 2×2 or 4×4 token on the lines between cells.
+   */
+  public snapTokenToGrid(x: number, y: number, sizeInCells = 1): { x: number; y: number } {
+    const { type, size, offsetX = 0, offsetY = 0 } = this.options;
+    return snapTokenToGrid({ type, size, offsetX, offsetY }, { x, y }, sizeInCells);
   }
 
   /** Get current grid size */

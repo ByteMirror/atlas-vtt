@@ -30,7 +30,7 @@ interface ViewportLike {
 
 interface GridSystemLike {
   getOptions(): { type?: string; size: number; offsetX?: number; offsetY?: number; enabled?: boolean };
-  snapToCellCenter(x: number, y: number): { x: number; y: number };
+  snapTokenToGrid(x: number, y: number, sizeInCells?: number): { x: number; y: number };
 }
 
 export interface SpawnContext {
@@ -77,24 +77,17 @@ function gridPosition(
   total: number,
   centerX: number,
   centerY: number,
-  cellSize: number,
-  gridSystem: GridSystemLike | null
+  cellSize: number
 ): { x: number; y: number } {
   const tokensPerRow = Math.ceil(Math.sqrt(total));
   const totalRows = Math.ceil(total / tokensPerRow);
   const row = Math.floor(index / tokensPerRow);
   const col = index % tokensPerRow;
 
-  let x = centerX + (col - (tokensPerRow - 1) / 2) * cellSize;
-  let y = centerY + (row - (totalRows - 1) / 2) * cellSize;
-
-  if (gridSystem) {
-    const snapped = gridSystem.snapToCellCenter(x, y);
-    x = snapped.x;
-    y = snapped.y;
-  }
-
-  return { x, y };
+  return {
+    x: centerX + (col - (tokensPerRow - 1) / 2) * cellSize,
+    y: centerY + (row - (totalRows - 1) / 2) * cellSize,
+  };
 }
 
 /** Formation slots for an encounter, or null if any token lacks captured layout data. */
@@ -204,9 +197,16 @@ function imageExists(app: ObsidianApp, imagePath: string): boolean {
   return false;
 }
 
-/** Adds the tokens in one store write (a single undo step) and selects them. */
-function addSpawnedTokens(ctx: SpawnContext, tokens: TokenInput[]): string[] {
-  const ids = ctx.addTokens(tokens);
+/**
+ * Adds the tokens in one store write (a single undo step) and selects them. Each one snaps
+ * last, by its own footprint, so a 2×2 token rests on the lines between cells rather than
+ * straddling four of them.
+ */
+function addSpawnedTokens(ctx: SpawnContext, tokens: TokenInput[], gridSystem: GridSystemLike | null): string[] {
+  const placed = gridSystem
+    ? tokens.map((token) => ({ ...token, ...gridSystem.snapTokenToGrid(token.x, token.y, token.size ?? 1) }))
+    : tokens;
+  const ids = ctx.addTokens(placed);
   if (ids.length > 0) ctx.setSelection(ids);
   return ids;
 }
@@ -236,9 +236,9 @@ export async function spawnTokenAsset(
   const template = await buildTokenData(ctx.app, center, source, spawnVisionDefaults(ctx));
   const tokens = Array.from({ length: count }, (_, i): TokenInput => ({
     ...structuredClone(template),
-    ...gridPosition(i, count, center.x, center.y, pitch, gridSystem),
+    ...gridPosition(i, count, center.x, center.y, pitch),
   }));
-  return addSpawnedTokens(ctx, tokens);
+  return addSpawnedTokens(ctx, tokens, gridSystem);
 }
 
 /**
@@ -275,16 +275,9 @@ export async function spawnEncounterTokens(
     if (formationPos) {
       pos = formationPos;
     } else if (token.x !== undefined && token.y !== undefined) {
-      let x = center.x + token.x;
-      let y = center.y + token.y;
-      if (gridSystem) {
-        const snapped = gridSystem.snapToCellCenter(x, y);
-        x = snapped.x;
-        y = snapped.y;
-      }
-      pos = { x, y };
+      pos = { x: center.x + token.x, y: center.y + token.y };
     } else {
-      pos = gridPosition(i, tokensToSpawn.length, center.x, center.y, pitch, gridSystem);
+      pos = gridPosition(i, tokensToSpawn.length, center.x, center.y, pitch);
     }
 
     // A saved state snapshot is restored verbatim. Encounters built from token
@@ -301,7 +294,7 @@ export async function spawnEncounterTokens(
     }
   }
 
-  return addSpawnedTokens(ctx, tokens);
+  return addSpawnedTokens(ctx, tokens, gridSystem);
 }
 
 /**
@@ -329,9 +322,9 @@ export async function spawnSelectedTokens(
 
     const source = await resolveTokenSource(ctx, tokenAsset);
     if (!source) continue;
-    const pos = gridPosition(i, tokensToSpawn.length, center.x, center.y, pitch, gridSystem);
+    const pos = gridPosition(i, tokensToSpawn.length, center.x, center.y, pitch);
     tokens.push(await buildTokenData(ctx.app, pos, source, visionDefaults));
   }
 
-  return addSpawnedTokens(ctx, tokens);
+  return addSpawnedTokens(ctx, tokens, gridSystem);
 }

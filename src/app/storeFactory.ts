@@ -34,6 +34,7 @@ import { clampLitThreshold, readSceneLighting } from './lighting/sceneLightingOp
 import { isPinLabelKind, nextPinLabel } from './tools/pinLabels';
 import { movedPathOf, rewriteMapReferences } from './services/renamedPaths';
 import { conditionValue, removeCondition, setConditionValue } from './utils/conditionValues';
+import { resizeTokenCentre } from './grid/tokenSnap';
 
 // Individual store state interface (same as AtlasState but isolated)
 export interface ViewAtlasState {
@@ -400,12 +401,25 @@ export type ViewAtlasStore = Mutate<
   flushStorage: () => Promise<void>;
 };
 
-function applyTokenUpdates(token: TokenEntity | undefined, updates: TokenUpdates): void {
+/**
+ * Applies `updates` to a token. A changed footprint re-snaps it, so a token resized to
+ * 2×2 lands on the lines between cells instead of straddling four of them; an update
+ * that moves the token itself keeps the position it was given.
+ */
+function applyTokenUpdates(token: TokenEntity | undefined, updates: TokenUpdates, grid: GridState | null | undefined): void {
   if (!token) return;
   const normalized = updates.imagePath
     ? { ...updates, imagePath: normalizeImagePath(updates.imagePath) }
     : updates;
+  const previousSize = token.size ?? 1;
+  const resized = normalized.size !== undefined && normalized.size !== previousSize;
+  const moved = normalized.x !== undefined || normalized.y !== undefined;
   Object.assign(token, normalized);
+  if (!resized || moved) return;
+  if (!grid || grid.enabled === false || !(grid.snapToGrid ?? true)) return;
+  const placed = resizeTokenCentre(grid, token, previousSize, token.size ?? 1);
+  token.x = placed.x;
+  token.y = placed.y;
 }
 
 /**
@@ -678,12 +692,12 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
           }),
 
           updateToken: (id, updates) => set((draft) => {
-            applyTokenUpdates(draft.objects.tokens[id], updates);
+            applyTokenUpdates(draft.objects.tokens[id], updates, draft.grid);
           }),
 
           updateTokens: (entries) => set((draft) => {
             for (const { id, changes } of entries) {
-              applyTokenUpdates(draft.objects.tokens[id], changes);
+              applyTokenUpdates(draft.objects.tokens[id], changes, draft.grid);
             }
           }),
 

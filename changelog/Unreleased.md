@@ -32,3 +32,4 @@
 - The DM screen shows its statblocks side by side again. As many columns as fit share the space, and each statblock goes into the column with the first free space, so no column stays empty
 - Collections can be deleted again when some of their files were already removed outside Obsidian, for example by git
 - Edit Token opens again instead of crashing on its Vision switch
+- Large tokens snap onto the grid instead of straddling it. A 2×2 or 4×4 token now covers whole cells, whether you drag it, paste it, spawn it or resize it, and resizing one keeps the cell it starts in

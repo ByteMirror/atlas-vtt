@@ -4,15 +4,19 @@ import type { DragRulerView } from '../../src/app/pixi/token-renderer/DragRulerV
 import type { GridSystem } from '../../src/app/grid/GridSystem';
 import type { MeasurementSettings } from '../../src/app/grid/measurementFormat';
 import type { ViewAtlasState } from '../../src/app/storeFactory';
+import { snapTokenToGrid } from '../../src/app/grid/tokenSnap';
 
 const CELL = 70;
+const GRID = { type: 'square', size: CELL, offsetX: 0, offsetY: 0 };
 const center = (col: number, row: number): { x: number; y: number } => ({ x: CELL / 2 + col * CELL, y: CELL / 2 + row * CELL });
+/** Corner shared by four cells, where a 2×2 token's centre rests. */
+const corner = (col: number, row: number): { x: number; y: number } => ({ x: col * CELL, y: row * CELL });
 
-function makeRuler(token: { isHidden?: boolean } = {}): { ruler: DragRuler; view: { draw: ReturnType<typeof vi.fn>; clear: ReturnType<typeof vi.fn>; layers: object[] } } {
+function makeRuler(token: { isHidden?: boolean; size?: number } = {}): { ruler: DragRuler; view: { draw: ReturnType<typeof vi.fn>; clear: ReturnType<typeof vi.fn>; layers: object[] } } {
   const view = { draw: vi.fn(), clear: vi.fn(), destroy: vi.fn(), layers: [{ visible: true }, { visible: true }] };
   const gridSystem = {
-    getOptions: () => ({ type: 'square', size: CELL, offsetX: 0, offsetY: 0 }),
-    snapToCellCenter: (x: number, y: number) => center(Math.floor(x / CELL), Math.floor(y / CELL)),
+    getOptions: () => GRID,
+    snapTokenToGrid: (x: number, y: number, size?: number) => snapTokenToGrid(GRID, { x, y }, size),
   };
   const state = { grid: { snapToGrid: true }, objects: { tokens: { t1: { id: 't1', size: 1, ...token } } } };
   const settings: MeasurementSettings = { mode: 'metric', unitType: 'feet', unitDistance: 5, diagonalRule: 'equidistant', rangeBands: [] };
@@ -37,6 +41,14 @@ describe('DragRuler', () => {
     ruler.begin('t1', { x: 40, y: 30 });
     ruler.update({ x: 3 * CELL + 50, y: 20 });
     expect(view.draw).toHaveBeenLastCalledWith([center(0, 0), center(3, 0)], '15ft');
+    ruler.end();
+  });
+
+  it('measures a 2×2 token between cells, where its footprint lands', () => {
+    const { ruler, view } = makeRuler({ size: 1.5 });
+    ruler.begin('t1', { x: 10, y: 10 });
+    ruler.update({ x: 3 * CELL + 20, y: 15 });
+    expect(view.draw).toHaveBeenLastCalledWith([corner(0, 0), corner(3, 0)], '15ft');
     ruler.end();
   });
 

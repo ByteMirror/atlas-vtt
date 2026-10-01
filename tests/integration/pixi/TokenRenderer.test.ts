@@ -17,6 +17,7 @@ import { createViewAtlasStore } from '../../../src/app/storeFactory';
 import { computeTokenPixelSize } from '../../../src/app/pixi/token-renderer/tokenSizing';
 import { getHistoryStore } from '../../../src/app/stores/history';
 import type { GridSystem } from '../../../src/app/grid/GridSystem';
+import { snapTokenToGrid } from '../../../src/app/grid/tokenSnap';
 import { createInMemoryApp } from '../../mocks/inMemoryVault';
 import { stubJsdomGraphics } from '../../mocks/jsdomGraphics';
 
@@ -87,10 +88,8 @@ describe('TokenRenderer Integration Tests', () => {
 
   const gridSystem = {
     getOptions: () => ({ type: 'square', size: gridSize, offsetX: 0, offsetY: 0 }),
-    snapToCellCenter: (x: number, y: number) => ({
-      x: Math.floor(x / gridSize) * gridSize + gridSize / 2,
-      y: Math.floor(y / gridSize) * gridSize + gridSize / 2,
-    }),
+    snapTokenToGrid: (x: number, y: number, size?: number) =>
+      snapTokenToGrid({ type: 'square', size: gridSize, offsetX: 0, offsetY: 0 }, { x, y }, size),
   } as unknown as GridSystem;
 
   const createRenderer = (viewStore: ViewStore = store): TokenRenderer => {

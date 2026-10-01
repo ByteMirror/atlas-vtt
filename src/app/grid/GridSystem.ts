@@ -7,8 +7,9 @@ import type { GridBounds, GridLineType } from './gridLineStyle';
 import { createHexLayout, hexCellExtent, isHexGridType, nearestHexCenter } from './hexGeometry';
 import type { HexLayout } from './hexGeometry';
 import { contrastColorForSprite } from './gridContrastColor';
-import { numberCells, type CellNumberStyle } from './cellNumbering';
+import { numberCells, type CellLattice, type CellNumberStyle } from './cellNumbering';
 import { hexLattice } from './hexLattice';
+import { squareLattice } from './squareLattice';
 import { CellNumberLabels, type CellNumberView } from './cellNumberLabels';
 import { destroyTree } from '../pixi/utils/destroyTree';
 
@@ -59,7 +60,7 @@ export const ALIGNMENT_GRID_COLOR = 0x00ff00;
  * staying locked under pan/zoom by the Pixi‑Viewport container.
  */
 export class GridSystem {
-  /** Holds the grid lines and, on numbered hex grids, the hex numbers. */
+  /** Holds the grid lines and, on a numbered grid, the cell numbers. */
   private gridSprite: Container | null = null;
   private gridMask: Graphics | null = null;
   private cellNumberLabels: CellNumberLabels | null = null;
@@ -204,11 +205,12 @@ export class GridSystem {
     grid.position.set(bounds.minX, bounds.minY);
 
     const cellNumbers = this.options.cellNumbers;
-    if (hexLayout && cellNumbers) {
+    if (cellNumbers) {
+      const lattice: CellLattice = hexLayout ? hexLattice(hexLayout) : squareLattice(size, offsetX, offsetY);
       const mapRect = { x: bgX, y: bgY, width: bgSprite.width, height: bgSprite.height };
       this.cellNumberLabels = new CellNumberLabels(
-        numberCells(hexLattice(hexLayout), mapRect, cellNumbers.format),
-        hexLayout.size,
+        numberCells(lattice, mapRect, cellNumbers.format),
+        lattice.size,
         { x: bounds.minX, y: bounds.minY },
         { color: gridColor, opacity: cellNumbers.opacity },
         this.numberView(),
@@ -359,7 +361,7 @@ export class GridSystem {
     return this.options.mapScale || 1;
   }
 
-  /** Returns the grid container: its lines and, on numbered hex grids, the hex numbers */
+  /** Returns the grid container: its lines and, on a numbered grid, the cell numbers */
   public getGridSprite(): Container | null {
     return this.gridSprite;
   }

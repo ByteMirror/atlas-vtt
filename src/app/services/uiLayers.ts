@@ -12,7 +12,7 @@ export interface UILayers {
 /**
  * Builds a map's UI layer. The React UI and the note previews share one
  * stacking context, so previews stack between the React UI's bars and its
- * overlays, such as the DM dashboard (`$z-atlas-note-preview`).
+ * overlays, such as the DM screen (`$z-atlas-note-preview`).
  */
 export function createUILayers(parent: HTMLElement): UILayers {
   const container = parent.createDiv({ cls: 'atlas-vtt-plugin atlas-react-ui-container' });

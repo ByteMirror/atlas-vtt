@@ -13,7 +13,7 @@ vi.mock('../../src/app/react/ViewStoreContext', () => ({
   useAtlasStore: (selector: (value: typeof state) => unknown) => selector(state),
 }));
 
-import DMDashboard from '../../src/app/react/components/DMDashboard';
+import DMScreen from '../../src/app/react/components/DMScreen';
 
 const view = {};
 const legacyPath = 'statblocks/New Creature 32.md';
@@ -49,7 +49,7 @@ const state = {
   updateToken: vi.fn(),
 };
 
-function showDashboard(paths: string[], onClose = vi.fn()) {
+function showDMScreen(paths: string[], onClose = vi.fn()) {
   state.objects.tokens = Object.fromEntries(paths.map((statblockPath, index) => [index, {
     id: String(index), kind: 'character', x: index * 100, y: 50, instanceNumber: index, name: index === 0 ? 'Sunborne Beacon' : 'Acid Burrower', statblockPath,
   }]));
@@ -58,7 +58,7 @@ function showDashboard(paths: string[], onClose = vi.fn()) {
     hasCreature: () => false,
     isResolved: () => true,
   } });
-  return render(<DMDashboard isOpen onClose={onClose} />);
+  return render(<DMScreen isOpen onClose={onClose} />);
 }
 
 afterEach(() => {
@@ -66,9 +66,9 @@ afterEach(() => {
   delete (window as Window & { FantasyStatblocks?: unknown }).FantasyStatblocks;
 });
 
-describe('DM dashboard statblock selection', () => {
+describe('DM screen statblock selection', () => {
   it('does not render an unsupported legacy note beside valid map creatures', async () => {
-    const { container } = showDashboard([legacyPath, creaturePath, creaturePath]);
+    const { container } = showDMScreen([legacyPath, creaturePath, creaturePath]);
     await waitFor(() => expect(container.querySelector('.atlas-statblock')).not.toBeNull());
     expect(container.textContent).toContain('Acid Burrower');
     expect(container.textContent).not.toContain('No Fantasy Statblocks creature found');
@@ -76,23 +76,23 @@ describe('DM dashboard statblock selection', () => {
   });
 
   it('keeps creatures defined in code fences even though they are not in the bestiary', async () => {
-    const { container } = showDashboard([legacyPath, fencePath]);
+    const { container } = showDMScreen([legacyPath, fencePath]);
     await waitFor(() => expect(container.querySelector('.atlas-statblock')).not.toBeNull());
     expect(container.textContent).toContain('Inline Creature');
     expect(container.textContent).not.toContain('No Fantasy Statblocks creature found');
   });
 
   it('shows the empty state when all linked notes use an unsupported format', async () => {
-    const { container } = showDashboard([legacyPath]);
+    const { container } = showDMScreen([legacyPath]);
     await waitFor(() => expect(container.textContent).toContain('No statblocks currently in use'));
     expect(container.textContent).not.toContain('No Fantasy Statblocks creature found');
   });
 });
 
 
-describe('dashboard token actions', () => {
+describe('DM screen token actions', () => {
   it('persists an independent resource update through the map store', async () => {
-    showDashboard([legacyPath, creaturePath, creaturePath]);
+    showDMScreen([legacyPath, creaturePath, creaturePath]);
     const entry = await screen.findByRole('group', { name: 'Acid Burrower #2' });
     fireEvent.click(within(entry).getByRole('button', { name: 'Decrease HP' }));
     expect(state.updateToken).toHaveBeenLastCalledWith('2', { hp: { current: 7, max: 8 } });
@@ -101,7 +101,7 @@ describe('dashboard token actions', () => {
 
   it('zooms to the selected token and closes the overlay', async () => {
     const onClose = vi.fn();
-    showDashboard([legacyPath, creaturePath, creaturePath], onClose);
+    showDMScreen([legacyPath, creaturePath, creaturePath], onClose);
     fireEvent.click(await screen.findByRole('button', { name: 'Locate Acid Burrower #2 on map' }));
     expect(zoomToTokenWithHighlight).toHaveBeenCalledWith(view, '2', { x: 200, y: 50 });
     await waitFor(() => expect(onClose).toHaveBeenCalled());

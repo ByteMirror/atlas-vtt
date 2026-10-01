@@ -10,7 +10,7 @@
 }
 
 // Obsidian UI hosted inside Atlas keeps Obsidian's behaviour: view headers and the
-// note editors embedded in previews and the dashboard.
+// note editors embedded in previews and the DM screen.
 :where([class^='atlas-'], [class*=' atlas-']) .view-header,
 .atlas-embedded-leaf-view {
   --no-tooltip: initial;

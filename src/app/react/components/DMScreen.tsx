@@ -18,7 +18,7 @@ import { findCreatureForNotePath } from '../../services/FantasyStatblocksService
 import { resolveStatblockNote } from '../../services/statblockNoteSource';
 import { runInBackground } from '../../utils/backgroundTask';
 
-interface DMDashboardProps {
+interface DMScreenProps {
   isOpen: boolean;
   onClose: () => void;
 }
@@ -94,7 +94,7 @@ const NoteContent: React.FC<NoteContentProps> = ({ notePath, app, onFocus }) => 
           }
         }
 
-        // Strategy 2: Create a hidden leaf; dm-dashboard.scss hides its tab via data-dm-dashboard-preview
+        // Strategy 2: Create a hidden leaf; dm-screen.scss hides its tab via data-dm-screen-preview
         const originalActiveLeaf = getActiveWorkspaceLeaf(app.workspace);
 
         // Suppress setActiveLeaf during leaf creation so Obsidian never
@@ -103,8 +103,8 @@ const NoteContent: React.FC<NoteContentProps> = ({ notePath, app, onFocus }) => 
         leafRef.current = app.workspace.getLeaf(true);
 
         if (leafRef.current) {
-          leafRef.current.containerEl.setAttribute('data-dm-dashboard-preview', 'true');
-          leafRef.current.tabHeaderEl?.setAttribute('data-dm-dashboard-preview', 'true');
+          leafRef.current.containerEl.setAttribute('data-dm-screen-preview', 'true');
+          leafRef.current.tabHeaderEl?.setAttribute('data-dm-screen-preview', 'true');
 
           leafRef.current.detach();
         }
@@ -219,7 +219,7 @@ function getStatblockPath(token: TokenEntity): string | undefined {
   return token.kind === 'character' ? token.statblockPath : undefined;
 }
 
-export default function DMDashboard({ isOpen, onClose }: DMDashboardProps) {
+export default function DMScreen({ isOpen, onClose }: DMScreenProps) {
   const tokens = useAtlasStore((state) => state.objects?.tokens || {});
   const linkedNotePath = useAtlasStore((state) => state.dmNotePath);
   const setLinkedNotePath = useAtlasStore((state) => state.setDMNotePath);
@@ -232,7 +232,7 @@ export default function DMDashboard({ isOpen, onClose }: DMDashboardProps) {
   const [closing, setClosing] = useState(false);
   const [isNoteFocused, setIsNoteFocused] = useState(false);
   const componentRef = useRef<Component>(new Component());
-  const dashboardRef = useRef<HTMLDivElement>(null);
+  const screenRef = useRef<HTMLDivElement>(null);
   const [columnCount, setColumnCount] = useState(() => {
     if (typeof window === 'undefined') return 2;
     const width = window.innerWidth;
@@ -342,11 +342,11 @@ export default function DMDashboard({ isOpen, onClose }: DMDashboardProps) {
       setLoading(false);
     };
 
-    runInBackground(loadStatblocks(), 'Loading dashboard statblocks');
+    runInBackground(loadStatblocks(), 'Loading DM screen statblocks');
     return () => { cancelled = true; };
   }, [tokens, isOpen, app]);
 
-  // Reveal the dashboard once statblocks finish loading (prevents layout shift)
+  // Reveal the DM screen once statblocks finish loading (prevents layout shift)
   useEffect(() => {
     if (!isOpen) {
       setContentReady(false);
@@ -359,7 +359,7 @@ export default function DMDashboard({ isOpen, onClose }: DMDashboardProps) {
     }
   }, [loading, isOpen]);
 
-  // Handle dashboard close/cleanup
+  // Handle DM screen close/cleanup
   useEffect(() => {
     if (!isOpen) {
       setIsNoteFocused(false);
@@ -388,9 +388,9 @@ export default function DMDashboard({ isOpen, onClose }: DMDashboardProps) {
           setIsNoteFocused(false);
 
           // Move focus to a safe element instead of just blurring
-          const dashboardElement = dashboardRef.current;
-          if (dashboardElement) {
-            dashboardElement.focus();
+          const screenElement = screenRef.current;
+          if (screenElement) {
+            screenElement.focus();
           }
         }, 50);
       }
@@ -429,8 +429,8 @@ export default function DMDashboard({ isOpen, onClose }: DMDashboardProps) {
         if (!isNoteFocused) {
           setIsNoteFocused(true);
         }
-      } else if (dashboardRef.current?.contains(target)) {
-        // Clicked elsewhere in dashboard
+      } else if (screenRef.current?.contains(target)) {
+        // Clicked elsewhere in the DM screen
         if (isNoteFocused) {
           setIsNoteFocused(false);
         }
@@ -453,7 +453,7 @@ export default function DMDashboard({ isOpen, onClose }: DMDashboardProps) {
       // Don't handle shortcuts if note is focused (keyboard events are already stopped by stopPropagation)
       if (isNoteFocused) return;
 
-      if (e.defaultPrevented || !isShortcutScopeActive(dashboardRef.current, view?.viewId)) return;
+      if (e.defaultPrevented || !isShortcutScopeActive(screenRef.current, view?.viewId)) return;
       if (document.querySelector('.atlas-onboarding-overlay, .atlas-hotkey-help, .modal-container')) return;
       const target = e.target as Element | null;
       if (target?.closest?.('input, textarea, select, [contenteditable]:not([contenteditable="false"])')) return;
@@ -481,11 +481,11 @@ export default function DMDashboard({ isOpen, onClose }: DMDashboardProps) {
   if (!isOpen) return null;
 
   return (
-    <div className="atlas-dm-dashboard-wrapper" ref={dashboardRef} tabIndex={-1}>
-      <div className={`atlas-dm-dashboard-backdrop ${closing ? 'is-closing' : ''}`} onClick={handleClose} />
+    <div className="atlas-dm-screen-wrapper" ref={screenRef} tabIndex={-1}>
+      <div className={`atlas-dm-screen-backdrop ${closing ? 'is-closing' : ''}`} onClick={handleClose} />
 
-      <div className={`atlas-dm-dashboard ${closing ? 'is-closing' : contentReady ? 'is-visible' : ''}`}>
-        <div className="atlas-dm-dashboard-content">
+      <div className={`atlas-dm-screen ${closing ? 'is-closing' : contentReady ? 'is-visible' : ''}`}>
+        <div className="atlas-dm-screen-content">
           {/* Left side - Statblocks (50% height) */}
           <div className="atlas-dm-statblocks-section">
             {loading ? (

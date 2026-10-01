@@ -2,7 +2,7 @@
 @use '../../../../styles/mixins' as *;
 
 // ── Linked note panel ───────────────────────────────────────────────────────
-// Right-hand pane of the DM dashboard: one elevated surface holding a header
+// Right-hand pane of the DM screen: one elevated surface holding a header
 // (title + actions) and either the note picker or the linked note itself.
 
 .atlas-dm-notes-section {

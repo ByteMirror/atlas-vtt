@@ -1,5 +1,5 @@
-// DM Dashboard styles
-.atlas-dm-dashboard-wrapper {
+// DM screen styles
+.atlas-dm-screen-wrapper {
   position: fixed;
   inset: 0;
   z-index: 1000;
@@ -9,7 +9,7 @@
     outline: none;
   }
   
-  // Scale up base font size for entire dashboard on large screens
+  // Scale up base font size for the entire DM screen on large screens
   @media (min-width: 1400px) {
     font-size: 110%;
   }
@@ -19,7 +19,7 @@
   }
 }
 
-.atlas-dm-dashboard-backdrop {
+.atlas-dm-screen-backdrop {
   position: absolute;
   inset: 0;
   background-color: rgba(0, 0, 0, 0.3);
@@ -43,7 +43,7 @@
   to { opacity: 0; }
 }
 
-.atlas-dm-dashboard {
+.atlas-dm-screen {
   position: absolute;
   top: 50%;
   left: 50%;
@@ -58,11 +58,11 @@
   opacity: 0;
 
   &.is-visible {
-    animation: atlas-dashboard-enter 0.25s ease-out both;
+    animation: atlas-dm-screen-enter 0.25s ease-out both;
   }
 
   &.is-closing {
-    animation: atlas-dashboard-exit 0.2s ease-in both;
+    animation: atlas-dm-screen-exit 0.2s ease-in both;
   }
 
   // Adjust on small screens
@@ -100,7 +100,7 @@
   }
 }
 
-@keyframes atlas-dashboard-enter {
+@keyframes atlas-dm-screen-enter {
   from {
     opacity: 0;
     transform: translate(-50%, -50%) scale(0.97);
@@ -111,7 +111,7 @@
   }
 }
 
-@keyframes atlas-dashboard-exit {
+@keyframes atlas-dm-screen-exit {
   from {
     opacity: 1;
     transform: translate(-50%, -50%) scale(1);
@@ -122,7 +122,7 @@
   }
 }
 
-.atlas-dm-dashboard-header {
+.atlas-dm-screen-header {
   display: none; // Hide header for floating statblocks
 }
 
@@ -219,7 +219,7 @@
   }
 }
 
-.atlas-dm-dashboard-close {
+.atlas-dm-screen-close {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -254,7 +254,7 @@
   }
 }
 
-.atlas-dm-dashboard-content {
+.atlas-dm-screen-content {
   flex: 1;
   display: flex;
   gap: 12px; // Reduced gap between sections
@@ -618,7 +618,7 @@
     }
   }
   
-  // Hide Obsidian's view header in DM Dashboard
+  // Hide Obsidian's view header in the DM screen
   .view-header {
     display: none !important;
   }
@@ -686,13 +686,13 @@
 // The preview leaf lives in Obsidian's workspace, outside the plugin namespace,
 // so these rules have to escape the `.atlas-vtt-plugin` scope.
 @at-root {
-  // Hide tab headers for DM Dashboard preview tabs globally
-  .workspace-tab-header[data-dm-dashboard-preview="true"] {
+  // Hide tab headers for DM screen preview tabs globally
+  .workspace-tab-header[data-dm-screen-preview="true"] {
     display: none !important;
   }
 
-  // Hide the entire tab container if all tabs are DM Dashboard preview tabs
-  .workspace-tab-container:has(.workspace-tab-header[data-dm-dashboard-preview="true"]):not(:has(.workspace-tab-header:not([data-dm-dashboard-preview="true"]))) {
+  // Hide the entire tab container if all tabs are DM screen preview tabs
+  .workspace-tab-container:has(.workspace-tab-header[data-dm-screen-preview="true"]):not(:has(.workspace-tab-header:not([data-dm-screen-preview="true"]))) {
     display: none !important;
   }
 }
@@ -700,7 +700,7 @@
 
 // Rules Tab Styles
 .atlas-dm-rules-content {
-  .atlas-dm-dashboard-content {
+  .atlas-dm-screen-content {
     padding: 0; // Remove default padding for full-width scrolling
   }
 }
@@ -891,7 +891,7 @@
   display: flex;
   flex-direction: column;
   
-  .atlas-dm-dashboard-content {
+  .atlas-dm-screen-content {
     padding: 0;
     background-color: var(--background-primary);
     height: 100%;

@@ -13,7 +13,7 @@ import { useViewStoreHook, useAtlasStore } from './ViewStoreContext';
 import { ViewActionsMenu } from './components/ViewActionsMenu';
 import { UndoRedoControls } from './components/UndoRedoControls';
 import { BottomToolbarRow } from './components/BottomToolbarRow';
-import DMDashboard from './components/DMDashboard';
+import DMScreen from './components/DMScreen';
 import { InitiativeTracker } from './components/InitiativeTracker';
 import { DiceRollLog } from './components/dice-log/DiceRollLog';
 import { LootRoller } from './components/loot/LootRollerPanel';
@@ -55,8 +55,8 @@ export const UIRoot: React.FC<UIRootProps> = ({ app, view, pixiApp }) => {
   // Per-view UI visibility — driven by the store, not local state
   const isGridSettingsOpen = useAtlasStore(s => s.isGridSettingsOpen);
   const setGridSettingsOpen = useAtlasStore(s => s.setGridSettingsOpen);
-  const isDMDashboardOpen = useAtlasStore(s => s.isDMDashboardOpen);
-  const setDMDashboardOpen = useAtlasStore(s => s.setDMDashboardOpen);
+  const isDMScreenOpen = useAtlasStore(s => s.isDMScreenOpen);
+  const setDMScreenOpen = useAtlasStore(s => s.setDMScreenOpen);
   const isGridAlignmentOpen = useAtlasStore(s => s.isGridAlignmentOpen);
   const setGridAlignmentOpen = useAtlasStore(s => s.setGridAlignmentOpen);
   const isDiceLogOpen = useAtlasStore(s => s.isDiceLogOpen);
@@ -162,10 +162,10 @@ export const UIRoot: React.FC<UIRootProps> = ({ app, view, pixiApp }) => {
         return;
       }
 
-      // Tab: Toggle DM Dashboard (DM view only)
+      // Tab: Toggle DM screen (DM view only)
       if (!isPlayerView && matchesMapHotkey(e, 'dashboard', settings)) {
         e.preventDefault();
-        store.getState().setDMDashboardOpen(!store.getState().isDMDashboardOpen);
+        store.getState().setDMScreenOpen(!store.getState().isDMScreenOpen);
         return;
       }
 
@@ -250,13 +250,13 @@ export const UIRoot: React.FC<UIRootProps> = ({ app, view, pixiApp }) => {
             />
           )}
 
-          {/* DM Dashboard - only for DM view */}
+          {/* DM screen - only for DM view */}
           {!isPlayerView && (
-            <DMDashboard
-              isOpen={isDMDashboardOpen}
+            <DMScreen
+              isOpen={isDMScreenOpen}
               onClose={() => {
                 // Give CodeMirror time to clean up before closing
-                window.setTimeout(() => setDMDashboardOpen(false), 0);
+                window.setTimeout(() => setDMScreenOpen(false), 0);
               }}
             />
           )}

@@ -89,7 +89,7 @@ export function StatblockTokenResources({ monster, layout, tokens, onLocateToken
       const first = list.children[0];
       const third = list.children[2];
       if (!(first instanceof HTMLElement) || !(third instanceof HTMLElement)) return;
-      // Layout offsets exclude the dashboard entrance animation’s scale transform.
+      // Layout offsets exclude the DM screen entrance animation’s scale transform.
       const height = third.offsetTop + third.offsetHeight - first.offsetTop;
       if (height > 0) list.style.maxHeight = `${height}px`;
     };

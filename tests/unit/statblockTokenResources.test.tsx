@@ -73,7 +73,7 @@ describe('per-token statblock controls', () => {
 });
 
 
-it('measures three full entries independently of the dashboard entrance transform', () => {
+it('measures three full entries independently of the DM screen entrance transform', () => {
   vi.spyOn(HTMLElement.prototype, 'offsetTop', 'get').mockImplementation(function (this: HTMLElement) {
     return this.classList.contains('atlas-sb-token-entry') ? Array.from(this.parentElement!.children).indexOf(this) * 105 : 0;
   });

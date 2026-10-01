@@ -38,7 +38,7 @@ export interface StatblockRendererProps {
   onAssignToken?: (() => void) | undefined;
   /** The token this statblock is shown for, pinned to the top right. */
   portrait?: StatblockPortrait | undefined;
-  /** Dashboard supplies editable per-token resources in place of imported trackers. */
+  /** The DM screen supplies editable per-token resources in place of imported trackers. */
   footer?: React.ReactNode;
   replaceVitals?: boolean | undefined;
 }

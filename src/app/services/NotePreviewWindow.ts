@@ -895,7 +895,7 @@ export class NotePreviewWindow {
 
 /**
  * The layer of the map's UI that holds its previews (`UIOverlay`): above the
- * toolbar, scene tabs and widgets, below overlays such as the DM dashboard.
+ * toolbar, scene tabs and widgets, below overlays such as the DM screen.
  */
 function resolvePreviewLayer(mountRoot: HTMLElement): HTMLElement {
   return mountRoot.querySelector<HTMLElement>(`.${NOTE_PREVIEW_LAYER_CLASS}`) ?? mountRoot;

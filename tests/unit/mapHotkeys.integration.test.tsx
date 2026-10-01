@@ -26,7 +26,7 @@ it('dispatches once in the active map, observes rebinding immediately and ignore
   expect(first).toHaveBeenCalledTimes(1);
   fireEvent.keyDown(window, { key: 'q' });
   expect(first).toHaveBeenCalledTimes(2);
-  document.body.insertAdjacentHTML('beforeend', '<div class="atlas-dm-dashboard-wrapper"></div>');
+  document.body.insertAdjacentHTML('beforeend', '<div class="atlas-dm-screen-wrapper"></div>');
   fireEvent.keyDown(window, { key: 'q' });
   expect(first).toHaveBeenCalledTimes(2);
 });

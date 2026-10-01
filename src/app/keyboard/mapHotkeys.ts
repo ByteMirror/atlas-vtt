@@ -6,7 +6,8 @@ export const MAP_HOTKEYS = [
   { id: 'help', label: 'Keyboard shortcuts', group: 'Map', defaultKey: '?' },
   { id: 'palette', label: 'Command palette', group: 'Map', defaultKey: 'Space' },
   { id: 'assets', label: 'Asset manager', group: 'Map', defaultKey: 'a', dmOnly: true },
-  { id: 'dashboard', label: 'GM dashboard', group: 'Map', defaultKey: 'Tab', dmOnly: true },
+  // The id stays `dashboard` (the DM screen's former name): custom keys are saved under it.
+  { id: 'dashboard', label: 'DM screen', group: 'Map', defaultKey: 'Tab', dmOnly: true },
   { id: 'gmView', label: 'Toggle GM view', group: 'Map', defaultKey: 'd', dmOnly: true },
   { id: 'sceneSwitcher', label: 'Switch between open maps', group: 'Map', defaultKey: 'g', dmOnly: true },
   { id: 'lightingPeek', label: 'Hold to see what the players see', group: 'Map', defaultKey: 'h', dmOnly: true, enabled: WALLS_AND_LIGHTING_ENABLED },
@@ -84,6 +85,6 @@ export function canRunMapHotkeys(event: KeyboardEvent, viewId?: string): boolean
   if (event.defaultPrevented || event.isComposing || !isActiveAtlasLeaf(viewId)) return false;
   const target = event.target as Element | null;
   if (target?.closest?.('input, textarea, select, [contenteditable]:not([contenteditable="false"]), .cm-editor, [role="textbox"]')) return false;
-  if (document.querySelector('.modal-container, .prompt, .suggestion-container, .menu, .atlas-asset-manager-modal, .atlas-command-palette-overlay, .atlas-onboarding-overlay, .atlas-hotkey-help, .atlas-text-dialog-backdrop, .atlas-dm-dashboard-wrapper, .atlas-grid-alignment-panel, [aria-modal="true"]')) return false;
+  if (document.querySelector('.modal-container, .prompt, .suggestion-container, .menu, .atlas-asset-manager-modal, .atlas-command-palette-overlay, .atlas-onboarding-overlay, .atlas-hotkey-help, .atlas-text-dialog-backdrop, .atlas-dm-screen-wrapper, .atlas-grid-alignment-panel, [aria-modal="true"]')) return false;
   return true;
 }

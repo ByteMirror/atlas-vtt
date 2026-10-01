@@ -10,7 +10,7 @@
 export interface UISlice {
   // Panel visibility
   isGridSettingsOpen: boolean;
-  isDMDashboardOpen: boolean;
+  isDMScreenOpen: boolean;
   isGridAlignmentOpen: boolean;
   isDiceLogOpen: boolean;
   isAssetManagerOpen: boolean;
@@ -24,7 +24,7 @@ export interface UISlice {
 
   // Actions
   setGridSettingsOpen: (open: boolean) => void;
-  setDMDashboardOpen: (open: boolean) => void;
+  setDMScreenOpen: (open: boolean) => void;
   setGridAlignmentOpen: (open: boolean) => void;
   setDiceLogOpen: (open: boolean) => void;
   openAssetManager: (tab?: UISlice['assetManagerInitialTab']) => void;
@@ -46,7 +46,7 @@ export interface LightPanelTarget {
 export function createInitialUIState(): Pick<
   UISlice,
   | 'isGridSettingsOpen'
-  | 'isDMDashboardOpen'
+  | 'isDMScreenOpen'
   | 'isGridAlignmentOpen'
   | 'isDiceLogOpen'
   | 'isAssetManagerOpen'
@@ -58,7 +58,7 @@ export function createInitialUIState(): Pick<
 > {
   return {
     isGridSettingsOpen: false,
-    isDMDashboardOpen: false,
+    isDMScreenOpen: false,
     isGridAlignmentOpen: false,
     isDiceLogOpen: false,
     isAssetManagerOpen: false,
@@ -76,7 +76,7 @@ export function createUIActions(
 ): Pick<
   UISlice,
   | 'setGridSettingsOpen'
-  | 'setDMDashboardOpen'
+  | 'setDMScreenOpen'
   | 'setGridAlignmentOpen'
   | 'setDiceLogOpen'
   | 'openAssetManager'
@@ -89,7 +89,7 @@ export function createUIActions(
 > {
   return {
     setGridSettingsOpen: (open) => set((draft) => { draft.isGridSettingsOpen = open; }),
-    setDMDashboardOpen: (open) => set((draft) => { draft.isDMDashboardOpen = open; }),
+    setDMScreenOpen: (open) => set((draft) => { draft.isDMScreenOpen = open; }),
     setGridAlignmentOpen: (open) => set((draft) => { draft.isGridAlignmentOpen = open; }),
     setDiceLogOpen: (open) => set((draft) => { draft.isDiceLogOpen = open; }),
     openAssetManager: (tab) => set((draft) => {

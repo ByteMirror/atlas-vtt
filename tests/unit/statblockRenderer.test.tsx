@@ -287,7 +287,7 @@ describe('StatblockRenderer', () => {
 });
 
 
-describe('dashboard resource footer', () => {
+describe('DM screen resource footer', () => {
   it('replaces the imported adversary tracks while preserving unrelated JavaScript content', () => {
     const layout = layoutOf({ type: 'javascript', id: 'vitals', code: `
       const el = document.createElement('div');

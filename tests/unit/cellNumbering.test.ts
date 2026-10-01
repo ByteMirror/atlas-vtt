@@ -151,4 +151,14 @@ describe('square grid', () => {
     expect(byPosition.get('250,50')).toBe('3');
     expect(byPosition.get('50,150')).toBe('4');
   });
+
+  it('labels cells with their column letter and row number', () => {
+    const lattice = squareLattice(SIZE, 0, 0);
+    const map: MapRect = { x: 0, y: 0, width: 2 * SIZE, height: 2 * SIZE };
+    const cells = numberCells(lattice, map, 'letter-number');
+    const byPosition = new Map(cells.map((cell) => [`${cell.center.x},${cell.center.y}`, cell.label]));
+    expect(byPosition.get('50,50')).toBe('A1');
+    expect(byPosition.get('150,50')).toBe('B1');
+    expect(byPosition.get('50,150')).toBe('A2');
+  });
 });

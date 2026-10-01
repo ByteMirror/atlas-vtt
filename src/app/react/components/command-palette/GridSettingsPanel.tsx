@@ -40,6 +40,7 @@ const HEX_NUMBER_OPTIONS: Record<CellNumberFormat | 'off', string> = {
   off: 'Off',
   'column-row': 'Column and row (0101)',
   sequential: 'Sequential (1, 2, 3)',
+  'letter-number': 'Letters and numbers (A1)',
 };
 
 const LINE_STYLE_OPTIONS = {

@@ -2,12 +2,13 @@ import type { Point } from './hexGeometry';
 
 /**
  * How cells are numbered. `column-row` is the hexcrawl convention ("0304" is
- * column 3, row 4); `sequential` counts 1, 2, 3 in reading order.
+ * column 3, row 4); `sequential` counts 1, 2, 3 in reading order; `letter-number`
+ * spells the column as a letter and the row as a number (A1, B1, ... AA1).
  */
-export type CellNumberFormat = 'column-row' | 'sequential';
+export type CellNumberFormat = 'column-row' | 'sequential' | 'letter-number';
 
 export function isCellNumberFormat(value: unknown): value is CellNumberFormat {
-  return value === 'column-row' || value === 'sequential';
+  return value === 'column-row' || value === 'sequential' || value === 'letter-number';
 }
 
 /** How a grid shows its cell numbers; a grid without numbers has none. */
@@ -71,6 +72,18 @@ function padded(value: number, digits: number): string {
   return String(value).padStart(digits, '0');
 }
 
+/** 1-based column to letters: 1 -> A, 26 -> Z, 27 -> AA, 53 -> BA (bijective base-26). */
+function columnLetters(column: number): string {
+  let n = column;
+  let letters = '';
+  while (n > 0) {
+    const remainder = (n - 1) % 26;
+    letters = String.fromCharCode(65 + remainder) + letters;
+    n = Math.floor((n - 1) / 26);
+  }
+  return letters;
+}
+
 /** Numbers every cell of the lattice on the map; cells the map edge cuts off get no number. */
 export function numberCells(lattice: CellLattice, map: MapRect, format: CellNumberFormat): NumberedCell[] {
   if (!(lattice.size > 0) || !(map.width > 0) || !(map.height > 0)) return [];
@@ -82,6 +95,14 @@ export function numberCells(lattice: CellLattice, map: MapRect, format: CellNumb
       key: cell.key,
       center: cell.center,
       label: String(index + 1),
+    }));
+  }
+
+  if (format === 'letter-number') {
+    return cells.map((cell) => ({
+      key: cell.key,
+      center: cell.center,
+      label: columnLetters(cell.column + 1) + String(cell.row + 1),
     }));
   }
 

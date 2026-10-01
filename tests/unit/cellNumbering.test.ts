@@ -132,4 +132,12 @@ describe('square grid', () => {
     const cells = numberCells(lattice, map, 'column-row');
     expect(cells).toHaveLength(3);
   });
+
+  it('follows a negative grid offset', () => {
+    const lattice = squareLattice(SIZE, -50, -50);
+    const map: MapRect = { x: -SIZE, y: -SIZE, width: 4 * SIZE, height: 4 * SIZE };
+    const cells = numberCells(lattice, map, 'column-row');
+    const first = cells.find((cell) => cell.label === '0101');
+    expect(first!.center).toEqual({ x: 0, y: 0 });
+  });
 });

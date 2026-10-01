@@ -97,6 +97,15 @@ describe('numberCells', () => {
     const lattice = hexLattice(layout);
     expect(numberCells(lattice, { x: 0, y: 0, width: 0, height: 0 }, 'sequential')).toEqual([]);
   });
+
+  it('labels a hex with its column letter and row number', () => {
+    const layout = createHexLayout('hex-horizontal', SIZE, 0, 0);
+    const lattice = hexLattice(layout);
+    const { width } = hexCellExtent(layout);
+    const map: MapRect = { x: 0, y: 0, width: width + 1.5 * (width / 2) * 3, height: 3.5 * SIZE };
+    const labels = cellLabelsByKey(numberCells(lattice, map, 'letter-number'));
+    expect(labels.get(axialKey({ q: 0, r: 0 }))).toBe('A1');
+  });
 });
 
 describe('square grid', () => {

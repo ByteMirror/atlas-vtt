@@ -108,4 +108,14 @@ describe('square grid', () => {
     expect(cells[0]!.label).toBe('0101');
     expect(cells[0]!.center).toEqual({ x: SIZE / 2, y: SIZE / 2 });
   });
+
+  it('runs column then row across a 3x2 map', () => {
+    const lattice = squareLattice(SIZE, 0, 0);
+    const map: MapRect = { x: 0, y: 0, width: 3 * SIZE, height: 2 * SIZE };
+    const cells = numberCells(lattice, map, 'column-row');
+    const labels = cells.map((cell) => cell.label).sort();
+    expect(labels).toEqual(['0101', '0102', '0201', '0202', '0301', '0302']);
+    const topRight = cells.find((cell) => cell.label === '0301');
+    expect(topRight!.center).toEqual({ x: 2.5 * SIZE, y: 0.5 * SIZE });
+  });
 });

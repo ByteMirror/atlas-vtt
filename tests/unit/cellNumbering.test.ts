@@ -161,4 +161,12 @@ describe('square grid', () => {
     expect(byPosition.get('150,50')).toBe('B1');
     expect(byPosition.get('50,150')).toBe('A2');
   });
+
+  it('carries the 27th column into AA', () => {
+    const lattice = squareLattice(SIZE, 0, 0);
+    const map: MapRect = { x: 0, y: 0, width: 27 * SIZE, height: SIZE };
+    const cells = numberCells(lattice, map, 'letter-number');
+    const byPosition = new Map(cells.map((cell) => [`${cell.center.x},${cell.center.y}`, cell.label]));
+    expect(byPosition.get(`${26.5 * SIZE},${0.5 * SIZE}`)).toBe('AA1');
+  });
 });

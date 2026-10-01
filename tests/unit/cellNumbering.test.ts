@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { createHexLayout, hexCellExtent } from '../../src/app/grid/hexGeometry';
 import type { AxialCoord } from '../../src/app/grid/hexGeometry';
 import { axialKey, hexLattice } from '../../src/app/grid/hexLattice';
+import { squareLattice } from '../../src/app/grid/squareLattice';
 import { cellLabelsByKey, numberCells } from '../../src/app/grid/cellNumbering';
 import type { MapRect } from '../../src/app/grid/cellNumbering';
 
@@ -95,5 +96,16 @@ describe('numberCells', () => {
     const layout = createHexLayout('hex-vertical', SIZE, 0, 0);
     const lattice = hexLattice(layout);
     expect(numberCells(lattice, { x: 0, y: 0, width: 0, height: 0 }, 'sequential')).toEqual([]);
+  });
+});
+
+describe('square grid', () => {
+  it('numbers a one-cell map as a single cell, labelled 0101, centred in the cell', () => {
+    const lattice = squareLattice(SIZE, 0, 0);
+    const map: MapRect = { x: 0, y: 0, width: SIZE, height: SIZE };
+    const cells = numberCells(lattice, map, 'column-row');
+    expect(cells).toHaveLength(1);
+    expect(cells[0]!.label).toBe('0101');
+    expect(cells[0]!.center).toEqual({ x: SIZE / 2, y: SIZE / 2 });
   });
 });

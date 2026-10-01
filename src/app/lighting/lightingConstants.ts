@@ -41,6 +41,13 @@ export const BOUNCE = {
 } as const;
 
 /**
+ * Animated lights are redrawn at most this often, about 30 times a second: flicker walks step
+ * every 45–120 ms and are interpolated in between. A little under two 60 Hz frames, so a frame
+ * that comes early never waits for the next one.
+ */
+export const FLICKER_INTERVAL_MS = 30;
+
+/**
  * A soft glow around each flame, drawn with the light so it stays inside its walls; an
  * image-space bloom would blur light across walls. `gain` is its peak on top of the falloff
  * (HDR), `size` its Gaussian sigma as a share of the bright radius.

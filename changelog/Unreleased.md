@@ -20,6 +20,7 @@
 - The token creator and the Fantasy Statblocks list stay smooth with thousands of images
 - Statblocks that share one image read and convert it only once
 - In the GM view, every light shines at full strength and a faint icon marks every light; areas no token sees are shown slightly faded instead of dimmed
+- Maps with flickering lights no longer keep the graphics card busy while nothing moves
 
 ## Fixed
 

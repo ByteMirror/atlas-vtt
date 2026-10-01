@@ -1,6 +1,6 @@
 import type { Renderer, Texture } from 'pixi.js';
 import type { WallSegment } from '../../../types/wallTypes';
-import { BOUNCE, LIGHT_REACH, tileWallReach, wallRadius, worldTexel } from '../../../lighting/lightingConstants';
+import { BOUNCE, FLICKER_INTERVAL_MS, LIGHT_REACH, tileWallReach, wallRadius, worldTexel } from '../../../lighting/lightingConstants';
 import { changedWallRects } from '../../../lighting/wallChanges';
 import { allSegments, splitBlocking, type Rect } from '../../../lighting/segments';
 import type { MapBounds } from '../../../vision/visibility';
@@ -35,6 +35,8 @@ export class LightingWorld {
   private albedo: Texture | null = null;
   private bounceDirty = false;
   private lastBounce = -Infinity;
+  /** When the light map last took its flicker; -Infinity while it holds the steady lights. */
+  private lastFlicker = -Infinity;
 
   constructor(private readonly renderer: Renderer, readonly bounds: MapBounds) {
     this.texel = worldTexel(bounds);
@@ -66,7 +68,7 @@ export class LightingWorld {
     if (lightsChanged) this.forgetRemoved(lights);
     this.lights = lights;
     if (tilesChanged || lightsChanged) {
-      this.drawLightMap(() => STEADY);
+      this.drawSteady();
       this.bounceDirty = true;
     }
     if (albedo !== this.albedo) {
@@ -75,19 +77,24 @@ export class LightingWorld {
     }
   }
 
-  /** Flicker and throttled bounce; true when a world texture changed. */
+  /**
+   * Throttled flicker and bounce; true when a world texture changed. A light map drawn steady
+   * (a light moved, the bounce was built) takes its flicker back at once, so a dragged light
+   * never blinks between the two.
+   */
   animate(now: number): boolean {
     let drew = false;
     if (this.bounceDirty && now - this.lastBounce >= BOUNCE.throttleMs) {
       // Bounce uses steady intensity, so flicker never rebuilds it.
-      this.drawLightMap(() => STEADY);
+      this.drawSteady();
       this.cascades.build(this.lightMap, this.albedo, this.fieldAll());
       this.bounceDirty = false;
       this.lastBounce = now;
       drew = true;
     }
-    if (this.animated()) {
+    if (this.animated() && now - this.lastFlicker >= FLICKER_INTERVAL_MS) {
       this.drawLightMap((light) => this.flicker.sample(light.key, light.animation, now));
+      this.lastFlicker = now;
       drew = true;
     }
     return drew;
@@ -132,6 +139,11 @@ export class LightingWorld {
   private forgetRemoved(lights: readonly EngineLight[]): void {
     const keys = new Set(lights.map((light) => light.key));
     for (const light of this.lights) if (!keys.has(light.key)) this.flicker.forget(light.key);
+  }
+
+  private drawSteady(): void {
+    this.drawLightMap(() => STEADY);
+    this.lastFlicker = -Infinity;
   }
 
   private drawLightMap(sample: (light: EngineLight) => FlickerSample): void {

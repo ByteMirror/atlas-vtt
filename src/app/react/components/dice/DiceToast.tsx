@@ -5,11 +5,9 @@ import type { DiceRollResult } from '../../../tools/DiceTool';
 import { getDiceCrit } from '../../../tools/diceCrit';
 import { TokenPortrait } from '../../../packages/components/shared/TokenPortrait';
 import { useDiceAvatar } from './useDiceAvatar';
-import { DICE_TOAST_KNOT_SYMBOL_ID } from './diceToastOrnament';
+import { KnotworkFrame } from '../../../packages/components/shared/KnotworkFrame';
 
 export type ToastPhase = 'entering' | 'visible' | 'exiting';
-
-const CORNERS = ['tl', 'tr', 'bl', 'br'] as const;
 
 interface DiceToastProps {
   result: DiceRollResult;
@@ -42,16 +40,7 @@ export function DiceToast({ result, phase, onDismiss }: DiceToastProps): React.R
       )}
       onClick={onDismiss}
     >
-      {CORNERS.map((corner) => (
-        <svg
-          key={corner}
-          className={cn('atlas-dice-toast__corner', `atlas-dice-toast__corner--${corner}`)}
-          viewBox="188 0 260 260"
-          aria-hidden="true"
-        >
-          <use href={`#${DICE_TOAST_KNOT_SYMBOL_ID}`} />
-        </svg>
-      ))}
+      <KnotworkFrame />
       <div className="atlas-dice-toast__body">
         <div className="atlas-dice-toast__main">
           {hasSource &&

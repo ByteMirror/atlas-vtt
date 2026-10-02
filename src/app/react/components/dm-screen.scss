@@ -359,6 +359,13 @@
 
 .atlas-dm-statblock-feed-item {
   position: absolute;
+
+  // A feed is wide enough for a two-column statblock. One that asks for a single
+  // column says so with `--atlas-sb-max-width`, and stops where its lines stay
+  // readable instead of stretching across the whole feed.
+  .atlas-statblock {
+    max-width: var(--atlas-sb-max-width, 540px);
+  }
 }
 
 .atlas-dm-statblock-container {

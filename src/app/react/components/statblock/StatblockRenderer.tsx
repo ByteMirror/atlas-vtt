@@ -1,8 +1,18 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { App } from 'obsidian';
-import type { StatblockItem, StatblockLayout, StatblockMonster } from './statblockTypes';
+import type {
+  StatblockItem,
+  StatblockLayout,
+  StatblockMonster,
+  StatblockPortrait,
+} from './statblockTypes';
 import { runCallback } from './layoutCallbacks';
 import { isVisible, slugify } from './statblockUtils';
+import { columnStyle, hasImageSlot, isTitleRow } from './statblockLayoutShape';
+import {
+  DEFAULT_STATBLOCK_PRESENTATION,
+  type StatblockPresentation,
+} from '../../../services/statblockPresentation';
 import { StatblockEditContext, type StatblockEditApi } from './statblockEditContext';
 import {
   HeadingBlock,
@@ -17,13 +27,11 @@ import {
   TraitsBlock,
 } from './StatblockBlocks';
 import { TokenPortrait } from '../../../packages/components/shared/TokenPortrait';
+import { KnotworkFrame } from '../../../packages/components/shared/KnotworkFrame';
+import { StatblockGrip, StatblockPinButton, type StatblockPinApi } from './StatblockPin';
 import './statblock.scss';
 
-export interface StatblockPortrait {
-  src: string;
-  ringColor?: string | undefined;
-  showRing?: boolean | undefined;
-}
+export type { StatblockPortrait };
 
 export interface StatblockRendererProps {
   monster: StatblockMonster;
@@ -41,6 +49,10 @@ export interface StatblockRendererProps {
   /** The DM screen supplies editable per-token resources in place of imported trackers. */
   footer?: React.ReactNode;
   replaceVitals?: boolean | undefined;
+  /** How faithfully the layout is followed; defaults to Atlas' own reading. */
+  presentation?: StatblockPresentation | undefined;
+  /** Shown as a control in the card's corner where the host supports pinning. */
+  pin?: StatblockPinApi | undefined;
 }
 
 interface BlockViewProps extends Omit<StatblockRendererProps, 'layout'> {
@@ -124,11 +136,14 @@ function IfElseBlock(props: BlockViewProps): React.JSX.Element | null {
 
 /** Dispatches a single layout block to its Atlas equivalent. */
 export function StatblockBlockView(props: BlockViewProps): React.JSX.Element | null {
-  const { item, monster, app, sourcePath, resolveLayout, onAssignToken } = props;
+  const { item, monster, app, sourcePath, resolveLayout, onAssignToken, portrait } = props;
 
-  if (!isVisible(item, monster)) return null;
+  // The token's artwork fills the image slot even for a creature with no `image`
+  // of its own, which is every creature Atlas shows a portrait for.
+  const slotted = Boolean(portrait) && item.type === 'image';
+  if (!slotted && !isVisible(item, monster)) return null;
 
-  const blockProps = { item, monster, app, sourcePath, onAssignToken };
+  const blockProps = { item, monster, app, sourcePath, onAssignToken, portrait };
   // Layout hooks travel as data attributes rather than classes so Fantasy
   // Statblocks' own stylesheet (which targets `.property-container`, layout
   // `cls` values and the like) can never leak into this DOM.
@@ -181,7 +196,7 @@ export function StatblockBlockView(props: BlockViewProps): React.JSX.Element | n
       return wrap(
         <>
           {item.heading && <SectionHeading {...blockProps} />}
-          <div className="atlas-sb-inline">
+          <div className={`atlas-sb-inline ${isTitleRow(item) ? 'atlas-sb-inline--titles' : ''}`}>
             {nestedViews.map((view) => (
               <div key={view.key} className="atlas-sb-inline-item">
                 {view}
@@ -229,6 +244,8 @@ export function StatblockRenderer({
   portrait,
   footer,
   replaceVitals,
+  presentation = DEFAULT_STATBLOCK_PRESENTATION,
+  pin,
 }: StatblockRendererProps): React.JSX.Element {
   const blocks = useMemo(() => layout.blocks ?? [], [layout]);
   const editApi = useMemo(
@@ -236,28 +253,52 @@ export function StatblockRenderer({
     [edit],
   );
 
+  const follows = presentation === 'source';
+  // Following the layout, the token's artwork takes the layout's own image slot
+  // and the block holding the name becomes a full-width header. Without an image
+  // slot — and in Atlas' own presentation — the portrait floats top right.
+  const slotted = follows && Boolean(portrait) && hasImageSlot(layout);
+  const columns = follows ? columnStyle(layout, monster) : undefined;
+
   return (
     <StatblockEditContext.Provider value={editApi}>
       <div
         className={`atlas-statblock ${editApi.editable ? 'is-editable' : ''}`}
         data-layout={slugify(layout.name ?? '')}
+        data-presentation={presentation}
+        // Set here rather than on the flow so that a surface sizing itself to
+        // the card can read the width the columns need; the flow inherits them.
+        style={columns}
       >
+        <KnotworkFrame />
+        {pin && (
+          <div className="atlas-sb-window-controls">
+            <StatblockPinButton {...pin} />
+            <StatblockGrip />
+          </div>
+        )}
         <div className="atlas-statblock-body">
-          {portrait && (
+          {portrait && !slotted && (
             <TokenPortrait className="atlas-sb-portrait" src={portrait.src} alt="" ringColor={portrait.ringColor} showRing={portrait.showRing} />
           )}
-          {blocks.map((item) => (
-            <StatblockBlockView
-              key={item.id}
-              item={item}
-              monster={monster}
-              app={app}
-              sourcePath={sourcePath}
-              resolveLayout={resolveLayout}
-              onAssignToken={onAssignToken}
-              replaceVitals={replaceVitals}
-            />
-          ))}
+          {/* The flow is the multi-column box. It is a child of the body rather
+              than the body itself because the body is what scrolls, and a
+              multi-column box with a bounded height paginates sideways. */}
+          <div className="atlas-sb-flow" data-columns={columns ? '' : undefined}>
+            {blocks.map((item) => (
+              <StatblockBlockView
+                key={item.id}
+                item={item}
+                monster={monster}
+                app={app}
+                sourcePath={sourcePath}
+                resolveLayout={resolveLayout}
+                onAssignToken={onAssignToken}
+                replaceVitals={replaceVitals}
+                {...(slotted ? { portrait } : {})}
+              />
+            ))}
+          </div>
           {footer}
         </div>
       </div>

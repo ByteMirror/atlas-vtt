@@ -5,15 +5,25 @@
 // (initiative tracker) and the imperative token preview window so the two can
 // never drift apart.
 
+/// Width a single-column statblock is allowed to reach; beyond it the lines only
+/// grow longer. A multi-column layout overrides it with `--atlas-sb-max-width`,
+/// the width at which it gets every column it asks for.
+$statblock-preview-width: 480px;
+$statblock-preview-width-wide: 540px;
+
 /// Fixed-position box that hugs the statblock card. The padding leaves room for
 /// the card's shadow. JS sets `max-height`, which `atlas-statblock-contained-card`
 /// passes down to the card body.
+///
+/// The surface itself is only an outer bound: it sizes to its content, and the
+/// card inside says how wide it wants to be. A two-column statblock therefore
+/// opens wide enough for its columns while a one-column one stays narrow.
 @mixin atlas-statblock-preview-surface {
   position: fixed;
   display: flex;
   flex-direction: column;
   width: max-content;
-  max-width: min(480px, calc(100vw - #{$spacing-s}));
+  max-width: calc(100vw - #{$spacing-s});
   padding: $spacing-s;
   overflow: visible;
   box-sizing: border-box;
@@ -21,8 +31,17 @@
   animation: atlas-statblock-preview-in $transition-normal $transition-ease-out;
   transform-origin: right center;
 
+  // A preview reads in one column (see `atlas-statblock-contained-card`), so it
+  // keeps the width one column of text wants rather than the wider one its
+  // layout would ask for.
+  .atlas-statblock {
+    max-width: $statblock-preview-width;
+  }
+
   @media (min-width: 1600px) {
-    max-width: min(540px, calc(100vw - #{$spacing-s}));
+    .atlas-statblock {
+      max-width: $statblock-preview-width-wide;
+    }
   }
 
   @include atlas-statblock-contained-card;
@@ -45,6 +64,19 @@
     overflow-y: auto;
     @include atlas-statblock-scroll-shadows;
     @include atlas-statblock-inset-scrollbar;
+  }
+
+  // Columns need vertical freedom, and a bounded card has none. Clamping the
+  // card to the space available gives the column box a definite height, and a
+  // column box with a definite height balances into that height and lays
+  // whatever is left in further columns *beside* the first two, where the
+  // card's overflow hides them — the statblock loses its last sections.
+  //
+  // So a statblock that scrolls inside a bounded card reads in one column,
+  // however many its layout asks for. The DM screen, which lays its statblocks
+  // out at their full height, is where a layout gets the columns it declares.
+  .atlas-sb-flow[data-columns] {
+    columns: auto;
   }
 }
 

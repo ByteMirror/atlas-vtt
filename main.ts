@@ -23,6 +23,7 @@ import { AtlasSettingTab } from './src/app/settings/AtlasSettingTab';
 import { changelogSettingsSection } from './src/app/settings/changelogSettingsSection';
 import { hotkeySettingsSection, onboardingSettingsSection } from './src/app/settings/hotkeySettingsSection';
 import { navigationSettingsSection } from './src/app/settings/navigationSettingsSection';
+import { statblockSettingsSection } from './src/app/settings/statblockSettingsSection';
 import { supportSettingsSection } from './src/app/settings/supportSettingsSection';
 import { registerAtlasLeafSync } from './src/app/plugin/atlasLeaves';
 import { EXTENSION_ATLASMAP } from './src/app/utils/sceneFiles';
@@ -91,6 +92,7 @@ export default class AtlasVTTPlugin extends Plugin {
 
     this.addSettingTab(new AtlasSettingTab(this.app, this, () => [
       navigationSettingsSection(this.settingsService),
+      statblockSettingsSection(this.settingsService),
       hotkeySettingsSection(this.settingsService),
       onboardingSettingsSection(this.settingsService),
       changelogSettingsSection(this.settingsService, changelogService, this.manifest.version),

@@ -1,0 +1,94 @@
+@use '../../../../../styles/tokens' as *;
+@use 'statblock-mixins' as *;
+
+// The 2024 ability grid: the three physical abilities beside the three mental
+// ones, each row carrying its score, modifier and saving throw. The rows are
+// banded rather than ruled, as the printed block is, and every modifier rolls.
+
+.atlas-sb-abilities {
+  display: flex;
+  gap: $spacing-s;
+  align-items: flex-start;
+}
+
+.atlas-sb-ability-table {
+  flex: 1 1 0;
+  min-width: 0;
+  border-collapse: separate;
+  border-spacing: 0 2px;
+  table-layout: fixed;
+  font-variant-numeric: tabular-nums;
+
+  th,
+  td {
+    padding: 2px $spacing-xs;
+    text-align: center;
+  }
+
+  thead th {
+    @include atlas-sb-label;
+    padding-bottom: 0;
+  }
+
+  // The first two columns name the ability and give its score; they head the
+  // rows rather than the columns, so their column headers stay empty.
+  .atlas-sb-ability-corner {
+    width: auto;
+  }
+
+  tbody th,
+  tbody td {
+    background: color-mix(in oklch, var(--mono-100) 5%, transparent);
+  }
+
+  tbody tr > :first-child {
+    border-start-start-radius: $radius-s;
+    border-end-start-radius: $radius-s;
+  }
+
+  tbody tr > :last-child {
+    border-start-end-radius: $radius-s;
+    border-end-end-radius: $radius-s;
+  }
+}
+
+.atlas-sb-ability-name {
+  width: 4.5ch;
+  color: var(--text-accent);
+  font-weight: $font-weight-semibold;
+  letter-spacing: 0.04em;
+  text-align: start;
+
+  abbr {
+    text-decoration: none;
+  }
+}
+
+.atlas-sb-ability-score {
+  width: 3.5ch;
+  font-weight: $font-weight-semibold;
+  text-align: end;
+}
+
+// The modifier and save read as their own cells, a shade deeper than the row.
+.atlas-sb-ability-mod {
+  background: color-mix(in oklch, var(--mono-100) 9%, transparent);
+}
+
+// Only a proficient save is set apart; an unproficient one is just the modifier
+// again, so highlighting both would say nothing.
+.atlas-sb-ability-mod .atlas-dice-link[data-proficient] {
+  font-weight: $font-weight-bold;
+}
+
+// Screen-reader-only text, naming the two unlabelled header cells.
+.atlas-sb-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

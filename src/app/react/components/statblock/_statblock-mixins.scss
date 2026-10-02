@@ -1,5 +1,14 @@
 @use '../../../../../styles/tokens' as *;
 
+/// The token's artwork, whether floated beside the heading or filling the
+/// layout's own image slot in the header.
+$statblock-portrait-size: 72px;
+
+/// The knotwork corners of the card. Larger than the dice toast's, since the
+/// card is, so the frame keeps the same weight against its edge.
+$statblock-corner: 56px;
+$statblock-corner-inset: -7px;
+
 /// Small uppercase label used for property names, stat column headers and
 /// vitals tracks, so every label inside a statblock reads the same.
 @mixin atlas-sb-label {

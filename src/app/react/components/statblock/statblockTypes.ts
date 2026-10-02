@@ -81,6 +81,13 @@ export interface StatblockMonster {
   [key: string]: unknown;
 }
 
+/** The artwork of the token a statblock is shown for. */
+export interface StatblockPortrait {
+  src: string;
+  ringColor?: string | undefined;
+  showRing?: boolean | undefined;
+}
+
 export interface Trait {
   name?: string;
   desc?: string;

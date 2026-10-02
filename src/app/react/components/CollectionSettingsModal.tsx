@@ -22,6 +22,7 @@ import { useSystemPresets } from '../hooks/useSystemPresets';
 import { savedResources, useCollectionSettingsDraft } from './collection-settings/useCollectionSettingsDraft';
 
 import { GridMeasurementTab } from './collection-settings/GridMeasurementTab';
+import { collectionConeAngle } from '../../gameSystems/coneAngle';
 import { VisionTab } from './collection-settings/VisionTab';
 import { DefaultWidgetsTab } from './collection-settings/DefaultWidgetsTab';
 import { ConditionsTab } from './collection-settings/ConditionsTab';
@@ -226,6 +227,7 @@ export function CollectionSettingsModal({
             {activeTab === 'grid' && (
               <GridMeasurementTab
                 gridDefaults={gridDefaults}
+                coneAngle={collectionConeAngle(gridDefaults, draft.systemPresetId)}
                 onChange={draft.setGridDefaults}
               />
             )}

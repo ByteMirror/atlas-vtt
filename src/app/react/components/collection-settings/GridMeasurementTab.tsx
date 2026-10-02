@@ -9,7 +9,7 @@ import { Button } from '../../../packages/components/primitives/button';
 import { SegmentedControl, type SegmentedOption } from '../../../packages/components/primitives/SegmentedControl';
 import { LabelTooltip } from '../../../packages/components/primitives/tooltip';
 import { ObsidianMenuDropdown } from '../ObsidianMenuDropdown';
-import { areRangeBandsValid, isValidRangeBandThreshold } from '../../../grid/measurementFormat';
+import { areRangeBandsValid, DEFAULT_CONE_ANGLE, isValidConeAngle, isValidRangeBandThreshold } from '../../../grid/measurementFormat';
 import type {
   CollectionGridDefaults,
   DiagonalRule,
@@ -25,6 +25,8 @@ const MEASUREMENT_MODES: readonly SegmentedOption<MeasurementMode>[] = [
 
 interface GridMeasurementTabProps {
   gridDefaults: CollectionGridDefaults;
+  /** The angle the collection measures cones with, its system's while it has none of its own. Defaults to its own. */
+  coneAngle?: number;
   onChange: (gridDefaults: CollectionGridDefaults) => void;
 }
 
@@ -44,6 +46,7 @@ const DIAGONAL_OPTIONS: Record<DiagonalRule, string> = {
 
 export function GridMeasurementTab({
   gridDefaults,
+  coneAngle,
   onChange,
 }: GridMeasurementTabProps): React.ReactElement {
   const updateField = <K extends keyof CollectionGridDefaults>(
@@ -108,6 +111,22 @@ export function GridMeasurementTab({
           value={gridDefaults.diagonalRule ?? 'equidistant'}
           options={DIAGONAL_OPTIONS}
           onChange={(value) => updateField('diagonalRule', value as DiagonalRule)}
+        />
+      </div>
+
+      {/* Cone measurement opening (5e: as wide as long, about 53°) */}
+      <div className="atlas-csm-field">
+        <label className="atlas-csm-label">Cone Angle (°)</label>
+        <input
+          type="number"
+          className="atlas-csm-input atlas-csm-input--number"
+          min={1}
+          max={360}
+          value={coneAngle ?? gridDefaults.coneAngle ?? DEFAULT_CONE_ANGLE}
+          onChange={(e) => {
+            const val = Number(e.target.value);
+            if (isValidConeAngle(val)) updateField('coneAngle', val);
+          }}
         />
       </div>
 

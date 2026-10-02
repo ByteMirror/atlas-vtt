@@ -140,14 +140,14 @@ export function Sidebar({
                 {onExportCollection && (
                   <LabelTooltip label="Export collection">
                     <Button variant="ghost" size="icon" className="atlas-collection-header-btn" onClick={onExportCollection}>
-                      <Download />
+                      <Upload />
                     </Button>
                   </LabelTooltip>
                 )}
                 {onImportCollection && (
                   <LabelTooltip label="Import collection">
                     <Button variant="ghost" size="icon" className="atlas-collection-header-btn" onClick={onImportCollection}>
-                      <Upload />
+                      <Download />
                     </Button>
                   </LabelTooltip>
                 )}

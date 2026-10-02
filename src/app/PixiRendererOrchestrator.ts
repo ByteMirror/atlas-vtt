@@ -1087,7 +1087,7 @@ export class PixiRendererOrchestrator { // Renamed class
     
     for (const [id, token] of Object.entries(tokens)) {
       // Calculate new snapped position
-      const snappedPos = this.gridSystem.snapToCellCenter(token.x, token.y);
+      const snappedPos = this.gridSystem.snapTokenCenter(token.x, token.y, token.size || 1);
       
       // Only update if position actually changed
       if (snappedPos.x !== token.x || snappedPos.y !== token.y) {

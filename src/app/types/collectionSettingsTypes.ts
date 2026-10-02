@@ -65,6 +65,8 @@ export interface CollectionGridDefaults {
   abstractRangeBands?: RangeBand[];
   /** Unset means `equidistant`. */
   diagonalRule?: DiagonalRule;
+  /** Full opening of the cone measurement in degrees. Unset means 90. */
+  coneAngle?: number;
 }
 
 export interface CollectionSettings {

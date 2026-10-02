@@ -15,6 +15,8 @@ export const DND_5E: SystemPreset = {
       unitDistance: 5,
       measurementMode: 'metric',
       diagonalRule: 'equidistant',
+      // A cone is as wide as it is long at every point: 2 × atan(1/2)
+      coneAngle: 53.13,
       abstractRangeBands: [],
     },
     dice: { defaultRoll: '1d20', crit: 'natural' },

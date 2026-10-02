@@ -13,6 +13,7 @@
 - Open and close doors by clicking the door badges, with any tool.
 - Double-click a light, or right-click it, to change its kind, colour, range, brightness, softness and flicker.
 - Cairn is a built-in game system preset, with 5-foot squares and its conditions: Deprived, Fatigue, Critical Damage, Paralyzed, Delirious and Fleeing
+- Cloud Reveal, a fog modifier in the fog tool menu. Fog turns into clouds in a colour you pick, and players keep seeing the fog from before an edit until you switch to another tool; then the clouds part left and right over everything you uncovered and drift in from both sides over everything you covered. It is saved with the scene.
 
 ## Improved
 

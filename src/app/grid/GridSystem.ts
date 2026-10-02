@@ -444,7 +444,7 @@ export class GridSystem {
     };
   }
 
-  /** Snap a token's centre: a cell centre, or a grid intersection for an even footprint on a square grid */
+  /** Snap a token's centre: a cell centre, or where cells meet for an even footprint (`tokenCenterShift`) */
   public snapTokenCenter(x: number, y: number, tokenSize: number): { x: number; y: number } {
     const { type, size } = this.options;
     return snapTokenCenter({ x, y }, tokenSize, type, size, (point) => this.snapToCellCenter(point.x, point.y));

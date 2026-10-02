@@ -10,6 +10,7 @@ import {
   type FormationGrid,
   type Point,
 } from '../encounterFormation';
+import { tokenCenterShift } from '../../grid/gridPlacement';
 
 const square = (size: number, offsetX = 0, offsetY = 0): FormationGrid => ({ type: 'square', size, offsetX, offsetY });
 const hexV = (size: number, offsetX = 0, offsetY = 0): FormationGrid => ({ type: 'hex-vertical', size, offsetX, offsetY });
@@ -204,5 +205,25 @@ describe('token sizes', () => {
     const { formation, slots } = captureFormation(tokens, grid);
 
     expect(placeFormation(slots, formation, { x: 105, y: 105 }, grid, [2.5, 2])).toEqual(tokens.map(({ x, y }) => ({ x, y })));
+  });
+
+  it.each([hexV(64, 5, 9), hexH(64, -3, 2)])('keeps Large and Gargantuan tokens on hex vertices and a Huge one on a hex', (grid) => {
+    const vertexOf = (q: number, r: number): Point => {
+      const center = cellToWorld(grid, { q, r });
+      const shift = tokenCenterShift(grid.type, grid.size, 1.5);
+      return { x: center.x + shift.x, y: center.y + shift.y };
+    };
+    const tokens = [
+      { ...vertexOf(1, 1), size: 1.5 },
+      { ...cellToWorld(grid, { q: 4, r: 1 }), size: 2 },
+      { ...vertexOf(1, 4), size: 2.5 },
+    ];
+    const { formation, slots } = captureFormation(tokens, grid);
+
+    const placed = placeFormation(slots, formation, cellToWorld(grid, { q: 1, r: 1 }), grid, [1.5, 2, 2.5]);
+    placed.forEach((point, index) => {
+      expect(point.x).toBeCloseTo(tokens[index]!.x, 9);
+      expect(point.y).toBeCloseTo(tokens[index]!.y, 9);
+    });
   });
 });

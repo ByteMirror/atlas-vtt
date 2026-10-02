@@ -115,17 +115,17 @@ export function cellToWorld(grid: FormationGrid, cell: CellCoord): Point {
   };
 }
 
-/** Centre of the cell a token's position is recorded by: the cell under its centre, or for an even footprint on a square grid (centred on an intersection) the cell up and left of it. */
+/** Centre of the cell a token's position is recorded by: the cell under its centre, or for an even footprint (centred where cells meet) the cell its footprint starts from. */
 function tokenCellPoint(grid: FormationGrid, token: FormationToken): Point {
   const shift = tokenCenterShift(grid.type, grid.size, token.size ?? 1);
-  return { x: token.x - shift, y: token.y - shift };
+  return { x: token.x - shift.x, y: token.y - shift.y };
 }
 
 /** Where a token whose position is recorded by `cell` stands. */
 function tokenWorldPosition(grid: FormationGrid, cell: CellCoord, size: number): Point {
   const shift = tokenCenterShift(grid.type, grid.size, size);
   const center = cellToWorld(grid, cell);
-  return { x: center.x + shift, y: center.y + shift };
+  return { x: center.x + shift.x, y: center.y + shift.y };
 }
 
 function cellKey(cell: CellCoord): string {
@@ -219,8 +219,8 @@ export function placeFormation(
     const desired = sameGridType
       ? addCells(anchorCell, slot.cell)
       : worldToCell(grid, tokenCellPoint(grid, {
-          x: anchorCenter.x + anchorShift + slot.offset.x * targetPitch,
-          y: anchorCenter.y + anchorShift + slot.offset.y * targetPitch,
+          x: anchorCenter.x + anchorShift.x + slot.offset.x * targetPitch,
+          y: anchorCenter.y + anchorShift.y + slot.offset.y * targetPitch,
           size,
         }));
     const cell = nearestFreeCell(grid, desired, occupied);

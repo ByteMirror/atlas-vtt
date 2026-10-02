@@ -10,7 +10,10 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../
 import { openEditTokenModal } from '../../src/app/pixi/token-renderer/EditTokenModal';
 import { AssetService } from '../../src/app/services/AssetService';
 import type { TokenEntity } from '../../src/app/types';
+import { withDynamicLighting } from '../mocks/experimentalFeatures';
 import { createInMemoryApp } from '../mocks/inMemoryVault';
+import { genericLight } from '../mocks/lights';
+import { HP, STR } from '../mocks/resourceFixtures';
 
 const darkvision = senseWithRole(GENERIC_SENSES, 'darkvision');
 const tremorsense = senseWithRole(GENERIC_SENSES, 'tremorsense');
@@ -21,8 +24,9 @@ afterEach(() => {
   if (cancel) act(() => cancel.click());
 });
 
-function open(overrides: Partial<TokenEntity> = {}): { store: ViewAtlasStore; saved: () => TokenEntity } {
+function open(overrides: Partial<TokenEntity> = {}, lighting = true): { store: ViewAtlasStore; saved: () => TokenEntity } {
   const { app } = createInMemoryApp();
+  if (lighting) withDynamicLighting(app);
   const store = createViewAtlasStore(app, `edit-token-${Math.random()}`);
   const token: TokenEntity = { id: 't', kind: 'token', imagePath: 't.png', x: 0, y: 0, ...overrides };
   store.setState({ persistenceEnabled: false, objects: { ...store.getState().objects, tokens: { t: token } } });
@@ -37,15 +41,48 @@ describe('openEditTokenModal', () => {
   it('opens with its vision switch through its own React root, outside every tooltip provider', () => {
     open({ vision: { enabled: true } });
     expect(vision().getAttribute('aria-checked')).toBe('true');
-    expect(screen.getByText('Vision & light')).toBeTruthy();
+    expect(screen.getByText('Edit Token')).toBeTruthy();
     act(() => screen.getByRole('button', { name: 'Cancel' }).click());
     expect(document.body.querySelector('.atlas-vtt-root')).toBeNull();
   });
 
+  it('has its sections and fields in the order they are read and tabbed through, which a dialog of one column keeps: token, resources, vision, carried light', () => {
+    const app = withDynamicLighting(createInMemoryApp().app);
+    const store = createViewAtlasStore(app, `edit-token-order-${Math.random()}`);
+    const token: TokenEntity = { id: 't', kind: 'character', name: 'Mirabel', imagePath: 't.png', x: 0, y: 0, vision: { enabled: true }, light: emissionOf(lightPresetsOnMap(GENERIC_LIGHT_PRESETS, { unitType: 'feet', unitDistance: 5 }, Infinity)[0]!) };
+    store.setState({ persistenceEnabled: false, objects: { ...store.getState().objects, tokens: { t: token } } });
+    act(() => openEditTokenModal(token, store, app, [HP, STR]));
+    expect(screen.getAllByRole('heading', { level: 4 }).map((heading) => heading.textContent)).toEqual(['Token', 'Resources', 'Vision', 'Carried light']);
+    // Every section is named by its heading, and the columns hold them in this order: the left one, then the right one.
+    expect(screen.getAllByRole('region').map((section) => section.getAttribute('aria-labelledby'))).toEqual(screen.getAllByRole('heading', { level: 4 }).map((heading) => heading.id));
+    const columns = [...document.querySelectorAll('.atlas-edit-token__column')];
+    expect(columns.map((column) => [...column.querySelectorAll('h4')].map((heading) => heading.textContent))).toEqual([['Token', 'Resources', 'Vision'], ['Carried light']]);
+    const stops = [
+      screen.getByLabelText('Name'), screen.getByRole('switch', { name: 'Show nameplate' }), screen.getByLabelText('Max HP'), screen.getByLabelText('Max STR'),
+      vision(), screen.getByLabelText(/^Sight range/), screen.getByLabelText(/^Vision angle/), screen.getByRole('button', { name: 'Add sense' }),
+      screen.getByRole('switch', { name: 'Carries a light' }), screen.getByRole('button', { name: 'Candle' }), screen.getByLabelText('Bright'), screen.getByRole('slider', { name: 'Intensity' }),
+      screen.getByRole('combobox', { name: 'Flicker' }), screen.getByRole('switch', { name: 'Outshines magical darkness' }), screen.getByRole('button', { name: 'Cancel' }), screen.getByRole('button', { name: 'Save' }),
+    ];
+    for (const [index, stop] of stops.slice(1).entries()) {
+      expect(stops[index]!.compareDocumentPosition(stop) & Node.DOCUMENT_POSITION_FOLLOWING, `${stop.textContent || stop.getAttribute('aria-label') || stop.id} comes after the stop before it`).toBeTruthy();
+    }
+  });
+
+  it('has no vision or light sections while dynamic lighting is switched off, and a save leaves the token\'s vision and light alone', () => {
+    const light = genericLight('torch');
+    const { saved } = open({ name: 'Scout', vision: { enabled: true, range: 60 }, light }, false);
+    expect(screen.getAllByRole('heading', { level: 4 }).map((heading) => heading.textContent)).toEqual(['Token']);
+    expect(screen.queryByRole('switch', { name: 'Vision (party member)' })).toBeNull();
+    expect(screen.queryByRole('switch', { name: 'Carries a light' })).toBeNull();
+    save();
+    expect(saved().vision).toEqual({ enabled: true, range: 60 });
+    expect(saved().light).toEqual(light);
+  });
+
   it('says in one line what the vision switch means', () => {
     open();
-    expect(screen.getByText('Players see what it sees, and always see it.')).toBeTruthy();
-    expect(vision().getAttribute('aria-describedby')).toBe(screen.getByText('Players see what it sees, and always see it.').id);
+    expect(screen.getByText('The players see the map through this token. The token itself is always visible to them.')).toBeTruthy();
+    expect(vision().getAttribute('aria-describedby')).toBe(screen.getByText('The players see the map through this token. The token itself is always visible to them.').id);
   });
 
   it('shows sight range, angle and senses only for a token with vision', () => {
@@ -70,8 +107,8 @@ describe('openEditTokenModal', () => {
 
   it('adds a sense with its range and saves it', () => {
     const { saved } = open({ vision: { enabled: true } });
-    fireEvent.click(screen.getByRole('button', { name: 'Add sense' }));
-    fireEvent.click(screen.getByRole('button', { name: /^Darkvision/ }));
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Add sense' }), { key: 'ArrowDown' });
+    fireEvent.click(screen.getByRole('menuitem', { name: /^Darkvision/ }));
     fireEvent.change(screen.getByLabelText('Darkvision range'), { target: { value: '60' } });
     save();
     expect(saved().vision).toEqual({ enabled: true, senses: [{ id: darkvision.id, range: 60 }] });
@@ -79,8 +116,8 @@ describe('openEditTokenModal', () => {
 
   it('saves no list of senses when one is added and removed again, so the token still follows its statblock', () => {
     const { saved } = open({ vision: { enabled: true } });
-    fireEvent.click(screen.getByRole('button', { name: 'Add sense' }));
-    fireEvent.click(screen.getByRole('button', { name: /^Darkvision/ }));
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Add sense' }), { key: 'ArrowDown' });
+    fireEvent.click(screen.getByRole('menuitem', { name: /^Darkvision/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Remove Darkvision' }));
     save();
     expect(saved().vision).toEqual({ enabled: true });
@@ -95,19 +132,19 @@ describe('openEditTokenModal', () => {
 
   it('closes on Escape, but not when a control inside took the key', () => {
     open({ vision: { enabled: true } });
-    fireEvent.click(screen.getByRole('button', { name: 'Add sense' }));
-    fireEvent.keyDown(screen.getByRole('group', { name: 'Senses to add' }), { key: 'Escape' });
-    expect(screen.getByText('Vision & light')).toBeTruthy();
-    expect(screen.queryByRole('group', { name: 'Senses to add' })).toBeNull();
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Add sense' }), { key: 'ArrowDown' });
+    fireEvent.keyDown(screen.getByRole('menu'), { key: 'Escape' });
+    expect(screen.getByText('Edit Token')).toBeTruthy();
+    expect(screen.queryByRole('menu')).toBeNull();
     fireEvent.keyDown(document.body, { key: 'Escape' });
-    expect(screen.queryByText('Vision & light')).toBeNull();
+    expect(screen.queryByText('Edit Token')).toBeNull();
   });
 });
 
 describe('openEditTokenModal in a collection with senses of its own', () => {
   it('offers the collection\'s senses, by their names, and saves the one chosen', () => {
     const witchSight = { ...darkvision, id: 'home-witch', name: 'Witch sight', role: undefined, range: 'required' as const, defaultRange: 30 };
-    const { app } = createInMemoryApp();
+    const app = withDynamicLighting(createInMemoryApp().app);
     const assets = AssetService.getInstance(app);
     vi.spyOn(assets, 'getCollectionForMap').mockReturnValue('coven');
     vi.spyOn(assets, 'getCollectionSettings').mockReturnValue({ conditions: [], senses: [witchSight] } as never);
@@ -115,10 +152,10 @@ describe('openEditTokenModal in a collection with senses of its own', () => {
     const token: TokenEntity = { id: 't', kind: 'token', imagePath: 't.png', x: 0, y: 0, vision: { enabled: true } };
     store.setState({ persistenceEnabled: false, mapPath: 'atlas-vtt/collections/coven/scenes/Hut.atlasmap', objects: { ...store.getState().objects, tokens: { t: token } } });
     act(() => openEditTokenModal(token, store, app, []));
-    fireEvent.click(screen.getByRole('button', { name: 'Add sense' }));
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Add sense' }), { key: 'ArrowDown' });
     // Only what the collection defines: its own sense, none of the generic ones it replaced.
-    expect(screen.queryByRole('button', { name: /^Darkvision/ })).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: /^Witch sight/ }));
+    expect(screen.queryByRole('menuitem', { name: /^Darkvision/ })).toBeNull();
+    fireEvent.click(screen.getByRole('menuitem', { name: /^Witch sight/ }));
     save();
     expect(store.getState().objects.tokens.t!.vision).toEqual({ enabled: true, senses: [{ id: 'home-witch' }] });
     vi.restoreAllMocks();
@@ -130,7 +167,7 @@ describe('openEditTokenModal: the carried light', () => {
   const onMap = lightPresetsOnMap(GENERIC_LIGHT_PRESETS, { unitType: 'feet', unitDistance: 5 }, Infinity);
   const torch = onMap.find((preset) => preset.id === 'torch')!;
   const lantern = onMap.find((preset) => preset.id === 'lantern')!;
-  const carried = (): HTMLElement => screen.getByRole('switch', { name: 'Carried light' });
+  const carried = (): HTMLElement => screen.getByRole('switch', { name: 'Carries a light' });
 
   it('is off for a token without one, with no light fields, and saves none', () => {
     const { saved } = open();
@@ -177,10 +214,10 @@ describe('openEditTokenModal: the carried light', () => {
     const tooltip = render(<TooltipProvider><Tooltip open><TooltipTrigger>Hovered</TooltipTrigger><TooltipContent>Tip</TooltipContent></Tooltip></TooltipProvider>);
     fireEvent.keyDown(screen.getByRole('option', { name: 'Pulse' }), { key: 'Escape' });
     expect(screen.queryByRole('listbox')).toBeNull();
-    expect(screen.getByText('Vision & light')).toBeTruthy();
+    expect(screen.getByText('Edit Token')).toBeTruthy();
     tooltip.unmount();
     fireEvent.keyDown(document.body, { key: 'Escape' });
-    expect(screen.queryByText('Vision & light')).toBeNull();
+    expect(screen.queryByText('Edit Token')).toBeNull();
   });
 
   it('commits a typed range with Enter without saving the token', () => {
@@ -188,7 +225,7 @@ describe('openEditTokenModal: the carried light', () => {
     const dim = screen.getByLabelText('Dim') as HTMLInputElement;
     fireEvent.change(dim, { target: { value: '50' } });
     fireEvent.keyDown(dim, { key: 'Enter' });
-    expect(screen.getByText('Vision & light')).toBeTruthy();
+    expect(screen.getByText('Edit Token')).toBeTruthy();
     expect(saved().light).toEqual(emissionOf(torch));
     save();
     expect(saved().light).toMatchObject({ bright: 20, dim: 50 });
@@ -198,7 +235,7 @@ describe('openEditTokenModal: the carried light', () => {
     const { saved } = open({ light: emissionOf(torch) });
     fireEvent.click(screen.getByRole('button', { name: 'Arcane blue' }));
     fireEvent.keyDown(screen.getByLabelText('Custom colour'), { key: 'Enter' });
-    expect(screen.getByText('Vision & light')).toBeTruthy();
+    expect(screen.getByText('Edit Token')).toBeTruthy();
     expect(saved().light).toEqual(emissionOf(torch));
   });
 

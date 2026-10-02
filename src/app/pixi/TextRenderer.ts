@@ -160,7 +160,7 @@ export class TextRenderer {
     
     // Set up interaction if not player view
     if (!this.isPlayerView) {
-      this.setupInteraction(container, textElement);
+      this.setupInteraction(container, textElement.id);
     }
     
     // Add to container and registry
@@ -243,7 +243,8 @@ export class TextRenderer {
     }
   }
 
-  private setupInteraction(container: Container, textElement: TextElement): void {
+  /** Handlers are bound to the id: the element changes with every edit, the container stays. */
+  private setupInteraction(container: Container, textId: string): void {
     container.eventMode = 'static';
     container.cursor = 'move';
     
@@ -259,21 +260,24 @@ export class TextRenderer {
     }
     
     // Pointer events
-    container.on('pointerdown', (e: FederatedPointerEvent) => this.onPointerDown(e, textElement));
-    container.on('pointerover', () => this.onPointerOver(textElement.id));
-    container.on('pointerout', () => this.onPointerOut(textElement.id));
+    container.on('pointerdown', (e: FederatedPointerEvent) => this.onPointerDown(e, textId));
+    container.on('pointerover', () => this.onPointerOver(textId));
+    container.on('pointerout', () => this.onPointerOut(textId));
     
     // Also attach to children for better hit detection
     [background, text].forEach(child => {
       if (child) {
-        child.on('pointerdown', (e: FederatedPointerEvent) => this.onPointerDown(e, textElement));
+        child.on('pointerdown', (e: FederatedPointerEvent) => this.onPointerDown(e, textId));
       }
     });
   }
 
-  private onPointerDown(e: FederatedPointerEvent, textElement: TextElement): void {
+  private onPointerDown(e: FederatedPointerEvent, textId: string): void {
     e.stopPropagation();
-    
+
+    const textElement = this.store.getState().objects.texts[textId];
+    if (!textElement) return;
+
     if (e.button === 2) {
       // Right click - show context menu
       this.showContextMenu(textElement, e);

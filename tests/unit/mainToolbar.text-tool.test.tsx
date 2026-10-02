@@ -16,6 +16,8 @@ const setInitiativeTrackerOpen = vi.fn();
 let capturedShortcuts: Record<string, (event: KeyboardEvent) => void> = {};
 /** The tokens the canvas shows; session view hides some of the store's. */
 let visibleTokenIds: string[] = [];
+/** Whether the GM switched dynamic lighting on. */
+let dynamicLighting = false;
 
 const storeState = {
   activeTool: 'move',
@@ -76,6 +78,10 @@ vi.mock('../../src/app/keyboard/useMapHotkeys', () => ({
   },
 }));
 
+vi.mock('../../src/app/react/hooks/useExperimentalFeature', () => ({
+  useExperimentalFeature: () => dynamicLighting,
+}));
+
 vi.mock('../../src/app/utils/activeLeafGuard', () => ({
   isActiveAtlasLeaf: () => true,
 }));
@@ -134,6 +140,7 @@ import { MainToolbar } from '../../src/app/packages/components/MainToolbar';
 describe('MainToolbar text tool', () => {
   beforeEach(() => {
     capturedShortcuts = {};
+    dynamicLighting = false;
     setActiveTool.mockReset();
     setSelectionMode.mockReset();
     setGMView.mockReset();
@@ -167,6 +174,18 @@ describe('MainToolbar text tool', () => {
 
     const button = screen.getByRole('button', { name: 'Text Tool' }) as HTMLButtonElement;
     expect(button.disabled).toBe(false);
+  });
+
+  it('has the Lighting tool only while dynamic lighting is switched on, to the left of the note pin', () => {
+    const { unmount } = render(<MainToolbar viewId="view-1" />);
+    expect(screen.queryByRole('button', { name: 'Lighting' })).toBeNull();
+    unmount();
+
+    dynamicLighting = true;
+    render(<MainToolbar viewId="view-1" />);
+    const labels = screen.getAllByRole('button').map((button) => button.textContent);
+    expect(labels.indexOf('Lighting')).toBeGreaterThan(-1);
+    expect(labels.indexOf('Note Pin Tool')).toBe(labels.indexOf('Lighting') + 1);
   });
 
   it('accepts the text tool in the store', () => {

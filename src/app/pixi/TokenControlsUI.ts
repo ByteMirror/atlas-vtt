@@ -36,6 +36,9 @@ interface ControlButton extends Container {
   iconColor: number;
 }
 
+/** Token UI layer: above every token (zIndex 0), so a neighbour never covers a selected token's controls. */
+export const TOKEN_UI_Z_INDEX = 100;
+
 export class TokenControlsUI {
   private container: Container;
   private viewport: Viewport;
@@ -85,6 +88,7 @@ export class TokenControlsUI {
     this.container.visible = false;
     this.container.eventMode = 'passive'; // Allow events to pass through to tokens
     this.container.sortableChildren = true;
+    this.container.zIndex = TOKEN_UI_Z_INDEX;
     this.container.addChild(this.below, this.beside, this.leftOf);
 
     // Don't stop propagation at container level - let individual buttons handle it

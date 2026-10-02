@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BUILT_IN_SYSTEM_PRESETS } from '../../src/app/gameSystems/builtInPresets';
 import { newSense, withSenseKind } from '../../src/app/gameSystems/senseEditing';
 import { senseWithRole } from '../../src/app/gameSystems/senseRules';
@@ -94,36 +94,38 @@ describe('SensesEditor', () => {
 
   it('has no list of its own again when a sense is added to a token without one and removed', () => {
     render(<Harness initial={null} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Add sense' }));
-    fireEvent.click(screen.getByRole('button', { name: /^Darkvision/ }));
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Add sense' }), { key: 'ArrowDown' });
+    fireEvent.click(screen.getByRole('menuitem', { name: /^Darkvision/ }));
     expect(saved()).toEqual([{ id: darkvision.id, range: '' }]);
     fireEvent.click(screen.getByRole('button', { name: 'Remove Darkvision' }));
     expect(saved()).toBeNull();
   });
 
-  it('offers the collection\'s senses the token lacks, each with its description, and adds the chosen one', () => {
+  it('offers the collection\'s senses the token lacks in a menu, each with its description, and adds the chosen one', () => {
     render(<Harness initial={[{ id: darkvision.id, range: '' }]} />);
     const add = screen.getByRole('button', { name: 'Add sense' });
     expect(add.getAttribute('aria-expanded')).toBe('false');
-    fireEvent.click(add);
+    fireEvent.keyDown(add, { key: 'ArrowDown' });
     expect(add.getAttribute('aria-expanded')).toBe('true');
-    const offered = within(screen.getByRole('group', { name: 'Senses to add' })).getAllByRole('button');
-    expect(offered.map((button) => button.textContent)).toEqual(
+    const offered = within(screen.getByRole('menu')).getAllByRole('menuitem');
+    expect(offered.map((item) => item.textContent)).toEqual(
       dnd5e.filter((sense) => sense.id !== darkvision.id).map((sense) => `${sense.name}${sense.description}`),
     );
-    fireEvent.click(screen.getByRole('button', { name: new RegExp(`^${blindsight.name}`) }));
+    fireEvent.click(screen.getByRole('menuitem', { name: new RegExp(`^${blindsight.name}`) }));
     expect(saved()).toEqual([{ id: darkvision.id, range: '' }, { id: blindsight.id, range: '' }]);
-    expect(screen.queryByRole('group', { name: 'Senses to add' })).toBeNull();
+    expect(screen.queryByRole('menu')).toBeNull();
     expect(document.activeElement).toBe(range('Blindsight'));
   });
 
-  it('closes the list of senses to add with Escape, which goes no further', () => {
+  it('closes the menu of senses to add with Escape, which goes no further', () => {
     render(<Harness initial={[]} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Add sense' }));
-    const escape = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
-    act(() => { screen.getByRole('group', { name: 'Senses to add' }).dispatchEvent(escape); });
-    expect(escape.defaultPrevented).toBe(true);
-    expect(screen.queryByRole('group', { name: 'Senses to add' })).toBeNull();
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Add sense' }), { key: 'ArrowDown' });
+    const beyond = vi.fn();
+    document.addEventListener('keydown', beyond);
+    fireEvent.keyDown(screen.getByRole('menu'), { key: 'Escape' });
+    document.removeEventListener('keydown', beyond);
+    expect(screen.queryByRole('menu')).toBeNull();
+    expect(beyond).not.toHaveBeenCalled();
   });
 
   it('offers nothing to add once the token has every sense', () => {
@@ -204,8 +206,8 @@ describe('SensesEditor with senses from the statblock', () => {
     render(<Harness initial={null} />);
     expect(screen.getByText('No senses beyond sight.')).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Follow statblock' })).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'Add sense' }));
-    fireEvent.click(screen.getByRole('button', { name: /^Darkvision/ }));
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Add sense' }), { key: 'ArrowDown' });
+    fireEvent.click(screen.getByRole('menuitem', { name: /^Darkvision/ }));
     expect(saved()).toEqual([{ id: darkvision.id, range: '' }]);
   });
 });

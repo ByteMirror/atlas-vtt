@@ -1,4 +1,7 @@
 import type { TokenEntity } from '../../types';
+import type { WallSegment } from '../../types/wallTypes';
+import { doorsInSight } from '../../vision/doorSight';
+import { wallList } from '../../vision/wallList';
 import { movedWhileHeld } from '../../lighting/sightOnDrop';
 import { lightLevelAt } from '../../vision/lightLevels';
 import { perceive, targetOf, withinReach, type Perception, type PerceptionOptions } from '../../vision/perception';
@@ -13,6 +16,8 @@ export type GmOverlays = {
   wallEditor: HideableLayer;
   /** The light zones' outlines and handles, shown in the lighting tool's zone mode. */
   lightZones: HideableLayer;
+  /** What the scene remembers, tinted, and the stroke that edits it: shown in the lighting tool's explored-memory mode. */
+  exploredMemory: HideableLayer;
   doorBadges: HideableLayer;
   /** The badges on placed lights. */
   lightMarkers: HideableLayer;
@@ -29,17 +34,20 @@ export interface PlayerLightingInput {
   gmOverlays: GmOverlays;
   /** The outlines of tokens the players sense without seeing them; only the players' view shows them. */
   sensedOutlines?: HideableLayer | undefined;
+  /** The badges of the doors the players see (`DoorIcons.playerView`); only the players' view shows them. */
+  playerDoorBadges?: HideableLayer | undefined;
 }
 
 /**
  * Layer changes for the players' view: the GM's overlays never show; with lighting on, the
- * player's view and the outlines of the tokens they only sense. The one list of them: a player
- * frame applies it for one capture, the GM's own canvas holds it in session view (`SessionLighting`).
+ * player's view, the outlines of the tokens they only sense and the badges of the doors they
+ * see. The one list of them: a player frame applies it for one capture, the GM's own canvas
+ * holds it in session view (`SessionLighting`).
  */
-export function playerLightingLayers({ enabled, modeLayer, gmOverlays, sensedOutlines }: PlayerLightingInput): LayerVisibility[] {
+export function playerLightingLayers({ enabled, modeLayer, gmOverlays, sensedOutlines, playerDoorBadges }: PlayerLightingInput): LayerVisibility[] {
   const hidden = Object.values<HideableLayer>(gmOverlays).map((layer) => ({ layer, visible: false }));
-  const outlines = sensedOutlines ? [{ layer: sensedOutlines, visible: enabled }] : [];
-  return enabled ? [{ layer: modeLayer, visible: true }, ...outlines, ...hidden] : [...outlines, ...hidden];
+  const players = [sensedOutlines, playerDoorBadges].flatMap((layer) => (layer ? [{ layer, visible: enabled }] : []));
+  return enabled ? [{ layer: modeLayer, visible: true }, ...players, ...hidden] : [...players, ...hidden];
 }
 
 /** How the players perceive each token. */
@@ -115,4 +123,15 @@ export function playerTokenSight(
 ): TokenPerception | undefined {
   if (!lighting.isEnabled()) return undefined;
   return tokenPerception(lighting.currentSight(), lighting.ambientLight(), lighting.lightReaches(), tokens, options, memo);
+}
+
+const NO_DOORS: ReadonlySet<string> = new Set();
+
+/** The doors the players see by a scene's lighting (`doorsInSight`): those whose badges their view shows. None while the scene is unlit. */
+export function playerDoorSight(
+  lighting: Pick<SceneLightingView, 'isEnabled' | 'currentSight' | 'ambientLight' | 'lightReaches'>,
+  walls: Record<string, WallSegment>,
+): ReadonlySet<string> {
+  if (!lighting.isEnabled()) return NO_DOORS;
+  return doorsInSight(wallList(walls), lighting.currentSight(), lighting.ambientLight(), lighting.lightReaches());
 }

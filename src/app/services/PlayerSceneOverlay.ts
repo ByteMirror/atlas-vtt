@@ -15,8 +15,6 @@ export interface PlayerOverlay {
   hold(): void;
   /** Draw again: something outside the store and the player settings changed what players see. */
   refresh?(): void;
-  /** What the players' tokens see may have changed without a change of the scene's store. */
-  sightChanged?(): void;
   destroy(): void;
 }
 
@@ -33,8 +31,6 @@ export abstract class PlayerSceneOverlay<Scene extends object> implements Player
   private scene: Scene | undefined;
   private playerSettings: PlayerSettings;
   private unsubscribeStore: (() => void) | undefined;
-  /** Reads the presented scene's store while the overlay is bound to it; none while held. */
-  private readState: (() => ViewAtlasState) | undefined;
   private readonly unsubscribeSettings: () => void;
 
   protected constructor(private readonly containerInfo: DomElementInfo, settings: SettingsService) {
@@ -61,19 +57,12 @@ export abstract class PlayerSceneOverlay<Scene extends object> implements Player
     this.unsubscribeStore?.();
     this.scene = this.select(store.getState());
     this.refresh();
-    this.readState = () => store.getState();
-    this.unsubscribeStore = store.subscribe((state) => this.take(this.select(state)));
-  }
-
-  /** Something outside the store changed what `select` picks: picks again, and draws again when it differs. */
-  protected reselect(): void {
-    if (this.readState) this.take(this.select(this.readState()));
-  }
-
-  private take(scene: Scene): void {
-    if (shallow(this.scene, scene)) return;
-    this.scene = scene;
-    this.refresh();
+    this.unsubscribeStore = store.subscribe((state) => {
+      const scene = this.select(state);
+      if (shallow(this.scene, scene)) return;
+      this.scene = scene;
+      this.refresh();
+    });
   }
 
   /**
@@ -83,7 +72,6 @@ export abstract class PlayerSceneOverlay<Scene extends object> implements Player
   hold(): void {
     this.unsubscribeStore?.();
     this.unsubscribeStore = undefined;
-    this.readState = undefined;
   }
 
   destroy(): void {

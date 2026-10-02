@@ -17,7 +17,6 @@ const state = {
         order: 0,
       },
     ],
-    removedTokenIds: [],
     isActive: false,
     round: 0,
   },
@@ -55,6 +54,10 @@ vi.mock('../../src/app/react/root/AtlasUIContext', () => ({
 
 vi.mock('../../src/app/react/ViewStoreContext', () => ({
   useAtlasStore: (selector: (storeState: typeof state) => unknown) => selector(state),
+}));
+
+vi.mock('../../src/app/initiative/useMapInitiativeRules', () => ({
+  useMapInitiativeRules: () => ({ mode: 'turn-order', roll: '1d20', firstSide: 'players' }),
 }));
 
 vi.mock('../../src/app/react/components/InitiativeCard', () => ({

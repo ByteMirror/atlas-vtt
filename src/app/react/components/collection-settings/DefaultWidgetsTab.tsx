@@ -1,12 +1,16 @@
 /**
- * DefaultWidgetsTab — Toggle default widgets for new maps in a collection.
+ * DefaultWidgetsTab — Toggle default widgets for new maps in a collection, and how its initiative tracker runs a fight.
  */
 
 import React from 'react';
+import type { InitiativeRules } from '../../../types/initiativeRulesTypes';
+import { InitiativeFields } from './InitiativeFields';
 
 interface DefaultWidgetsTabProps {
   defaultWidgets: Record<string, boolean>;
   onChange: (widgets: Record<string, boolean>) => void;
+  initiative: InitiativeRules;
+  onInitiativeChange: (initiative: InitiativeRules) => void;
 }
 
 /** Available widget definitions for the MVP. */
@@ -26,6 +30,8 @@ const WIDGET_OPTIONS: { key: string; label: string; description: string }[] = [
 export function DefaultWidgetsTab({
   defaultWidgets,
   onChange,
+  initiative,
+  onInitiativeChange,
 }: DefaultWidgetsTabProps): React.ReactElement {
   const toggle = (key: string): void => {
     onChange({ ...defaultWidgets, [key]: !defaultWidgets[key] });
@@ -52,6 +58,7 @@ export function DefaultWidgetsTab({
           </label>
         </div>
       ))}
+      <InitiativeFields initiative={initiative} onChange={onInitiativeChange} />
     </>
   );
 }

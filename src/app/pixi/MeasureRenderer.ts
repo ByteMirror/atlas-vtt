@@ -303,8 +303,12 @@ export class MeasureRenderer {
     return { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 - 30 / this.viewport.scale.x };
   }
 
+  private measurementSettings(): MeasurementSettings {
+    return this.measurementSettingsProvider?.() ?? resolveMeasurementSettings(undefined, this.store.getState().grid);
+  }
+
   private measurementLabel(start: { x: number; y: number }, end: { x: number; y: number }): string {
-    const settings = this.measurementSettingsProvider?.() ?? resolveMeasurementSettings(undefined, this.store.getState().grid);
+    const settings = this.measurementSettings();
     return formatDistance(pathLengthInCells(this.gridSystem.getOptions(), [start, end], settings.diagonalRule), settings);
   }
   
@@ -377,9 +381,8 @@ export class MeasureRenderer {
   }
   
   private drawConeOnGraphics(graphics: Graphics, color: number, distance: number, dx: number, dy: number, start: { x: number; y: number }): void {
-    // Default cone angle is 90 degrees (45 degrees on each side)
-    const coneAngle = 90 * Math.PI / 180;
-    const halfAngle = coneAngle / 2;
+    // The collection's game system sets how wide the cone opens
+    const halfAngle = this.measurementSettings().coneAngle * Math.PI / 360;
     
     // Calculate the angle of the line
     const baseAngle = Math.atan2(dy, dx);

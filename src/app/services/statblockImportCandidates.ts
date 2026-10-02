@@ -3,6 +3,7 @@ import { getFantasyStatblocksApi, resolveCreatureFromFence, resolveLayout, type 
 import { resolveStatblockNote } from './statblockNoteSource';
 import type { TokenAsset } from './AssetService';
 import { tokenSizeFromCreatureSize } from '../pixi/token-renderer/tokenSizing';
+import { STATBLOCK_IMAGE_KEYS, type StatblockImageKey } from './statblockImageKeys';
 
 export type StatblockImportStatus = 'ready' | 'imported' | 'missing-image' | 'remote-image' | 'conflict';
 export interface StatblockImportCandidate {
@@ -33,6 +34,15 @@ export function imageReference(value: unknown): string | undefined {
     : Array.isArray(value) ? value.flat(Infinity).find((item: unknown): item is string => typeof item === 'string' && Boolean(item.trim()))?.trim()
     : undefined;
   return reference ? decodeStatblockLink(reference) : undefined;
+}
+
+/** The first artwork field of a statblock that holds a reference, with that reference. */
+export function statblockImageField(fields: Record<string, unknown>): { key: StatblockImageKey; reference: string } | undefined {
+  for (const key of STATBLOCK_IMAGE_KEYS) {
+    const reference = imageReference(fields[key]);
+    if (reference) return { key, reference };
+  }
+  return undefined;
 }
 
 /** The vault image a frontmatter reference (wikilink or path) points at, resolved relative to `sourcePath`. */
@@ -92,7 +102,7 @@ export async function statblockImportCandidate(app: App, file: TFile, lookup: St
   const existing = linked[0];
   if (existing) return { ...row, status: 'imported', detail: 'An Atlas token already links to this note.', imagePath: existing.imagePath, showRing: existing.showRing !== false };
   if (!creature) return { ...row, status: 'conflict', detail: 'The statblock could not be resolved. Check its name or note reference.' };
-  const image = imageReference(creature.image) ?? imageReference(creature['token-image']);
+  const image = statblockImageField(creature)?.reference;
   if (!image) return { ...row, status: 'missing-image', detail: 'Add an image to this statblock to create a token.' };
   if (/^(?:[a-z][a-z0-9+.-]*:|\/\/)/i.test(image)) return { ...row, status: 'remote-image', detail: 'Save the image in your vault and link it from the statblock.' };
   const imageFile = localImage(app, image, path);

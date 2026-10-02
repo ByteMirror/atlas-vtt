@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { WallSegment } from '../../types/wallTypes';
 import { sealWalls } from '../sealWalls';
-import { TOLERANCE, key, random, timeBound, wall } from './sealFixtures';
+import { TOLERANCE, key, random, wall } from './sealFixtures';
+
+// Wall-clock bound of the timed tests here. Each input seals in 0.15 to 0.9 s run alone; before
+// the fixes they guard (the tree's pivot, the eight directions along the diagonals, the capped
+// bridges across passing walls) the same inputs took 3.5 to 18 s and made millions of bridges.
+// The bound leaves a machine under load its room; the count of bridges is asserted beside it.
+const SLOW = 15_000;
 
 /**
  * Inputs made to be slow or to make bridges without end: ends along a diagonal, where no box
@@ -88,14 +94,13 @@ const HOSTILE: [string, Maker][] = [
 describe('sealWalls on hostile input', () => {
   const places = (walls: WallSegment[]): number => new Set(walls.flatMap((w) => [key(w.p1), key(w.p2)])).size;
 
-  it.each(HOSTILE)('seals %s in a second or so, with a bounded number of bridges', { timeout: 300_000 }, (name, make) => {
+  it.each(HOSTILE)('seals %s within the bound, with a bounded number of bridges', { timeout: 300_000 }, (name, make) => {
     const walls = make();
     const started = performance.now();
     const bridges = sealWalls(walls, TOLERANCE).length - walls.length;
     const ms = performance.now() - started;
     console.info(`sealWalls, ${name}: ${walls.length} walls, ${places(walls)} places, ${bridges} bridges, ${ms.toFixed(0)} ms`);
-    // Under a second each on the machine this was written on, run alone; the bound leaves room for a loaded one.
-    expect(ms).toBeLessThan(timeBound(3000));
+    expect(ms).toBeLessThan(SLOW);
     // At most eight bridges are begun at a place, eight more to the far ends of walls on their own, and sixteen across the walls that pass it.
     expect(bridges).toBeLessThanOrEqual(places(walls) * 32);
     // None of these makes more than a few bridges for each of its places.

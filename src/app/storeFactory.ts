@@ -11,11 +11,12 @@ import type AtlasVTTPlugin from '../../main';
 import type { TokenEntity, Character, NotePin, TextElement, DrawingStroke } from './types';
 import type { FogOperation, FogOperationInput } from './types/fogTypes';
 import type { WallSegment, WallInput } from './types/wallTypes';
-import { DEFAULT_SCENE_LIGHTING, type LightChanges, type LightInput, type LightSource, type LightZone, type LightZoneChanges, type LightZoneInput, type SceneLighting } from './types/lightingTypes';
+import { DEFAULT_SCENE_LIGHTING, type LightChanges, type LightInput, type LightSource, type LightZone, type LightZoneChanges, type LightZoneInput, type SceneLighting, type SceneLightingChanges, type SceneLightingOption } from './types/lightingTypes';
 import type { AudioSource, AudioInput } from './types/audioTypes';
 import type { AnyWidget, WidgetSettings } from './types/widgetTypes';
 import type { InitiativeState, InitiativeEntry, InitiativeConfig } from './types/initiativeTypes';
 import { createDefaultInitiativeState } from './types/initiativeTypes';
+import type { InitiativeRules } from './types/initiativeRulesTypes';
 import { CameraState, GridState, createAtlasStorage, ATLAS_SCHEMA, ATLAS_VERSION } from './services/MapPersistence';
 import type { AtlasPersistStorage } from './services/MapPersistence';
 import { normalizeImagePath } from './utils/pathUtils';
@@ -174,10 +175,19 @@ export interface ViewAtlasState {
 
   /** Dynamic lighting of the scene; saved with the map, never undo-tracked. */
   lighting: SceneLighting;
-  setSceneLighting: (changes: Partial<SceneLighting>) => void;
+  /** Merges `changes` into the scene's lighting; an option given as undefined is removed. */
+  setSceneLighting: (changes: SceneLightingChanges) => void;
   /** What the players' tokens have explored, as a PNG data URL; saved with the map, never undo-tracked. */
   exploredMask: string | null;
   setExploredMask: (dataUrl: string | null) => void;
+  /**
+   * How many edits by hand led to the explored memory as it is, counted since the scene loaded.
+   * The memory itself is no store state, so this count stands for it in the undo history: a
+   * memory edit is the step that raises it, and undo and redo reach it in the order the GM
+   * worked (`ExploredMemory` puts the memory back when it changes). Never saved.
+   */
+  exploredEdits: number;
+  setExploredEdits: (count: number) => void;
 
   // Wall actions
   addWall: (data: WallInput) => string;
@@ -282,15 +292,17 @@ export interface ViewAtlasState {
   addToInitiative: (entry: Omit<InitiativeEntry, 'id' | 'order' | 'isActive'>) => string;
   removeFromInitiative: (id: string) => void;
   updateInitiativeEntry: (id: string, updates: Partial<InitiativeEntry>) => void;
-  rollAllInitiative: () => void;
-  rollEntryInitiative: (id: string) => void;
+  rollAllInitiative: (roll?: string) => void;
+  rollEntryInitiative: (id: string, roll?: string) => void;
   nextTurn: () => void;
   previousTurn: () => void;
   reorderInitiative: (fromIndex: number, toIndex: number) => void;
   moveToFront: (id: string) => void;
   moveToBack: (id: string) => void;
-  startCombat: () => void;
+  startCombat: (rules?: InitiativeRules) => void;
   endCombat: () => void;
+  setInitiativeSitsOut: (id: string, sitsOut: boolean) => void;
+  resetInitiative: () => void;
   setInitiativeConfig: (config: Partial<InitiativeConfig>) => void;
 
   // Dice roll log (persisted per map, capped at 20 entries)
@@ -328,6 +340,8 @@ export interface ViewAtlasState {
   setSceneLightingPanelOpen: UISlice['setSceneLightingPanelOpen'];
   heldTokens: UISlice['heldTokens'];
   setHeldTokens: UISlice['setHeldTokens'];
+  exploredBrush: UISlice['exploredBrush'];
+  setExploredBrush: UISlice['setExploredBrush'];
   setGridSettingsOpen: UISlice['setGridSettingsOpen'];
   setDMScreenOpen: UISlice['setDMScreenOpen'];
   setGridAlignmentOpen: UISlice['setGridAlignmentOpen'];
@@ -363,9 +377,10 @@ export const DEFAULT_TOKEN_SETTINGS: Readonly<ViewAtlasState['tokenSettings']> =
   tokenRingSize: 1,
 };
 
-const createInitialState = (): Pick<ViewAtlasState, 'schema' | 'version' | 'mapPath' | 'background' | 'grid' | 'objects' | 'camera' | 'persistenceEnabled' | 'widgetSettings' | 'widgetValues' | 'dmNotePath' | 'tokenSettings' | 'initiative' | 'diceLog' | 'pinnedNotePreviews' | 'lootRoller' | 'lighting' | 'exploredMask'> => ({
+const createInitialState = (): Pick<ViewAtlasState, 'schema' | 'version' | 'mapPath' | 'background' | 'grid' | 'objects' | 'camera' | 'persistenceEnabled' | 'widgetSettings' | 'widgetValues' | 'dmNotePath' | 'tokenSettings' | 'initiative' | 'diceLog' | 'pinnedNotePreviews' | 'lootRoller' | 'lighting' | 'exploredMask' | 'exploredEdits'> => ({
   lighting: { ...DEFAULT_SCENE_LIGHTING },
   exploredMask: null,
+  exploredEdits: 0,
   schema: ATLAS_SCHEMA,
   version: ATLAS_VERSION,
   mapPath: null,
@@ -1177,12 +1192,19 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
 
           setSceneLighting: (changes) => set((draft) => {
             Object.assign(draft.lighting, changes);
+            for (const field of Object.keys(changes) as SceneLightingOption[]) {
+              if (changes[field] === undefined) delete draft.lighting[field];
+            }
             draft.lighting.ambient = Math.min(1, Math.max(0, draft.lighting.ambient));
             if (draft.lighting.litThreshold !== undefined) draft.lighting.litThreshold = clampLitThreshold(draft.lighting.litThreshold);
           }),
 
           setExploredMask: (dataUrl) => set((draft) => {
             draft.exploredMask = dataUrl;
+          }),
+
+          setExploredEdits: (count) => set((draft) => {
+            draft.exploredEdits = count;
           }),
 
           // Audio dirty flag
@@ -1208,6 +1230,8 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
             const wall = draft.objects.walls[id];
             if (wall) {
               Object.assign(wall, changes);
+              // A field given as undefined is removed: the wall is as if it never had it.
+              for (const key of Object.keys(changes) as (keyof WallSegment)[]) if (changes[key] === undefined) delete wall[key];
               draft._audioDirty = true;
             }
           }),
@@ -1361,6 +1385,7 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
             draft.lootRoller = createInitialLootRollerState();
             draft.lighting = { ...DEFAULT_SCENE_LIGHTING };
             draft.exploredMask = null;
+            draft.exploredEdits = 0;
 
             // Note: We don't clear background here - it will be set by the new map
             // Note: We don't clear mapPath - it must be preserved for storage adapter
@@ -1528,6 +1553,8 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
               lootRoller: readLootRollerState(saved.lootRoller),
               lighting: readSceneLighting(saved.lighting),
               exploredMask: readExploredMask(saved.exploredMask),
+              // Counted per session: a file never brings one.
+              exploredEdits: current.exploredEdits,
             };
           },
 
@@ -1537,8 +1564,8 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
         }
       )
     ),
-    // Undo/redo tracks objects, grid, background and widgetValues only;
-    // selection, camera, tool and loading state never enter the history.
+    // Undo/redo tracks objects, grid, background, widgetValues and the count of explored-memory
+    // edits only; selection, camera, tool and loading state never enter the history.
     // storeRef is assigned right after creation, before any history call.
     createHistoryOptions<ViewAtlasState>(() => storeRef!.getState())
   )

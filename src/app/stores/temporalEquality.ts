@@ -3,6 +3,8 @@ export interface TemporalSnapshotLike {
   grid: unknown;
   background: unknown;
   widgetValues: unknown;
+  /** How many edits of the explored memory led to the state (`ViewAtlasState.exploredEdits`); stores without one leave it out. */
+  exploredEdits?: unknown;
 }
 
 /**
@@ -19,6 +21,7 @@ export function areTemporalSnapshotsEqual(
     past.objects === current.objects &&
     past.grid === current.grid &&
     past.background === current.background &&
-    past.widgetValues === current.widgetValues
+    past.widgetValues === current.widgetValues &&
+    past.exploredEdits === current.exploredEdits
   );
 }

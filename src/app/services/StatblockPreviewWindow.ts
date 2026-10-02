@@ -2,18 +2,21 @@ import React from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { App as ObsidianApp } from 'obsidian';
 import FantasyStatblock from '../react/components/FantasyStatblock';
-import { toTokenVitals } from './statblockVitalsSync';
-import type { NotePreviewUIManager, TokenPreviewAnchor } from './NotePreviewUIManager';
+import { toTokenVitals, type TokenVitals } from './statblockVitalsSync';
+import type { NotePreviewUIManager, PreviewAnchorRef, TokenPreviewAnchor } from './NotePreviewUIManager';
 import './statblock-preview-window.scss';
+import { previewEdgeGaps } from '../react/components/statblock/previewEdgeGap';
 
 /**
- * Floating CMD+hover preview window for token statblocks.
+ * Floating CMD+hover preview window for token statblocks: of a token placed on
+ * a map, which its map's preview manager tracks, or of a token in a list (the
+ * library, a collection being exported or imported).
  */
 export class StatblockPreviewWindow {
   public notePath: string;
   public element: HTMLElement | null = null;
-  public originatingPin: TokenPreviewAnchor;
-  private manager: NotePreviewUIManager;
+  public originatingPin: PreviewAnchorRef | null;
+  private manager: NotePreviewUIManager | null;
   private initialPos?: { x: number; y: number } | undefined;
   private reactRoot: Root | null = null;
   private resizeObserver: ResizeObserver | null = null;
@@ -22,12 +25,14 @@ export class StatblockPreviewWindow {
   constructor(
     private app: ObsidianApp,
     notePath: string,
-    originatingToken: TokenPreviewAnchor,
-    manager: NotePreviewUIManager,
+    originatingToken: TokenPreviewAnchor | TokenVitals,
+    manager: NotePreviewUIManager | null,
     initialPos?: { x: number; y: number },
+    /** The note's text when it is not in the vault, e.g. inside a collection being imported. */
+    noteContent?: string,
   ) {
     this.notePath = notePath;
-    this.originatingPin = originatingToken;
+    this.originatingPin = 'type' in originatingToken ? originatingToken : null;
     this.manager = manager;
     this.initialPos = initialPos;
 
@@ -38,12 +43,13 @@ export class StatblockPreviewWindow {
       this.setPosition(initialPos.x, initialPos.y);
     }
 
-    // The pin carries the hovered token's vitals; the statblock mirrors them.
+    // The hovered token's vitals; the statblock mirrors them.
     const vitals = [toTokenVitals(originatingToken)];
     this.reactRoot = createRoot(this.element);
     this.reactRoot.render(
       React.createElement(FantasyStatblock, {
         notePath,
+        noteContent,
         app: this.app,
         tokens: vitals,
       }),
@@ -68,7 +74,8 @@ export class StatblockPreviewWindow {
 
     const winWidth = window.innerWidth;
     const winHeight = window.innerHeight;
-    const padding = 20;
+    // A theme that draws around the preview asks for more room than this.
+    const gaps = previewEdgeGaps(this.element.ownerDocument, 20);
 
     this.element.classList.add('atlas-statblock-preview-window--measuring');
 
@@ -77,7 +84,7 @@ export class StatblockPreviewWindow {
 
       // Cap the window to the viewport first, so the measurement below is of
       // the clamped box; the card body scrolls when the statblock is taller.
-      this.element.style.maxHeight = `${winHeight - padding * 2}px`;
+      this.element.style.maxHeight = `${winHeight - gaps.block * 2}px`;
 
       const rect = this.element.getBoundingClientRect();
       const elementWidth = rect.width || 400;
@@ -86,22 +93,22 @@ export class StatblockPreviewWindow {
       let finalX = x + 15;
       let finalY = y + 15;
 
-      if (finalX + elementWidth > winWidth - padding) {
+      if (finalX + elementWidth > winWidth - gaps.inline) {
         finalX = x - elementWidth - 15;
-        if (finalX < padding) {
-          finalX = winWidth - elementWidth - padding;
+        if (finalX < gaps.inline) {
+          finalX = winWidth - elementWidth - gaps.inline;
         }
       }
 
-      if (finalY + elementHeight > winHeight - padding) {
+      if (finalY + elementHeight > winHeight - gaps.block) {
         finalY = y - elementHeight - 15;
-        if (finalY < padding) {
-          finalY = winHeight - elementHeight - padding;
+        if (finalY < gaps.block) {
+          finalY = winHeight - elementHeight - gaps.block;
         }
       }
 
-      finalX = Math.max(padding, finalX);
-      finalY = Math.max(padding, finalY);
+      finalX = Math.max(gaps.inline, finalX);
+      finalY = Math.max(gaps.block, finalY);
 
       this.element.style.left = `${finalX}px`;
       this.element.style.top = `${finalY}px`;
@@ -137,7 +144,7 @@ export class StatblockPreviewWindow {
       this.element = null;
     }
 
-    this.manager.handlePreviewClosed(this);
+    this.manager?.handlePreviewClosed(this);
   }
 
   getIsPinned(): boolean {

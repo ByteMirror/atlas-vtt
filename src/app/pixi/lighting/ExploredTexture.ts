@@ -3,6 +3,7 @@ import type { ExploredShapes } from '../../vision/exploredShapes';
 import type { MapBounds } from '../../vision/visibility';
 import { destroyTree } from '../utils/destroyTree';
 import { StampScratch, stampRegion, tilesOf } from './StampScratch';
+import type { TexelRegion } from './StampScratch';
 
 /** Longest side of the explored memory in texels; it is drawn dim and soft, so this is plenty. */
 const MAX_TEXELS = 2048;
@@ -53,9 +54,11 @@ export class ExploredTexture {
     this.clear();
   }
 
-  add(shapes: ExploredShapes): void {
+  /** Stamps `shapes` in; `level` (0..1) is what a fully covered texel then holds at least: 1 for the memory itself. */
+  add(shapes: ExploredShapes, level = 1): void {
     const region = stampRegion(shapes, this.scale, this.texture);
     if (!region) return;
+    this.mergeSprite.alpha = level;
     this.scratch.begin(shapes);
     for (const tile of tilesOf(region)) {
       this.mergeSprite.texture = this.scratch.renderTile(this.scale, tile.x, tile.y);
@@ -115,6 +118,26 @@ export class ExploredTexture {
     canvas.height = height;
     canvas.getContext('2d')?.putImageData(image, 0, 0);
     return canvas;
+  }
+
+  /**
+   * Takes the memory away where `shapes` lie, with the smooth edges `add` draws: an edit by the
+   * GM's hand (`ExploredMemory.edit`). Sight itself only ever adds. A texel on the edge loses the
+   * share of it the shapes cover, so erasing exactly what was added leaves a trace on the edge
+   * (at most a quarter of a texel's coverage); an undo step puts the texels back instead.
+   */
+  erase(shapes: ExploredShapes): void {
+    this.mergeSprite.blendMode = 'erase';
+    try {
+      this.add(shapes);
+    } finally {
+      this.mergeSprite.blendMode = 'max';
+    }
+  }
+
+  /** The texels `add` or `erase` would touch for `shapes`, or null when they lie outside the map. */
+  regionOf(shapes: ExploredShapes): TexelRegion | null {
+    return stampRegion(shapes, this.scale, this.texture);
   }
 
   destroy(): void {

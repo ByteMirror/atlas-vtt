@@ -158,7 +158,7 @@ export function seenSpots(
       if (perceive(at, sight, level, target) !== 'seen' || perceive(at, withMap, level, target) === 'seen') continue;
     }
     const radius = computeTokenPixelSize(cellSize, token.size || 1) / 2;
-    spots.push({ ...at, radius, polygon: computeVisibility(at, radius, walls) });
+    spots.push({ ...at, radius, polygon: computeVisibility(at, radius, walls, undefined, 'sight') });
   }
   return spots;
 }

@@ -92,8 +92,8 @@ describe('LightingRenderer shows the party where the picture is dark', () => {
     expect(watch!.findings).toEqual([]);
   });
 
-  it('lets the footprint follow a dragged party token without building sight anew, and ends it beyond the sight left behind', async () => {
-    const h = await setup({ ambient: 0 });
+  it('lets the footprint follow a dragged party token without building sight anew, and ends it beyond the sight left behind, where the scene waits for the drop', async () => {
+    const h = await setup({ ambient: 0, sightOnDrop: true });
     h.renderStage();
     const sight = h.lighting.currentSight();
     h.change({ heldTokens: { t: START } });

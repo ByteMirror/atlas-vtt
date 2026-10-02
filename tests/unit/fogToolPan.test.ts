@@ -1,16 +1,18 @@
 import { expect, it, vi } from 'vitest';
 import type { FederatedPointerEvent } from 'pixi.js';
 import { FogOfWarRenderer } from '../../src/app/pixi/fog/FogOfWarRenderer';
+import { ShapeStroke } from '../../src/app/tools/shapeStroke';
 
 interface FogToolHarness {
-  isDrawing: boolean;
+  stroke: ShapeStroke;
   enableFogMode(): void;
   onPointerDown(event: FederatedPointerEvent): void;
+  onPointerMove(event: FederatedPointerEvent): void;
   onPointerUp(): void;
 }
 
-const pointer = (button: number): FederatedPointerEvent =>
-  ({ button, global: { x: 140, y: 140 } }) as unknown as FederatedPointerEvent;
+const pointer = (button: number, at = 140): FederatedPointerEvent =>
+  ({ button, global: { x: at, y: at } }) as unknown as FederatedPointerEvent;
 
 function fogTool(): { tool: FogToolHarness; viewport: { pause: boolean }; addFogOperation: ReturnType<typeof vi.fn> } {
   const viewport = { pause: false, toWorld: (point: { x: number; y: number }) => point };
@@ -19,13 +21,12 @@ function fogTool(): { tool: FogToolHarness; viewport: { pause: boolean }; addFog
   const tool = Object.assign(Object.create(FogOfWarRenderer.prototype) as FogOfWarRenderer, {
     store: { getState: () => state },
     viewport,
-    fogMode: 'rectangle',
+    stroke: Object.assign(new ShapeStroke(), { mode: 'rectangle' }),
     container: {},
     fogSprites: new Map(),
     previewSprite: {},
     renderPreviewFromStore: vi.fn(),
-    rectPreviewGraphics: { clear: vi.fn() },
-    lastRectBounds: { x: 140, y: 140, width: 70, height: 70 },
+    rectPreviewGraphics: { clear: vi.fn(), rect: vi.fn(), stroke: vi.fn().mockReturnThis(), fill: vi.fn() },
   }) as unknown as FogToolHarness;
   return { tool, viewport, addFogOperation };
 }
@@ -42,12 +43,15 @@ it('paints fog with the primary button only, so a right-drag pans', () => {
   const { tool, addFogOperation } = fogTool();
 
   tool.onPointerDown(pointer(2));
-  expect(tool.isDrawing).toBeFalsy();
+  expect(tool.stroke.active).toBe(false);
 
   tool.onPointerDown(pointer(0));
-  expect(tool.isDrawing).toBe(true);
+  expect(tool.stroke.active).toBe(true);
+  tool.onPointerMove(pointer(0, 215));
 
   tool.onPointerUp();
-  expect(tool.isDrawing).toBe(false);
+  expect(tool.stroke.active).toBe(false);
+  // The rectangle's corners snap to the 70 px grid's.
   expect(addFogOperation).toHaveBeenCalledOnce();
+  expect(addFogOperation).toHaveBeenCalledWith({ type: 'rectangle', isErasing: false, x: 140, y: 140, width: 70, height: 70 });
 });

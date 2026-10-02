@@ -1,9 +1,11 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { Pencil, Plus, RotateCcw } from 'lucide-react';
 import { senseSummary } from '../../../gameSystems/senseEditing';
 import { findSense } from '../../../gameSystems/senseRules';
 import { senseRows, type SenseRow } from '../../../lighting/tokenLighting';
 import { Button } from '../../../packages/components/primitives/button';
+import { useExclusiveDropdown } from '../../../packages/components/primitives/useExclusiveDropdown';
 import type { SenseDefinition, TokenSense } from '../../../types/senseTypes';
 import { numberText } from '../../../utils/numberInput';
 import { InheritedSenseRow, SenseRowFields } from './SenseRows';
@@ -27,8 +29,6 @@ interface SensesEditorProps {
   notRecognised?: readonly string[];
 }
 
-const STEP: Record<string, number> = { ArrowDown: 1, ArrowUp: -1 };
-
 /** Whether `row` still says what the statblock says about its sense. */
 function fromStatblock(row: SenseRow, inherited: readonly TokenSense[]): boolean {
   return inherited.some((sense) => sense.id === row.id && numberText(sense.range) === row.range.trim());
@@ -36,16 +36,16 @@ function fromStatblock(row: SenseRow, inherited: readonly TokenSense[]): boolean
 
 /**
  * A list of senses: one row per sense with its range where it takes one, a way to remove it,
- * and the collection's other senses to add, each with what it does.
+ * and a menu of the collection's other senses to add, each with what it does.
  */
 export function SensesEditor({ senses, onChange, definitions, unit, emptyText, inheritedSenses = [], notRecognised = [] }: SensesEditorProps): React.ReactElement {
   const labelId = useId();
-  const offerId = useId();
-  const [adding, setAdding] = useState(false);
+  const { isOpen: adding, setIsOpen: setAdding, onCloseAutoFocus } = useExclusiveDropdown();
   const [focusId, setFocusId] = useState<string | null>(null);
-  const addButton = useRef<HTMLButtonElement>(null);
-  const offer = useRef<HTMLDivElement>(null);
+  const [addButton, setAddButton] = useState<HTMLButtonElement | null>(null);
   const ranges = useRef(new Map<string, HTMLInputElement>());
+  // Set while the menu closes for a sense that was picked: its range field takes the focus, not the button.
+  const picked = useRef(false);
 
   // Whether the token's own list stands in place of its statblock's by the GM's choice: it came
   // with one beside a statblock, or "Edit senses" took the statblock's. Only then is an emptied
@@ -58,22 +58,16 @@ export function SensesEditor({ senses, onChange, definitions, unit, emptyText, i
   const rows = senses ?? [];
   const available = following ? [] : definitions.filter((definition) => !rows.some((row) => row.id === definition.id));
 
-  // The list opens below the button, where a scrolling dialog may not show it yet.
-  useEffect(() => {
-    if (!adding) return;
-    void offer.current?.scrollIntoView?.({ block: 'nearest' });
-    offer.current?.querySelector('button')?.focus({ preventScroll: true });
-  }, [adding]);
-
   // The sense just added takes the focus in its range field, or the list's button when it has
   // none; so does the button when a sense was removed, whose own button is gone.
   useEffect(() => {
     if (focusId === null) return;
-    (ranges.current.get(focusId) ?? addButton.current)?.focus();
+    (ranges.current.get(focusId) ?? addButton)?.focus();
     setFocusId(null);
-  }, [focusId]);
+  }, [focusId, addButton]);
 
   const add = (definition: SenseDefinition): void => {
+    picked.current = true;
     onChange([...rows, { id: definition.id, range: '' }]);
     setAdding(false);
     setFocusId(definition.id);
@@ -84,21 +78,6 @@ export function SensesEditor({ senses, onChange, definitions, unit, emptyText, i
     onChange(next.length > 0 || detached ? next : null);
     setAdding(false);
     setFocusId(rows[index]?.id ?? null);
-  };
-
-  const onOfferKeyDown = (event: React.KeyboardEvent): void => {
-    const step = STEP[event.key];
-    if (event.key === 'Escape') {
-      // The key closes this list only, not the dialog around it.
-      event.preventDefault();
-      setAdding(false);
-      addButton.current?.focus();
-    } else if (step !== undefined) {
-      event.preventDefault();
-      const buttons = [...(offer.current?.querySelectorAll('button') ?? [])];
-      const current = buttons.findIndex((button) => button === event.target);
-      buttons[Math.min(buttons.length - 1, Math.max(0, current + step))]?.focus();
-    }
   };
 
   return (
@@ -140,10 +119,37 @@ export function SensesEditor({ senses, onChange, definitions, unit, emptyText, i
             </Button>
           )}
           {available.length > 0 && (
-            <Button ref={addButton} variant="outline" size="sm" aria-expanded={adding} aria-controls={adding ? offerId : undefined} onClick={() => setAdding(!adding)}>
-              <Plus />
-              Add sense
-            </Button>
+            <DropdownMenu.Root open={adding} onOpenChange={setAdding} modal={false}>
+              <DropdownMenu.Trigger asChild>
+                <Button ref={setAddButton} variant="outline" size="sm">
+                  <Plus />
+                  Add sense
+                </Button>
+              </DropdownMenu.Trigger>
+              {/* Inside the dialog that holds the list: the menu stacks above it, and Escape in it stays in it. */}
+              <DropdownMenu.Portal container={addButton?.closest<HTMLElement>('.atlas-modal') ?? addButton?.ownerDocument.body}>
+                <DropdownMenu.Content
+                  className="atlas-ctx-menu atlas-ctx-menu--dropdown atlas-senses-menu"
+                  side="top"
+                  align="start"
+                  sideOffset={4}
+                  collisionPadding={8}
+                  onCloseAutoFocus={(event) => {
+                    if (picked.current) event.preventDefault();
+                    else onCloseAutoFocus(event);
+                    picked.current = false;
+                  }}
+                  onEscapeKeyDown={(event) => event.stopPropagation()}
+                >
+                  {available.map((definition) => (
+                    <DropdownMenu.Item key={definition.id} className="atlas-ctx-item atlas-sense-offer" onSelect={() => add(definition)}>
+                      <span className="atlas-sense-offer__name">{definition.name}</span>
+                      <span className="atlas-sense-offer__text">{senseSummary(definition)}</span>
+                    </DropdownMenu.Item>
+                  ))}
+                </DropdownMenu.Content>
+              </DropdownMenu.Portal>
+            </DropdownMenu.Root>
           )}
           {senses !== null && inheritedSenses.length > 0 && (
             <Button variant="outline" size="sm" onClick={() => { setAdding(false); setChosen(false); onChange(null); }}>
@@ -154,17 +160,6 @@ export function SensesEditor({ senses, onChange, definitions, unit, emptyText, i
         </div>
       )}
 
-      {adding && available.length > 0 && (
-        <div ref={offer} id={offerId} className="atlas-senses__offer" role="group" aria-labelledby={`${offerId}-label`} onKeyDown={onOfferKeyDown}>
-          <span id={`${offerId}-label`} hidden>Senses to add</span>
-          {available.map((definition) => (
-            <Button key={definition.id} variant="ghost" className="atlas-sense-offer" onClick={() => add(definition)}>
-              <span className="atlas-sense-offer__name">{definition.name}</span>
-              <span className="atlas-sense-offer__text">{senseSummary(definition)}</span>
-            </Button>
-          ))}
-        </div>
-      )}
     </div>
   );
 }

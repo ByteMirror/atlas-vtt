@@ -6,6 +6,7 @@ import {
   type FantasyStatblocksCreature,
 } from '../services/FantasyStatblocksService';
 import { hasBestiaryFrontmatter, parseStatblockFence, resolveStatblockNote } from '../services/statblockNoteSource';
+import { workSlices } from '../utils/workSlices';
 
 /** The bestiary as one lookup, built once and reused for many notes. */
 export interface BestiaryLookup {
@@ -82,7 +83,9 @@ export async function unparsedStatblockNotes(
   signal?: AbortSignal,
 ): Promise<FantasyStatblocksCreature[]> {
   const creatures: FantasyStatblocksCreature[] = [];
+  const pause = workSlices();
   for (const file of app.vault.getMarkdownFiles()) {
+    await pause();
     if (signal?.aborted) break;
     if (bestiary.byPath.has(file.path) || !(await resolveStatblockNote(app, file))) continue;
     const creature = await resolveLinkedCreature(app, file.path, bestiary);

@@ -8,6 +8,7 @@ import { Button } from '../../../packages/components/primitives/button';
 import { Select, type SelectOption } from '../../../packages/components/primitives/Select';
 import { LabelTooltip } from '../../../packages/components/primitives/tooltip';
 import { CONDITION_EFFECTS, type ConditionDefinition, type ConditionEffect } from '../../../types/collectionSettingsTypes';
+import { useExperimentalFeature } from '../../hooks/useExperimentalFeature';
 import { conditionEffect, withConditionEffect } from '../../../gameSystems/conditionEffects';
 import { conditionGlyph } from '../../../utils/conditionGlyph';
 import { WidgetIconPicker } from '../WidgetIconPicker';
@@ -46,6 +47,8 @@ export function ConditionsTab({
 }: ConditionsTabProps): React.ReactElement {
   const [iconPickerId, setIconPickerId] = useState<string | null>(null);
   const effectLabel = useId();
+  // A condition's effect on sight is part of dynamic lighting.
+  const sightEffects = useExperimentalFeature('dynamicLighting');
 
   const updateCondition = (
     index: number,
@@ -95,18 +98,22 @@ export function ConditionsTab({
         badge to give it an icon, and turn on # for conditions that carry a number,
         like Frightened 2.
       </p>
-      <p className="atlas-csm-hint">
-        Effects on sight: Blinded takes a token&apos;s sight; Invisible hides it from
-        sight that cannot see the invisible; Airborne hides it from tremorsense;
-        Undetected hides it from the players.
-      </p>
+      {sightEffects && (
+        <p className="atlas-csm-hint">
+          Effects on sight: Blinded takes a token&apos;s sight; Invisible hides it from
+          sight that cannot see the invisible; Airborne hides it from tremorsense;
+          Undetected hides it from the players.
+        </p>
+      )}
 
       {conditions.length > 0 ? (
         <div className="atlas-csm-condition-list">
-          <div className="atlas-csm-condition-head" aria-hidden="true">
-            <span>Condition</span>
-            <span>Effect on sight</span>
-          </div>
+          {sightEffects && (
+            <div className="atlas-csm-condition-head" aria-hidden="true">
+              <span>Condition</span>
+              <span>Effect on sight</span>
+            </div>
+          )}
           {conditions.map((cond, i) => (
             <div key={cond.id} className="atlas-csm-condition">
               <div className="atlas-csm-condition-row">
@@ -127,15 +134,17 @@ export function ConditionsTab({
                   value={cond.name}
                   onChange={(e) => updateCondition(i, { name: e.target.value })}
                 />
-                <div className={`atlas-csm-condition-effect${conditionEffect(cond) ? '' : ' atlas-csm-condition-effect--none'}`}>
-                  <span id={`${effectLabel}-${cond.id}`} hidden>Effect on sight of {cond.name.trim() || 'this condition'}</span>
-                  <Select
-                    value={conditionEffect(cond) ?? 'none'}
-                    options={EFFECT_OPTIONS}
-                    labelledBy={`${effectLabel}-${cond.id}`}
-                    onChange={(effect) => onChange(conditions.map((c, index) => (index === i ? withConditionEffect(c, effect) : c)))}
-                  />
-                </div>
+                {sightEffects && (
+                  <div className={`atlas-csm-condition-effect${conditionEffect(cond) ? '' : ' atlas-csm-condition-effect--none'}`}>
+                    <span id={`${effectLabel}-${cond.id}`} hidden>Effect on sight of {cond.name.trim() || 'this condition'}</span>
+                    <Select
+                      value={conditionEffect(cond) ?? 'none'}
+                      options={EFFECT_OPTIONS}
+                      labelledBy={`${effectLabel}-${cond.id}`}
+                      onChange={(effect) => onChange(conditions.map((c, index) => (index === i ? withConditionEffect(c, effect) : c)))}
+                    />
+                  </div>
+                )}
                 <div
                   className="atlas-csm-color-swatch"
                   style={{ backgroundColor: cond.color }}

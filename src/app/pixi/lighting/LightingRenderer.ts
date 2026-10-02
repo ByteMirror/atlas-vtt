@@ -2,6 +2,7 @@ import { Matrix, type Application, type Container, type Texture } from 'pixi.js'
 import type { Viewport } from 'pixi-viewport';
 import type { ViewAtlasState, ViewAtlasStore } from '../../storeFactory';
 import type { MeasurementSettings } from '../../grid/measurementFormat';
+import type { ExploredEdit } from '../../lighting/exploredEdits';
 import { sceneLook, type SceneLook } from '../../lighting/sceneLightingOptions';
 import type { SceneLighting } from '../../types/lightingTypes';
 import { SEES_ALL, type AmbientLight, type AmbientZone, type LightReach, type Sight } from '../../vision/sight';
@@ -16,7 +17,7 @@ import { ExploredMemory } from './ExploredMemory';
 import type { LightingAttempt } from './lightingAttempts';
 import { PlayerView } from './PlayerView';
 import { SceneModelBuilder, SceneSpots, type SceneModel } from './sceneModel';
-import type { SceneLightingView } from './sceneLightingView';
+import type { ExploredMemoryWatcher, SceneLightingView } from './sceneLightingView';
 
 /** Above tokens, below their nameplates and bars (100): the GM keeps readable labels in the dark. */
 export const LIGHTING_Z_INDEX = 90;
@@ -42,6 +43,8 @@ export interface LightingRendererDeps {
   onUnavailable?: (reason: LightingUnavailable) => void;
   /** What the tokens see or which light reaches them was worked out anew. */
   onSightChange?: () => void;
+  /** Who shows the GM the explored memory while it is edited. */
+  exploredWatcher?: ExploredMemoryWatcher;
 }
 
 type SceneWithoutLook = Omit<EngineScene, keyof SceneLook>;
@@ -93,7 +96,11 @@ export class LightingRenderer implements SceneLightingView {
     this.memory = new ExploredMemory({
       renderer,
       store: deps.store,
-      onTexture: (texture) => this.engine.setExplored(texture),
+      onTexture: (texture) => {
+        if (texture) this.engine.setExplored(texture);
+        deps.exploredWatcher?.setTexture(texture);
+      },
+      onTravel: (undone) => deps.exploredWatcher?.memoryTravelled(undone),
       onChange: () => requestRender(deps.app),
       guard: (work) => this.run(work),
     });
@@ -137,6 +144,10 @@ export class LightingRenderer implements SceneLightingView {
 
   resetExplored(): void {
     this.memory.reset();
+  }
+
+  editExplored(edit: ExploredEdit): boolean {
+    return this.memory.edit(edit);
   }
 
   /** Before the map unloads: save the scene's pending memory into it, then start the next scene blank. */
@@ -221,6 +232,8 @@ export class LightingRenderer implements SceneLightingView {
   private afterContextRestored(): void {
     this.attemptState = 'none';
     const state = this.deps.store.getState();
+    // The memory comes back as it was last saved: the texels its undo steps hold belong to a texture that is gone.
+    this.memory.forgetEdits();
     this.memory.reload(state.exploredMask);
     this.update(state);
   }

@@ -7,7 +7,7 @@ import { STAGE_X, type Rng } from '../../../dice3d/dieTour';
 import { throwRandom } from '../../../dice3d/throwSeed';
 import { layoutDice, type DiceScene, type RestingFrame } from '../../../dice3d/diceScene';
 import { loadDiceArtwork } from '../../../dice3d/dieArtwork';
-import type { DiceRenderer, StageDie } from '../../../dice3d/DiceRenderer';
+import { stagePixelRatio, type DiceRenderer, type StageDie } from '../../../dice3d/DiceRenderer';
 import { borrowStage, returnStage } from '../../../dice3d/stagePool';
 import { bank, burst, rattle, rollEnd, rollStart } from '../../../dice3d/audio/diceSounds';
 import type { DiceCrit } from '../../../tools/diceCrit';
@@ -202,17 +202,18 @@ export function DiceStage({ scene, crit, onSettled, muted, style, frame, seed, l
 
   useEffect(() => {
     const holder = holderRef.current;
-    const canvas = holder?.querySelector('canvas');
-    if (!holder || !canvas) return;
+    if (!holder) return;
     const win = holder.win;
 
     const measure = (): void => {
-      // Layout size, not the bounding box: the panel morphs between sizes with a
-      // scale transform, and a size measured mid-morph would stay squashed.
-      const width = Math.max(1, Math.round(canvas.clientWidth || 240));
-      const height = Math.max(1, Math.round(canvas.clientHeight || 190));
-      rendererRef.current?.setSize(width, height, Math.min(2, win.devicePixelRatio || 1), 0.5, frame?.halfWidth);
-      // The walls move with the canvas. Resting dice take the new size; a die
+      // The holder's size: the canvas is at least as large and is clipped to
+      // it (`DiceRenderer.setView`). Layout size, not the bounding box: the
+      // panel enters with a scale transform, and a size measured then would
+      // stay squashed.
+      const width = Math.max(1, Math.round(holder.clientWidth || 240));
+      const height = Math.max(1, Math.round(holder.clientHeight || 190));
+      rendererRef.current?.setView(width, height, stagePixelRatio(win), 0.5, frame?.halfWidth);
+      // The walls move with the holder. Resting dice take the new size; a die
       // in flight keeps the stage it was thrown on, or its path would jump.
       const stage = rendererRef.current?.stage();
       if (stage) {
@@ -228,7 +229,7 @@ export function DiceStage({ scene, crit, onSettled, muted, style, frame, seed, l
     // The popout's own observer: an observer from another window never fires there.
     const Observer = (win as typeof window).ResizeObserver as typeof ResizeObserver | undefined;
     const observer = Observer ? new Observer(measure) : null;
-    observer?.observe(canvas);
+    observer?.observe(holder);
     return (): void => {
       win.removeEventListener('resize', measure);
       observer?.disconnect();

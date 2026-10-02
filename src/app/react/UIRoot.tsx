@@ -2,7 +2,6 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { LightPopoverHost } from '../pixi/lighting/LightPopover';
 import { LightZonePopoverHost } from '../pixi/lighting/LightZonePopover';
 import { SceneLightingPanelHost } from '../pixi/lighting/SceneLightingPanel';
-import { WALLS_AND_LIGHTING_ENABLED } from '../featureFlags';
 import { App } from 'obsidian';
 import { Application } from 'pixi.js';
 import { BackgroundSprite } from './BackgroundSprite';
@@ -33,6 +32,7 @@ import { AtlasUIContext, AtlasUIContextValue } from './root/AtlasUIContext';
 import { ContextMenuProvider } from './root/ContextMenuContext';
 import { PanelBoundary } from './root/PanelBoundary';
 import { useMapNavigationHotkeys } from './useMapNavigationHotkeys';
+import { useExperimentalFeature } from './hooks/useExperimentalFeature';
 import type { AtlasView } from '../atlas-view';
 import { runInBackground } from '../utils/backgroundTask';
 
@@ -48,6 +48,7 @@ interface UIRootProps {
  */
 export const UIRoot: React.FC<UIRootProps> = ({ app, view, pixiApp }) => {
   const settings = SettingsService.forApp(app);
+  const lightingOn = useExperimentalFeature('dynamicLighting', settings);
   const [hotkeyHelpOpen, setHotkeyHelpOpen] = useState(false);
   const [isSceneSwitcherOpen, setSceneSwitcherOpen] = useState(false);
 
@@ -226,8 +227,8 @@ export const UIRoot: React.FC<UIRootProps> = ({ app, view, pixiApp }) => {
 
           {/* Loot Roller - floating window, DM only */}
           {!isPlayerView && <PanelBoundary name="the loot roller"><LootRoller /></PanelBoundary>}
-          {!isPlayerView && WALLS_AND_LIGHTING_ENABLED && <PanelBoundary name="the light settings"><LightPopoverHost /><LightZonePopoverHost /></PanelBoundary>}
-          {!isPlayerView && WALLS_AND_LIGHTING_ENABLED && <PanelBoundary name="the scene lighting"><SceneLightingPanelHost /></PanelBoundary>}
+          {!isPlayerView && lightingOn && <PanelBoundary name="the light settings"><LightPopoverHost /><LightZonePopoverHost /></PanelBoundary>}
+          {!isPlayerView && lightingOn && <PanelBoundary name="the scene lighting"><SceneLightingPanelHost /></PanelBoundary>}
 
           {/* Player Character Sheet - REMOVED: Players should only edit via their character sheet file */}
           

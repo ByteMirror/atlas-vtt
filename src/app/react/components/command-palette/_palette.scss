@@ -23,8 +23,8 @@
 }
 
 // Places the palette above the toolbar and slides it between the list's and
-// the settings panel's position. Its transform is its own, so the container's
-// open / close animation can use the container's.
+// the settings panel's position. Its transform is its own, so the window's
+// open / close animation can use the window's.
 .atlas-command-palette-anchor {
   position: absolute;
   transition: left $transition-normal $transition-ease-out,
@@ -41,6 +41,16 @@
   }
 }
 
+// The palette as it is animated. It does not clip, so a theme can draw around
+// the palette with this element's pseudo-elements (`::before` below the
+// container with a negative `z-index`, `::after` above it) and have that move
+// and fade with the palette.
+.atlas-command-palette-window {
+  position: relative;
+  isolation: isolate;
+  transform-origin: bottom center;
+}
+
 .atlas-command-palette-container {
   @include atlas-elevated-surface;
   @include atlas-panel-radius($radius-2xl);
@@ -53,7 +63,6 @@
   max-width: calc(100cqw - #{2 * $spacing-l});
   max-height: calc(100cqh - var(--atlas-palette-bottom, 0px) - #{$spacing-l});
   overflow: hidden;
-  transform-origin: bottom center;
   transition: width $transition-normal $transition-ease-out,
               height $transition-normal $transition-ease-out;
 

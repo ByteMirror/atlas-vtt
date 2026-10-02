@@ -4,6 +4,7 @@ import { withChangedBars } from '../../../resources/sceneVisibility';
 import type { ResourceDefinition } from '../../../resources/resourceTypes';
 import { useEffect, useRef, useState } from 'react';
 import { hasVisionDefaults } from '../../../gameSystems/visionDefaults';
+import { parseInitiativeRules, savedInitiativeRules } from '../../../gameSystems/initiativeRules';
 import { parseLightPresets } from '../../../gameSystems/lightPresetValidation';
 import { parseSenseDefinitions } from '../../../gameSystems/senseValidation';
 import { DEFAULT_GRID_DEFAULTS, rulesOfPreset, vanillaSystemSettings } from '../../../gameSystems/systemRules';
@@ -16,6 +17,7 @@ import type {
 } from '../../../types/collectionSettingsTypes';
 import type { CreatureFilterDefinition } from '../../../types/creatureFilterTypes';
 import type { DiceRules } from '../../../types/diceRulesTypes';
+import type { InitiativeRules } from '../../../types/initiativeRulesTypes';
 import type { TokenVisionDefaults } from '../../../types/lightingTypes';
 import type { LightPresetDefinition } from '../../../types/lightPresetTypes';
 import type { SenseDefinition } from '../../../types/senseTypes';
@@ -42,6 +44,9 @@ export interface CollectionSettingsDraft {
   /** Unset while the collection takes the dice of its preset; read with `collectionDiceRules`. */
   dice: DiceRules | undefined;
   setDice: (dice: DiceRules) => void;
+  /** Unset while the collection takes the initiative rules of its preset; read with `collectionInitiativeRules`. */
+  initiative: InitiativeRules | undefined;
+  setInitiative: (initiative: InitiativeRules | undefined) => void;
   /** The collection's filters on fields of its own. */
   customCreatureFilters: CreatureFilterDefinition[];
   setCustomCreatureFilters: (filters: CreatureFilterDefinition[]) => void;
@@ -82,6 +87,7 @@ export function useCollectionSettingsDraft(
   /** The resources the collection had when the draft opened; a bar switch follows only a resource that came or went. */
   const loadedResources = useRef<readonly ResourceDefinition[]>([]);
   const [dice, setDice] = useState<DiceRules | undefined>(undefined);
+  const [initiative, setInitiative] = useState<InitiativeRules | undefined>(undefined);
   const [systemPresetId, setSystemPresetId] = useState<string | undefined>(undefined);
   const [lootBases, setLootBases] = useState<string[]>([]);
   const [lootCurrency, setLootCurrency] = useState('');
@@ -103,6 +109,7 @@ export function useCollectionSettingsDraft(
     loadedResources.current = loaded;
     setResources(loaded);
     setDice(settings.dice);
+    setInitiative(parseInitiativeRules(settings.initiative));
     setSystemPresetId(settings.systemPresetId);
     setLootBases(settings.lootBases ?? []);
     setLootCurrency(settings.lootCurrency ?? '');
@@ -118,9 +125,10 @@ export function useCollectionSettingsDraft(
     setDefaultWidgets(rules.defaultWidgets);
     setDice(rules.dice);
     setDefaultTokenVision(rules.defaultTokenVision);
-    // The collection reads its preset's senses and light presets until they are edited.
+    // The collection reads its preset's senses, light presets and initiative rules until they are edited.
     setSenses(undefined);
     setLightPresets(undefined);
+    setInitiative(undefined);
     setSystemPresetId(preset.id);
   };
 
@@ -134,6 +142,7 @@ export function useCollectionSettingsDraft(
     setDefaultTokenVision(vanilla.defaultTokenVision);
     setSenses(vanilla.senses);
     setLightPresets(vanilla.lightPresets);
+    setInitiative(vanilla.initiative);
     setSystemPresetId(undefined);
   };
 
@@ -148,6 +157,7 @@ export function useCollectionSettingsDraft(
       conditions,
       resources: saved,
       ...(dice && { dice: { ...dice, defaultRoll: dice.defaultRoll.trim() } }),
+      initiative: initiative && savedInitiativeRules(initiative),
       // Trimmed, with the field as label where none was typed.
       customCreatureFilters: parseCreatureFilters(customCreatureFilters),
       hiddenCreatureFilters,
@@ -166,6 +176,7 @@ export function useCollectionSettingsDraft(
     conditions, setConditions,
     resources, setResources,
     dice, setDice,
+    initiative, setInitiative,
     customCreatureFilters, setCustomCreatureFilters,
     hiddenCreatureFilters, setHiddenCreatureFilters,
     systemPresetId, setSystemPresetId,

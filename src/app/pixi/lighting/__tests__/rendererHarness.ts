@@ -112,8 +112,15 @@ export async function createHarness({ patch = {}, holdFirstDecode = false, failF
     exploredMask: await fullMask(renderer),
     heldTokens: {},
     setExploredMask,
+    exploredEdits: 0,
+    // As the store counts an edit of the memory, or takes one back.
+    setExploredEdits: (exploredEdits: number): void => change({ exploredEdits }),
     ...patch,
   } as unknown as ViewAtlasState;
+  const change = (next: Record<string, unknown>): void => {
+    Object.assign(state, next);
+    for (const listener of listeners) listener(state);
+  };
 
   let releaseFirstDecode = (): void => undefined;
   const gate = new Promise<void>((resolve) => (releaseFirstDecode = resolve));
@@ -151,10 +158,7 @@ export async function createHarness({ patch = {}, holdFirstDecode = false, failF
     lighting,
     state,
     setExploredMask,
-    change: (next) => {
-      Object.assign(state, next);
-      for (const listener of listeners) listener(state);
-    },
+    change,
     redAt: (x, y) => readRgba(renderer, explored().texture)[(y * explored().texture.width + x) * 4]!,
     settle: async () => {
       await Promise.allSettled(decodes.mock.results.map((result) => result.value as Promise<void>));

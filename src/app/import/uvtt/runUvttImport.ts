@@ -1,4 +1,5 @@
 import { Notice, type App } from 'obsidian';
+import { dynamicLightingOn } from '../../experimental/experimentalFeatures';
 import { IMAGE_PRESETS, optimizeImage } from '../../imageProcessing/imageProcessing';
 import type { AssetService } from '../../services/AssetService';
 import { AssetThumbnailService, THUMBNAIL_SPEC } from '../../services/AssetThumbnailService';
@@ -9,9 +10,13 @@ const PROBLEM_NOTICE_MS = 12_000;
 
 const counted = (count: number, one: string): string => `${count.toLocaleString('en-US')} ${one}${count === 1 ? '' : 's'}`;
 
-/** What an import brought, for its notice: `Imported "Crypt": 412 walls, 9 doors, 14 lights.` */
-export function uvttImportSummary({ name, counts, lightsOff, scaledDown }: UvttImported): string {
+/**
+ * What an import brought, for its notice: `Imported "Crypt": 412 walls, 9 doors, 14 lights.`
+ * With dynamic lighting switched off the scene shows none of them, which the notice then says.
+ */
+export function uvttImportSummary({ name, counts, lightsOff, scaledDown }: UvttImported, lightingOn = true): string {
   const parts = [`Imported "${name}": ${counted(counts.walls, 'wall')}, ${counted(counts.doors, 'door')}, ${counted(counts.lights, 'light')}.`];
+  if (!lightingOn) parts.push('They show once you switch on dynamic lighting under Experimental features in the command palette.');
   if (lightsOff) parts.push('The lights are switched off, because the image already shows their glow.');
   if (scaledDown) parts.push(`The image was scaled down to ${scaledDown.to.width} × ${scaledDown.to.height} pixels.`);
   return parts.join(' ');
@@ -40,7 +45,7 @@ export async function runUvttImport(app: App, assetService: AssetService, files:
     progress.hide();
     if (result.ok) {
       imported.push(result);
-      new Notice(uvttImportSummary(result));
+      new Notice(uvttImportSummary(result, dynamicLightingOn(app)));
     } else {
       new Notice(`Could not import ${file.name}. ${result.problem}`, PROBLEM_NOTICE_MS);
     }

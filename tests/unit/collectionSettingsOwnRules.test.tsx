@@ -9,6 +9,7 @@ import { AssetService } from '../../src/app/services/AssetService';
 import { SystemPresetService } from '../../src/app/services/SystemPresetService';
 import type { CollectionSettings } from '../../src/app/types/collectionSettingsTypes';
 import { createInMemoryApp } from '../mocks/inMemoryVault';
+import { withDynamicLighting } from '../mocks/experimentalFeatures';
 import { memorySettings } from '../mocks/memorySettings';
 import { AMMO, HP } from '../mocks/resourceFixtures';
 
@@ -29,8 +30,9 @@ const fresh = (): CollectionSettings => ({ ...rulesOfPreset(dnd5e), systemPreset
 
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
-function open(settings: CollectionSettings): { saved: () => Partial<CollectionSettings> | undefined } {
+function open(settings: CollectionSettings, lighting = true): { saved: () => Partial<CollectionSettings> | undefined } {
   const { app } = createInMemoryApp({ files: {} });
+  if (lighting) withDynamicLighting(app);
   let written: Partial<CollectionSettings> | undefined;
   const assets = {
     getCollectionSettings: () => settings,
@@ -91,6 +93,16 @@ describe('the collection settings modal and what a collection has of its own', (
     expect(saved()!.defaultWidgets).toMatchObject({ hpBar: true });
   });
 
+  it('has no Vision tab while dynamic lighting is switched off, and a save keeps what the collection has of its own', async () => {
+    const all = Object.assign({}, ...Object.values(edits)) as Partial<CollectionSettings>;
+    const { saved } = open({ ...fresh(), ...all }, false);
+    await waitFor(() => expect(within(activeRow()).getByText('Edited')).toBeTruthy());
+    expect(screen.queryByRole('button', { name: 'Vision' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Conditions' })).toBeTruthy();
+    await save();
+    expect(saved()).toMatchObject(all);
+  });
+
   it('applying the system again drops own senses, lights and default vision, takes the system\'s resources, and is not edited', async () => {
     const all = Object.assign({}, ...Object.values(edits)) as Partial<CollectionSettings>;
     const { saved } = open({ ...fresh(), ...all });
@@ -104,3 +116,50 @@ describe('the collection settings modal and what a collection has of its own', (
     expect(saved()!.resources?.map((resource) => resource.key)).toEqual(['hp']);
   });
 });
+
+describe('the collection settings modal and the initiative rules', () => {
+  const cairn = BUILT_IN_SYSTEM_PRESETS.find((preset) => preset.name === 'Cairn')!;
+  const rollField = (): HTMLInputElement => screen.getByLabelText<HTMLInputElement>('Initiative Roll');
+  const type = (value: string): void => { fireEvent.change(rollField(), { target: { value } }); };
+  const openWidgets = async (settings: CollectionSettings): Promise<{ saved: () => Partial<CollectionSettings> | undefined }> => {
+    const opened = open(settings);
+    await waitFor(() => expect(activeRow()).toBeTruthy());
+    fireEvent.click(screen.getByRole('button', { name: 'Default Widgets' }));
+    return opened;
+  };
+
+  it('keeps a roll as it is typed, cannot save half of one, and stores the finished roll as the collection\'s own', async () => {
+    const { saved } = await openWidgets(fresh());
+    expect(rollField().value).toBe('1d20');
+
+    type('1d');
+    expect(rollField().value).toBe('1d');
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Save' }).disabled).toBe(true);
+
+    type('1d10 ');
+    expect(rollField().value).toBe('1d10 ');
+    await save();
+    expect(saved()?.initiative).toEqual({ mode: 'turn-order', roll: '1d10', firstSide: 'players' });
+  });
+
+  it('stores nothing once the rules are the game system\'s again', async () => {
+    const { saved } = await openWidgets(fresh());
+    type('2d6');
+    type('1d20');
+    await save();
+    expect(saved()).toHaveProperty('initiative', undefined);
+  });
+
+  it('shows a Cairn collection by sides without a roll, and as not edited', async () => {
+    const { saved } = open({ ...rulesOfPreset(cairn), systemPresetId: cairn.id } as CollectionSettings);
+    const cairnRow = (): HTMLElement => screen.getByRole('radio', { name: /Cairn/, checked: true });
+    await waitFor(() => expect(cairnRow()).toBeTruthy());
+    expect(within(cairnRow()).queryByText('Edited')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Default Widgets' }));
+    expect(screen.queryByLabelText('Initiative Roll')).toBeNull();
+    expect(screen.getByText('Acts First')).toBeTruthy();
+    await save();
+    expect(saved()).toHaveProperty('initiative', undefined);
+  });
+});
+

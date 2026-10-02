@@ -57,8 +57,8 @@ describe('VisionTab: what new tokens start with', () => {
 
   it('adds a default sense from the collection\'s senses and gives it a range', () => {
     render(<Harness />);
-    fireEvent.click(screen.getByRole('button', { name: 'Add sense' }));
-    fireEvent.click(within(screen.getByRole('group', { name: 'Senses to add' })).getByRole('button', { name: /^Darkvision/ }));
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Add sense' }), { key: 'ArrowDown' });
+    fireEvent.click(screen.getByRole('menuitem', { name: /^Darkvision/ }));
     expect(saved()).toEqual({ senses: [{ id: darkvision.id }] });
     fireEvent.change(field('Darkvision range'), { target: { value: '60' } });
     expect(saved()).toEqual({ senses: [{ id: darkvision.id, range: 60 }] });

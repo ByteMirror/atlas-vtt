@@ -3,6 +3,8 @@
  * Baldur's Gate 3-inspired initiative system for combat tracking
  */
 
+import type { InitiativeSide } from './initiativeRulesTypes';
+
 /**
  * Configuration for the initiative tracker
  */
@@ -44,6 +46,9 @@ export interface InitiativeEntry {
 
   /** Order in the initiative list (for manual reordering) */
   order: number;
+
+  /** Does not act in the running round (Cairn: a failed DEX save in round 1); cleared when the round ends. */
+  sitsOut?: boolean;
 }
 
 /**
@@ -65,8 +70,11 @@ export interface InitiativeState {
   /** Configuration for initiative calculation */
   config: InitiativeConfig;
 
-  /** Token IDs explicitly removed — auto-sync skips these */
-  removedTokenIds: string[];
+  /**
+   * Set while a fight runs by sides: the side that acts first in a round and the one whose
+   * turn it is. A fight keeps the mode it was started in, whatever the collection's rules say since.
+   */
+  sides?: { first: InitiativeSide; active: InitiativeSide };
 }
 
 /**
@@ -85,5 +93,4 @@ export const createDefaultInitiativeState = (): InitiativeState => ({
   round: 0,
   isActive: false,
   config: { ...DEFAULT_INITIATIVE_CONFIG },
-  removedTokenIds: [],
 });

@@ -3,7 +3,8 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { AnimatePresence, motion } from 'framer-motion';
 import type { AnyAsset } from '../types';
 import { useGridMetrics } from './useGridMetrics';
-import { cellTransform, enterTransition, exitingCell, hiddenCell, moveTransition } from './gridMotion';
+import { cellTransform, cellVariants, enterTransition, hiddenCell, moveTransition } from './gridMotion';
+import { cardMask, measureCard, sameCardLayout, unmountedRegions, type CardLayout } from './gridSkeleton';
 
 /** Name row, paddings and inner gap below the square artwork, until a card has been measured. */
 const CARD_EXTRA_HEIGHT = 44;
@@ -38,6 +39,10 @@ export interface VirtualAssetGridProps {
  * its element when the order changes and can glide to its new cell. Cards
  * that mount because the list changed fade in; cards that mount because the
  * user scrolled appear as they are.
+ *
+ * Scrolling is drawn before the grid renders again, so the rows around the
+ * mounted ones show placeholders: one masked element per stretch, tiled with a
+ * card's shape, which costs nothing while it scrolls.
  */
 export function VirtualAssetGrid({
   assets, scrollElement, renderCard, onBackgroundClick, appear = false,
@@ -46,6 +51,7 @@ export function VirtualAssetGrid({
   const { columns, gap, cardWidth } = useGridMetrics(containerRef);
   const assetType = assets[0]?.type;
   const [extraHeight, setExtraHeight] = useState(() => (assetType && cardExtraHeights.get(assetType)) ?? CARD_EXTRA_HEIGHT);
+  const [cardLayout, setCardLayout] = useState<CardLayout | null>(null);
   const rowHeight = cardWidth + extraHeight;
   const rowPitch = rowHeight + gap;
 
@@ -92,7 +98,18 @@ export function VirtualAssetGrid({
     const measured = card.offsetHeight - cardWidth;
     cardExtraHeights.set(assetType, measured);
     setExtraHeight(measured);
+    const layout = measureCard(card);
+    setCardLayout((previous) => (sameCardLayout(previous, layout) ? previous : layout));
   }, [cardWidth, hasCards, assetType]);
+
+  const pitchX = cardWidth + gap;
+  const mask = cardLayout && assetType ? cardMask(assetType, cardLayout, cardWidth, pitchX, rowPitch) : undefined;
+  const maskSize = `${pitchX}px ${rowPitch}px`;
+  const rest = mask ? unmountedRegions({
+    firstRow: rows[0]?.index ?? null,
+    lastRow: rows[rows.length - 1]?.index ?? null,
+    assetCount: assets.length, columns, pitchX, pitchY: rowPitch, gap,
+  }) : [];
 
   return (
     <div
@@ -101,9 +118,18 @@ export function VirtualAssetGrid({
       style={{ height: virtualizer.getTotalSize() }}
       onClick={onBackgroundClick}
     >
-      <AnimatePresence>
+      {rest.map((region) => (
+        <div
+          key={region.top}
+          className="atlas-asset-grid-rest"
+          style={{ ...region, WebkitMaskImage: mask, maskImage: mask, WebkitMaskSize: maskSize, maskSize }}
+          aria-hidden="true"
+        />
+      ))}
+      {/* Without `presenceAffectsLayout` a render tells only the cards that leave, not the subtree of every card. */}
+      <AnimatePresence custom={listChanged} presenceAffectsLayout={false}>
         {visibleAssets.map(({ asset, column, row, y }) => {
-          const x = column * (cardWidth + gap);
+          const x = column * pitchX;
           const entering = listChanged && !shownIds.current.has(asset.id);
           return (
             <motion.div
@@ -112,7 +138,8 @@ export function VirtualAssetGrid({
               style={{ width: cardWidth }}
               initial={entering ? hiddenCell(x, y) : false}
               animate={{ opacity: 1, transform: cellTransform(x, y) }}
-              exit={exitingCell(x, y)}
+              variants={cellVariants(x, y)}
+              exit="exit"
               transition={entering ? enterTransition(row - firstVisibleRow + column) : moveTransition(listChanged)}
             >
               {renderCard(asset)}

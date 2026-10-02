@@ -190,7 +190,7 @@ function regionsOf(source: SightSource, walls: readonly WallSegment[]): SightReg
   const polygons = new Map<string, Polygon>();
   const polygonOf = (radius: number, eyes: boolean): Polygon => {
     const key = `${radius}|${eyes}`;
-    const polygon = polygons.get(key) ?? computeVisibility(origin, radius, walls, eyes ? cone : undefined);
+    const polygon = polygons.get(key) ?? computeVisibility(origin, radius, walls, eyes ? cone : undefined, 'sight');
     polygons.set(key, polygon);
     return polygon;
   };
@@ -232,11 +232,11 @@ export function computeSight(sources: readonly SightSource[], walls: readonly Wa
 }
 
 /**
- * Where a light at `origin` reaches: its `dim` radius clipped by `walls` and, for a light that
+ * Where a light at `origin` reaches: its `dim` radius clipped by the `walls` that block light and, for a light that
  * shines one way, by its cone (with its own space around it). Without `bright` it has no bright part.
  */
 export function lightReach(origin: Point, dim: number, walls: readonly WallSegment[], bright = 0, kind: LightReachKind = {}): LightReach {
-  return { origin, bright, dim, polygon: computeVisibility(origin, dim, walls, kind.cone), ...kindOf(kind) };
+  return { origin, bright, dim, polygon: computeVisibility(origin, dim, walls, kind.cone, 'light'), ...kindOf(kind) };
 }
 
 /** The fields of `kind` that say something: a light without them is stored as it always was. */

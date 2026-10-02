@@ -3,10 +3,10 @@ import type { Asset, AssetService, GroupTokenRef } from '../AssetService';
 import { isPersistedMapEnvelope, type PersistedMapEnvelope } from '../MapPersistence';
 import { SceneSnapshotService } from '../../snapshots/SceneSnapshotService';
 import { isRecord } from '../assetMetadataGuards';
-import { imageReference, localImage } from '../statblockImportCandidates';
+import { localImage, statblockImageField } from '../statblockImportCandidates';
 import { linkedFilePath } from '../sceneLinks';
 import { readLootBaseItems } from '../../loot/lootBaseItems';
-import type { BundleFile, BundleFileRole, StatblockImageKey } from './bundleFormat';
+import type { BundleFile, BundleFileRole } from './bundleFormat';
 
 /** The scene thumbnail lives next to its map file. */
 export const sceneThumbnailPath = (mapPath: string): string => mapPath.replace(/\.atlasmap$/, '.thumb.jpg');
@@ -174,13 +174,11 @@ export class CollectionReferenceCollector {
     const note = this.app.vault.getAbstractFileByPath(notePath);
     const entry = this.files.get(notePath);
     if (!(note instanceof TFile) || !entry) return;
-    const frontmatter: Record<string, unknown> = this.app.metadataCache.getFileCache(note)?.frontmatter ?? {};
-    const key: StatblockImageKey = imageReference(frontmatter.image) ? 'image' : 'token-image';
-    const reference = imageReference(frontmatter[key]);
-    const image = reference ? localImage(this.app, reference, notePath) : null;
-    if (!image) return;
+    const field = statblockImageField(this.app.metadataCache.getFileCache(note)?.frontmatter ?? {});
+    const image = field ? localImage(this.app, field.reference, notePath) : null;
+    if (!field || !image) return;
     this.add(image.path, 'statblock-image', entry.owners);
-    entry.statblockImage = { key, path: image.path };
+    entry.statblockImage = { key: field.key, path: image.path };
   }
 
   /** Records a file in a hidden folder, which the vault index does not list; the caller already found it on disk. */

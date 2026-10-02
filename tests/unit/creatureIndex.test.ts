@@ -38,6 +38,25 @@ describe('CreatureIndex', () => {
     expect(current.getBestiaryCreatures).toHaveBeenCalledTimes(1);
   });
 
+  it('gives the browser a turn while it resolves a large library from the bestiary', async () => {
+    const paths = Array.from({ length: 400 }, (_, number) => `Bestiary/Creature ${number}.md`);
+    for (const path of paths) current.bestiary.push({ name: path, path });
+    // Every note takes a millisecond; none of them needs a read, so nothing else would interrupt the batch.
+    let now = 0;
+    const clock = vi.spyOn(performance, 'now').mockImplementation(() => (now += 1));
+    const index = CreatureIndex.forApp(current.app);
+    let turns = 0;
+    const timer = setInterval(() => { if (index.isPending()) turns += 1; }, 0);
+
+    index.request(paths);
+    await settled(index);
+    clearInterval(timer);
+    clock.mockRestore();
+
+    expect(index.get(paths[399]!)).not.toBeUndefined();
+    expect(turns).toBeGreaterThan(5);
+  });
+
   it('does not resolve a note twice', async () => {
     const index = CreatureIndex.forApp(current.app);
     const read = vi.spyOn(current.app.vault, 'cachedRead');

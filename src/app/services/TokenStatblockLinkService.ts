@@ -8,6 +8,7 @@ import { tokenFromFile, tokenToFile } from '../resources/resourceFileFormat';
 import type { ResourceDefinition } from '../resources/resourceTypes';
 import { startingResources } from '../resources/statblockResourceValues';
 import { isPersistedMapEnvelope } from './MapPersistence';
+import { STATBLOCK_IMAGE_KEYS } from './statblockImageKeys';
 import type { BaseToken, Character } from '../types';
 import { ATLAS_NATIVE_MODAL_CLASSES } from '../ui/nativeModal';
 
@@ -212,7 +213,7 @@ export class TokenStatblockLinkService extends EventEmitter {
         const currentImage = this.readStatblockImage(statblockFile);
         // Path comparison handles differing formats (app:// URLs, relative paths).
         if (currentImage && this.arePathsEquivalent(currentImage, tokenImagePath)) {
-          await this.updateStatblockImage(statblockPath, null);
+          await this.updateStatblockImage(statblockPath, tokenImagePath, false);
         }
       }
     }
@@ -280,14 +281,14 @@ export class TokenStatblockLinkService extends EventEmitter {
   }
 
   /**
-   * The statblock's image. Fantasy Statblocks' `image` is authoritative; the
-   * legacy `token-image` from the removed in-house system is read as a fallback
-   * so statblocks linked before the migration keep working.
+   * The statblock's image. Fantasy Statblocks' `image` is authoritative; a
+   * `token` property and the legacy `token-image` from the removed in-house
+   * system are read where it names none.
    */
   public readStatblockImage(file: TFile): string | null {
     const frontmatter: Record<string, unknown> | undefined = this.app.metadataCache.getFileCache(file)?.frontmatter;
-    const image = frontmatter?.image ?? frontmatter?.['token-image'];
-    return typeof image === 'string' && image.length ? image : null;
+    const images = STATBLOCK_IMAGE_KEYS.map((key) => frontmatter?.[key]);
+    return images.find((image): image is string => typeof image === 'string' && image.length > 0) ?? null;
   }
 
   /**
@@ -297,18 +298,21 @@ export class TokenStatblockLinkService extends EventEmitter {
    * truth. The legacy `token-image` field (from the removed in-house statblock
    * system) is still read elsewhere as a fallback but is no longer written; it
    * is cleared alongside `image` on unlink so a stale value cannot resurface.
+   * A `token` property is the user's own: an unlink clears it only when it
+   * names the token being unlinked.
    */
-  private async updateStatblockImage(statblockPath: string, tokenImagePath: string | null): Promise<void> {
+  private async updateStatblockImage(statblockPath: string, tokenImagePath: string, linked = true): Promise<void> {
     const file = this.app.vault.getAbstractFileByPath(statblockPath);
     if (!(file instanceof TFile)) return;
 
     try {
       await this.app.fileManager.processFrontMatter(file, (frontmatter: Record<string, unknown>) => {
-        if (tokenImagePath) {
+        if (linked) {
           frontmatter.image = tokenImagePath;
         } else {
           delete frontmatter.image;
           delete frontmatter['token-image'];
+          if (typeof frontmatter.token === 'string' && this.arePathsEquivalent(frontmatter.token, tokenImagePath)) delete frontmatter.token;
         }
       });
     } catch (error) {

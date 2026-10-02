@@ -104,9 +104,52 @@ $tracker-width: 96px;
   overflow-y: auto;
   overflow-x: hidden;
   scrollbar-width: none;
+  // The list glides to the turn it follows
+  scroll-behavior: smooth;
+
+  @media (prefers-reduced-motion: reduce) {
+    scroll-behavior: auto;
+  }
 
   &::-webkit-scrollbar {
     display: none;
+  }
+}
+
+// Shown while the tracker has no combatants
+.atlas-initiative-tracker__empty {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+// A side of a fight by sides: its combatants under its name
+.atlas-initiative-side {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.atlas-initiative-side__label {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+// The side whose turn it is: its name and its combatants take the accent
+.atlas-initiative-side--active {
+  .atlas-initiative-side__label {
+    color: var(--interactive-accent);
+  }
+
+  .atlas-initiative-card:not(.atlas-initiative-card--sitting-out) {
+    border-color: var(--interactive-accent);
+    box-shadow: inset 0 0 0 1px var(--interactive-accent);
   }
 }
 
@@ -151,6 +194,16 @@ $tracker-width: 96px;
   &--defeated {
     opacity: 0.45;
     filter: grayscale(70%);
+  }
+
+  // Does not act this round
+  &--sitting-out {
+    opacity: 0.45;
+  }
+
+  // Hidden from the players: translucent, like its token on the map
+  &--hidden .atlas-initiative-card__portrait {
+    opacity: 0.5;
   }
 
   // Preview hover state — subtle highlight (different from active turn)
@@ -206,7 +259,8 @@ $tracker-width: 96px;
   flex-shrink: 0;
 }
 
-.atlas-initiative-card__instance-badge {
+.atlas-initiative-card__instance-badge,
+.atlas-initiative-card__hidden-badge {
   position: absolute;
   bottom: -2px;
   left: -4px;
@@ -228,7 +282,27 @@ $tracker-width: 96px;
   pointer-events: none;
 }
 
-// Avatar
+// The instance badge's twin in the opposite corner; it takes the pointer for its tooltip
+.atlas-initiative-card__hidden-badge {
+  top: -2px;
+  right: -4px;
+  bottom: auto;
+  left: auto;
+  padding: 0;
+  pointer-events: auto;
+
+  svg {
+    width: 12px;
+    height: 12px;
+  }
+}
+
+// The token as the map shows it (`TokenPortrait`): inside its ring, or unframed
+.atlas-initiative-card__portrait {
+  width: 48px;
+}
+
+// Stands in for a token without art
 .atlas-initiative-card__avatar {
   position: relative;
   width: 48px;
@@ -238,12 +312,6 @@ $tracker-width: 96px;
   flex-shrink: 0;
   background: var(--background-secondary);
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
-
-  img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
 
   svg {
     width: 18px;
@@ -259,6 +327,7 @@ $tracker-width: 96px;
 .atlas-initiative-card__defeated-overlay {
   position: absolute;
   inset: 0;
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;

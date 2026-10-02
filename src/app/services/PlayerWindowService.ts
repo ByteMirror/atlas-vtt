@@ -38,8 +38,6 @@ export class PlayerWindowService {
   private store: StoreApi<ViewAtlasState>;
   private settingsService: SettingsService;
   private streamSource: PlayerFrameSource | null = null;
-  /** Ends the watch on what the presented scene's tokens see. */
-  private stopSightWatch: (() => void) | null = null;
   private animationFrame: number | null = null;
   /** Camera the DM froze players on; the presented scene is still rendered live through it. */
   private frozenCamera: PlayerCameraState | null = null;
@@ -123,8 +121,6 @@ export class PlayerWindowService {
     if (!this.streamSource || this.streamSource.store !== store) return;
     this.holdCurrentFrame();
     const heldFrame = this.heldFrame ?? createEl('canvas');
-    this.stopSightWatch?.();
-    this.stopSightWatch = null;
     this.streamSource = { canvas: heldFrame, withPlayerSafeFrame: (capture) => capture() };
     this.followSource();
   }
@@ -192,7 +188,7 @@ export class PlayerWindowService {
     this.destroySceneOverlays();
     this.sceneOverlays = [
       new PlayerWidgetBar(this.settingsService),
-      new PlayerInitiativePanel(this.app, this.settingsService, () => this.streamSource?.tokenSight?.()),
+      new PlayerInitiativePanel(this.app, this.settingsService),
       new PlayerDiceRolls(this.app, this.settingsService),
     ];
     this.presentScene();
@@ -363,17 +359,13 @@ export class PlayerWindowService {
     }
   }
 
-  /** Bind the overlays to the view store that now holds the presented scene, and to what its tokens see. */
+  /** Bind the overlays to the view store that now holds the presented scene. */
   private presentScene(): void {
     const store = this.streamSource?.store ?? this.store;
     this.sceneOverlays.forEach((overlay) => overlay.present(store));
-    this.stopSightWatch?.();
-    this.stopSightWatch = this.streamSource?.onTokenSightChange?.(() => this.sceneOverlays.forEach((overlay) => overlay.sightChanged?.())) ?? null;
   }
 
   private destroySceneOverlays(): void {
-    this.stopSightWatch?.();
-    this.stopSightWatch = null;
     this.sceneOverlays.forEach((overlay) => overlay.destroy());
     this.sceneOverlays = [];
   }

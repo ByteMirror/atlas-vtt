@@ -1,5 +1,7 @@
+import { LIMITED_WALLS } from '../../featureFlags';
 import { readLight, readWall } from '../../lighting/lightingObjects';
 import type { ViewAtlasStore } from '../../storeFactory';
+import type { WallChannel } from '../../types/wallTypes';
 import { openContextMenuGlobal, type ContextMenuEntry } from '../../react/root/ContextMenuContext';
 import type { WallInteraction } from '../vision/WallInteraction';
 import type { WallRenderer } from '../vision/WallRenderer';
@@ -55,9 +57,9 @@ export function showWallMenu(context: LightingMenuContext, worldX: number, world
     return;
   }
 
-  // A right-click on an unselected wall selects it first
+  // A right-click on an unselected wall selects it first, alone. Not as a press would: that opens a door, and takes hold of a wall's end.
   const hitWallId = wallRenderer.hitTestWalls(worldX, worldY) ?? wallRenderer.hitTestVertices(worldX, worldY)?.wallId;
-  if (hitWallId && !walls.getSelectedWallIds().includes(hitWallId)) walls.handlePointerDown(worldX, worldY, false);
+  if (hitWallId && !walls.getSelectedWallIds().includes(hitWallId)) walls.selectWallChain(hitWallId, false);
   if (!walls.hasSelection()) return;
 
   const selected = walls.getSelectedWallIds();
@@ -79,7 +81,7 @@ export function showWallMenu(context: LightingMenuContext, worldX: number, world
     type: 'item',
     label,
     checked: directions.size === 1 && directions.has(value ?? 'both'),
-    onClick: () => walls.setSelectedDirection(value),
+    onClick: () => walls.updateSelected({ direction: value }),
   });
   entries.push({
     type: 'submenu',
@@ -87,6 +89,26 @@ export function showWallMenu(context: LightingMenuContext, worldX: number, world
     icon: 'arrow-left-right',
     children: [direction('Block both sides', undefined), direction('Allow from left', 'left'), direction('Allow from right', 'right')],
   });
+
+  // What the selected walls block, as they are read (a kind that is none reads as both).
+  const kinds = new Set(selected.map((id) => readWall(allWalls[id])?.blocks ?? 'both'));
+  const blocks = (label: string, value: WallChannel | undefined): ContextMenuEntry => ({
+    type: 'item',
+    label,
+    checked: kinds.size === 1 && kinds.has(value ?? 'both'),
+    onClick: () => walls.updateSelected({ blocks: value }),
+  });
+  entries.push({
+    type: 'submenu',
+    label: 'Blocks',
+    icon: 'eye-off',
+    children: [blocks('Sight and light', undefined), blocks('Sight only', 'sight'), blocks('Light only', 'light')],
+  });
+  // A hedge or a low wall: on while every selected wall is limited, and then takes it from all of them.
+  if (LIMITED_WALLS) {
+    const allLimited = selected.every((id) => readWall(allWalls[id])?.limited);
+    entries.push({ type: 'item', label: 'Limited (see past the first)', icon: 'grip-horizontal', checked: allLimited, onClick: () => walls.updateSelected({ limited: allLimited ? undefined : true }) });
+  }
 
   entries.push({
     type: 'item',

@@ -5,7 +5,7 @@
  */
 
 import { HP_RESOURCE, parseResourceDefinitions, withLegacyBars } from '../resources/resourceDefinitions';
-import { isValidRangeBandThreshold } from '../grid/measurementFormat';
+import { isValidConeAngle, isValidRangeBandThreshold } from '../grid/measurementFormat';
 import {
   CONDITION_EFFECTS,
   type CollectionGridDefaults,
@@ -21,6 +21,7 @@ import { WIDGET_ICON_PATHS, resolveWidgetIcon, type WidgetIcon } from '../types/
 import type { AnyWidget } from '../types/widgetTypes';
 import { isValidClockSegments } from '../utils/clockWidget';
 import { CRIT_RULES, isValidDefaultRoll, parseExplodeRule } from './diceRules';
+import { parseInitiativeRules } from './initiativeRules';
 import { parseLightPresets } from './lightPresetValidation';
 import { GENERIC_SENSES } from './senses/generic';
 import { parseSenseDefinitions } from './senseValidation';
@@ -52,7 +53,7 @@ function parseBand(raw: unknown): RangeBand | null {
 
 function parseGridDefaults(raw: unknown): CollectionGridDefaults | null {
   if (!isRecord(raw)) return null;
-  const { unitType, unitDistance, measurementMode, diagonalRule, abstractRangeBands } = raw;
+  const { unitType, unitDistance, measurementMode, diagonalRule, coneAngle, abstractRangeBands } = raw;
   if (!isOneOf(UNIT_TYPES, unitType) || !isOneOf(MEASUREMENT_MODES, measurementMode)) return null;
   if (typeof unitDistance !== 'number' || !(unitDistance > 0)) return null;
   const bands = Array.isArray(abstractRangeBands) ? abstractRangeBands.map(parseBand) : [];
@@ -62,6 +63,7 @@ function parseGridDefaults(raw: unknown): CollectionGridDefaults | null {
     unitDistance,
     measurementMode,
     diagonalRule: isOneOf(DIAGONAL_RULES, diagonalRule) ? diagonalRule : 'equidistant',
+    ...(isValidConeAngle(coneAngle) && { coneAngle }),
     abstractRangeBands: bands as RangeBand[],
   };
 }
@@ -142,6 +144,7 @@ export function parseUserPreset(raw: unknown): SystemPreset | null {
     : [];
   const defaultWidgets = parseEnabledFlags(raw.rules.defaultWidgets);
   const dice = parseDiceRules(raw.rules.dice);
+  const initiative = parseInitiativeRules(raw.rules.initiative);
   // A preset saved before resources existed tracks the bars its default widgets switched on.
   const resources = Array.isArray(raw.rules.resources)
     ? parseResourceDefinitions(raw.rules.resources)
@@ -160,6 +163,7 @@ export function parseUserPreset(raw: unknown): SystemPreset | null {
       ...(widgets.length > 0 && { widgets }),
       ...(Object.keys(defaultWidgets).length > 0 && { defaultWidgets }),
       ...(dice && { dice }),
+      ...(initiative && { initiative }),
       ...(resources.length > 0 && { resources }),
       ...(defaultTokenVision && { defaultTokenVision }),
       ...(senses && { senses }),

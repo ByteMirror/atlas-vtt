@@ -50,6 +50,7 @@ function partializeHistory<S extends HistorySnapshot>(state: S): TrackedSlice<S>
     grid: state.grid,
     background: state.background,
     widgetValues: state.widgetValues,
+    exploredEdits: state.exploredEdits,
   };
 }
 

@@ -46,6 +46,14 @@ describe('captureSceneFrame', () => {
     expect(shown().slice(0, 2)).toEqual([true, true]);
   });
 
+  it('leaves out the door badges only the players\' view shows, which session view has on the canvas, and puts them back', () => {
+    const { markerLayers, lighting } = setup();
+    const playerDoorBadges = { visible: true };
+    const picture = captureSceneFrame({ gmViewLayers: [], markerLayers, lighting: { ...lighting, playerOnlyLayers: () => [playerDoorBadges] } }, FRAME, () => playerDoorBadges.visible);
+    expect(picture).toBe(false);
+    expect(playerDoorBadges.visible).toBe(true);
+  });
+
   it('returns the result of a render with nothing to hide', () => {
     expect(captureSceneFrame({ gmViewLayers: [], markerLayers: [], lighting: undefined }, FRAME, () => 'picture')).toBe('picture');
   });

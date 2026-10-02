@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Container } from 'pixi.js';
-import { PerceptionMemo, playerLightingLayers, playerTokenSight, tokenPerception, type GmOverlays } from '../playerLightingLayers';
+import { PerceptionMemo, playerDoorSight, playerLightingLayers, playerTokenSight, tokenPerception, type GmOverlays } from '../playerLightingLayers';
 import { hiddenTokenLayers } from '../../playerSafeFrame';
 import { computeSight, lightReach, sightSources, type LightReach } from '../../../vision/sight';
 import type { Perception } from '../../../vision/perception';
@@ -10,7 +10,7 @@ import type { TokenEntity } from '../../../types';
 
 describe('playerLightingLayers', () => {
   function overlays(): GmOverlays {
-    return { wallEditor: new Container(), lightZones: new Container(), doorBadges: new Container(), lightMarkers: new Container(), rangeRings: new Container(), sightAids: new Container() };
+    return { wallEditor: new Container(), lightZones: new Container(), exploredMemory: new Container(), doorBadges: new Container(), lightMarkers: new Container(), rangeRings: new Container(), sightAids: new Container() };
   }
 
   it('switches the lighting to the player view and hides every GM overlay, light markers, range rings and sight aids included', () => {
@@ -20,6 +20,7 @@ describe('playerLightingLayers', () => {
       { layer: modeLayer, visible: true },
       { layer: gm.wallEditor, visible: false },
       { layer: gm.lightZones, visible: false },
+      { layer: gm.exploredMemory, visible: false },
       { layer: gm.doorBadges, visible: false },
       { layer: gm.lightMarkers, visible: false },
       { layer: gm.rangeRings, visible: false },
@@ -38,11 +39,22 @@ describe('playerLightingLayers', () => {
     expect(playerLightingLayers({ enabled: false, modeLayer, gmOverlays: gm, sensedOutlines })[0]).toEqual({ layer: sensedOutlines, visible: false });
   });
 
+  it('shows the players\' own door badges in their view of a lit scene, in place of the GM\'s, and none on an unlit one', () => {
+    const modeLayer = { visible: false };
+    const playerDoorBadges = new Container();
+    const gm = overlays();
+    const lit = playerLightingLayers({ enabled: true, modeLayer, gmOverlays: gm, playerDoorBadges });
+    expect(lit).toContainEqual({ layer: playerDoorBadges, visible: true });
+    expect(lit).toContainEqual({ layer: gm.doorBadges, visible: false });
+    expect(playerLightingLayers({ enabled: false, modeLayer, gmOverlays: gm, playerDoorBadges })[0]).toEqual({ layer: playerDoorBadges, visible: false });
+  });
+
   it('still hides the GM overlays while the scene has no lighting', () => {
     const gm = overlays();
     expect(playerLightingLayers({ enabled: false, modeLayer: { visible: false }, gmOverlays: gm })).toEqual([
       { layer: gm.wallEditor, visible: false },
       { layer: gm.lightZones, visible: false },
+      { layer: gm.exploredMemory, visible: false },
       { layer: gm.doorBadges, visible: false },
       { layer: gm.lightMarkers, visible: false },
       { layer: gm.rangeRings, visible: false },
@@ -59,6 +71,21 @@ const conditions: ConditionDefinition[] = [
   { id: 'gone', name: 'Undetected', color: '#000000', effect: 'undetected' },
   { id: 'prone', name: 'Prone', color: '#000000' },
 ];
+
+describe('playerDoorSight', () => {
+  const door = { ...wall, id: 'door', type: 'door' as const, closed: true };
+  const view = (enabled: boolean): Parameters<typeof playerDoorSight>[0] => ({
+    isEnabled: () => enabled,
+    currentSight: () => computeSight([{ tokenId: 'hero', origin: { x: 100, y: 100 }, range: 1000, senses: [] }], [door]),
+    ambientLight: () => ({ ambient: 1 }),
+    lightReaches: () => [],
+  });
+
+  it('is the doors the players\' sight and the scene\'s light show, and none while the scene is unlit', () => {
+    expect([...playerDoorSight(view(true), { door })]).toEqual(['door']);
+    expect([...playerDoorSight(view(false), { door })]).toEqual([]);
+  });
+});
 
 describe('tokenPerception', () => {
   const tokens: Record<string, TokenEntity> = {

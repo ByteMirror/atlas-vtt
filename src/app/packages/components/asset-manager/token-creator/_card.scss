@@ -184,24 +184,12 @@
   }
 }
 
-.atlas-token-card__busy {
+// Holds the art's place while the upload is converted, under the crop mask and the ring.
+.atlas-token-card__pending {
   position: absolute;
   inset: 0;
-  z-index: 3;
-  @include atlas-flex-col($gap: $spacing-xs);
-  align-items: center;
-  justify-content: center;
-  background: color-mix(in oklch, var(--mono-0) 45%, transparent);
-  backdrop-filter: blur(3px);
-  color: var(--text-normal);
-  font-size: $font-ui-smaller;
-  font-weight: $font-weight-medium;
-
-  svg {
-    width: $icon-m;
-    height: $icon-m;
-    animation: atlas-spin 700ms linear infinite;
-  }
+  border-radius: 0;
+  pointer-events: none;
 }
 
 .atlas-token-card__badge {

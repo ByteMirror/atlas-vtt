@@ -31,3 +31,21 @@ export function plugs(ends: readonly Point[], reach: number): { id: string; p1: 
     return Array.from({ length: PLUG_SIDES }, (_, k) => ({ id: `seal:plug:${cell}:${k}`, p1: corner(k), p2: corner(k + 1) }));
   });
 }
+
+/** The bridges from `point` whose landings are corners of the convex hull of the point and all the landings. */
+export function farthest<T extends { landing: Point }>(point: Point, bridges: readonly T[]): T[] {
+  const corners: { at: Point; bridge: T | null }[] = [{ at: point, bridge: null }, ...bridges.map((candidate) => ({ at: candidate.landing, bridge: candidate }))];
+  corners.sort((a, b) => a.at.x - b.at.x || a.at.y - b.at.y);
+  // Andrew's monotone chain; a landing on a line between two others is no corner.
+  const turnsLeft = (o: Point, a: Point, b: Point): boolean => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x) > 1e-9;
+  const half = (order: typeof corners): typeof corners => {
+    const hull: typeof corners = [];
+    for (const corner of order) {
+      while (hull.length >= 2 && !turnsLeft(hull[hull.length - 2]!.at, hull[hull.length - 1]!.at, corner.at)) hull.pop();
+      hull.push(corner);
+    }
+    return hull;
+  };
+  const hull = new Set([...half(corners), ...half([...corners].reverse())]);
+  return bridges.filter((candidate) => [...hull].some((corner) => corner.bridge === candidate));
+}

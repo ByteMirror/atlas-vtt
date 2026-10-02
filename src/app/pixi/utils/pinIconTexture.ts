@@ -14,16 +14,16 @@ export function createPinIconTexture(id: PinIconId): Texture | null {
   return createGlyphTexture(PIN_ICON_PATHS[id]);
 }
 
-/** The white raster of a glyph path drawn on the icons' 512×512 canvas, with mipmaps. */
-export function createGlyphTexture(path: string): Texture | null {
+/** The white raster of a glyph path drawn on the icons' 512×512 canvas, `size` pixels wide, with mipmaps. */
+export function createGlyphTexture(path: string, size: number = PIN_ICON_TEXTURE_SIZE): Texture | null {
   const canvas = createEl('canvas');
-  canvas.width = PIN_ICON_TEXTURE_SIZE;
-  canvas.height = PIN_ICON_TEXTURE_SIZE;
+  canvas.width = size;
+  canvas.height = size;
   const ctx = canvas.getContext('2d');
   if (!ctx) return null;
 
   ctx.fillStyle = '#ffffff';
-  ctx.scale(PIN_ICON_TEXTURE_SIZE / ICON_SPACE, PIN_ICON_TEXTURE_SIZE / ICON_SPACE);
+  ctx.scale(size / ICON_SPACE, size / ICON_SPACE);
   ctx.fill(new Path2D(path));
 
   // Mipmaps keep the glyph clean when the map is zoomed out and markers grow small on screen

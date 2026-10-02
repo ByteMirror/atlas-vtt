@@ -6,16 +6,16 @@
 // Asset Manager – Header toolbar
 // ═══════════════════════════════════════════════════════════════════════════
 // One row: [navigation + selection] [asset type] [search · sort · folder · create].
-// The header's own width decides how compact it gets, since the sidebar takes a
-// varying share of the window: first the tabs fold into a menu, then the search
-// into a button, then the sort into a menu. Only the narrowest headers wrap.
+// No column is narrower than its controls, so they can not slide over each
+// other: columns that are too wide leave the toolbar, which `useHeaderCompaction`
+// measures. It then sets `data-compact` step by step until they fit: first the
+// tabs fold into a menu, then the search into a button, then the sort into a
+// menu, and at last the groups wrap onto rows. No width is written down here.
 
 .atlas-asset-manager-header {
-  container: atlas-am-header / inline-size;
   position: relative;
   // Above the body (z-index 1), so the menus and search popovers that drop
-  // below the header take clicks. Before Chromium 129 (Obsidian's Electron 28)
-  // a query container is its own stacking context, which trapped them under it.
+  // below the header take clicks.
   z-index: 2;
   padding: $spacing-m;
   border-bottom: $border-width-s solid var(--divider-color);
@@ -24,16 +24,27 @@
 
 .atlas-am-toolbar {
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  grid-template-columns: minmax(max-content, 1fr) max-content minmax(max-content, 1fr);
   align-items: center;
   gap: $spacing-m;
 
-  @container atlas-am-header (width < #{$header-wrap-width}) {
-    grid-template-columns: minmax(0, 1fr) auto;
+  // Rows instead of columns: navigation and actions share the first while they
+  // fit side by side, the asset type takes the last.
+  &[data-compact~='wrap'] {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+
+    .atlas-am-toolbar-right {
+      margin-left: auto;
+    }
 
     .atlas-am-toolbar-center {
-      grid-row: 2;
-      grid-column: 1 / -1;
+      order: 1;
+      flex: 0 0 100%;
+      display: flex;
+      justify-content: center;
+      min-width: 0;
     }
   }
 }
@@ -43,18 +54,12 @@
   @include atlas-flex-row($gap: $spacing-xs);
 }
 
-// Never narrower than its buttons, so the centre can not slide over them.
-.atlas-am-toolbar-left {
-  min-width: max-content;
-}
-
 .atlas-am-toolbar-right {
   justify-content: flex-end;
 }
 
 .atlas-am-toolbar-center {
   justify-self: center;
-  min-width: 0;
 }
 
 .atlas-am-toolbar-divider {
@@ -107,8 +112,6 @@
   }
 }
 
-@container atlas-am-header (width < #{$header-sort-inline-width}) {
-  .atlas-selection-label {
-    display: none;
-  }
+.atlas-am-toolbar[data-compact~='sort'] .atlas-selection-label {
+  display: none;
 }

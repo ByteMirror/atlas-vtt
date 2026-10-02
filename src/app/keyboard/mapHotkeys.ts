@@ -1,4 +1,5 @@
-import { AMBIENT_AUDIO_ENABLED, WALLS_AND_LIGHTING_ENABLED } from '../featureFlags';
+import type { ExperimentalFeatureId } from '../experimental/experimentalFeatures';
+import { AMBIENT_AUDIO_ENABLED } from '../featureFlags';
 import { isActiveAtlasLeaf } from '../utils/activeLeafGuard';
 import { handledByAnotherControl } from './tooltipEscape';
 import type { SettingsService } from '../services/SettingsService';
@@ -11,7 +12,7 @@ export const MAP_HOTKEYS = [
   { id: 'dashboard', label: 'DM screen', group: 'Map', defaultKey: 'Tab', dmOnly: true },
   { id: 'gmView', label: 'Toggle GM view', group: 'Map', defaultKey: 'd', dmOnly: true },
   { id: 'sceneSwitcher', label: 'Switch between open maps', group: 'Map', defaultKey: 'g', dmOnly: true },
-  { id: 'lightingPeek', label: 'Hold to see what the players see', group: 'Map', defaultKey: 'h', dmOnly: true, enabled: WALLS_AND_LIGHTING_ENABLED },
+  { id: 'lightingPeek', label: 'Hold to see what the players see', group: 'Map', defaultKey: 'h', dmOnly: true, experimental: 'dynamicLighting' },
   { id: 'fitMap', label: 'Fit map to view', group: 'Map', defaultKey: 'Shift+1' },
   { id: 'fitToken', label: 'Zoom to selected token', group: 'Map', defaultKey: 'Shift+2' },
   { id: 'move', label: 'Move / selection tools', group: 'Tools', defaultKey: 'v' },
@@ -21,7 +22,7 @@ export const MAP_HOTKEYS = [
   { id: 'text', label: 'Text tool', group: 'Tools', defaultKey: 't', dmOnly: true },
   { id: 'measure', label: 'Measure tools', group: 'Tools', defaultKey: 'm' },
   { id: 'pin', label: 'Note pin', group: 'Tools', defaultKey: 'p', dmOnly: true },
-  { id: 'wall', label: 'Lighting (walls and lights)', group: 'Tools', defaultKey: 'w', dmOnly: true, enabled: WALLS_AND_LIGHTING_ENABLED },
+  { id: 'wall', label: 'Lighting (walls and lights)', group: 'Tools', defaultKey: 'w', dmOnly: true, experimental: 'dynamicLighting' },
   { id: 'audio', label: 'Ambient audio', group: 'Tools', defaultKey: 's', dmOnly: true, enabled: AMBIENT_AUDIO_ENABLED },
   { id: 'selectAll', label: 'Select all tokens', group: 'Editing', defaultKey: 'Mod+a', dmOnly: true },
   { id: 'copy', label: 'Copy selection', group: 'Editing', defaultKey: 'Mod+c', dmOnly: true, yieldsToTextSelection: true },
@@ -53,7 +54,9 @@ export type MapHotkeyId = MapHotkey['id'];
 export type HeldWidgetHotkeyId = Extract<MapHotkey, { whileWidgetHeld: true }>['id'];
 export type MapHotkeys = Record<MapHotkeyId, string>;
 export const DEFAULT_MAP_HOTKEYS = Object.fromEntries(MAP_HOTKEYS.map(h => [h.id, h.defaultKey])) as MapHotkeys;
-export const availableHotkeys = (player = false) => MAP_HOTKEYS.filter(h => !('enabled' in h && !h.enabled) && !(player && 'dmOnly' in h && h.dmOnly));
+/** The shortcuts on offer: `isOn` leaves out those of experimental features that are switched off. */
+export const availableHotkeys = (player = false, isOn: (feature: ExperimentalFeatureId) => boolean = () => true) => MAP_HOTKEYS.filter(h =>
+  !('enabled' in h && !h.enabled) && !('experimental' in h && !isOn(h.experimental)) && !(player && 'dmOnly' in h && h.dmOnly));
 
 export const hotkeyAction = (id: MapHotkeyId): MapHotkey => MAP_HOTKEYS.find(action => action.id === id)!;
 const runsWhileWidgetHeld = (action: MapHotkey): boolean => 'whileWidgetHeld' in action;

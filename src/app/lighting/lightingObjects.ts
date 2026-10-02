@@ -1,3 +1,4 @@
+import { LIMITED_WALLS } from '../featureFlags';
 import { isRecord } from '../services/assetMetadataGuards';
 import type { LightEmission, LightSource } from '../types/lightingTypes';
 import type { WallSegment } from '../types/wallTypes';
@@ -73,7 +74,13 @@ export function lightList(record: Record<string, LightSource> | undefined): read
 
 const NO_LIGHTS: readonly LightSource[] = [];
 
-/** A wall: none without two ends that are numbers; a door is locked only where its `locked` is `true`. */
+/**
+ * A wall: none without two ends that are numbers; a door is locked only where its `locked` is
+ * `true`, a wall blocks one thing only where `blocks` names sight or light (anything else
+ * reads as a wall for both), and it is limited only where `limited` is `true` and limited
+ * walls are switched on (`LIMITED_WALLS`): this is the one place that decides it, for sight,
+ * light, the sealing, the engine's fields and masks, the wall editor's look and its menu.
+ */
 export function readWall(value: unknown): WallSegment | null {
   if (!isRecord(value)) return null;
   if (!walls.has(value)) walls.set(value, wallOf(value));
@@ -83,7 +90,10 @@ export function readWall(value: unknown): WallSegment | null {
 function wallOf(value: Record<string, unknown>): WallSegment | null {
   const isEnd = (end: unknown): boolean => isRecord(end) && finite(end.x) && finite(end.y);
   if (typeof value.id !== 'string' || !isEnd(value.p1) || !isEnd(value.p2)) return null;
-  const { locked, ...rest } = value;
-  if (locked === undefined || locked === true) return value as unknown as WallSegment;
-  return rest as unknown as WallSegment;
+  const { locked, blocks, limited, ...rest } = value;
+  const flag = (it: unknown): boolean => it === undefined || it === true;
+  // With limited walls switched off, a wall that says it is limited reads as a wall like any other: it blocks.
+  const isLimited = LIMITED_WALLS && limited === true;
+  if (flag(locked) && (limited === undefined || isLimited) && (blocks === undefined || blocks === 'sight' || blocks === 'light')) return value as unknown as WallSegment;
+  return { ...rest, ...(locked === true && { locked }), ...(isLimited ? { limited: true } : {}), ...((blocks === 'sight' || blocks === 'light') && { blocks }) } as unknown as WallSegment;
 }

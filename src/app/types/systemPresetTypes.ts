@@ -6,6 +6,7 @@
 import type { ResourceDefinition } from '../resources/resourceTypes';
 import type { CollectionGridDefaults, ConditionDefinition } from './collectionSettingsTypes';
 import type { DiceRules } from './diceRulesTypes';
+import type { InitiativeRules } from './initiativeRulesTypes';
 import type { TokenVisionDefaults } from './lightingTypes';
 import type { LightPresetDefinition } from './lightPresetTypes';
 import type { SenseDefinition } from './senseTypes';
@@ -28,6 +29,8 @@ export interface SystemRules {
   defaultWidgets?: Record<string, boolean>;
   /** Default roll and critical rule. Unset means `DEFAULT_DICE_RULES`. */
   dice?: DiceRules;
+  /** How the initiative tracker runs a fight. Unset means `DEFAULT_INITIATIVE_RULES`: a d20 each, highest first. */
+  initiative?: InitiativeRules;
   /** Token resources the system defines, copied on apply like conditions. */
   resources?: ResourceDefinition[];
   /**

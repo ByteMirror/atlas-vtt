@@ -30,23 +30,27 @@ float ${name}Clearance(vec2 w) { return ${name}Distance(w) - ${name}Params.y; }`
 /**
  * Whether the straight path from p to t stays outside every wall. Steps never exceed the
  * conservative clearance, so no wall can be jumped; out of steps counts as blocked.
- * Requires `float clearance(vec2)`.
+ * Requires `float clearance(vec2)`, or the function named, for a program that traces two fields.
  */
-export const TRACE_GLSL = `
-bool reaches(vec2 p, vec2 t) {
+export function traceGlsl(name = 'reaches', clearance = 'clearance'): string {
+  return `
+bool ${name}(vec2 p, vec2 t) {
   vec2 d = t - p;
   float len = length(d);
   if (len < 1e-3) return true;
   vec2 dir = d / len;
   float s = 0.0;
   for (int i = 0; i < ${MAX_STEPS}; i++) {
-    float c = clearance(p + dir * s);
+    float c = ${clearance}(p + dir * s);
     if (c < 0.02) return false;
     if (len - s <= c) return true;
     s += c;
   }
   return false;
 }`;
+}
+
+export const TRACE_GLSL = traceGlsl();
 
 /** Full-target pass: `aPosition` 0..1 covers the target, `vUv` is the texel centre. */
 export const FULLSCREEN_VERTEX = `${GLSL_VERSION}

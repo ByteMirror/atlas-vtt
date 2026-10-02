@@ -32,6 +32,7 @@ export function useRememberedPlace({ isOpen, initialTab, data, sel, place, apply
     const restored = placeToRestore(memory.getPlace(), {
       requestedTab: initialTab,
       mapCollection,
+      defaultCollection: AssetService.defaultCollectionId(),
       folderExists: (folderId, collection, tab) => isFolderOfTab(data.app, folderId, collection, tab),
     });
 
@@ -65,7 +66,7 @@ export function useRememberedPlace({ isOpen, initialTab, data, sel, place, apply
   const { tagsCollection, availableTags } = data;
   const { selectedTagIds, setSelectedTagIds } = sel;
   useEffect(() => {
-    if (tagsCollection !== (place.collection || AssetService.defaultCollectionId())) return;
+    if (tagsCollection !== place.collection) return;
     const known = new Set(availableTags.map((tag) => tag.id));
     if (selectedTagIds.some((id) => !known.has(id))) setSelectedTagIds((ids) => ids.filter((id) => known.has(id)));
   }, [tagsCollection, availableTags, place.collection, selectedTagIds, setSelectedTagIds]);

@@ -7,7 +7,7 @@ import { heldForSight, holdTokens } from '../../src/app/lighting/sightOnDrop';
 import { getHistoryStore } from '../../src/app/stores/history';
 import type { MeasurementSettings } from '../../src/app/grid/measurementFormat';
 import type { TokenEntity } from '../../src/app/types';
-import type { LightEmission, SceneLighting } from '../../src/app/types/lightingTypes';
+import type { LightEmission, SceneLighting, SceneLightingChanges } from '../../src/app/types/lightingTypes';
 import type { WallSegment } from '../../src/app/types/wallTypes';
 import type { ExploredShapes } from '../../src/app/vision/exploredShapes';
 import { SEES_ALL, type LightReach, type Sight } from '../../src/app/vision/sight';
@@ -98,14 +98,15 @@ interface Scene {
 
 let now = 0;
 
-function createScene(tokens: TokenEntity[], lighting: Partial<SceneLighting> = {}): Scene {
+function createScene(tokens: TokenEntity[], lighting: SceneLightingChanges = {}): Scene {
   const { app } = createInMemoryApp();
   const store = createViewAtlasStore(app, `sight-on-drop-${Math.random()}`);
   store.setState({
     persistenceEnabled: false,
     objects: { ...store.getState().objects, walls: WALLS, tokens: Object.fromEntries(tokens.map((entry) => [entry.id, entry])) },
   });
-  store.getState().setSceneLighting({ enabled: true, ambient: 1, ...lighting });
+  // The scenes here wait for the drop unless a test says otherwise: that is the option under test.
+  store.getState().setSceneLighting({ enabled: true, ambient: 1, sightOnDrop: true, ...lighting });
   getHistoryStore(store)?.getState().clear();
 
   const handlers = new Map<string, (event: unknown) => void>();
@@ -339,15 +340,18 @@ describe('sight on drop', () => {
     expect(rig.sight.polygons[0]).toBe(polygon);
   });
 
-  it('follows the drag as before when the scene switches sight on drop off', () => {
-    const { rig, press, dragTo } = createScene([hero(), token('goblin', RIGHT_CORNER)], { sightOnDrop: false });
-    press('hero');
-    dragTo({ x: 400, y: 300 });
-    expect(rig.sight.origins).toEqual([{ x: 400, y: 300 }]);
-    dragTo(RIGHT_ROOM);
-    expect(rig.sight.origins).toEqual([RIGHT_ROOM]);
-    expect(rig.seen('goblin')).toBe(true);
-    expect(rig.explored(RIGHT_CORNER)).toBe(true);
+  it('follows the drag in a scene that does not wait for the drop: one that says nothing, as by default, or says no', () => {
+    for (const sightOnDrop of [undefined, false]) {
+      const { store, rig, press, dragTo } = createScene([hero(), token('goblin', RIGHT_CORNER)], { sightOnDrop });
+      expect('sightOnDrop' in store.getState().lighting).toBe(sightOnDrop === false);
+      press('hero');
+      dragTo({ x: 400, y: 300 });
+      expect(rig.sight.origins).toEqual([{ x: 400, y: 300 }]);
+      dragTo(RIGHT_ROOM);
+      expect(rig.sight.origins).toEqual([RIGHT_ROOM]);
+      expect(rig.seen('goblin')).toBe(true);
+      expect(rig.explored(RIGHT_CORNER)).toBe(true);
+    }
   });
 
   it('follows at once when the option is switched off in the middle of a drag', () => {

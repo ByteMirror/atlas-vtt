@@ -6,6 +6,7 @@ import { optimizeImage } from '../../src/app/imageProcessing/imageProcessing';
 import { useUvttImport } from '../../src/app/packages/components/asset-manager/hooks/useUvttImport';
 import { AssetService } from '../../src/app/services/AssetService';
 import { cryptFile, cryptSetting } from '../fixtures/uvttFiles';
+import { withDynamicLighting } from '../mocks/experimentalFeatures';
 import { createInMemoryApp, type InMemoryApp } from '../mocks/inMemoryVault';
 
 /**
@@ -58,6 +59,7 @@ beforeEach(async () => {
   vi.stubGlobal('File', NodeFile);
   vi.mocked(optimizeImage).mockImplementation(async (image) => ({ image, thumbnail: new NodeBlob(['THUMB']) as unknown as Blob, preview: null, sourcePreview: null }));
   vault = createInMemoryApp();
+  withDynamicLighting(vault.app);
   Object.assign(vault.app.workspace, { getLeaf: () => ({ openFile }) });
   AssetService.resetInstance();
   assets = AssetService.getInstance(vault.app);

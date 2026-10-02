@@ -71,6 +71,8 @@ export async function createScene({ enabled, noted = null, exploredMask = null, 
     grid: null,
     heldTokens: {},
     setExploredMask,
+    exploredEdits: 0,
+    setExploredEdits: (exploredEdits: number): void => write({ exploredEdits }),
     ...litScene(100, 128),
     lighting: { enabled, ambient: 0 },
     exploredMask,
@@ -89,7 +91,7 @@ export async function createScene({ enabled, noted = null, exploredMask = null, 
     host.beforeMapUnload(); // 'map-unloading'
     write({ isMapLoading: true }); // setMapLoading(true, 0)
     write({ mapPath: path }); // setMapPath
-    write({ lighting: { enabled: false, ambient: 0.1 }, exploredMask: null, objects: { ...state.objects, walls: {}, lights: {}, tokens: {} } }); // clearMapState
+    write({ lighting: { enabled: false, ambient: 0.1 }, exploredMask: null, exploredEdits: 0, objects: { ...state.objects, walls: {}, lights: {}, tokens: {} } }); // clearMapState
     bounds = mapBounds;
     host.refreshBounds(); // the map image is in
     write(saved); // persist.rehydrate

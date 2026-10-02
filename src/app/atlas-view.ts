@@ -2,6 +2,7 @@ import { FileView, WorkspaceLeaf, TFile, normalizePath, ViewStateResult, Notice 
 import { ServiceManager } from './services/ServiceManager';
 import { createViewAtlasStore, ViewAtlasStore } from './storeFactory';
 import { getHistoryStore, runUntracked, type HistoryState } from './stores/history';
+import { withoutExploredEdits } from './stores/exploredEditHistory';
 import { createTabMetaStore, type TabMetaStore } from './stores/tabMetaStore';
 import type { SceneTab } from './types/sceneTabTypes';
 import type AtlasVTTPlugin from '../../main';
@@ -433,15 +434,14 @@ export class AtlasView extends FileView {
    * If closing the active tab, switches to an adjacent tab or closes the view entirely.
    */
 
-  /** Save the current tab's undo/redo history into the temporal cache. */
+  /**
+   * Save the current tab's undo/redo history into the temporal cache, without its edits of the
+   * explored memory: the memory keeps what they changed only until its scene is left.
+   */
   private saveTemporalState(tabId: string): void {
     const history = getHistoryStore(this.store);
     if (!history) return;
-    const { pastStates, futureStates } = history.getState();
-    this.temporalCache.set(tabId, {
-      pastStates: [...pastStates],
-      futureStates: [...futureStates],
-    });
+    this.temporalCache.set(tabId, withoutExploredEdits(history.getState(), this.store.getState()));
   }
 
   /** Restore a tab's undo/redo history from the temporal cache (if any). */

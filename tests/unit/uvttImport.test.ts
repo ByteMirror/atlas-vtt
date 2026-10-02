@@ -19,6 +19,11 @@ import type { WallSegment } from '../../src/app/types/wallTypes';
 import { base64Of, cryptFile, cryptSetting, cryptWith, pngHeader } from '../fixtures/uvttFiles';
 import { createInMemoryApp, interceptWrites, type InMemoryApp } from '../mocks/inMemoryVault';
 
+// Wall-clock bound of the two timed tests here. Sealing an imported map's walls takes a few
+// milliseconds and refusing a hostile file under half a second; joining every pair of 20,000
+// crowded wall ends, which they guard against, took minutes. A machine under load stays below it.
+const SLOW = 15_000;
+
 const COLLECTION = 'Dungeons';
 const SCENES = `atlas-vtt/collections/${COLLECTION}/scenes`;
 const FEET = { unitType: 'feet', unitDistance: 5 } as const;
@@ -282,7 +287,7 @@ describe('importing a Universal VTT file', () => {
     expect(result.counts.walls).toBe(150);
     const started = performance.now();
     sealWalls(walls, sealTolerance(2));
-    expect(performance.now() - started).toBeLessThan(1000);
+    expect(performance.now() - started).toBeLessThan(SLOW);
   });
 
   it('places a wall across a map of one cell on a large image on that image', async () => {
@@ -406,7 +411,7 @@ describe('a Universal VTT file that is refused', () => {
     const started = performance.now();
     const problem = problemOf(await importUvttFile(b.deps, file, COLLECTION));
 
-    expect(performance.now() - started).toBeLessThan(2000);
+    expect(performance.now() - started).toBeLessThan(SLOW);
     expect(problem).toBe('The walls in the file end too close together in too many places for Atlas to join them.');
     expect(filesOf(b)).toEqual(before);
     expect(b.convertImage).not.toHaveBeenCalled();
@@ -524,6 +529,7 @@ describe('the notice of an import', () => {
 
   it('counts what arrived', () => {
     expect(uvttImportSummary(imported)).toBe('Imported "Crypt": 412 walls, 9 doors, 14 lights.');
+    expect(uvttImportSummary(imported, false)).toBe('Imported "Crypt": 412 walls, 9 doors, 14 lights. They show once you switch on dynamic lighting under Experimental features in the command palette.');
     expect(uvttImportSummary({ ...imported, counts: { walls: 1, doors: 1, lights: 1 } })).toBe('Imported "Crypt": 1 wall, 1 door, 1 light.');
     expect(uvttImportSummary({ ...imported, counts: { walls: 20000, doors: 0, lights: 0 } })).toBe('Imported "Crypt": 20,000 walls, 0 doors, 0 lights.');
   });

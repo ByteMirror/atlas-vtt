@@ -1,13 +1,14 @@
 import { BOUNCE_GATHER_GLSL } from './cascadeShaders';
-import { GLSL_VERSION, SRGB_GLSL, TRACE_GLSL, fieldGlsl } from './glsl';
-import { WALL_PUSH_GLSL } from './wallPushGlsl';
+import { GLSL_VERSION, SRGB_GLSL, TRACE_GLSL, fieldGlsl, traceGlsl } from './glsl';
+import { WALL_PUSH_GLSL, wallPushGlsl } from './wallPushGlsl';
 
 /**
  * The lighting layer's final pass. uTexture is the layer itself, what the vision tokens
  * perceive (`SightMeshes`, `sightChannels`):
  * - red: seen by light, as the light shows it;
  * - green: perceived without light, in the scene's look without colour (uGreyKeep, uGreyTint:
- *   the grey of darkvision, black and white, or heat tones);
+ *   the grey of darkvision, black and white, or heat tones), in the hue of the scene's tint
+ *   while it has one (uDarkTinted, uDarkTint: `tinted`);
  * - blue: perceived without light, in colour, at uColourLevel;
  * - alpha: dim light is perceived as bright (`litAsBright`).
  * Where two looks meet on a pixel, the brighter one shows (`brighter`).
@@ -31,6 +32,9 @@ import { WALL_PUSH_GLSL } from './wallPushGlsl';
  * uZones (read only while uHasZones is set) is the zone map: the ambient light of the scene's
  * zones, premultiplied by their share of the pixel in alpha, which is 1 inside a zone, where the
  * rule counts it; uZonesLifted is the same where dim light is perceived as bright.
+ * Two wall fields: uField holds the walls that stop light (the faces of walls and the bounce
+ * read it), uSightField those that stop sight (the explored memory's blur must not cross them).
+ * They are one texture bound twice unless a wall of the scene blocks one thing only.
  */
 export const compositeFragment = `${GLSL_VERSION}
 in vec2 vTextureCoord;
@@ -60,6 +64,8 @@ uniform vec3 uExploredTint;
 uniform vec3 uUnexplored;
 uniform float uGreyKeep;
 uniform vec3 uGreyTint;
+uniform vec3 uDarkTint;
+uniform float uDarkTinted;
 uniform float uColourLevel;
 uniform float uAmbientLift;
 uniform sampler2D uDarkness;
@@ -72,9 +78,13 @@ uniform sampler2D uZones;
 uniform sampler2D uZonesLifted;
 uniform float uHasZones;
 ${fieldGlsl('uField')}
+${fieldGlsl('uSightField')}
 float clearance(vec2 w) { return uFieldClearance(w); }
+float sightClearance(vec2 w) { return uSightFieldClearance(w); }
 ${TRACE_GLSL}
+${traceGlsl('sightReaches', 'sightClearance')}
 ${WALL_PUSH_GLSL}
+${wallPushGlsl('uSightField', 'Sight')}
 ${BOUNCE_GATHER_GLSL}
 ${SRGB_GLSL}
 
@@ -99,7 +109,7 @@ vec3 neutral(vec3 color) {
 }
 
 // Explored memory is stamped with hard-edged polygons: blur it over a disc of two memory texels,
-// shrunk to the pixel's wall clearance so memory never smears across a wall. 12 Vogel taps,
+// shrunk to the pixel's clearance from the walls that stop sight, so memory never smears across one. 12 Vogel taps,
 // Gaussian in distance. A read takes in the memory texels around it, a diagonal of one at most,
 // so no tap comes nearer than that to a wall. On a large map that is wider than a wall: there a
 // wall's face remembers the floor in front of it, and where walls leave no room for that (on a
@@ -110,17 +120,17 @@ float exploredAt(vec2 w) {
   vec2 size = vec2(textureSize(uExplored, 0));
   float texel = size.x >= size.y ? uMapSize.x / size.x : uMapSize.y / size.y;
   float footprint = 1.4143 * texel;
-  if (footprint > uFieldParams.y) {
-    w = climbFromWall(w, footprint);
-    if (uFieldDistance(w) < footprint) {
+  if (footprint > uSightFieldParams.y) {
+    w = climbFromWallSight(w, footprint);
+    if (uSightFieldDistance(w) < footprint) {
       // No room: the one memory texel the pixel lies in, if the way to its middle is clear. A texel
       // whose middle lies behind a wall was recorded from there, and one whose middle can be
       // reached lies whole on this side of every wall (a wall is as thick as the texel is wide).
       vec2 cell = clamp(floor(w / uMapSize * size), vec2(0.0), size - 1.0);
-      return reaches(w, (cell + 0.5) / size * uMapSize) ? texelFetch(uExplored, ivec2(cell), 0).r : 0.0;
+      return sightReaches(w, (cell + 0.5) / size * uMapSize) ? texelFetch(uExplored, ivec2(cell), 0).r : 0.0;
     }
   }
-  float r = min(2.0 * texel, min(clearance(w), uFieldDistance(w) - footprint));
+  float r = min(2.0 * texel, min(sightClearance(w), uSightFieldDistance(w) - footprint));
   float sum = textureLod(uExplored, clamp(w / uMapSize, 0.0, 1.0), 0.0).r;
   if (r < 0.25 * texel) return sum;
   float weights = 1.0;
@@ -132,6 +142,21 @@ float exploredAt(vec2 w) {
     weights += k;
   }
   return sum / weights;
+}
+
+// A colour in the hue of a tint, exactly as bright as it was: the tint says what the dark looks
+// like, never how much of it is seen. The tinted colour is scaled back to the colour's own
+// luminance; where one channel cannot carry that (a pure blue as bright as a pale floor), the
+// hue gives way to white as far as it must.
+vec3 tinted(vec3 color, vec3 tint) {
+  float light = dot(color, LUMA);
+  vec3 hued = color * tint;
+  float huedLight = dot(hued, LUMA);
+  // The hue at luminance 1; a colour without the tint's channels takes the tint's own.
+  vec3 hue = huedLight > 1e-6 ? hued / huedLight : tint / max(dot(tint, LUMA), 1e-6);
+  float top = max(hue.r, max(hue.g, hue.b));
+  float share = top > 1.0 ? clamp((1.0 / max(light, 1e-6) - 1.0) / (top - 1.0), 0.0, 1.0) : 1.0;
+  return light * mix(vec3(1.0), hue, share);
 }
 
 // Whichever colour is brighter, blended near a tie (a per-channel max mixes them into pink).
@@ -230,6 +255,7 @@ void main() {
   }
   float grey = dot(albedo, LUMA);
   vec3 darkSight = mix(vec3(grey), albedo, uGreyKeep) * uGreyTint * greyGain;
+  if (uDarkTinted > 0.5) darkSight = tinted(darkSight, uDarkTint);
   vec3 visible = mix(lit, brighter(lit, darkSight), sight.g * sensed);
   // Senses: perceived without light, in colour.
   visible = mix(visible, brighter(visible, albedo * uColourLevel * colourGain), sight.b * sensed);

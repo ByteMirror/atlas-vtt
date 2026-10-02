@@ -22,29 +22,34 @@ function sameGeometry(a: BarGeometry | null, b: BarGeometry): boolean {
 
 /**
  * Reads the bar's padding, border and gap, and the width of every item in it.
- * Items in the overflow menu keep the width they had when last shown. The
- * control fixed at the end counts as chrome, with the gap before it. The
- * overflow button is a square icon button, so before it has ever shown, the
- * bar's content height stands in for its width.
+ * Items in the overflow menu keep the width they had when last shown, as long
+ * as the bar's style stays the same: once it changes (the plugin's stylesheet
+ * arriving after the first render, a theme switch), they are forgotten, so the
+ * fit shows them again to measure them. The control fixed at the end counts
+ * as chrome, with the gap before it. The overflow button is a square icon
+ * button, so before it has ever shown, the bar's content height stands in for
+ * its width.
  */
 function measureBar(bar: HTMLElement, previous: BarGeometry | null): BarGeometry {
   const style = bar.win.getComputedStyle(bar)
   const px = (value: string): number => parseFloat(value) || 0
-  const widths: Record<string, number> = { ...previous?.widths }
-  for (const item of Array.from(bar.querySelectorAll<HTMLElement>(":scope > [data-toolbar-item]"))) {
-    const id = item.dataset.toolbarItem
-    if (id && !item.hidden && item.offsetWidth > 0) widths[id] = item.offsetWidth
-  }
   const overflowButton = bar.querySelector<HTMLElement>(":scope > .atlas-toolbar-overflow")
   const endControl = bar.querySelector<HTMLElement>(":scope > .atlas-toolbar-end")
   const contentHeight = bar.clientHeight - px(style.paddingTop) - px(style.paddingBottom)
   const gap = px(style.columnGap)
+  const chrome = px(style.paddingLeft) + px(style.paddingRight) + px(style.borderLeftWidth) + px(style.borderRightWidth)
+    + (endControl ? endControl.offsetWidth + gap : 0)
+  const sameStyle = previous?.chrome === chrome && previous.gap === gap
+  const widths: Record<string, number> = sameStyle ? { ...previous.widths } : {}
+  for (const item of Array.from(bar.querySelectorAll<HTMLElement>(":scope > [data-toolbar-item]"))) {
+    const id = item.dataset.toolbarItem
+    if (id && !item.hidden && item.offsetWidth > 0) widths[id] = item.offsetWidth
+  }
   return {
     widths,
-    chrome: px(style.paddingLeft) + px(style.paddingRight) + px(style.borderLeftWidth) + px(style.borderRightWidth)
-      + (endControl ? endControl.offsetWidth + gap : 0),
+    chrome,
     gap,
-    overflowButtonWidth: overflowButton?.offsetWidth || previous?.overflowButtonWidth || contentHeight,
+    overflowButtonWidth: overflowButton?.offsetWidth || (sameStyle ? previous.overflowButtonWidth : 0) || contentHeight,
   }
 }
 

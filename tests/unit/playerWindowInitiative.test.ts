@@ -3,6 +3,7 @@ import { createStore, type StoreApi } from 'zustand/vanilla';
 import type { ViewAtlasState } from '../../src/app/storeFactory';
 import type { TokenEntity } from '../../src/app/types';
 import { createDefaultInitiativeState, type InitiativeEntry } from '../../src/app/types/initiativeTypes';
+import type { InitiativeRules } from '../../src/app/types/initiativeRulesTypes';
 import type { PlayerFrameSource } from '../../src/app/services/PlayerFrameMirror';
 import { PlayerWindowService } from '../../src/app/services/PlayerWindowService';
 import { SettingsService } from '../../src/app/services/SettingsService';
@@ -14,7 +15,12 @@ const collection = vi.hoisted(() => ({ hpVisibleToPlayers: false }));
 vi.mock('../../src/app/resources/collectionResources', () => ({
   mapResources: () => [{ key: 'hp', name: 'HP', field: 'hp', direction: 'drains', color: '#22c55e', defeatedWhenSpent: true, visibleToPlayers: collection.hpVisibleToPlayers }],
 }));
-afterEach(() => { PlayerWindowService.getInstance()?.destroy(); vi.useRealTimers(); vi.restoreAllMocks(); collection.hpVisibleToPlayers = false; });
+const scrolls = vi.hoisted(() => ({ calls: [] as unknown[][] }));
+vi.mock('../../src/app/utils/scrollWithin', () => ({ scrollWithin: (...args: unknown[]) => { scrolls.calls.push(args); } }));
+const TURN_ORDER: InitiativeRules = { mode: 'turn-order', roll: '1d20', firstSide: 'players' };
+const initiativeRules = vi.hoisted(() => ({ value: undefined as InitiativeRules | undefined }));
+vi.mock('../../src/app/services/mapInitiativeRules', () => ({ mapInitiativeRules: () => initiativeRules.value ?? TURN_ORDER }));
+afterEach(() => { PlayerWindowService.getInstance()?.destroy(); vi.useRealTimers(); vi.restoreAllMocks(); collection.hpVisibleToPlayers = false; initiativeRules.value = undefined; scrolls.calls.length = 0; });
 
 function scene(name = 'Hero', initiativeTrackerOpen = true): StoreApi<ViewAtlasState> {
   const token: TokenEntity = { id: 'hero', kind: 'character', name, x: 0, y: 0, imagePath: '', resources: { hp: { current: 8, max: 10 } } };
@@ -183,6 +189,39 @@ describe('player initiative panel', () => {
     expect(doc.body.textContent).toContain('Round 4');
   });
 
+  it('shows each token as the map does: inside its ring in the ring\'s colour, or unframed without one', () => {
+    const { store, doc } = setup();
+    const portrait = (): Element | null => doc.querySelector('[aria-label="Initiative order"] .atlas-token-portrait');
+    const withArt = (token: Partial<TokenEntity>): void => {
+      const { objects, initiative } = store.getState();
+      store.setState({
+        initiative: { ...initiative, entries: [{ ...initiative.entries[0]!, imagePath: 'data:image/png;base64,AAAA' }] },
+        objects: { ...objects, tokens: { hero: { ...objects.tokens.hero!, ...token } as TokenEntity } },
+      });
+    };
+
+    withArt({ ringColor: '#c0392b' });
+    expect(portrait()?.classList.contains('atlas-token-portrait--unframed')).toBe(false);
+    expect(portrait()?.querySelector('img')?.getAttribute('src')).toBe('data:image/png;base64,AAAA');
+    expect(portrait()?.querySelector<HTMLElement>('.atlas-token-ring')?.style.getPropertyValue('--atlas-token-ring-color')).toBe('#c0392b');
+
+    // The list follows the token when the GM takes its ring away
+    withArt({ showRing: false });
+    expect(portrait()?.classList.contains('atlas-token-portrait--unframed')).toBe(true);
+    expect(portrait()?.querySelector('.atlas-token-ring')).toBeNull();
+  });
+
+  it('keeps the combatant whose turn it is in view: the list is drawn anew on every change', () => {
+    const { store, doc } = setup();
+    const { initiative } = store.getState();
+    scrolls.calls.length = 0;
+
+    store.setState({ initiative: { ...initiative, round: 2 } });
+
+    expect(scrolls.calls).toEqual([[doc.querySelector('.atlas-player-initiative__list'), doc.querySelector('.atlas-player-initiative__card--active'), 'nearest']]);
+    expect(scrolls.calls[0]?.[1]).not.toBeNull();
+  });
+
   it('defaults on for old settings and persists the DM choice across reloads', async () => {
     const { app } = createInMemoryApp({ files: { 'atlas-vtt/settings.json': JSON.stringify({ localPlayerView: { showWidgets: false } }) } });
     const settings = new SettingsService(app);
@@ -196,84 +235,66 @@ describe('player initiative panel', () => {
   });
 });
 
-describe('player initiative panel and what the players\' tokens see', () => {
-  const AVATAR = 'data:image/png;base64,AAAA';
-  const token = (id: string, extra: Partial<TokenEntity> = {}): TokenEntity =>
-    ({ id, kind: 'character', name: id, x: 0, y: 0, imagePath: AVATAR, resources: { hp: { current: 4, max: 10 } }, ...extra }) as TokenEntity;
-  const entry = (tokenId: string, order: number): InitiativeEntry =>
-    ({ id: `e-${tokenId}`, tokenId, name: tokenId, initiative: 20 - order, initiativeModifier: 0, imagePath: AVATAR, isActive: order === 0, isNPC: tokenId !== 'hero', order });
+describe('player initiative panel of a collection that fights by sides', () => {
+  const token = (id: string, extra: Partial<TokenEntity> = {}): TokenEntity => ({ id, kind: 'token', x: 0, y: 0, imagePath: '', ...extra });
+  const entry = (tokenId: string, order: number, extra: Partial<InitiativeEntry> = {}): InitiativeEntry =>
+    ({ id: `e-${tokenId}`, tokenId, name: tokenId, initiative: 9, initiativeModifier: 0, imagePath: '', isActive: false, isNPC: true, order, ...extra });
 
-  function lit(perceived: Record<string, 'seen' | 'sensed' | 'unseen'> | undefined): { doc: Document; store: StoreApi<ViewAtlasState>; sightChanged: () => void; see: (next: Record<string, 'seen' | 'sensed' | 'unseen'> | undefined) => void; service: PlayerWindowService } {
+  function sides(initiative: Partial<ViewAtlasState['initiative']> = {}, firstSide: 'players' | 'opponents' = 'players'): { doc: Document; store: StoreApi<ViewAtlasState> } {
     vi.useFakeTimers();
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
-    collection.hpVisibleToPlayers = true;
+    initiativeRules.value = { mode: 'sides', roll: '1d20', firstSide };
     const { app } = createInMemoryApp();
     const settings = new SettingsService(app);
     settings.setLocalPlayerViewSettings({ showTokenNameplates: true });
     const store = createStore(() => ({
-      initiative: { ...createDefaultInitiativeState(), entries: [entry('hero', 0), entry('goblin', 1), entry('rat', 2)], isActive: true, round: 1 },
-      objects: { tokens: { hero: token('hero', { vision: { enabled: true } }), goblin: token('goblin'), rat: token('rat') } },
+      initiative: { ...createDefaultInitiativeState(), entries: [entry('goblin', 0), entry('hero', 1), entry('rat', 2, { sitsOut: true }), entry('cleric', 3)], ...initiative },
+      objects: { tokens: { goblin: token('goblin'), hero: token('hero', { vision: { enabled: true } }), rat: token('rat'), cleric: token('cleric', { side: 'players' }) } },
       initiativeTrackerOpen: true,
     })) as StoreApi<ViewAtlasState>;
     const service = new PlayerWindowService(app, store, settings);
-    let current = perceived;
-    const listeners = new Set<() => void>();
-    const source: PlayerFrameSource = {
-      canvas: createEl('canvas'), withPlayerSafeFrame: vi.fn(), store,
-      tokenSight: () => (current ? (id: string) => current![id] ?? 'seen' : undefined),
-      onTokenSightChange: (listener) => (listeners.add(listener), () => listeners.delete(listener)),
-    };
-    const doc = attachFakePlayerWindow(service, source);
-    return { doc, store, service, sightChanged: () => listeners.forEach((listener) => listener()), see: (next) => { current = next; } };
+    return { doc: attachFakePlayerWindow(service, { canvas: createEl('canvas'), withPlayerSafeFrame: vi.fn(), store }), store };
   }
-  const cards = (doc: Document): { name: string; avatar: boolean; hp: boolean }[] =>
-    [...doc.querySelectorAll('[aria-label="Initiative order"] [role="listitem"]')].map((card) => ({
-      name: card.querySelector('.atlas-player-initiative__name')?.textContent ?? '',
-      avatar: card.querySelector('img') !== null,
-      hp: card.querySelector('progress') !== null,
+  const groups = (doc: Document): Array<{ side: string | null; names: string[]; active: boolean }> =>
+    [...doc.querySelectorAll('.atlas-player-initiative__side')].map((group) => ({
+      side: group.getAttribute('aria-label'),
+      names: [...group.querySelectorAll('.atlas-player-initiative__name')].map((name) => name.textContent ?? ''),
+      active: group.getAttribute('aria-current') === 'true',
     }));
 
-  it('leaves out a token the players do not perceive, names a sensed one without portrait and resources, and always shows a party token', () => {
-    // The party token is dragged out of the sight it left behind: on the canvas it is gone for now, in the list it stays.
-    const { doc } = lit({ hero: 'unseen', goblin: 'unseen', rat: 'sensed' });
-    expect(cards(doc)).toEqual([{ name: 'hero', avatar: true, hp: true }, { name: 'rat', avatar: false, hp: false }]);
+  it('lists the combatants under their side, the first side on top, without numbers', () => {
+    const { doc } = sides();
+    expect(groups(doc)).toEqual([
+      { side: 'Players', names: ['hero', 'cleric'], active: false },
+      { side: 'Opponents', names: ['goblin', 'rat'], active: false },
+    ]);
+    expect(doc.querySelector('.atlas-player-initiative__value')).toBeNull();
+    expect(doc.querySelector('.atlas-player-initiative__side-label')?.textContent).toBe('Players');
   });
 
-  it('follows the players\' sight when it changes without a change of the scene', () => {
-    const { doc, see, sightChanged } = lit({ goblin: 'unseen', rat: 'unseen' });
-    expect(cards(doc).map((card) => card.name)).toEqual(['hero']);
-    see({ goblin: 'seen', rat: 'sensed' });
-    // Nothing is drawn anew until the view says its sight changed.
-    expect(cards(doc)).toHaveLength(1);
-    sightChanged();
-    expect(cards(doc)).toEqual([{ name: 'hero', avatar: true, hp: true }, { name: 'goblin', avatar: true, hp: true }, { name: 'rat', avatar: false, hp: false }]);
+  it('marks the side whose turn it is and the combatant who sits the round out', () => {
+    const { doc, store } = sides({ isActive: true, round: 2, sides: { first: 'opponents', active: 'players' } }, 'opponents');
+    // The side whose turn it is is brought into view
+    expect(scrolls.calls.at(-1)).toEqual([doc.querySelector('.atlas-player-initiative__list'), doc.querySelector('.atlas-player-initiative__side--active'), 'start']);
+    // No single combatant has the turn, whatever its entry says
+    const { initiative } = store.getState();
+    store.setState({ initiative: { ...initiative, entries: initiative.entries.map((each) => ({ ...each, isActive: true })) } });
+    expect(doc.querySelector('.atlas-player-initiative__card--active')).toBeNull();
+    expect(groups(doc).map(({ side, active }) => [side, active])).toEqual([['Opponents', false], ['Players', true]]);
+    expect(doc.querySelectorAll('.atlas-player-initiative__card--sitting-out')).toHaveLength(1);
+    expect(doc.body.textContent).toContain('Round 2');
   });
 
-  it('shows every entry while sight hides nothing: an unlit scene, or one without a token that sees', () => {
-    const { doc, see, sightChanged } = lit(undefined);
-    expect(cards(doc).map((card) => card.name)).toEqual(['hero', 'goblin', 'rat']);
-    see({ goblin: 'unseen' });
-    sightChanged();
-    expect(cards(doc).map((card) => card.name)).toEqual(['hero', 'rat']);
-    see(undefined);
-    sightChanged();
-    expect(cards(doc)).toHaveLength(3);
-  });
-
-  it('still leaves out a token the GM hid, whatever the sight', () => {
-    const { doc, store } = lit({});
+  it('follows a token that changes sides, and leaves out a side the players see nobody of', () => {
+    const { doc, store } = sides();
     const { objects } = store.getState();
-    store.setState({ objects: { ...objects, tokens: { ...objects.tokens, rat: { ...objects.tokens.rat!, isHidden: true } } } });
-    expect(cards(doc).map((card) => card.name)).toEqual(['hero', 'goblin']);
+    store.setState({ objects: { ...objects, tokens: { ...objects.tokens, goblin: { ...objects.tokens.goblin!, side: 'players' }, rat: { ...objects.tokens.rat!, isHidden: true } } } });
+    expect(groups(doc)).toEqual([{ side: 'Players', names: ['goblin', 'hero', 'cleric'], active: false }]);
   });
 
-  it('listens to the sight of the scene it presents only', () => {
-    const { service, sightChanged, store, doc, see } = lit({ goblin: 'unseen' });
-    // Another scene is presented from a source without lighting.
-    service.presentCanvas({ canvas: createEl('canvas'), withPlayerSafeFrame: vi.fn(), store }, 'scene-a');
-    expect(cards(doc)).toHaveLength(3);
-    see({ goblin: 'unseen', rat: 'unseen' });
-    sightChanged();
-    expect(cards(doc)).toHaveLength(3);
+  it('keeps a fight that was started in turn order in turn order', () => {
+    const { doc } = sides({ isActive: true, round: 1 });
+    expect(groups(doc)).toEqual([]);
+    expect(doc.querySelectorAll('.atlas-player-initiative__value')).toHaveLength(4);
   });
 });

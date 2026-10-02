@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { Graphics } from 'pixi.js';
-import { DoorIcons } from '../../src/app/pixi/lighting/DoorIcons';
+import type { Graphics, Sprite } from 'pixi.js';
+import { DoorIcons, badgeLook } from '../../src/app/pixi/lighting/DoorIcons';
 import { doorMenuEntries } from '../../src/app/pixi/lighting/lightingMenus';
 import { createViewAtlasStore, type ViewAtlasStore } from '../../src/app/storeFactory';
 import { getHistoryStore } from '../../src/app/stores/history';
@@ -160,5 +160,35 @@ describe('a door\'s menu', () => {
     const { store } = setup();
     const solid = store.getState().addWall({ type: 'solid', p1: { x: 0, y: 0 }, p2: { x: 10, y: 0 }, closed: true });
     expect(doorMenuEntries(store, solid)).toEqual([]);
+  });
+});
+
+describe('a door\'s badge', () => {
+  /** The door glyphs in the GM's badges: every child after the drawing of the discs. */
+  const glyphs = (badges: DoorIcons): Sprite[] => badges.view.children.slice(1) as Sprite[];
+
+  it('shows the door shut or swung open, and only the padlock while it is locked', () => {
+    const { store, door } = setup();
+    const badges = icons(store);
+    expect(glyphs(badges)).toHaveLength(1);
+    const [glyph] = glyphs(badges);
+    const shut = glyph!.texture;
+    store.getState().toggleDoor(door);
+    expect(glyphs(badges)).toEqual([glyph]);
+    expect(glyph!.texture).not.toBe(shut);
+    store.getState().setDoorLocked(door, true);
+    expect(glyphs(badges)).toEqual([]);
+    store.getState().setDoorLocked(door, false);
+    expect(glyphs(badges).map((sprite) => sprite.texture)).toEqual([shut]);
+  });
+
+  it('tells the players nothing but that there is a door: a locked one looks closed', () => {
+    expect(badgeLook({ type: 'door', locked: true }, true)).toEqual({ secret: false, lock: false });
+    expect(badgeLook({ type: 'secret-door' }, true)).toEqual({ secret: false, lock: false });
+  });
+
+  it('shows the GM the padlock and the secret door', () => {
+    expect(badgeLook({ type: 'door', locked: true }, false)).toEqual({ secret: false, lock: true });
+    expect(badgeLook({ type: 'secret-door' }, false)).toEqual({ secret: true, lock: false });
   });
 });

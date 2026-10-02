@@ -82,14 +82,17 @@ describe('DM screen statblock selection', () => {
 
   it('keeps creatures defined in code fences even though they are not in the bestiary', async () => {
     const { container } = showDMScreen([legacyPath, fencePath]);
-    await waitFor(() => expect(container.querySelector('.atlas-statblock')).not.toBeNull());
-    expect(container.textContent).toContain('Inline Creature');
+    // The note is read before its statblock shows: until then the pane says that it is loading.
+    await waitFor(() => expect(container.textContent).toContain('Inline Creature'));
+    expect(container.querySelector('.atlas-statblock')).not.toBeNull();
     expect(container.textContent).not.toContain('No Fantasy Statblocks creature found');
   });
 
-  it('shows the empty state when all linked notes use an unsupported format', async () => {
+  it('leaves the statblock pane empty when all linked notes use an unsupported format', async () => {
     const { container } = showDMScreen([legacyPath]);
-    await waitFor(() => expect(container.textContent).toContain('No statblocks currently in use'));
+    await waitFor(() => expect(container.querySelector('.atlas-dm-statblocks-grid')).not.toBeNull());
+    expect(container.querySelector('.atlas-dm-statblocks-grid')?.childElementCount).toBe(0);
+    expect(container.querySelector('.atlas-dm-statblocks-section')).not.toBeNull();
     expect(container.textContent).not.toContain('No Fantasy Statblocks creature found');
   });
 });

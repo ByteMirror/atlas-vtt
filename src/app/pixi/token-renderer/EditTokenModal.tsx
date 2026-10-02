@@ -1,4 +1,4 @@
-import React, { useId, useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import { TFile, type App } from 'obsidian';
 import type { StoreApi } from 'zustand';
@@ -6,20 +6,20 @@ import type { TokenUpdates, ViewAtlasState } from '../../storeFactory';
 import type { TokenEntity } from '../../types';
 import { CloseButton } from '../../packages/components/primitives/CloseButton';
 import { Button } from '../../packages/components/primitives/button';
-import { ToggleSwitch } from '../../packages/components/primitives/Toggle';
 import { TooltipProvider } from '../../packages/components/primitives/tooltip';
 import { AssetService } from '../../services/AssetService';
 import type { SenseRules } from '../../creatures/tokenSensesResolver';
 import { mapLightPresets } from '../../services/mapCollectionRules';
 import { mapSenseRules } from '../../services/mapSenseRules';
 import { useStatblockSenses, type StatblockLink } from './useStatblockSenses';
-import { NumberOverrideField, parseNumberInput } from './NumberOverrideField';
+import { parseNumberInput } from './NumberOverrideField';
 import { buildResourceEdits } from '../../resources/resourceEdits';
 import type { ResourceDefinition, ResourceValue } from '../../resources/resourceTypes';
 import { startingResources } from '../../resources/statblockResourceValues';
 import { handledByAnotherControl } from '../../keyboard/tooltipEscape';
-import { TokenLightingFields, type TokenLightingContext } from './TokenLightingFields';
-import { WALLS_AND_LIGHTING_ENABLED } from '../../featureFlags';
+import { TokenIdentitySection, TokenResourcesSection } from './EditTokenSections';
+import { TokenLightSection, TokenVisionSection, type TokenLightingContext } from './TokenLightingFields';
+import { dynamicLightingOn } from '../../experimental/experimentalFeatures';
 import { unitLabelFor } from '../../grid/measurementFormat';
 import { unitScaleOf } from '../../lighting/lightingUnits';
 import { maxLightRange } from '../../lighting/lightRanges';
@@ -42,18 +42,21 @@ interface EditTokenModalProps {
   /** What the linked statblock gives each resource. */
   resourceDefaults: Record<string, ResourceValue>;
   lighting: TokenLightingContext;
+  /** Whether the token's vision and light can be edited: only with dynamic lighting switched on. */
+  showLighting: boolean;
   /** The statblock the token links, whose senses it follows while it has none of its own. */
   statblock: StatblockLink | null;
   onSave: (values: EditTokenValues) => void;
   onClose: () => void;
 }
 
-const defaultPlaceholder = (value: number | undefined): string =>
-  value === undefined ? 'None' : `Statblock default: ${value}`;
-
-function EditTokenModalInner({ initial, definitions, resourceDefaults, lighting, statblock, onSave, onClose }: EditTokenModalProps): React.ReactElement {
+/**
+ * The Edit Token dialog: two columns of sections, the token's own on the left (name, resources,
+ * vision) and the light it carries on the right, so the fields are read and tabbed through
+ * column by column. A dialog too narrow for two columns stacks them in the same order.
+ */
+function EditTokenModalInner({ initial, definitions, resourceDefaults, lighting, showLighting, statblock, onSave, onClose }: EditTokenModalProps): React.ReactElement {
   const inherited = useStatblockSenses(statblock);
-  const nameplateId = useId();
   const [name, setName] = useState(initial.name);
   const [showNameplate, setShowNameplate] = useState(initial.showNameplate);
   const [maxInputs, setMaxInputs] = useState<Record<string, string>>(
@@ -62,6 +65,7 @@ function EditTokenModalInner({ initial, definitions, resourceDefaults, lighting,
   const [vision, setVision] = useState(initial.vision);
   const [light, setLight] = useState(initial.light);
   const inputRef = useRef<HTMLInputElement>(null);
+  const context = { ...lighting, inherited };
 
   useEffect(() => {
     window.setTimeout(() => {
@@ -105,42 +109,23 @@ function EditTokenModalInner({ initial, definitions, resourceDefaults, lighting,
           <CloseButton onClick={onClose} />
         </div>
 
-        <div className="atlas-modal-body">
-          <div className="atlas-edit-token__field">
-            <label className="atlas-edit-token__label">Name</label>
-            <input
-              ref={inputRef}
-              type="text"
-              className="atlas-input"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Token name"
-            />
+        <div className="atlas-modal-body atlas-edit-token__body">
+          <div className="atlas-edit-token__column">
+            <TokenIdentitySection name={name} onNameChange={setName} showNameplate={showNameplate} onShowNameplateChange={setShowNameplate} nameRef={inputRef} />
+            {definitions.length > 0 && (
+              <TokenResourcesSection
+                definitions={definitions}
+                values={maxInputs}
+                onChange={(key, value) => setMaxInputs((current) => ({ ...current, [key]: value }))}
+                defaults={resourceDefaults}
+              />
+            )}
+            {showLighting && <TokenVisionSection vision={vision} onChange={setVision} context={context} />}
           </div>
-
-          <div className="atlas-edit-token__field atlas-edit-token__field--row">
-            <span id={nameplateId} className="atlas-edit-token__label">Show Nameplate</span>
-            <ToggleSwitch value={showNameplate} onChange={() => setShowNameplate(!showNameplate)} labelledBy={nameplateId} />
-          </div>
-
-          {definitions.length > 0 && (
-            <>
-              <div className="atlas-edit-token__section-divider" />
-              <div className="atlas-edit-token__section-label">Resources</div>
-              {definitions.map(({ key, name: resourceName, direction }) => (
-                <NumberOverrideField
-                  key={key}
-                  label={direction === 'static' ? resourceName : `Max ${resourceName}`}
-                  value={maxInputs[key] ?? ''}
-                  onChange={(value) => setMaxInputs((current) => ({ ...current, [key]: value }))}
-                  placeholder={defaultPlaceholder(resourceDefaults[key]?.max)}
-                  resetLabel="Reset to statblock default"
-                />
-              ))}
-            </>
-          )}
-          {WALLS_AND_LIGHTING_ENABLED && (
-            <TokenLightingFields vision={vision} onVisionChange={setVision} light={light} onLightChange={setLight} context={{ ...lighting, inherited }} />
+          {showLighting && (
+            <div className="atlas-edit-token__column">
+              <TokenLightSection light={light} onChange={setLight} context={context} />
+            </div>
           )}
         </div>
 
@@ -223,8 +208,8 @@ export function openEditTokenModal(
     const updates: TokenUpdates = {
       ...(changed('name') && { name: values.name }),
       ...(changed('showNameplate') && { showNameplate: values.showNameplate }),
-      ...(WALLS_AND_LIGHTING_ENABLED && changed('vision') && { vision: visionFromForm(values.vision) }),
-      ...(WALLS_AND_LIGHTING_ENABLED && changed('light') && { light: lightFromForm(values.light) }),
+      ...(changed('vision') && { vision: visionFromForm(values.vision) }),
+      ...(changed('light') && { light: lightFromForm(values.light) }),
       ...(maxima.length > 0 && current && buildResourceEdits(
         current.kind === 'character' ? current : {},
         maxima.map((definition) => ({ definition, max: values.maxima[definition.key] })),
@@ -241,6 +226,7 @@ export function openEditTokenModal(
       <EditTokenModalInner
         initial={initial}
         lighting={lighting}
+        showLighting={dynamicLightingOn(app)}
         statblock={statblock}
         definitions={definitions}
         resourceDefaults={resourceDefaults}

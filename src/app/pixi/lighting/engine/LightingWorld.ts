@@ -1,18 +1,19 @@
 import type { Renderer, Texture } from 'pixi.js';
 import type { WallSegment } from '../../../types/wallTypes';
-import { BOUNCE, DARKNESS, FLICKER_INTERVAL_MS, LIGHT_REACH, beamEnd, tileWallReach, wallRadius, worldTexel } from '../../../lighting/lightingConstants';
+import { BOUNCE, DARKNESS, FLICKER_INTERVAL_MS, LIGHT_REACH, beamEnd, tileWallReach, worldTexel } from '../../../lighting/lightingConstants';
 import { changedWallRects } from '../../../lighting/wallChanges';
-import { allSegments, splitBlocking, type Rect } from '../../../lighting/segments';
+import type { Rect } from '../../../lighting/segments';
 import { lightReach } from '../../../vision/sight';
 import type { MapBounds, Polygon } from '../../../vision/visibility';
 import { sameCone } from '../../../vision/visionCone';
 import { LightFlicker, STEADY, type FlickerSample } from '../lightFlicker';
-import { CapsuleField } from './CapsuleField';
+import type { CapsuleField } from './CapsuleField';
 import { DarknessMap, type DrawnDarkness, type PierceShape } from './DarknessMap';
 import { LightMap, type DrawnLight } from './LightMap';
 import { RadianceCascades } from './RadianceCascades';
 import { TileCache } from './TileCache';
 import type { EngineLight, EngineZone } from './types';
+import { WallFields } from './WallFields';
 import { ZoneMap, sameZoneLook, type ZoneLook } from './ZoneMap';
 
 /**
@@ -23,17 +24,10 @@ import { ZoneMap, sameZoneLook, type ZoneLook } from './ZoneMap';
  */
 export class LightingWorld {
   readonly texel: number;
-  readonly wallRadius: number;
-  /** Two-way walls: what every light's tile is traced through. */
-  readonly field: CapsuleField;
+  /** The walls as light and sight each read them (`WallFields`). */
+  readonly fields: WallFields;
   readonly lightMap: LightMap;
   readonly cascades: RadianceCascades;
-  /**
-   * Two-way and one-way walls, created with the first one-way wall and then kept (idle while
-   * there are none), so the composite never holds a destroyed field.
-   */
-  private allField: CapsuleField | null = null;
-  private hasOneWay = false;
   /** Created with the first darkness source; `trim` frees it once the scene has none and the composite has let go of it. */
   private darkness: DarknessMap | null = null;
   /** Each darkness source's area as the rule counts it, kept while the source and the walls stay. */
@@ -57,16 +51,15 @@ export class LightingWorld {
 
   constructor(private readonly renderer: Renderer, readonly bounds: MapBounds) {
     this.texel = worldTexel(bounds);
-    this.wallRadius = wallRadius(this.texel);
-    this.field = this.createField();
+    this.fields = new WallFields(renderer, bounds, this.texel);
     this.lightMap = new LightMap(renderer, bounds, this.texel);
-    this.cascades = new RadianceCascades(renderer, bounds, this.field);
-    this.tiles = new TileCache(renderer, this.field, bounds);
+    this.cascades = new RadianceCascades(renderer, bounds, this.fields.tiles);
+    this.tiles = new TileCache(renderer, this.fields.tiles, bounds);
   }
 
-  /** The field with one-way walls too, which bounce and sight treat as blocking both ways. */
+  /** Every wall that blocks light, one-way walls too, which bounce treats as blocking both ways. */
   fieldAll(): CapsuleField {
-    return this.hasOneWay ? this.allField! : this.field;
+    return this.fields.light();
   }
 
   /** The darkness map while the scene has a darkness source: the composite reads it only then. */
@@ -87,7 +80,7 @@ export class LightingWorld {
       changed = this.walls ? changedWallRects(this.walls, walls, tileWallReach(this.texel)) : 'all';
       this.walls = walls;
       if (changed === 'all' || changed.length > 0) {
-        this.rebuildFields(walls);
+        this.fields.rebuild(walls);
         this.bounceDirty = true;
         this.zonesStale = true;
       }
@@ -154,7 +147,7 @@ export class LightingWorld {
     this.zonesStale = false;
     if (zones.length === 0) return;
     this.zoneTexture ??= new ZoneMap(this.renderer, this.bounds, this.texel);
-    this.zoneTexture.draw(zones, this.zoneLook, this.fieldAll());
+    this.zoneTexture.draw(zones, this.zoneLook, this.fields.zones());
   }
 
   /** Whether the darkness map's texture is allocated. */
@@ -162,7 +155,7 @@ export class LightingWorld {
     return !!this.darkness;
   }
 
-  /** Frees the darkness map and the zone map of a scene that has no darkness source or zone left; call it once nothing reads them (`darknessMap()`, `zoneMap()` are null). */
+  /** Frees the darkness map and the zone map of a scene that has no darkness source or zone left, and the wall fields its walls no longer need; call it once nothing reads them (`darknessMap()`, `zoneMap()` are null, the composite has the fields of now). */
   trim(): void {
     if (!this.darknessMap()) {
       this.darkness?.destroy();
@@ -173,6 +166,7 @@ export class LightingWorld {
       this.zoneTexture?.destroy();
       this.zoneTexture = null;
     }
+    this.fields.trim();
   }
 
   /** Animated lights or bounce still to build: keep calling `animate`. */
@@ -192,25 +186,11 @@ export class LightingWorld {
     this.lightMap.destroy();
     this.darkness?.destroy();
     this.zoneTexture?.destroy();
-    this.allField?.destroy();
-    this.field.destroy();
+    this.fields.destroy();
   }
 
   private animated(): boolean {
     return this.lights.some((light) => light.animation !== 'none');
-  }
-
-  private createField(): CapsuleField {
-    return new CapsuleField(this.renderer, [0, 0, this.bounds.width, this.bounds.height], this.texel, this.wallRadius);
-  }
-
-  private rebuildFields(walls: readonly WallSegment[]): void {
-    const blocking = splitBlocking(walls);
-    this.field.build(blocking.twoWay);
-    this.hasOneWay = blocking.oneWay.length > 0;
-    if (!this.hasOneWay) return;
-    this.allField ??= this.createField();
-    this.allField.build(allSegments(blocking));
   }
 
   private forgetRemoved(lights: readonly EngineLight[]): void {

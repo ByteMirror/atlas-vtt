@@ -2,9 +2,10 @@ import type { Renderer, RenderTexture } from 'pixi.js';
 import type { WallSegment } from '../../../types/wallTypes';
 import { LIGHT_REACH, wallRadius } from '../../../lighting/lightingConstants';
 import { placeLight } from '../../../lighting/lightPlacement';
-import { allSegments, segOf, splitBlocking, type BlockingWalls, type Rect } from '../../../lighting/segments';
+import { segOf, solidSegments, splitBlocking, type BlockingWalls, type Rect } from '../../../lighting/segments';
 import { blocksFrom, type MapBounds } from '../../../vision/visibility';
 import { CapsuleField } from './CapsuleField';
+import { LimitedTileMask } from './LimitedTileMask';
 import { TileTracer } from './TileTracer';
 import type { EngineLight } from './types';
 
@@ -29,11 +30,14 @@ interface Entry {
 // ponytail: no memory budget; every active light keeps its tile (~1 MB for a 40 ft torch). Evict tiles of lights far off-screen if large scenes run out of GPU memory.
 export class TileCache {
   private readonly tracer: TileTracer;
+  /** What limited walls stop, which no trace can tell, is taken out of a finished tile. */
+  private readonly limited: LimitedTileMask;
   private readonly entries = new Map<string, Entry>();
 
   /** Tiles never reach past the map (rounded up to the texel grid), however far a light shines. */
   constructor(private readonly renderer: Renderer, private readonly field: CapsuleField, private readonly bounds: MapBounds) {
     this.tracer = new TileTracer(renderer, field);
+    this.limited = new LimitedTileMask(renderer, field.texel);
   }
 
   tiles(): ReadonlyMap<string, Tile> {
@@ -53,7 +57,7 @@ export class TileCache {
       this.entries.delete(key);
       dirty = true;
     }
-    const blocking = splitBlocking(walls);
+    const blocking = splitBlocking(walls, 'light');
     for (const light of lights) {
       const entry = this.entries.get(light.key);
       if (entry && sameShape(entry.light, light) && !touches(entry.tile, changed)) {
@@ -61,7 +65,7 @@ export class TileCache {
         continue;
       }
       entry?.tile?.texture.destroy(true);
-      this.entries.set(light.key, { light, tile: this.build(light, blocking) });
+      this.entries.set(light.key, { light, tile: this.build(light, blocking, walls) });
       dirty = true;
       built = true;
     }
@@ -71,20 +75,22 @@ export class TileCache {
     return dirty;
   }
 
-  private build(light: EngineLight, blocking: BlockingWalls): Tile | null {
+  private build(light: EngineLight, blocking: BlockingWalls, walls: readonly WallSegment[]): Tile | null {
     const { texel } = this.field;
-    const placed = placeLight(light.x, light.y, light.flame, allSegments(blocking), texel);
+    const placed = placeLight(light.x, light.y, light.flame, solidSegments(blocking), texel);
     if (!placed) return null;
     const rect = this.tileRect(placed.x, placed.y, light.dim * LIGHT_REACH);
     if (!rect) return null;
-    const blockingOneWay = blocking.oneWay.filter((wall) => blocksFrom(wall, placed));
+    const blockingOneWay = blocking.oneWay.filter((wall) => blocksFrom(wall, placed, 'light'));
     let oneWayField: CapsuleField | null = null;
     if (blockingOneWay.length > 0) {
       oneWayField = new CapsuleField(this.renderer, rect, texel, wallRadius(texel), 'uOneWay');
       oneWayField.build(blockingOneWay.map(segOf));
     }
-    const texture = this.tracer.trace([placed.x, placed.y], placed.flame, rect, oneWayField);
+    const traced = this.tracer.trace([placed.x, placed.y], placed.flame, rect, oneWayField);
     oneWayField?.destroy();
+    // The rule counts from where the light is, wherever a wall it stands in made the engine place it.
+    const texture = blocking.limited.length > 0 ? this.limited.apply(traced, rect, { x: light.x, y: light.y }, walls) : traced;
     return { x: placed.x, y: placed.y, flame: placed.flame, rect, texture };
   }
 
@@ -101,6 +107,7 @@ export class TileCache {
     for (const entry of this.entries.values()) entry.tile?.texture.destroy(true);
     this.entries.clear();
     this.tracer.destroy();
+    this.limited.destroy();
   }
 }
 

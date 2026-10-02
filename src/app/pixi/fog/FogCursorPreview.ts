@@ -3,9 +3,8 @@
  * White for paint, red-tinted for erase. Only visible in brush mode.
  */
 import * as PIXI from 'pixi.js';
+import { STROKE_COLORS } from '../../tools/shapeStroke';
 
-const PAINT_COLOR = 0xffffff;
-const ERASE_COLOR = 0xff4444;
 const CURSOR_ALPHA = 0.4;
 const CURSOR_LINE_WIDTH = 2;
 
@@ -38,6 +37,11 @@ export class FogCursorPreview {
     this.graphics.visible = false;
   }
 
+  /** The ring is on the map. */
+  get shown(): boolean {
+    return this.graphics.visible;
+  }
+
   setBrushRadius(radius: number): void {
     if (this._brushRadius === radius) return;
     this._brushRadius = radius;
@@ -58,7 +62,7 @@ export class FogCursorPreview {
 
   private redraw(): void {
     this.graphics.clear();
-    const color = this._isErasing ? ERASE_COLOR : PAINT_COLOR;
+    const color = this._isErasing ? STROKE_COLORS.erase : STROKE_COLORS.paint;
 
     this.graphics.circle(0, 0, this._brushRadius);
     this.graphics.stroke({ width: CURSOR_LINE_WIDTH, color, alpha: CURSOR_ALPHA });

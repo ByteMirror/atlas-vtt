@@ -3,7 +3,8 @@ import type { StoreApi } from 'zustand';
 import type { ViewAtlasState } from '../../storeFactory';
 import { beginHistoryTransaction, endHistoryTransaction, runHistoryTransaction } from '../../stores/history';
 import type { WallRenderer } from './WallRenderer';
-import type { WallType } from '../../types/wallTypes';
+import { keptByParts } from '../../lighting/segments';
+import type { WallSegment, WallType } from '../../types/wallTypes';
 
 const SHARED_VERTEX_TOLERANCE = 2;
 
@@ -148,10 +149,10 @@ export class WallInteraction {
     this.wallRenderer.forceRedraw();
   }
 
-  /** Set the light pass-through direction on all selected walls. */
-  setSelectedDirection(direction: 'left' | 'right' | undefined): void {
+  /** Changes all selected walls alike, as one undo step: the side they let light through, what they block, whether they are limited. */
+  updateSelected(changes: Partial<Pick<WallSegment, 'direction' | 'blocks' | 'limited'>>): void {
     const state = this.store.getState();
-    runHistoryTransaction(this.store, () => this.selectedWallIds.forEach((id) => state.updateWall(id, { direction })));
+    runHistoryTransaction(this.store, () => this.selectedWallIds.forEach((id) => state.updateWall(id, changes)));
     this.wallRenderer.forceRedraw();
   }
 
@@ -198,10 +199,7 @@ export class WallInteraction {
     const pMid2 = { x: wall.p1.x + dx * tEnd, y: wall.p1.y + dy * tEnd };
     const pEnd = { x: wall.p1.x + dx * tEnd, y: wall.p1.y + dy * tEnd };
 
-    const shared = {
-      ...(wall.chainId !== undefined && { chainId: wall.chainId }),
-      ...(wall.direction !== undefined && { direction: wall.direction }),
-    };
+    const shared = keptByParts(wall);
     const doorType = this.doorPlacement.doorType;
 
     // Replacing one wall with up to three segments is a single undoable edit
@@ -269,7 +267,7 @@ export class WallInteraction {
    * Select a wall chain. With addToSelection, toggles the chain in/out.
    * Without it, replaces the selection.
    */
-  private selectWallChain(wallId: string, addToSelection: boolean): void {
+  selectWallChain(wallId: string, addToSelection: boolean): void {
     const walls = this.store.getState().objects.walls;
     const wall = walls[wallId];
     if (!wall) return;

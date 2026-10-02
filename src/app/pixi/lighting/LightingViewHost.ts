@@ -1,4 +1,5 @@
 import type { ViewAtlasStore } from '../../storeFactory';
+import type { ExploredEdit } from '../../lighting/exploredEdits';
 import type { AmbientLight, LightReach, Sight } from '../../vision/sight';
 import type { HideableLayer } from '../playerSafeFrame';
 import type { SceneFrame } from './engine/types';
@@ -79,6 +80,7 @@ export class LightingViewHost implements SceneLightingView {
   ambientLight(): AmbientLight { return this.view.ambientLight(); }
   refreshBounds(): void { this.view.refreshBounds(); }
   resetExplored(): void { this.view.resetExplored(); }
+  editExplored(edit: ExploredEdit): boolean { return this.view.editExplored(edit); }
   beforeMapUnload(): void { this.view.beforeMapUnload(); }
 
   /** An engine that fails while it prepares the frame is replaced during the call: the picture is then the fallback's. */

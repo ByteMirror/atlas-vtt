@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Notice, normalizePath } from 'obsidian';
 import { motion } from 'framer-motion';
 import { MapIcon } from 'lucide-react';
-import { AssetService } from '../../../services/AssetService';
+import type { AssetService } from '../../../services/AssetService';
 import { newSceneFile } from '../../../services/newSceneFile';
 import { normalizeImagePath } from '../../../utils/pathUtils';
 import { ensureFolder } from '../../../plugin/vaultFolders';
@@ -16,7 +16,7 @@ import { useAssetTags } from './token-creator/useAssetTags';
 interface CreateSceneModalProps {
   isOpen: boolean;
   onClose: () => void;
-  selectedCollection: string | null;
+  selectedCollection: string;
   assetService: AssetService | null;
   onSceneCreated: () => void;
   // Optional prefill when invoked from double-clicking a map
@@ -36,7 +36,7 @@ export default function CreateSceneModal({
   const [sceneName, setSceneName] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  const { tags, createTag, isCreatingTag } = useAssetTags(assetService, isOpen, selectedCollection || AssetService.defaultCollectionId(), 'maps');
+  const { tags, createTag, isCreatingTag } = useAssetTags(assetService, isOpen, selectedCollection, 'maps');
   const inputRef = useRef<HTMLInputElement>(null);
   const { app } = useAtlasUI();
   const [hasSetDefaultName, setHasSetDefaultName] = useState(false);
@@ -86,10 +86,9 @@ export default function CreateSceneModal({
 
     setIsCreating(true);
     try {
-      const selection = selectedCollection || AssetService.defaultCollectionId();
-      const collection = await assetService.getCollection(selection);
+      const collection = await assetService.getCollection(selectedCollection);
       if (!collection) {
-        throw new Error(`Collection "${selection}" no longer exists. Select another collection and try again.`);
+        throw new Error(`Collection "${selectedCollection}" no longer exists. Select another collection and try again.`);
       }
       const collectionId = collection.id;
 

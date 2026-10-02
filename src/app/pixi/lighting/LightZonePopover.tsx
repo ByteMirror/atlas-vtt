@@ -72,6 +72,7 @@ function LightZonePopover({ zoneId }: { zoneId: string }): React.ReactElement | 
       <ZoneName name={zone.name ?? ''} onChange={(name) => update({ name })} />
       <div className="atlas-light-popover__section">
         <SegmentedControl<TimeOfDay | 'custom'>
+          className="atlas-segmented--fit"
           value={time}
           options={TIMES_OF_DAY}
           ariaLabel="Time of day in the zone"

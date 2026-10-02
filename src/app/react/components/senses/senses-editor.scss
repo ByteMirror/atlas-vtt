@@ -92,23 +92,15 @@ $gap: $spacing-s;
   gap: $gap;
 }
 
-// The senses to add, each with what it does: a list that opens in place under the button.
-.atlas-senses__offer {
-  @include atlas-inset-surface;
-  @include atlas-flex-col($spacing-xs);
-  padding: $spacing-xs;
-  // Scrolled into view when it opens, clear of the dialog's edge.
-  scroll-margin-block: $spacing-l;
+// The senses to add, each with what it does: Atlas' dropdown menu, opened above the button.
+.atlas-senses-menu {
+  width: min(360px, calc(100vw - #{$spacing-l * 2}));
 }
 
-// A ghost button whose label is two lines: the sense's name, and what it does.
-.atlas-sense-offer.btn {
+// A menu row of two lines: the sense's name, and what it does.
+.atlas-senses-menu .atlas-sense-offer {
   display: block;
-  width: 100%;
-  height: auto;
   padding: $spacing-xs $spacing-s;
-  border-radius: $radius-s;
-  text-align: left;
   white-space: normal;
 }
 

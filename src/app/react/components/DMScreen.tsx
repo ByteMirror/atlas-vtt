@@ -467,11 +467,7 @@ export default function DMScreen({ isOpen, onClose }: DMScreenProps) {
               <div className="atlas-dm-loading">Loading statblocks...</div>
             ) : (
               <div className="atlas-dm-statblocks-grid">
-                {statblocks.size === 0 ? (
-                  <div className="atlas-dm-empty-state">
-                    <p>No statblocks currently in use on this map.</p>
-                  </div>
-                ) : (
+                {statblocks.size > 0 && (
                   <StatblockFeeds>
                     {Array.from(statblocks.entries(), ([path, statblock]) => (
                       <FantasyStatblock

@@ -494,7 +494,7 @@ describe('TokenRenderer Integration Tests', () => {
 
     it.each(MARKERS)('paints no fog on %s', (_marker, x) => {
       vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(new Proxy({}, { get: () => (): void => undefined }) as never);
-      const fog = new FogOfWarRenderer(viewport, {} as Application, eventBus as never, store);
+      const fog = new FogOfWarRenderer(viewport, { canvas: createEl('canvas') } as unknown as Application, eventBus as never, store);
       try {
         store.getState().setActiveTool('fog');
         click(x);

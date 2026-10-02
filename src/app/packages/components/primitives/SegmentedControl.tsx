@@ -12,14 +12,16 @@ interface SegmentedControlProps<T extends string> {
   onChange: (value: T) => void;
   /** Names the choice for assistive technology, without the hover tooltip Obsidian adds for `aria-label`. */
   ariaLabel: string;
+  /** Shown, but not to be chosen from right now. */
+  disabled?: boolean;
   className?: string;
 }
 
 /** A row of mutually exclusive choices, one of them active. */
-export function SegmentedControl<T extends string>({ value, options, onChange, ariaLabel, className }: SegmentedControlProps<T>): React.JSX.Element {
+export function SegmentedControl<T extends string>({ value, options, onChange, ariaLabel, disabled = false, className }: SegmentedControlProps<T>): React.JSX.Element {
   const labelId = useId();
   return (
-    <div className={`atlas-segmented${className ? ` ${className}` : ''}`} role="radiogroup" aria-labelledby={labelId}>
+    <div className={`atlas-segmented${className ? ` ${className}` : ''}`} role="radiogroup" aria-labelledby={labelId} aria-disabled={disabled || undefined}>
       <span id={labelId} hidden>{ariaLabel}</span>
       {options.map((option) => (
         <Button
@@ -27,6 +29,7 @@ export function SegmentedControl<T extends string>({ value, options, onChange, a
           variant="ghost"
           role="radio"
           aria-checked={option.value === value}
+          disabled={disabled}
           className={`atlas-segmented__option${option.value === value ? ' atlas-active' : ''}`}
           onClick={() => onChange(option.value)}
         >

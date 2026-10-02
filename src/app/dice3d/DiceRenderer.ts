@@ -63,6 +63,11 @@ function place(mesh: THREE.Mesh, anim: DieAnim): boolean {
   return moved;
 }
 
+/** The pixel ratio a stage in `win` is drawn at: beyond 2 nobody sees the difference, and it is paid on every frame. */
+export function stagePixelRatio(win: Window): number {
+  return Math.min(2, win.devicePixelRatio || 1);
+}
+
 export class DiceRenderer {
   private readonly renderer: THREE.WebGLRenderer;
   private readonly scene = new THREE.Scene();
@@ -77,8 +82,8 @@ export class DiceRenderer {
   /** Who has landed already: the landing fires only once. */
   private landed: boolean[] = [];
   private lastTime: number | null = null;
-  /** The canvas size the buffers were last made for. */
-  private bufferSize = '';
+  /** The canvas' drawing buffer: its size in CSS pixels and its pixel ratio. */
+  private buffer = { width: 0, height: 0, dpr: 0 };
 
   constructor(canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
@@ -133,36 +138,61 @@ export class DiceRenderer {
     });
   }
 
-  /** Fits the camera to the canvas, and the key light and its shadow frame to the stage. */
-  private fitToCanvas(focus: number, halfWidth: number | undefined): void {
-    this.view.fit(focus, halfWidth);
-    const [halfX, halfZ] = this.view.stage();
-    this.shadow.fit(this.view.reach, this.view.focusZ, halfX, halfZ);
-  }
-
   /** The stage as the throw knows it: half width and half depth in world units. */
   stage(): readonly [number, number] {
     return this.view.stage();
   }
 
   /**
-   * Sizes the canvas and fits the camera: to `halfWidth` world units either
-   * side of the centre, by default the whole stage the dice bounce around in.
+   * Sizes the canvas to exactly this and fits the camera: to `halfWidth` world
+   * units either side of the centre, by default the whole stage the dice bounce
+   * around in.
    */
   setSize(width: number, height: number, dpr: number, focus = 0.5, halfWidth?: number): void {
-    // A stage is lent again and again at the size it had; the buffers are
-    // made anew only when it changes, which takes several milliseconds.
-    const bufferSize = `${width}x${height}@${dpr}`;
-    if (bufferSize !== this.bufferSize) {
-      this.bufferSize = bufferSize;
-      this.renderer.setPixelRatio(dpr);
-      this.renderer.setSize(width, height, false);
-    }
+    this.allocate(width, height, dpr);
+    this.fitView(width, height, focus, halfWidth);
+  }
+
+  /**
+   * `setSize` for a stage on a panel: draws at this size in the bottom left
+   * corner of a canvas that is at least as large, and keeps the canvas.
+   *
+   * Making drawing buffers takes milliseconds, and a panel asked for them at
+   * the two moments that have none to spare: when its roll arrives, and when
+   * the next roll shrinks it to a row. So a canvas only ever grows; the stage
+   * holds it by that corner and clips the rest (`.atlas-dice-roll__stage`).
+   */
+  setView(width: number, height: number, dpr: number, focus = 0.5, halfWidth?: number): void {
+    const { buffer } = this;
+    // Another pixel ratio makes new buffers whatever their size, so they start at this one.
+    if (dpr !== buffer.dpr) this.allocate(width, height, dpr);
+    else this.allocate(Math.max(width, buffer.width), Math.max(height, buffer.height), dpr);
+    this.fitView(width, height, focus, halfWidth);
+  }
+
+  /** Gives the canvas this size, as an element and in its drawing buffers, unless it has it. */
+  private allocate(width: number, height: number, dpr: number): void {
+    const { buffer } = this;
+    if (width === buffer.width && height === buffer.height && dpr === buffer.dpr) return;
+    this.buffer = { width, height, dpr };
+    this.renderer.setPixelRatio(dpr);
+    // Sets the element's CSS size too: the stylesheet leaves it to the renderer.
+    this.renderer.setSize(width, height);
+  }
+
+  /**
+   * Draws at this size in the canvas' bottom left corner and fits the camera,
+   * the key light and its shadow frame to it.
+   */
+  private fitView(width: number, height: number, focus: number, halfWidth: number | undefined): void {
+    this.renderer.setViewport(0, 0, width, height);
     this.view.setAspect(width / height);
-    this.fitToCanvas(focus, halfWidth);
+    this.view.fit(focus, halfWidth);
+    const [halfX, halfZ] = this.view.stage();
+    this.shadow.fit(this.view.reach, this.view.focusZ, halfX, halfZ);
     // Sparks are sized in pixels, not world units; the conversion depends on
     // exactly this height.
-    this.sparks.setViewport(height * dpr, STAGE_FOV);
+    this.sparks.setViewport(height * this.buffer.dpr, STAGE_FOV);
   }
 
   /** One frame: take the poses from the simulation and draw. */

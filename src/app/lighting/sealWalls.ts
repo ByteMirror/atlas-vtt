@@ -2,7 +2,8 @@ import type { Point } from '../types/visionTypes';
 import type { WallSegment } from '../types/wallTypes';
 import { sealTolerance } from './lightingConstants';
 import { PointTree } from './pointTree';
-import { plugs } from './sealPlugs';
+import { BOTH, kindOfAll, shared, type BridgeKind } from './sealKinds';
+import { farthest, plugs } from './sealPlugs';
 import { blocksNothing } from './segments';
 
 /** A hair past the wall a bridge lands on, so the two cross instead of merely touching. */
@@ -31,6 +32,8 @@ interface Junction {
   ends: End[];
   /** `firstEnds`, once they were asked for. */
   first?: End[];
+  /** `kindOf`, once it was asked for. */
+  kind?: BridgeKind;
 }
 
 /**
@@ -39,6 +42,14 @@ interface Junction {
  * every wall end within `tolerance` of another wall's middle (and not of its ends) gets a bridge
  * that lands just across it. Returns the walls unchanged followed by the bridges; wider gaps
  * stay open for light and sight alike.
+ *
+ * A bridge blocks what the walls it joins block (`shared`): the one thing where they all block
+ * that thing only, else both, a curtain's joint with glass too. So for sight and for light alike,
+ * every joint between two walls that block it is closed for it, and a bridge that blocks more
+ * than its walls only ever closes more. A bridge between two limited walls is limited, so a row
+ * of hedges counts as one hedge; where a limited wall meets a solid one the bridge is solid.
+ * Where a place is crowded and bridged to fewer than all, its bridges are solid and block both:
+ * the chain that stands in for a pair's bridge may lead over the ends of walls of any sort.
  *
  * The bridges grow with the wall ends, not with their pairs: an end with more than
  * `MAX_BRIDGES` others near it is bridged to the nearest in each of eight directions only
@@ -88,14 +99,17 @@ export function sealedWalls(walls: readonly WallSegment[], texel: number): reado
  * of bridges leads from A to B without leaving the circle around B that A lies on. What a bridge
  * from A to B would part, the chain parts too, but for what lies inside that circle, within the
  * tolerance of both. The two ends of one wall need no bridge, the wall being between them; where
- * that wall is an open door or blocks one way only it parts nothing, so its other end is not the
- * nearest that counts, and the next nearest in that direction is taken. Nor can a chain go on
- * along such a wall when it arrives at one of its ends: where the nearest in a direction is the
- * end of a wall on its own that parts nothing, the wall's other end is bridged from here as well
- * (`loneMate`), for it may be the place the chain was to lead to.
+ * that wall is an open door, blocks one way only, blocks one thing only or is limited it does
+ * not part everything, so its other end is not the nearest that counts, and the next nearest in
+ * that direction is taken. Nor can a chain go on along such a wall when it arrives at one of its
+ * ends: where the nearest in a direction is the end of a wall on its own that does not part
+ * everything, the wall's other end is bridged from here as well (`loneMate`), for it may be the
+ * place the chain was to lead to.
  */
 function endBridges(walls: readonly WallSegment[], junctions: readonly Junction[], byPoint: ReadonlyMap<string, Junction>, tree: PointTree, tolerance: number): WallSegment[] {
-  const bridges = new Map<number, WallSegment>();
+  const bridges = new Map<number, { a: Junction; b: Junction; pair: NonNullable<ReturnType<typeof firstPair>> }>();
+  // Places bridged to fewer than all: a chain that stands in for a pair's bridge leads over them.
+  const crowdedPlaces = new Uint8Array(junctions.length);
   const few: number[] = [];
   const nearest = new Int32Array(8);
   const distances = new Float64Array(8);
@@ -107,14 +121,15 @@ function endBridges(walls: readonly WallSegment[], junctions: readonly Junction[
       return few.length > MAX_BRIDGES;
     });
     // The chain may run along a wall from one of its ends to the other only if the wall stops everything.
-    if (few.length > MAX_BRIDGES) tree.nearestByDirection(a.point.x, a.point.y, tolerance, (index) => endsOfOneOpenWall(walls, a, junctions[index]!), nearest, distances);
-    // In the order of the places, whatever order the tree found them in: unrelated walls elsewhere change nothing here.
     const crowded = few.length > MAX_BRIDGES;
+    if (crowded) crowdedPlaces[a.index] = 1;
+    if (crowded) tree.nearestByDirection(a.point.x, a.point.y, tolerance, (index) => endsOfOneOpenWall(walls, a, junctions[index]!), nearest, distances);
+    // In the order of the places, whatever order the tree found them in: unrelated walls elsewhere change nothing here.
     const join = (b: Junction): void => {
       const key = Math.min(a.index, b.index) * junctions.length + Math.max(a.index, b.index);
       if (bridges.has(key)) return;
       const pair = firstPair(a, b);
-      if (pair) bridges.set(key, bridge(`seal:${pair.first}:${pair.second}`, pair.from, pair.to));
+      if (pair) bridges.set(key, { a, b, pair });
     };
     for (const index of crowded ? [...nearest].sort(ascending) : few.sort(ascending)) {
       if (index < 0) continue;
@@ -123,29 +138,39 @@ function endBridges(walls: readonly WallSegment[], junctions: readonly Junction[
       if (mate && mate !== a && Math.hypot(mate.point.x - a.point.x, mate.point.y - a.point.y) <= tolerance) join(mate);
     }
   }
-  return [...bridges.values()];
+  // A bridge at a crowded place blocks both, whatever meets there: the chains lead over walls of any kind.
+  return [...bridges.values()].map(({ a, b, pair }) => bridge(`seal:${pair.first}:${pair.second}`, pair.from, pair.to, crowdedPlaces[a.index] || crowdedPlaces[b.index] ? BOTH : shared(kindOf(walls, a), kindOf(walls, b))));
+}
+
+/** Whether a wall lets something past it: an open door, a wall that blocks one way only or one thing only, or a limited wall. */
+function partsNotAll(wall: WallSegment): boolean {
+  return blocksNothing(wall) || !!wall.direction || wall.blocks !== undefined || !!wall.limited;
 }
 
 /**
  * The place of the other end of the wall that ends at `junction`, if that wall stands on its own
- * (nothing else ends at either of its ends) and is an open door or blocks one way only.
+ * (nothing else ends at either of its ends) and does not stop everything (`partsNotAll`).
  */
 function loneMate(walls: readonly WallSegment[], junction: Junction, byPoint: ReadonlyMap<string, Junction>): Junction | null {
   if (junction.ends.length !== 1) return null;
   const { wall: index, end } = junction.ends[0]!;
   const wall = walls[index]!;
-  if (!blocksNothing(wall) && !wall.direction) return null;
+  if (!partsNotAll(wall)) return null;
   const mate = byPoint.get(pointKey(wall[end === 'p1' ? 'p2' : 'p1']));
   return mate && mate.ends.length === 1 ? mate : null;
 }
 
 const ascending = (a: number, b: number): number => a - b;
 
-/** Whether two places hold nothing but the two ends of one wall, and that wall is an open door or blocks one way only. */
+/** What the walls that end in a place block (`kindOfAll`), worked out once. */
+function kindOf(walls: readonly WallSegment[], junction: Junction): BridgeKind {
+  return (junction.kind ??= kindOfAll(junction.ends.map((end) => walls[end.wall]!)));
+}
+
+/** Whether two places hold nothing but the two ends of one wall, and that wall does not stop everything (`partsNotAll`). */
 function endsOfOneOpenWall(walls: readonly WallSegment[], a: Junction, b: Junction): boolean {
   if (a.ends.length !== 1 || b.ends.length !== 1 || a.ends[0]!.wall !== b.ends[0]!.wall) return false;
-  const wall = walls[a.ends[0]!.wall]!;
-  return blocksNothing(wall) || !!wall.direction;
+  return partsNotAll(walls[a.ends[0]!.wall]!);
 }
 
 /**
@@ -181,6 +206,8 @@ interface MiddleBridge {
   wall: number;
   end: End;
   landing: Point;
+  /** The place the bridge starts at. */
+  from: Junction;
 }
 
 /**
@@ -217,41 +244,26 @@ function middleBridges(walls: readonly WallSegment[], junctions: readonly Juncti
       const end = junction.ends[0]!;
       const across = acrossDirection(p, foot, walls[end.wall]![end.end === 'p1' ? 'p2' : 'p1'], dx, dy);
       let list = (passing[index] ??= []);
-      list.push({ wall: j, end, landing: { x: foot.x + across.x * OVERSHOOT, y: foot.y + across.y * OVERSHOOT } });
+      list.push({ wall: j, end, landing: { x: foot.x + across.x * OVERSHOOT, y: foot.y + across.y * OVERSHOOT }, from: junction });
       if (++passed[index]! <= MAX_BRIDGES) return;
       // Only the corners of the hull count from the ninth wall on: what lies inside it now lies inside it for good.
       passing[index] = list = farthest(p, list);
       if (list.length > MAX_CORNERS || passed[index]! > MAX_PASSING) plugged[index] = 1;
     });
   });
-  const kept: MiddleBridge[] = [];
+  const kept: (MiddleBridge & { capped: boolean })[] = [];
   passing.forEach((list, index) => {
-    if (list && !plugged[index]) kept.push(...list);
+    if (!list || plugged[index]) return;
+    // The fewer bridges stand in for all of them, for walls of any kind: they are solid and block both.
+    const capped = passed[index]! > MAX_BRIDGES;
+    for (const candidate of list) kept.push({ ...candidate, capped });
   });
   return [
     ...kept
       .sort((a, b) => a.wall - b.wall || a.end.wall - b.end.wall || a.end.end.localeCompare(b.end.end))
-      .map(({ wall, end, landing }) => bridge(`seal:${end.label}:${walls[wall]!.id}`, end.point, landing)),
+      .map(({ wall, end, landing, from, capped }) => bridge(`seal:${end.label}:${walls[wall]!.id}`, end.point, landing, capped ? BOTH : shared(kindOf(walls, from), walls[wall]!))),
     ...plugs(junctions.filter((junction) => plugged[junction.index]).map((junction) => junction.point), tolerance + OVERSHOOT).map(({ id, p1, p2 }) => bridge(id, p1, p2)),
   ];
-}
-
-/** The bridges from `point` whose landings are corners of the convex hull of the point and all the landings. */
-function farthest(point: Point, bridges: readonly MiddleBridge[]): MiddleBridge[] {
-  const corners: { at: Point; bridge: MiddleBridge | null }[] = [{ at: point, bridge: null }, ...bridges.map((candidate) => ({ at: candidate.landing, bridge: candidate }))];
-  corners.sort((a, b) => a.at.x - b.at.x || a.at.y - b.at.y);
-  // Andrew's monotone chain; a landing on a line between two others is no corner.
-  const turnsLeft = (o: Point, a: Point, b: Point): boolean => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x) > 1e-9;
-  const half = (order: typeof corners): typeof corners => {
-    const hull: typeof corners = [];
-    for (const corner of order) {
-      while (hull.length >= 2 && !turnsLeft(hull[hull.length - 2]!.at, hull[hull.length - 1]!.at, corner.at)) hull.pop();
-      hull.push(corner);
-    }
-    return hull;
-  };
-  const hull = new Set([...half(corners), ...half([...corners].reverse())]);
-  return bridges.filter((candidate) => [...hull].some((corner) => corner.bridge === candidate));
 }
 
 /** Unit vector from `p` across the wall at `foot`; for an end on the wall, away from its own wall. */
@@ -278,6 +290,6 @@ function pointKey(p: Point): string {
   return `${p.x},${p.y}`;
 }
 
-function bridge(id: string, p1: Point, p2: Point): WallSegment {
-  return { id, kind: 'wall', type: 'solid', p1: { ...p1 }, p2: { ...p2 } };
+function bridge(id: string, p1: Point, p2: Point, kind: BridgeKind = BOTH): WallSegment {
+  return { id, kind: 'wall', type: 'solid', p1: { ...p1 }, p2: { ...p2 }, ...(kind.blocks && { blocks: kind.blocks }), ...(kind.limited && { limited: true }) };
 }

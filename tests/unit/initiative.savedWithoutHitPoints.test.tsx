@@ -19,6 +19,7 @@ vi.mock('../../src/app/react/components/StatblockHoverPreview', () => ({
 }));
 
 import { InitiativeTracker } from '../../src/app/react/components/InitiativeTracker';
+import { initiativeEntryForToken } from '../../src/app/stores/initiativeEntries';
 import { AtlasUIContext } from '../../src/app/react/root/AtlasUIContext';
 import { ViewStoreProvider } from '../../src/app/react/ViewStoreContext';
 import { createViewAtlasStore, type ViewAtlasState, type ViewAtlasStore } from '../../src/app/storeFactory';
@@ -63,6 +64,7 @@ describe('a creature with a statblock but no hit points in the initiative', () =
     act(() => {
       store.getState().setInitiativeTrackerOpen(true);
       store.getState().addToken({ kind: 'character', name: 'Acid Burrower', statblockPath: STATBLOCK, x: 0, y: 0, imagePath: 'tokens/burrower.webp' });
+      store.getState().addToInitiative(initiativeEntryForToken(Object.values(store.getState().objects.tokens)[0]!));
     });
 
     const session = showTracker(app, store);

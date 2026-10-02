@@ -1,6 +1,7 @@
 import type { Asset, CollectionMetadata } from '../AssetService';
 import { isRecord } from '../assetMetadataGuards';
 import { SNAPSHOTS_DIR } from '../../snapshots/snapshotPaths';
+import { STATBLOCK_IMAGE_KEYS, type StatblockImageKey } from '../statblockImageKeys';
 
 /** Bumped when the zip layout or manifest shape changes. */
 export const BUNDLE_FORMAT = 6;
@@ -25,9 +26,6 @@ export type BundleFileRole = typeof BUNDLE_FILE_ROLES[number];
 
 /** Statblock notes and their artwork: files an importing vault may already have, and then reuses in place. */
 export const REUSABLE_FILE_ROLES: ReadonlySet<BundleFileRole> = new Set<BundleFileRole>(['statblock-note', 'statblock-image']);
-
-/** The frontmatter field of a statblock note that points at its artwork. */
-export type StatblockImageKey = 'image' | 'token-image';
 
 export interface BundleFile {
   vaultPath: string;
@@ -91,7 +89,7 @@ export function isSafeBundlePath(path: string, role?: BundleFileRole): boolean {
 }
 
 const isStatblockImage = (value: unknown): boolean =>
-  isRecord(value) && (value.key === 'image' || value.key === 'token-image') && typeof value.path === 'string';
+  isRecord(value) && STATBLOCK_IMAGE_KEYS.some((key) => key === value.key) && typeof value.path === 'string';
 
 const isStrings = (value: unknown): boolean => Array.isArray(value) && value.every((entry) => typeof entry === 'string');
 

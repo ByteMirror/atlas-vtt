@@ -6,6 +6,7 @@
  * NOT persisted — the partialize whitelist in storeFactory.ts excludes these.
  */
 
+import { DEFAULT_EXPLORED_BRUSH, type ExploredBrushOptions } from '../lighting/exploredEdits';
 import type { HeldTokens } from '../lighting/sightOnDrop';
 
 /** State fields added to ViewAtlasState */
@@ -27,6 +28,8 @@ export interface UISlice {
   isSceneLightingPanelOpen: boolean;
   /** The tokens the pointer holds (pressed or dragged), each where it stood when taken; set through `holdTokens`. */
   heldTokens: HeldTokens;
+  /** What the lighting tool's explored-memory mode does with a stroke: the one place the menu and the tool read it from. */
+  exploredBrush: ExploredBrushOptions;
 
   // Actions
   setGridSettingsOpen: (open: boolean) => void;
@@ -43,6 +46,7 @@ export interface UISlice {
   closeLightZonePopover: () => void;
   setSceneLightingPanelOpen: (open: boolean) => void;
   setHeldTokens: (held: HeldTokens) => void;
+  setExploredBrush: (changes: Partial<ExploredBrushOptions>) => void;
 }
 
 /** Default state — all panels closed */
@@ -60,6 +64,7 @@ export function createInitialUIState(): Pick<
   | 'lightZonePopover'
   | 'isSceneLightingPanelOpen'
   | 'heldTokens'
+  | 'exploredBrush'
 > {
   return {
     isGridSettingsOpen: false,
@@ -74,6 +79,7 @@ export function createInitialUIState(): Pick<
     lightZonePopover: null,
     isSceneLightingPanelOpen: false,
     heldTokens: {},
+    exploredBrush: DEFAULT_EXPLORED_BRUSH,
   };
 }
 
@@ -96,6 +102,7 @@ export function createUIActions(
   | 'closeLightZonePopover'
   | 'setSceneLightingPanelOpen'
   | 'setHeldTokens'
+  | 'setExploredBrush'
 > {
   return {
     setGridSettingsOpen: (open) => set((draft) => { draft.isGridSettingsOpen = open; }),
@@ -124,5 +131,6 @@ export function createUIActions(
     closeLightPopover: () => set((draft) => { draft.lightPopover = null; }),
     setSceneLightingPanelOpen: (open) => set((draft) => { draft.isSceneLightingPanelOpen = open; }),
     setHeldTokens: (held) => set((draft) => { draft.heldTokens = held; }),
+    setExploredBrush: (changes) => set((draft) => { draft.exploredBrush = { ...draft.exploredBrush, ...changes }; }),
   };
 }

@@ -8,7 +8,6 @@ import { sightSources } from '../../vision/sight';
 import type { SightRules } from '../../vision/sightRules';
 import type { MapBounds } from '../../vision/visibility';
 import type { VisionCone } from '../../vision/visionCone';
-import { computeTokenPixelSize } from '../token-renderer/tokenSizing';
 import { canvasBadgeColors } from '../utils/canvasBadgeColors';
 import { destroyTree } from '../utils/destroyTree';
 import { senseRings, type SenseRing, type SenseRings } from './senseRings';
@@ -31,10 +30,6 @@ const FALLBACK_FONT = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sa
 const LABEL_STEP = (24 * Math.PI) / 180;
 /** Where the first label sits on a ring that runs all around: up and to the right. */
 const FIRST_LABEL = -Math.PI / 3;
-/** Where the names of the senses without a limit stand: beside the token, down and to the right, clear of its handles and marks. */
-const NO_LIMIT_ANGLE = Math.PI / 4;
-/** Screen pixels between the token's edge and that label. */
-const NO_LIMIT_GAP = 12;
 /** More selected tokens than this draw no rings: they would cover the map. */
 const MAX_TOKENS = 4;
 
@@ -44,12 +39,6 @@ interface Rect {
   top: number;
   right: number;
   bottom: number;
-}
-
-/** The rings of one token, and the radius of the token itself in world pixels. */
-interface TokenRings {
-  rings: SenseRings;
-  footprint: number;
 }
 
 export interface SenseRangeRingsDeps {
@@ -65,8 +54,8 @@ export interface SenseRangeRingsDeps {
 /**
  * The ranges of the selected vision tokens for the GM: a thin ring for the sight range and for
  * each sense with a distance, an arc where the token looks one way, the cone's two edges, and
- * the sense's name with its distance at each ring. They show how far each reaches, not what
- * walls leave of it. Lines and labels keep their size on screen; the label is a badge in the
+ * the sense's name with its distance at each ring; what reaches without limit has no ring and
+ * no label. They show how far each reaches, not what walls leave of it. Lines and labels keep their size on screen; the label is a badge in the
  * theme's colours, so it reads on any map. Part of the GM's sight aids (`GmSightAids`).
  */
 export class SenseRangeRings {
@@ -93,10 +82,6 @@ export class SenseRangeRings {
 
   /** The rings of every selected token with vision, in a lit scene. */
   rings(): SenseRings[] {
-    return this.selected().map(({ rings }) => rings);
-  }
-
-  private selected(): TokenRings[] {
     const { store, shown, measurement, bounds, rules } = this.deps;
     const state = store.getState();
     const map = bounds();
@@ -110,10 +95,7 @@ export class SenseRangeRings {
     const scale = unitScaleOf(settings, state.grid);
     const unlimited = Math.hypot(map.width, map.height);
     const distance = (radius: number): string => formatReach(radius / scale.cellSize, settings);
-    return tokens.flatMap((token) => {
-      const footprint = computeTokenPixelSize(scale.cellSize, token.size || 1) / 2;
-      return sightSources({ [token.id]: token }, scale, map, rules()).map((source) => ({ rings: senseRings(source, unlimited, distance), footprint }));
-    });
+    return tokens.flatMap((token) => sightSources({ [token.id]: token }, scale, map, rules()).map((source) => senseRings(source, unlimited, distance)));
   }
 
   /**
@@ -122,10 +104,10 @@ export class SenseRangeRings {
    * places, the zoom, the theme, or the part on screen of a ring too long to dash all around.
    */
   draw(): void {
-    const all = this.selected();
+    const all = this.rings();
     const zoom = this.deps.viewport.scale.x;
     const theme = canvasBadgeColors().background;
-    const screen = all.some(({ rings }) => rings.rings.some((ring) => dashCount(ring, zoom) > MAX_DASHES)) ? this.onScreen(zoom) : null;
+    const screen = all.some(({ rings }) => rings.some((ring) => dashCount(ring, zoom) > MAX_DASHES)) ? this.onScreen(zoom) : null;
     const key = all.length === 0 ? '' : JSON.stringify([zoom, theme, screen, all]);
     if (key === this.drawn) return;
     this.drawn = key;
@@ -160,7 +142,7 @@ export class SenseRangeRings {
     return [...this.pool.keys()].map((key) => key.split('|')[1]!);
   }
 
-  private drawToken({ rings: { center, rings, cone, coneReach, unbounded }, footprint }: TokenRings, zoom: number, screen: Rect | null, keyOf: (text: string) => string): void {
+  private drawToken({ center, rings, cone, coneReach }: SenseRings, zoom: number, screen: Rect | null, keyOf: (text: string) => string): void {
     const pixel = 1 / zoom;
     const g = this.lines;
     // Dark under light: first every hairline, then every line, so no line is cut by another's rim.
@@ -184,13 +166,6 @@ export class SenseRangeRings {
       const angle = labelAngle(ring, index, rings.length);
       this.label(keyOf(ring.label), ring.label, { x: center.x + Math.cos(angle) * ring.radius, y: center.y + Math.sin(angle) * ring.radius }, pixel);
     });
-    if (unbounded.length > 0) {
-      const text = `No limit: ${unbounded.join(', ')}`;
-      const reach = footprint + NO_LIMIT_GAP * pixel;
-      const badge = this.label(keyOf(text), text, { x: center.x + Math.cos(NO_LIMIT_ANGLE) * reach, y: center.y + Math.sin(NO_LIMIT_ANGLE) * reach }, pixel);
-      // It begins at that point and runs away from the token.
-      badge.pivot.set(-badge.getLocalBounds().width / 2, -badge.getLocalBounds().height / 2);
-    }
   }
 
   /**
@@ -223,12 +198,11 @@ export class SenseRangeRings {
   }
 
   /** A small badge with the text, centred on `at`, at a constant size on screen. */
-  private label(key: string, text: string, at: Point, pixel: number): Container {
+  private label(key: string, text: string, at: Point, pixel: number): void {
     let badge = this.pool.get(key);
     if (!badge) this.pool.set(key, badge = this.badges.addChild(drawLabel(text)));
     badge.position.set(at.x, at.y);
     badge.scale.set(pixel);
-    return badge;
   }
 
   destroy(): void {

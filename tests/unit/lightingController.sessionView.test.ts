@@ -5,6 +5,7 @@ import { Viewport } from 'pixi-viewport';
 import { genericLight } from '../mocks/lights';
 import { holdTokens } from '../../src/app/lighting/sightOnDrop';
 import { LightingController } from '../../src/app/pixi/lighting/LightingController';
+import { captureWithLayerVisibility } from '../../src/app/pixi/playerSafeFrame';
 import type { LightPointerHandlers } from '../../src/app/pixi/lighting/LightInteraction';
 import type { SceneLightingDeps } from '../../src/app/pixi/lighting/createSceneLighting';
 import type { SceneLightingView } from '../../src/app/pixi/lighting/sceneLightingView';
@@ -39,6 +40,7 @@ vi.mock('../../src/app/pixi/lighting/createSceneLighting', () => ({
       ambientLight: () => ({ ambient: 1 }),
       refreshBounds: () => lighting.refreshBounds(),
       resetExplored: vi.fn(),
+      editExplored: vi.fn(() => false),
       beforeMapUnload: vi.fn(),
       renderForFrame: (_frame, render) => render(),
       destroy: vi.fn(),
@@ -65,10 +67,6 @@ interface Wired {
   refreshPlayerSight: ReturnType<typeof vi.fn>;
   /** The layer of the sensed tokens' outlines, as the token renderer gives it. */
   sensedOutlines: { visible: boolean };
-  /** The hover card's line, as the controller words it. */
-  sightLine: (tokenId: string) => string | null;
-  /** Refreshes an open hover card. */
-  refreshSightLine: ReturnType<typeof vi.fn>;
 }
 
 interface Setup {
@@ -113,7 +111,7 @@ function setup(extra: Partial<ConstructorParameters<typeof LightingController>[0
     albedo: () => null,
     ...extra,
   });
-  const wired = { refreshPlayerSight: vi.fn(), sensedOutlines: { visible: false }, refreshSightLine: vi.fn() } as Wired;
+  const wired = { refreshPlayerSight: vi.fn(), sensedOutlines: { visible: false } } as Wired;
   controller.wire({
     setWallPointerDownHandler: (fn: Wired['pointerDown']) => { wired.pointerDown = fn; },
     setWallPointerMoveHandler: (fn: Wired['pointerMove']) => { wired.pointerMove = fn; },
@@ -127,10 +125,6 @@ function setup(extra: Partial<ConstructorParameters<typeof LightingController>[0
     setPlayerSightProvider: (fn: Wired['playerSight']) => { wired.playerSight = fn; },
     refreshPlayerSight: wired.refreshPlayerSight,
     getSensedOutlineLayer: () => wired.sensedOutlines,
-    setSightLineProvider: (fn: Wired['sightLine']) => {
-      wired.sightLine = fn;
-      return wired.refreshSightLine;
-    },
   } as unknown as TokenRenderer);
   cleanup = () => {
     controller.destroy();
@@ -172,7 +166,9 @@ describe('LightingController in session view', () => {
     store.getState().setSceneLighting({ enabled: true });
     store.getState().setGMView(false);
     const layers = controller.playerLayers();
-    expect(layers).toHaveLength(8);
+    // The players' lighting, the outlines of sensed tokens, the players' door badges, and each of the GM's seven overlays.
+    expect(layers).toHaveLength(10);
+    expect(Object.keys(controller.gmOverlays())).toHaveLength(7);
     for (const { layer, visible } of layers) expect(layer.visible).toBe(visible);
     expect(lighting.modeLayer.visible).toBe(true);
   });
@@ -246,16 +242,94 @@ describe('LightingController in session view', () => {
     openContextMenuGlobal.mockReset();
   });
 
-  it('opens no door from a badge the players\' view hides', () => {
-    const { store, wired } = setup();
+  /** A hero at (50, 50) whose sight a solid wall at y = 200 ends: the door at y = 100 is in it, the one at y = 300 is not. */
+  function doorsInAndOutOfSight(): Setup & { seen: string; unseen: string; secret: string } {
+    const made = setup();
+    const { store } = made;
     store.getState().setSceneLighting({ enabled: true });
-    const door = store.getState().addWall({ type: 'door', p1: { x: 0, y: 100 }, p2: { x: 100, y: 100 }, closed: true });
+    const blocking = [{ id: 'south', kind: 'wall' as const, type: 'solid' as const, p1: { x: -1000, y: 200 }, p2: { x: 1000, y: 200 } }];
+    lighting.sight = computeSight([{ tokenId: 'hero', origin: { x: 50, y: 50 }, range: 1000, senses: [] }], blocking);
+    const seen = store.getState().addWall({ type: 'door', p1: { x: 0, y: 100 }, p2: { x: 100, y: 100 }, closed: true });
+    const unseen = store.getState().addWall({ type: 'door', p1: { x: 0, y: 300 }, p2: { x: 100, y: 300 }, closed: true });
+    const secret = store.getState().addWall({ type: 'secret-door', p1: { x: 200, y: 100 }, p2: { x: 300, y: 100 }, closed: true });
+    return { ...made, seen, unseen, secret };
+  }
+
+  it('opens and closes a door the players see from its badge in session view and while peeking, in one undo step', () => {
+    const { store, wired, seen } = doorsInAndOutOfSight();
+    const history = getHistoryStore(store)!;
+    history.getState().clear();
+    store.getState().setGMView(false);
+    expect(wired.doorClick(50, 100)).toBe(true);
+    expect(store.getState().objects.walls[seen]?.closed).toBe(false);
+    expect(history.getState().pastStates).toHaveLength(1);
+    store.getState().setGMView(true);
+    pressPeek('keydown');
+    expect(wired.doorClick(50, 100)).toBe(true);
+    expect(store.getState().objects.walls[seen]?.closed).toBe(true);
+    pressPeek('keyup');
+  });
+
+  it('opens a door the players see from its badge with the lighting tool too, whose editor the players\' view hides', () => {
+    const { store, click, seen, unseen } = doorsInAndOutOfSight();
+    store.getState().setActiveTool('wall');
+    store.getState().setGMView(false);
+    expect(click(50, 100)).toBe(true);
+    expect(store.getState().objects.walls[seen]?.closed).toBe(false);
+    expect(click(50, 300)).toBe(false);
+    expect(store.getState().objects.walls[unseen]?.closed).toBe(true);
+  });
+
+  it('opens no door from a badge the players\' view does not show: one out of sight, a secret door', () => {
+    const { store, wired, unseen, secret } = doorsInAndOutOfSight();
+    store.getState().setGMView(false);
+    expect(wired.doorClick(50, 300)).toBe(false);
+    expect(wired.doorClick(250, 100)).toBe(false);
+    expect(store.getState().objects.walls[unseen]?.closed).toBe(true);
+    expect(store.getState().objects.walls[secret]?.closed).toBe(true);
+    store.getState().setGMView(true);
+    expect(wired.doorClick(50, 300)).toBe(true);
+    expect(wired.doorClick(250, 100)).toBe(true);
+    expect(store.getState().objects.walls[unseen]?.closed).toBe(false);
+    expect(store.getState().objects.walls[secret]?.closed).toBe(false);
+  });
+
+  it('keeps a locked door shut in session view too, and opens no door menu there', () => {
+    const { store, wired, seen } = doorsInAndOutOfSight();
+    store.getState().setDoorLocked(seen, true);
+    store.getState().setGMView(false);
+    expect(wired.doorClick(50, 100)).toBe(true);
+    expect(store.getState().objects.walls[seen]).toMatchObject({ closed: true, locked: true });
+    expect(doorMenu.current!.hitTest(50, 100)).toBeNull();
+  });
+
+  it('follows the players\' sight: a door shows once they see it, and no longer once they do not', () => {
+    const { store, wired, unseen } = doorsInAndOutOfSight();
+    store.getState().setGMView(false);
+    expect(wired.doorClick(50, 300)).toBe(false);
+    lighting.sight = SEES_ALL;
+    (lighting.deps as SceneLightingDeps).onSightChange?.();
+    expect(wired.doorClick(50, 300)).toBe(true);
+    expect(store.getState().objects.walls[unseen]?.closed).toBe(false);
+  });
+
+  it('shows no door badge to the players on an unlit scene', () => {
+    const { store, wired, controller } = doorsInAndOutOfSight();
+    store.getState().setSceneLighting({ enabled: false });
     store.getState().setGMView(false);
     expect(wired.doorClick(50, 100)).toBe(false);
-    expect(store.getState().objects.walls[door]?.closed).toBe(true);
-    store.getState().setGMView(true);
-    expect(wired.doorClick(50, 100)).toBe(true);
-    expect(store.getState().objects.walls[door]?.closed).toBe(false);
+    for (const layer of controller.playerOnlyLayers()) expect(layer.visible).toBe(false);
+  });
+
+  it('shows the players\' badges for one captured frame from GM view and puts the GM\'s back', () => {
+    const { controller } = doorsInAndOutOfSight();
+    const { doorBadges } = controller.gmOverlays();
+    const [playerBadges] = controller.playerOnlyLayers();
+    expect([doorBadges.visible, playerBadges!.visible]).toEqual([true, false]);
+    let captured: boolean[] = [];
+    captureWithLayerVisibility(controller.playerLayers(), () => undefined, () => { captured = [doorBadges.visible, playerBadges!.visible]; });
+    expect(captured).toEqual([false, true]);
+    expect([doorBadges.visible, playerBadges!.visible]).toEqual([true, false]);
   });
 });
 
@@ -514,41 +588,6 @@ describe('tokens in session view', () => {
     expect(controller.sightAids.rings.labels()).toEqual([]);
   });
 
-  it('words the hover card\'s line for the GM, and refreshes an open card when the sight changes', async () => {
-    const { store, wired, lurker } = scene();
-    const { onSightChange } = lighting.deps as SceneLightingDeps;
-    expect(wired.sightLine(lurker)).toBe('Bright light · Not seen by the players');
-    store.getState().updateToken(lurker, { x: 150, y: 100 });
-    expect(wired.sightLine(lurker)).toBe('Bright light · Seen by a token: Sight');
-    await nextFrame();
-    wired.refreshSightLine.mockClear();
-    onSightChange?.();
-    await nextFrame();
-    expect(wired.refreshSightLine).toHaveBeenCalledTimes(1);
-    store.getState().setGMView(false);
-    expect(wired.sightLine(lurker)).toBeNull();
-  });
-
-  it('gives what names tokens beside the map the players\' perception only where their tokens decide what is seen, and tells when it changes', () => {
-    const { controller, store, lurker } = scene();
-    const { onSightChange } = lighting.deps as SceneLightingDeps;
-    const walled = lighting.sight;
-    expect(controller.tokenSight()?.(lurker)).toBe('unseen');
-    const heard = vi.fn();
-    const stop = controller.onSightChanged(heard);
-    onSightChange?.();
-    expect(heard).toHaveBeenCalledTimes(1);
-    // No token sees, or token vision is off: line of sight hides nothing, so the list leaves nothing out.
-    lighting.sight = SEES_ALL;
-    expect(controller.tokenSight()).toBeUndefined();
-    lighting.sight = walled;
-    store.getState().setSceneLighting({ enabled: false });
-    expect(controller.tokenSight()).toBeUndefined();
-    stop();
-    onSightChange?.();
-    expect(heard).toHaveBeenCalledTimes(1);
-  });
-
   it('hides nothing by sight while the scene has no lighting', () => {
     const { store, wired } = scene();
     store.getState().setSceneLighting({ enabled: false });
@@ -563,14 +602,16 @@ describe('tokens in session view', () => {
     expect(controller.playerSight()?.(lurker)).toBe('unseen');
   });
 
-  it('leaves a dragged vision token out of the players\' frame where the sight that stayed behind does not reach', () => {
+  it('leaves a dragged vision token out of the players\' frame where the sight that stayed behind does not reach, in a scene that waits for the drop', () => {
     const { controller, store } = scene();
     const hero = Object.keys(store.getState().objects.tokens)[0]!;
+    store.getState().setSceneLighting({ sightOnDrop: true });
     holdTokens(store, [hero]);
     expect(controller.playerSight()?.(hero)).toBe('seen');
     store.getState().setTokenPositions([{ id: hero, x: 400, y: 100 }]);
     expect(controller.playerSight()?.(hero)).toBe('unseen');
-    store.getState().setSceneLighting({ sightOnDrop: false });
+    // Without the option sight follows the drag, and the token is seen where it is.
+    store.getState().setSceneLighting({ sightOnDrop: undefined });
     expect(controller.playerSight()?.(hero)).toBe('seen');
     store.getState().setSceneLighting({ sightOnDrop: true });
     holdTokens(store, []);

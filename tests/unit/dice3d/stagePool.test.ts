@@ -58,15 +58,16 @@ describe('stagePool', () => {
       warmStages(document, Promise.resolve());
       expect(built()).toBe(0);
       await vi.runAllTimersAsync();
-      expect(built()).toBe(3);
+      expect(built()).toBe(4);
 
-      // As many rolls as stand at once find their stages waiting; only one more is built on demand.
+      // As many rolls as stand at once, and one fading out, find their stages waiting; only one more is built on demand.
       borrowStage(document);
       borrowStage(document);
       borrowStage(document);
-      expect(built()).toBe(3);
       borrowStage(document);
       expect(built()).toBe(4);
+      borrowStage(document);
+      expect(built()).toBe(5);
     });
 
     it('builds nothing while dice are on a stage, and catches up when it comes back', async () => {
@@ -78,14 +79,14 @@ describe('stagePool', () => {
 
       returnStage(lease);
       await vi.runAllTimersAsync();
-      expect(built()).toBe(3);
+      expect(built()).toBe(4);
     });
 
     it('warms a document once', async () => {
       warmStages(document, Promise.resolve());
       warmStages(document, Promise.resolve());
       await vi.runAllTimersAsync();
-      expect(built()).toBe(3);
+      expect(built()).toBe(4);
     });
   });
 });

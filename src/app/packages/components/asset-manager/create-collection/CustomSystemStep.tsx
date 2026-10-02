@@ -5,12 +5,14 @@ import { GridMeasurementTab } from '../../../../react/components/collection-sett
 import { ResourcesTab } from '../../../../react/components/collection-settings/ResourcesTab';
 import type { ResourceDefinition } from '../../../../resources/resourceTypes';
 import type { CollectionGridDefaults, ConditionDefinition } from '../../../../types/collectionSettingsTypes';
+import type { InitiativeRules } from '../../../../types/initiativeRulesTypes';
 
 /** The rules a game system set up while creating a collection consists of. */
 export interface CustomSystemRules {
   gridDefaults: CollectionGridDefaults;
   conditions: ConditionDefinition[];
   defaultWidgets: Record<string, boolean>;
+  initiative: InitiativeRules;
   resources: ResourceDefinition[];
 }
 
@@ -77,6 +79,8 @@ export function CustomSystemStep({
         <DefaultWidgetsTab
           defaultWidgets={rules.defaultWidgets}
           onChange={(defaultWidgets) => onRulesChange({ ...rules, defaultWidgets })}
+          initiative={rules.initiative}
+          onInitiativeChange={(initiative) => onRulesChange({ ...rules, initiative })}
         />
       </section>
     </>

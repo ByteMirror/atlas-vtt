@@ -1,4 +1,4 @@
-import type { WallSegment } from '../../types/wallTypes';
+import type { WallChannel, WallSegment } from '../../types/wallTypes';
 import { blocksFrom } from '../../vision/visibility';
 import { sealTolerance } from '../lightingConstants';
 import { crosses, segOf } from '../segments';
@@ -68,9 +68,13 @@ export function sealAllPairs(walls: readonly WallSegment[], tolerance = TOLERANC
   return [...walls, ...pairs.values(), ...middles];
 }
 
-/** Whether something of `walls` stops light and sight going from `a` to `b`: open doors stop nothing, one-way walls only from their blocking side. */
-export function stops(a: XY, b: XY, walls: readonly WallSegment[]): WallSegment | undefined {
-  return walls.find((w) => blocksFrom(w, a) && crosses(a.x, a.y, b.x, b.y, segOf(w)));
+/**
+ * Whether something of `walls` stops what goes from `a` to `b`, sight or light or (without a
+ * channel) either: open doors stop nothing, one-way walls only from their blocking side, a wall
+ * for one thing only that thing.
+ */
+export function stops(a: XY, b: XY, walls: readonly WallSegment[], channel?: WallChannel): WallSegment | undefined {
+  return walls.find((w) => blocksFrom(w, a, channel) && crosses(a.x, a.y, b.x, b.y, segOf(w)));
 }
 
 /** Whether `p` is farther than the tolerance from every end of `walls`: the bridges of a junction say nothing about what lies nearer. */

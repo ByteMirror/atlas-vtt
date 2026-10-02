@@ -1,4 +1,4 @@
-import { DiceRenderer } from './DiceRenderer';
+import { DiceRenderer, stagePixelRatio } from './DiceRenderer';
 import { DIE_BODIES } from './diceScene';
 import { loadDiceArtwork } from './dieArtwork';
 import { makeDie } from './dieMotion';
@@ -79,15 +79,20 @@ export function returnStage(lease: StageLease): void {
  * mirror world, the shaders. On the first roll that was a freeze at the very
  * moment the dice leave the hand, again for the player window, and again for
  * the second panel of an attack and its damage. So each document gets its
- * stages while nothing rolls: as many as rolls stand at once (`rollStackState`).
+ * stages while nothing rolls: as many as rolls stand at once (`rollStackState`)
+ * and one for the roll that fades out as the next arrives.
  */
-const WARM_STAGES = 3;
+const WARM_STAGES = 4;
 /** The pause before a stage is built, and between two: the map opening has the frames first. */
 const WARM_PAUSE_MS = 500;
 /** How long a build waits for an idle moment before it takes one. */
 const WARM_PATIENCE_MS = 3000;
-/** The stage a warm-up draws on: no one sees it, it only has to be a frame. */
-const WARM_PX = 64;
+/**
+ * The canvas a stage waits with, in rem: the roll panel's width and more than
+ * its height (`dice-roll.scss`), so a panel finds its canvas made
+ * (`DiceRenderer.setView`).
+ */
+const WARM_REM = [21, 24] as const;
 /** Fast enough for the smear, whose translucent shader a still die never asks for. */
 const WARM_SPIN = [40, 0, 0] as const;
 
@@ -105,8 +110,9 @@ function whenQuiet(doc: Document, run: () => void): void {
  * and the artwork is on the graphics card, so the first throw's first frame
  * costs what every other does.
  */
-function warmUp(renderer: DiceRenderer): void {
-  renderer.setSize(WARM_PX, WARM_PX, 1);
+function warmUp(renderer: DiceRenderer, win: Window): void {
+  const rem = parseFloat(win.getComputedStyle(win.document.documentElement).fontSize) || 16;
+  renderer.setSize(Math.ceil(WARM_REM[0] * rem), Math.ceil(WARM_REM[1] * rem), stagePixelRatio(win));
   renderer.setPlan(DIE_BODIES);
   renderer.render(DIE_BODIES.map((sides) => ({ sides, anim: { ...makeDie(Math.random), w: [...WARM_SPIN] } })), 0);
   renderer.reset();
@@ -119,7 +125,7 @@ function warmNext(doc: Document): void {
   // Dice are on a stage: building now would be the freeze this is here to avoid.
   if (out === 0) {
     const stage = buildStage(doc);
-    if (stage.renderer) warmUp(stage.renderer);
+    if (stage.renderer && doc.defaultView) warmUp(stage.renderer, doc.defaultView);
     pool.push(stage);
   }
   whenQuiet(doc, () => warmNext(doc));

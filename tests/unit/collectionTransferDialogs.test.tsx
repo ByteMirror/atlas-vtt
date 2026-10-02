@@ -271,7 +271,7 @@ describe('export options', () => {
     expect(hero()).toBeUndefined();
   });
 
-  it('shows tokens as cards the way they spawn, and opens a token\'s statblock after resting on it', async () => {
+  it('shows tokens as cards the way they spawn, and opens a token\'s statblock while Ctrl/Cmd is held over it, as the asset manager does', async () => {
     vi.useFakeTimers();
     const goblin = { ...token, thumbnailPath: 'atlas-vtt/assets/thumbnails/goblin.webp', showRing: false, statblockPath: 'Bestiary/Goblin.md' } as Asset;
     const orc = { ...token, id: 'orc', name: 'Orc', imagePath: 'atlas-vtt/assets/orc.webp' } as Asset;
@@ -287,12 +287,19 @@ describe('export options', () => {
     expect(cards[0]!.querySelector('.atlas-transfer-token__statblock')).toBeTruthy();
     expect(cards[1]!.querySelector('.atlas-transfer-token__statblock')).toBeNull();
 
-    fireEvent.pointerEnter(cards[0]!);
-    await act(async () => { await vi.advanceTimersByTimeAsync(100); });
-    expect(document.querySelector('.statblock-hover-preview--over-modal')).toBeNull();
-    await act(async () => { await vi.advanceTimersByTimeAsync(400); });
+    const settle = async (): Promise<void> => { await act(async () => { await vi.advanceTimersByTimeAsync(500); }); };
+    fireEvent.mouseMove(cards[0]!);
+    await settle();
+    expect(document.querySelector('.atlas-statblock-preview-window')).toBeNull();
+
+    fireEvent.keyDown(window, { key: 'Control', ctrlKey: true });
+    await settle();
     expect(noteText).toHaveBeenCalledWith('Bestiary/Goblin.md');
-    expect(document.querySelector('.statblock-hover-preview--over-modal')).toBeTruthy();
+    expect(document.querySelector('.atlas-statblock-preview-window--over-modal')).toBeTruthy();
+
+    fireEvent.keyUp(window, { key: 'Control' });
+    await settle();
+    expect(document.querySelector('.atlas-statblock-preview-window')).toBeNull();
 
     fireEvent.click(within(cards[1] as HTMLElement).getByRole('checkbox'));
     expect(cards[1]!.getAttribute('data-state')).toBe('excluded');

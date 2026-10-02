@@ -7,7 +7,6 @@ import { restingTokenUIScale } from '../../src/app/pixi/token-renderer/tokenSizi
 import { createViewAtlasStore, type TokenInput, type ViewAtlasStore } from '../../src/app/storeFactory';
 import type { TokenEntity } from '../../src/app/types';
 import type { Perception } from '../../src/app/vision/perception';
-import { SEES_ALL } from '../../src/app/vision/sight';
 import { GENERIC_SIGHT_RULES } from '../../src/app/vision/sightRules';
 import { createInMemoryApp } from '../mocks/inMemoryVault';
 import { stubJsdomGraphics } from '../mocks/jsdomGraphics';
@@ -51,7 +50,6 @@ function setup(measure: () => MeasurementSettings = measurement, frames: () => W
     measurement: measure,
     bounds: () => ({ width: 4000, height: 4000 }),
     rules: () => GENERIC_SIGHT_RULES,
-    lighting: { isEnabled: () => store.getState().lighting.enabled, currentSight: () => SEES_ALL, ambientLight: () => ({ ambient: 1 }), lightReaches: () => [] },
     perception: () => (store.getState().lighting.enabled ? perception() : undefined),
     frames,
   });
@@ -83,12 +81,8 @@ describe('the ranges of a selected vision token', () => {
     expect(aids.rings.rings()[0]!.rings.map((ring) => [ring.radius, ring.style])).toEqual([[840, 'sight'], [420, 'sense'], [210, 'creatures']]);
     store.getState().setSelection([add(900, { enabled: true, senses: [{ id: 'low-light-vision' }, { id: 'darkvision', range: 30 }] })]);
     aids.update();
-    expect(labels(aids)).toEqual(['Darkvision 30ft', 'No limit: Sight, Low-light vision']);
-    // What has no limit is named beside the token, down and to the right of its rim.
-    const noLimit = aids.rings.view.children[1]!.children[1]!;
-    expect(noLimit.x).toBeCloseTo(900 + (31 + 12) * Math.SQRT1_2);
-    expect(noLimit.y).toBeCloseTo(500 + (31 + 12) * Math.SQRT1_2);
-    expect(noLimit.pivot.x).toBeLessThan(0);
+    // What has no limit has neither ring nor label: Edit Token says it.
+    expect(labels(aids)).toEqual(['Darkvision 30ft']);
   });
 
   it('are drawn for vision tokens only, on a lit scene, and for a handful of tokens at most', () => {
@@ -152,7 +146,7 @@ describe('the ranges of a selected vision token in the edge cases', () => {
     const id = add(500, { enabled: true, angle: 90 });
     store.getState().setSelection([id]);
     aids.update();
-    expect(labels(aids)).toEqual(['No limit: Sight']);
+    expect(labels(aids)).toEqual([]);
     expect(aids.rings.rings()[0]).toMatchObject({ cone: { angle: Math.PI / 2 }, coneReach: Math.hypot(4000, 4000) });
     const stroked = lines(aids).context.instructions.filter((instruction) => instruction.action === 'stroke');
     // The dark rim and the line, each of the two edges.
@@ -201,8 +195,6 @@ describe('the ranges of a selected vision token in the edge cases', () => {
     aids.update();
     expect(labels(aids)).toEqual([]);
     expect(aids.rings.view.visible).toBe(false);
-    // The hover line still tells the light the token stands in.
-    expect(aids.sightLine(id)).toBe('Bright light · Always shown to the players');
   });
 
   it('are drawn anew only when what they show changes: the selected token, the zoom, the theme', () => {
@@ -370,35 +362,14 @@ describe('GmSightAids', () => {
     store.getState().setSelection([seeing]);
     aids.update();
     expect([aids.marks.view.visible, aids.rings.view.visible]).toEqual([true, true]);
-    expect(aids.sightLine(unseen)).toBe('Bright light · Seen by the players');
     aids.setSuppressed(true);
     expect(aids.view.visible).toBe(false);
     expect([aids.marks.view.visible, aids.rings.view.visible]).toEqual([false, false]);
     expect(aids.marks.shown()).toEqual([]);
-    expect(aids.sightLine(unseen)).toBeNull();
     // Session view hides the layer through the players' list; the GM's view has it back.
     aids.view.visible = false;
     aids.setSuppressed(false);
     expect(aids.view.visible).toBe(true);
     expect([aids.marks.view.visible, aids.rings.view.visible]).toEqual([true, true]);
-  });
-
-  it('words a hover line for the token renderer on a lit scene, and refreshes an open card with every update', () => {
-    const { aids, store, add } = setup();
-    const id = add(100);
-    const party = add(300, { enabled: true });
-    const refresh = vi.fn();
-    let provider: ((tokenId: string) => string | null) | null = null;
-    aids.wire({ setSightLineProvider: (fn) => { provider = fn; return refresh; } });
-    expect(provider!(id)).toBe('Bright light · Seen by the players');
-    expect(provider!(party)).toBe('Bright light · Always shown to the players');
-    expect(provider!('gone')).toBeNull();
-    aids.update();
-    expect(refresh).toHaveBeenCalledTimes(1);
-    store.getState().setSceneLighting({ enabled: false });
-    expect(provider!(id)).toBeNull();
-    cleanup!();
-    cleanup = null;
-    expect(provider).toBeNull();
   });
 });

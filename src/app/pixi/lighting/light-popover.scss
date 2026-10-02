@@ -58,8 +58,11 @@ $gap: $spacing-s;
 // A chip per kind, rounded like every control $gap inside the popover's border. The chosen one
 // is the light's selected marker in small: the theme's badge with the glyph in the light's
 // colour, ringed in the accent like every chosen control.
+// Chips share the row up to a width of their own, from the left: one or two of them do not
+// stretch across a wide column (Edit Token).
 .atlas-light-kind {
   flex: 1;
+  max-width: $button-height-l * 1.5;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -207,9 +210,6 @@ $gap: $spacing-s;
   }
 
   .atlas-segmented__option {
-    flex: 1 1 auto;
-    padding-inline: $spacing-xs;
-    white-space: nowrap;
     @include atlas-panel-inset-radius($gap + $spacing-xs);
   }
 }

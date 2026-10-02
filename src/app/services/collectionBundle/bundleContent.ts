@@ -41,7 +41,7 @@ function relinkStatblockNote(file: BundleFile, text: string, rewrites: PathMap):
   if (!image || !target) return text;
   const frontmatter = FRONTMATTER.exec(text);
   if (!frontmatter) return text;
-  // The manifest check limits the key to `image` or `token-image`, so it is safe inside the pattern.
+  // The manifest check limits the key to the statblock image fields, so it is safe inside the pattern.
   const line = new RegExp(`^${image.key}:[ \\t]*\\S[^\\n]*$`, 'm').exec(frontmatter[2]!);
   if (!line) return text;
   // Splice at the matched line: a plain replace would hit the first equal text and expand `$` patterns in the path.

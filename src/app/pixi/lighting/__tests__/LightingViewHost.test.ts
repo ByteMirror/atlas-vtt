@@ -26,6 +26,7 @@ function fakeView(sight: Sight = SEES_ALL): FakeView {
     ambientLight: () => ({ ambient: 1 }),
     refreshBounds: vi.fn(),
     resetExplored: vi.fn(),
+    editExplored: vi.fn(() => false),
     beforeMapUnload: vi.fn(),
     renderForFrame: (_frame, render) => {
       view.beforeFrame();

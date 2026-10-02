@@ -29,9 +29,9 @@ interface DiceRollPanelProps {
 }
 
 /** How long the total stays before the panel leaves on its own. */
-const LINGER_MS = 2600;
+const LINGER_MS = 3600;
 /** A row leaves sooner: it showed its number and the next roll wants the place. */
-const LINGER_COMPACT_MS = 1600;
+const LINGER_COMPACT_MS = 2600;
 /**
  * The ripcord: the panel leaves even if the dice never land, e.g. when the
  * frame loop sleeps in a hidden window. The longest real flight is about two
@@ -190,8 +190,12 @@ export function DiceRollPanel({ result, scene, compact: compactNow, leaving, mut
           />
         )}
 
-        {/* The sheet is as tall as this clip, which follows its content's height. */}
-        <motion.div initial={false} animate={{ height: contentHeight ?? 'auto' }} transition={transition}>
+        {/* The sheet is as tall as this clip, which follows its content's height. The
+            clip gets no height before its content was measured, so the first one is
+            the height it already has and only later ones are animated to. An
+            animation from `auto` would start at the panel as it is drawn then,
+            scaled down by its entrance, and jump to its size when the spring ends. */}
+        <motion.div animate={contentHeight === null ? {} : { height: contentHeight }} transition={transition}>
           <div ref={contentRef} className="atlas-dice-roll__content">
             {compact ? (
               <div className="atlas-dice-roll__row">

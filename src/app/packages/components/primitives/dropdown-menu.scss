@@ -196,6 +196,14 @@
   font-variant-numeric: tabular-nums;
 }
 
+// A disabled slider dims its own thumb; its name, value and track go with it.
+.atlas-dropdown-slider-row--disabled {
+  .atlas-dropdown-slider-row__head,
+  .slider-track {
+    opacity: 0.5;
+  }
+}
+
 .atlas-dropdown-separator {
   height: $border-width-s;
   margin: $spacing-xs 0;
@@ -327,6 +335,11 @@
   // around every colour; the tick marks the choice without relying on colour at all.
   &--active {
     box-shadow: 0 0 0 2px var(--text-normal);
+  }
+
+  &:disabled {
+    pointer-events: none;
+    opacity: 0.5;
   }
 }
 

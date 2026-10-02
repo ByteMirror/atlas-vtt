@@ -5,6 +5,11 @@ import { computeVisibility, pointInPolygon } from '../../vision/visibility';
 import type { WallSegment } from '../../types/wallTypes';
 import { TOLERANCE, wall } from './sealFixtures';
 
+// Wall-clock bound of the timed tests here. They take a few milliseconds; stepping along a wall
+// ten million pixels long, point by point, took minutes or never ended. The bound is far above
+// the first and far below the second, so a machine under load does not fail them.
+const SLOW = 15_000;
+
 
 describe('sealTolerance', () => {
   it('is about 13 px at 2 px texels', () => {
@@ -104,7 +109,7 @@ describe('sealWalls with walls far beyond the map', () => {
     const started = performance.now();
     const bridges = bridgesOf([...room(), far]);
 
-    expect(performance.now() - started).toBeLessThan(1000);
+    expect(performance.now() - started).toBeLessThan(SLOW);
     expect(bridges).toEqual(expected);
   });
 
@@ -124,7 +129,7 @@ describe('sealWalls with walls far beyond the map', () => {
     const started = performance.now();
     const sealed = sealWalls([...room(), ...far], TOLERANCE);
 
-    expect(performance.now() - started).toBeLessThan(1500);
+    expect(performance.now() - started).toBeLessThan(SLOW);
     expect(sealed.length).toBeGreaterThanOrEqual(room().length + 100);
   });
 

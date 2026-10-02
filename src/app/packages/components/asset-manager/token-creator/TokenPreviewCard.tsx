@@ -2,11 +2,12 @@ import { TokenRingToggle } from './TokenRingToggle';
 import { TokenSizeSelect } from './TokenSizeSelect';
 import tokenRingImageUrl from '../../../../assets/token-ring.webp';
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
-import { Check, Loader2, Trash2, ZoomIn, ZoomOut } from 'lucide-react';
+import { Check, Trash2, ZoomIn, ZoomOut } from 'lucide-react';
 import { cn } from '../../../../../utils/cn';
 import { Button } from '../../primitives/button';
 import { Slider } from '../../primitives/slider';
 import { LabelTooltip } from '../../primitives/tooltip';
+import { Skeleton } from '../../primitives/Skeleton';
 import { clampImagePosition, cropReset } from './cropMath';
 import type { ImageAspect } from './cropMath';
 import { clampZoom, ZOOM_MAX, ZOOM_MIN, ZOOM_STEP } from './types';
@@ -180,6 +181,8 @@ export const TokenPreviewCard = React.memo(function TokenPreviewCard({ preview, 
         style={imageStyle}
         onPointerDown={isCropEditable ? handlePointerDown : undefined}
       />
+      {/* The card never shows the upload itself: its place is held until the converted image is there. */}
+      {preview.isOptimizing && <Skeleton className="atlas-token-card__pending" live />}
       {isCropEditable && <><div className="atlas-token-card__mask" /><img className="atlas-token-card__ring" src={tokenRingImageUrl} alt="" /></>}
 
       <LabelTooltip label={`Select ${preview.name}`}>
@@ -204,12 +207,6 @@ export const TokenPreviewCard = React.memo(function TokenPreviewCard({ preview, 
         </Button>
       </LabelTooltip>
 
-      {preview.isOptimizing && (
-        <div className="atlas-token-card__busy">
-          <Loader2 />
-          <span>Optimizing</span>
-        </div>
-      )}
       <ConversionBadge preview={preview} mode={mode} />
     </div>
   );

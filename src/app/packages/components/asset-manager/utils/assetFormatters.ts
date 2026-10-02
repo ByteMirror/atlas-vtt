@@ -6,8 +6,10 @@ import type {
   EncounterTokenRef,
   TokenAsset as ServiceTokenAsset,
 } from '../../../../services/AssetService';
+import type { ThumbnailAsset, ThumbnailState, ThumbnailUpdate } from '../../../../services/AssetThumbnailService';
 import { assetJsonPath, primaryPath } from '../../../../services/vault-sync/assetFiles';
 import { folderIdOf } from './assetFolders';
+import { ENCOUNTER_PREVIEW_COUNT } from './encounterPreviewLayout';
 import { mapThumbnailPath } from '../../../../utils/dataFileMigration';
 
 /** The stored asset types the asset manager shows, one per tab. */
@@ -37,7 +39,6 @@ interface TokenPreviewSource {
 export type TokenPreviewSources = ReadonlyMap<string, TokenPreviewSource>;
 
 const NO_PREVIEW_SOURCES: TokenPreviewSources = new Map();
-const ENCOUNTER_PREVIEW_COUNT = 3;
 
 export function resourceUrl(app: ObsidianApp, path: string | undefined): string {
   const file = path ? app.vault.getAbstractFileByPath(path) : null;
@@ -118,6 +119,46 @@ function encounterTokenPreview(
   };
 }
 
+/** The state of an asset's thumbnail, as `AssetThumbnailService.stateOf` reports it. */
+export type ThumbnailLookup = (asset: ThumbnailAsset) => ThumbnailState;
+
+/**
+ * What a token or map card shows: its thumbnail, a placeholder while one is
+ * being made (decoding a full map for a card costs hundreds of megabytes), and
+ * the image itself only when it has no thumbnail and none is on its way.
+ */
+function cardArt(
+  app: ObsidianApp,
+  asset: ThumbnailAsset,
+  imageUrl: string,
+  thumbnailOf: ThumbnailLookup | undefined,
+): Pick<Asset, 'thumbnailUrl' | 'thumbnailPending'> {
+  const state = thumbnailOf?.(asset) ?? { path: asset.thumbnailPath, pending: false };
+  const thumbnailUrl = resourceUrl(app, state.path);
+  if (thumbnailUrl) return { thumbnailUrl };
+  return state.pending ? { thumbnailUrl: '', thumbnailPending: true } : { thumbnailUrl: imageUrl };
+}
+
+/**
+ * `assets` with the thumbnails that were made since they were formatted. Only
+ * the assets named change, so every other card keeps its object and does not
+ * render again; `assets` itself when none of them is listed.
+ */
+export function withThumbnails(assets: AnyAsset[], updates: readonly ThumbnailUpdate[], app: ObsidianApp): AnyAsset[] {
+  const paths = new Map(updates.map((update) => [update.id, update.thumbnailPath]));
+  let changed = false;
+  const next = assets.map((asset) => {
+    if ((asset.type !== 'tokens' && asset.type !== 'maps') || !paths.has(asset.id)) return asset;
+    const thumbnailUrl = resourceUrl(app, paths.get(asset.id) ?? undefined) || asset.imageUrl;
+    if (thumbnailUrl === asset.thumbnailUrl && !asset.thumbnailPending) return asset;
+    changed = true;
+    const shown = { ...asset, thumbnailUrl };
+    delete shown.thumbnailPending;
+    return shown;
+  });
+  return changed ? next : assets;
+}
+
 /**
  * Converts a single AssetService record into the UI-layer AnyAsset shape,
  * resolving vault resource paths for thumbnails / images.
@@ -127,6 +168,7 @@ export function formatServiceAsset(
   tabBasePath: string,
   app: ObsidianApp,
   previewSources: TokenPreviewSources = NO_PREVIEW_SOURCES,
+  thumbnailOf?: ThumbnailLookup,
 ): AnyAsset {
   const base: Omit<Asset, 'type' | 'thumbnailUrl'> = {
     id: asset.id,
@@ -143,7 +185,7 @@ export function formatServiceAsset(
       return {
         ...base,
         type: 'tokens',
-        thumbnailUrl: resourceUrl(app, asset.thumbnailPath) || imageUrl,
+        ...cardArt(app, asset, imageUrl, thumbnailOf),
         imageUrl,
         imagePath: asset.imagePath,
         ...(asset.showRing !== undefined && { showRing: asset.showRing }),
@@ -156,7 +198,7 @@ export function formatServiceAsset(
       return {
         ...base,
         type: 'maps',
-        thumbnailUrl: resourceUrl(app, asset.thumbnailPath) || imageUrl,
+        ...cardArt(app, asset, imageUrl, thumbnailOf),
         imageUrl,
         mapFilePath: asset.mapFilePath,
       };

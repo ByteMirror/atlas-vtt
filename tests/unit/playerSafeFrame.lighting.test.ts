@@ -24,10 +24,10 @@ function harness(lighting: boolean): Harness {
     pixiAppManager: { getApp: () => ({ renderer: { render }, stage: {} }), getViewport: () => null },
     tokenRenderer: { getPlayerViewLayers },
     dmScreenOverlays: new Set(),
-    lighting: lighting ? {
+    lightingFeature: lighting ? { controller: {
       playerSight: () => isSeen,
       playerLayers: (): LayerVisibility[] => [{ layer: modeLayer, visible: true }, { layer: overlay, visible: false }],
-    } : undefined,
+    } } : undefined,
   });
   return { renderer, overlay, modeLayer, isSeen, getPlayerViewLayers, render };
 }

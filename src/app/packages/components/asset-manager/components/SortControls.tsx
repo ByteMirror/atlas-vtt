@@ -14,7 +14,7 @@ export type SortControlsProps = Pick<SelectionState, 'sortBy' | 'sortOptions' | 
 /**
  * Sort field and order. Wide headers show the field as a button that cycles
  * through the options next to an order button; narrow ones fold both into one
- * menu (the header's container queries pick one).
+ * menu (the toolbar's `data-compact` steps pick one).
  */
 export function SortControls({ sortBy, sortOptions, setSortBy, sortOrder, setSortOrder }: SortControlsProps): React.JSX.Element {
   const cycleSort = (): void => {

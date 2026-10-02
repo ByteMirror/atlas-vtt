@@ -3,17 +3,21 @@ import { isDefeated } from '../../resources/resourceValues';
 import { resourceColor } from '../../resources/resourceColors';
 import { visibleResources } from '../../resources/visibleResources';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { GripVertical, Skull, User, Bot } from 'lucide-react';
+import { EyeOff, GripVertical, Skull, User, Bot } from 'lucide-react';
 import type { InitiativeEntry } from '../../types/initiativeTypes';
 import { useAtlasUI } from '../root/AtlasUIContext';
 import { useAtlasStore } from '../ViewStoreContext';
 import { zoomToTokenWithHighlight } from '../../pixi/utils/tokenHighlight';
 import { isModHeld, isModKey } from '../../keyboard/modKey';
+import { LabelTooltip } from '../../packages/components/primitives/tooltip';
+import { TokenPortrait } from '../../packages/components/shared/TokenPortrait';
 
 interface InitiativeCardProps {
   entry: InitiativeEntry;
   index: number;
   isHoveredForPreview: boolean;
+  /** The fight runs by sides: a combatant has no number there and never the turn by itself. */
+  bySides?: boolean;
   onDragStart: (index: number) => void;
   onDragOver: (index: number) => void;
   onDragEnd: () => void;
@@ -23,12 +27,13 @@ interface InitiativeCardProps {
 
 /**
  * Individual initiative tracker card
- * Displays token avatar, name, initiative value and the bars of the token's resources
+ * Displays the token as the map shows it (its ring, or unframed), its initiative value and the bars of its resources
  */
 export const InitiativeCard: React.FC<InitiativeCardProps> = ({
   entry,
   index,
   isHoveredForPreview,
+  bySides = false,
   onDragStart,
   onDragOver,
   onDragEnd,
@@ -59,6 +64,8 @@ export const InitiativeCard: React.FC<InitiativeCardProps> = ({
   const token = tokens[entry.tokenId];
   const bars = token ? visibleResources(token, definitions, 'dm').filter(({ definition }) => definition.defeatedWhenSpent) : [];
   const defeated = token !== undefined && isDefeated(token, definitions);
+  // A hidden token's entry is left out of the players' list (`PlayerInitiativePanel`)
+  const hiddenFromPlayers = token?.isHidden === true;
 
   // Get image URL from vault path
   const getImageUrl = useCallback((imagePath: string): string => {
@@ -193,8 +200,10 @@ export const InitiativeCard: React.FC<InitiativeCardProps> = ({
   // Build class names
   const cardClasses = [
     'atlas-initiative-card',
-    entry.isActive && 'atlas-initiative-card--active',
+    entry.isActive && !bySides && 'atlas-initiative-card--active',
     defeated && 'atlas-initiative-card--defeated',
+    hiddenFromPlayers && 'atlas-initiative-card--hidden',
+    entry.sitsOut && 'atlas-initiative-card--sitting-out',
     isHoveredForPreview && 'atlas-initiative-card--preview-hover',
     dropPosition === 'above' && 'atlas-initiative-card--drop-above',
     dropPosition === 'below' && 'atlas-initiative-card--drop-below',
@@ -224,36 +233,44 @@ export const InitiativeCard: React.FC<InitiativeCardProps> = ({
 
       {/* Avatar with optional instance badge */}
       <div className="atlas-initiative-card__avatar-wrapper">
-        <div className="atlas-initiative-card__avatar">
-          {entry.imagePath ? (
-            <img
-              src={getImageUrl(entry.imagePath)}
-              alt={entry.name}
-              onError={(e) => {
-                e.currentTarget.hide();
-              }}
-            />
-          ) : (
-            entry.isNPC ? <Bot /> : <User />
-          )}
+        {entry.imagePath ? (
+          <TokenPortrait
+            className="atlas-initiative-card__portrait"
+            src={getImageUrl(entry.imagePath)}
+            alt={entry.name}
+            showRing={token?.showRing !== false}
+            ringColor={token?.ringColor}
+          />
+        ) : (
+          <div className="atlas-initiative-card__avatar">
+            {entry.isNPC ? <Bot /> : <User />}
+          </div>
+        )}
 
-          {/* Defeated overlay */}
-          {defeated && (
-            <div className="atlas-initiative-card__defeated-overlay">
-              <Skull />
-            </div>
-          )}
-        </div>
+        {/* Defeated overlay */}
+        {defeated && (
+          <div className="atlas-initiative-card__defeated-overlay">
+            <Skull />
+          </div>
+        )}
 
         {instanceBadge != null && (
           <span className="atlas-initiative-card__instance-badge">{instanceBadge}</span>
         )}
+
+        {hiddenFromPlayers && (
+          <LabelTooltip label="Hidden from players" side="left">
+            <span className="atlas-initiative-card__hidden-badge"><EyeOff /></span>
+          </LabelTooltip>
+        )}
       </div>
 
       {/* Initiative number */}
-      <span className="atlas-initiative-card__initiative">
-        {entry.initiative}
-      </span>
+      {!bySides && (
+        <span className="atlas-initiative-card__initiative">
+          {entry.initiative}
+        </span>
+      )}
 
       {/* Resource bars */}
       {bars.length > 0 && (

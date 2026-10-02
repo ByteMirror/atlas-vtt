@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { BUILT_IN_SYSTEM_PRESETS } from '../../src/app/gameSystems/builtInPresets';
 import { parseUserPresets } from '../../src/app/gameSystems/presetValidation';
+import { collectionConeAngle } from '../../src/app/gameSystems/coneAngle';
 import {
   describeSystemRules,
   findActivePreset,
@@ -120,6 +121,35 @@ describe('built-in presets', () => {
     expect(names).toHaveLength(35);
     expect(names).toContain('Off-Guard');
     expect(names).not.toContain('Flat-Footed');
+  });
+
+  it('open a 5e cone as wide as it is long and every other cone a quarter circle', () => {
+    const dnd5e = BUILT_IN_SYSTEM_PRESETS.find((preset) => preset.id === 'builtin:dnd5e')!;
+    const { coneAngle } = resolveMeasurementSettings(dnd5e.rules.gridDefaults, null);
+    // Width at the far end over the length: 2 × tan(half the angle)
+    expect(2 * Math.tan((coneAngle * Math.PI) / 360)).toBeCloseTo(1, 3);
+    const pf2 = BUILT_IN_SYSTEM_PRESETS.find((preset) => preset.name === 'Pathfinder 2e')!;
+    expect(resolveMeasurementSettings(pf2.rules.gridDefaults, null).coneAngle).toBe(90);
+    expect(resolveMeasurementSettings(undefined, null).coneAngle).toBe(90);
+  });
+
+  it('give a 5e collection set up before cone angles existed the 5e cone, still unedited', () => {
+    const dnd5e = BUILT_IN_SYSTEM_PRESETS.find((preset) => preset.id === 'builtin:dnd5e')!;
+    const { coneAngle: _, ...older } = dnd5e.rules.gridDefaults;
+    expect(collectionConeAngle(older, dnd5e.id)).toBe(dnd5e.rules.gridDefaults.coneAngle);
+    expect(collectionConeAngle(older, undefined)).toBe(90);
+    expect(sameSystemRules(dnd5e.rules, { ...rulesOfPreset(dnd5e), gridDefaults: older })).toBe(true);
+  });
+
+  it('keep a valid cone angle of a stored user preset and count it as part of the system', () => {
+    const gridDefaults = BUILT_IN_SYSTEM_PRESETS[0]!.rules.gridDefaults;
+    const [narrow, broken] = parseUserPresets([
+      { id: 'u1', name: 'Narrow', rules: { gridDefaults: { ...gridDefaults, coneAngle: 60 }, conditions: [] } },
+      { id: 'u2', name: 'Broken', rules: { gridDefaults: { ...gridDefaults, coneAngle: 720 }, conditions: [] } },
+    ]);
+    expect(narrow?.rules.gridDefaults.coneAngle).toBe(60);
+    expect(broken?.rules.gridDefaults.coneAngle).toBeUndefined();
+    expect(sameSystemRules(broken!.rules, rulesOfPreset(narrow!))).toBe(false);
   });
 
   it('measure Cyberpunk RED in 2-metre squares where a diagonal step costs one square', () => {

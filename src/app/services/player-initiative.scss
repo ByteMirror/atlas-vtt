@@ -33,6 +33,30 @@
     scrollbar-width: none;
   }
 
+  // A side of a fight by sides: its combatants under its name
+  &__side {
+    display: flex;
+    flex-direction: column;
+    gap: $spacing-s;
+  }
+
+  &__side-label {
+    text-align: center;
+    color: var(--text-muted);
+    font-size: $font-ui-smaller;
+    font-weight: $font-weight-semibold;
+  }
+
+  // The side whose turn it is: its name and its combatants take the accent
+  &__side--active &__side-label {
+    color: var(--interactive-accent);
+  }
+
+  &__side--active &__card:not(&__card--sitting-out) {
+    border-color: var(--interactive-accent);
+    box-shadow: inset 0 0 0 $border-width-s var(--interactive-accent);
+  }
+
   &__card {
     display: flex;
     flex-direction: column;
@@ -52,13 +76,16 @@
       border-color: var(--interactive-accent);
       box-shadow: inset 0 0 0 $border-width-s var(--interactive-accent);
     }
+
+    // Does not act this round
+    &--sitting-out {
+      opacity: 0.45;
+    }
   }
 
+  // A token portrait (`createTokenPortrait`): square, with the token's ring
   &__avatar {
     width: 100%;
-    aspect-ratio: 1;
-    object-fit: cover;
-    border-radius: $radius-s;
   }
 
   &__value {

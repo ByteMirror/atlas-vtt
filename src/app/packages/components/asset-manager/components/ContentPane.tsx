@@ -11,10 +11,12 @@ import { FolderGridItem } from './FolderGridItem';
 import { VirtualAssetGrid } from './VirtualAssetGrid';
 import { fadeVariants } from './gridMotion';
 import { useOpenAsset } from '../hooks/useOpenAsset';
+import { useArtPriority } from '../hooks/useArtPriority';
 import { useAssetCardHandlers, type DraggedItems } from '../hooks/useAssetCardHandlers';
 import type { AssetService } from '../../../../services/AssetService';
 import type { AtlasView } from '../../../../atlas-view';
 import { useSpawnCountTyping } from '../hooks/useSpawnCountTyping';
+import { useAssetStatblockPreview } from '../hooks/useAssetStatblockPreview';
 import { useRememberedScroll, type ScrollMemory } from '../hooks/useRememberedScroll';
 import { useScrollbarGutter } from '../../primitives/useScrollbarGutter';
 import { Button } from '../../primitives/button';
@@ -98,12 +100,17 @@ export function ContentPane(props: ContentPaneProps): React.JSX.Element {
     app: props.app, view: props.view,
     assetService: props.assetService, onClose: props.onClose,
   });
+  const onArtNeeded = useArtPriority(props.app, props.assetService);
   const cardHandlers = useAssetCardHandlers({
     app: props.app, openAsset, selectedAssetIds, setDraggedItems,
     onAssetSelect: props.onAssetSelect, onAssetContextMenu: props.onAssetContextMenu,
-    onSpawnCountChange: props.onSpawnCountChange,
+    onSpawnCountChange: props.onSpawnCountChange, onArtNeeded,
   });
   useSpawnCountTyping(scrollElement, props.onSpawnCountChange);
+  useAssetStatblockPreview({
+    app: props.app, container: scrollElement, assets,
+    suspended: selectedAssetIds.length > 0 || draggedItems !== null,
+  });
   useScrollbarGutter(scrollElement);
   useRememberedScroll(scrollElement, props.scrollKey, props.scrollMemory);
 

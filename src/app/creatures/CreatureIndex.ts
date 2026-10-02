@@ -1,6 +1,7 @@
 import { TAbstractFile, type App, type EventRef, type Events } from 'obsidian';
 import { layoutForCreature } from '../services/FantasyStatblocksService';
 import { bestiaryLookup, resolveLinkedCreature, type BestiaryLookup } from './linkedCreature';
+import { workSlices } from '../utils/workSlices';
 
 /** A linked statblock as filters read it. */
 export interface IndexedCreature {
@@ -163,9 +164,13 @@ export class CreatureIndex {
   private async resolveAll(paths: readonly string[], bestiary: BestiaryLookup): Promise<Map<string, IndexedCreature | null>> {
     const resolved = new Map<string, IndexedCreature | null>();
     let next = 0;
+    // Most notes resolve from the bestiary without a read, so a library of thousands is paced.
+    const pause = workSlices();
     const worker = async (): Promise<void> => {
       for (let path = paths[next++]; path !== undefined; path = paths[next++]) {
         resolved.set(path, await this.resolve(path, bestiary));
+        await pause();
+        if (this.destroyed) return;
       }
     };
     await Promise.all(Array.from({ length: Math.min(CONCURRENCY, paths.length) }, worker));

@@ -20,6 +20,8 @@ export interface AssetCardHandlers {
   onDragEnd: () => void;
   onSpawnCountChange: (assetId: string, count: number) => void;
   onOpenStatblock: (statblockPath: string) => void;
+  /** A card on screen still waits for its art (`useArtPriority`). */
+  onArtNeeded: (assetId: string) => void;
 }
 
 interface AssetCardHandlerDeps {
@@ -30,6 +32,7 @@ interface AssetCardHandlerDeps {
   onAssetSelect: AssetCardHandlers['onSelect'];
   onAssetContextMenu: AssetCardHandlers['onContextMenu'];
   onSpawnCountChange: AssetCardHandlers['onSpawnCountChange'];
+  onArtNeeded: AssetCardHandlers['onArtNeeded'];
 }
 
 export function useAssetCardHandlers(deps: AssetCardHandlerDeps): AssetCardHandlers {
@@ -48,9 +51,10 @@ export function useAssetCardHandlers(deps: AssetCardHandlerDeps): AssetCardHandl
   const onOpenStatblock = useStableCallback((statblockPath: string): void => {
     void deps.app.workspace.openLinkText('', statblockPath, true);
   });
+  const onArtNeeded = useStableCallback(deps.onArtNeeded);
 
   return useMemo(
-    () => ({ onSelect, onContextMenu, onOpen, onDragStart, onDragEnd, onSpawnCountChange, onOpenStatblock }),
-    [onSelect, onContextMenu, onOpen, onDragStart, onDragEnd, onSpawnCountChange, onOpenStatblock],
+    () => ({ onSelect, onContextMenu, onOpen, onDragStart, onDragEnd, onSpawnCountChange, onOpenStatblock, onArtNeeded }),
+    [onSelect, onContextMenu, onOpen, onDragStart, onDragEnd, onSpawnCountChange, onOpenStatblock, onArtNeeded],
   );
 }

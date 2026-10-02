@@ -15,8 +15,12 @@ export interface SceneFrameParts {
   gmViewLayers: readonly LayerVisibility[];
   /** The GM's markers on the map (pins, linked hexes): not part of a picture of the scene. */
   markerLayers: readonly LayerVisibility[];
-  /** The scene's lighting and its editors and badges, which the player frame hides too; none on a view without lighting. */
-  lighting: { gmOverlays(): GmOverlays; readonly renderer: Pick<SceneLightingView, 'renderForFrame'> } | undefined;
+  /**
+   * The scene's lighting and its editors and badges, which the player frame hides too, and the
+   * layers only the players' view shows (their door badges), which session view leaves on the
+   * canvas; none on a view without lighting.
+   */
+  lighting: { gmOverlays(): GmOverlays; playerOnlyLayers?(): readonly HideableLayer[]; readonly renderer: Pick<SceneLightingView, 'renderForFrame'> } | undefined;
 }
 
 /** A picture is rendered off-screen: the canvas keeps the GM's frame, so nothing is drawn on it. */
@@ -30,10 +34,11 @@ const KEEP_CANVAS = (): void => undefined;
  * them. The render consumes the stage's pending updates: the caller asks for a render after it.
  */
 export function captureSceneFrame<T>({ gmViewLayers, markerLayers, lighting }: SceneFrameParts, frame: SceneFrame, render: () => T): T {
+  const hidden = [...Object.values<HideableLayer>(lighting?.gmOverlays() ?? {}), ...(lighting?.playerOnlyLayers?.() ?? [])];
   const layers = [
     ...gmViewLayers,
     ...markerLayers,
-    ...Object.values<HideableLayer>(lighting?.gmOverlays() ?? {}).map((layer) => ({ layer, visible: false })),
+    ...hidden.map((layer) => ({ layer, visible: false })),
   ];
   let picture!: T;
   captureWithLayerVisibility(layers, KEEP_CANVAS, () => {

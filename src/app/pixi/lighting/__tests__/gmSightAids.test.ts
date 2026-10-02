@@ -3,11 +3,10 @@ import { BUILT_IN_SENSES } from '../../../gameSystems/senses';
 import type { TokenEntity } from '../../../types';
 import type { ConditionDefinition } from '../../../types/collectionSettingsTypes';
 import type { WallSegment } from '../../../types/wallTypes';
-import { computeSight, lightReach, sceneSight, sightSources, type SightSource } from '../../../vision/sight';
+import { computeSight, sightSources, type SightSource } from '../../../vision/sight';
 import { senseSource, darkvision, tremorsense } from '../../../vision/__tests__/senseSources';
 import { tokenPerception } from '../playerLightingLayers';
 import { senseRings } from '../senseRings';
-import { tokenSightLine } from '../sightInfo';
 import { sightMarks } from '../sightMarks';
 
 /** One game unit is one world pixel. */
@@ -38,54 +37,6 @@ const tokens: Record<string, TokenEntity> = {
 const sight = computeSight(sightSources(tokens, scale, bounds, { definitions: DND, conditions }), [wall]);
 const dark = { ambient: 0 };
 
-describe('tokenSightLine', () => {
-  const line = (id: string, ambient = dark, lights: ReturnType<typeof lightReach>[] = []): string =>
-    tokenSightLine(tokens[id]!, tokens, sight, ambient, lights, { conditions });
-
-  it('names the light a token stands in', () => {
-    expect(line('near', { ambient: 1 })).toMatch(/^Bright light · /);
-    expect(line('near', { ambient: 0.5 })).toMatch(/^Dim light · /);
-    expect(line('near')).toMatch(/^Darkness · /);
-    expect(line('near', dark, [lightReach({ x: 140, y: 100 }, 40, [], 20)])).toMatch(/^Bright light · /);
-    expect(line('far', dark, [lightReach({ x: 100, y: 220 }, 40, [], 10)])).toMatch(/^Dim light · /);
-  });
-
-  it('says which token perceives it, and through which sense', () => {
-    expect(line('near')).toBe('Darkness · Seen by Mirabel: Darkvision');
-    expect(line('near', { ambient: 1 })).toBe('Bright light · Seen by Mirabel: Sight');
-    expect(line('behind')).toBe('Darkness · Sensed by Mirabel: Tremorsense');
-    expect(line('cloaked', { ambient: 1 })).toBe('Bright light · Sensed by Mirabel: Tremorsense');
-  });
-
-  it('says when the players do not see it', () => {
-    expect(line('far')).toBe('Darkness · Not seen by the players');
-    expect(line('flying')).toBe('Darkness · Not seen by the players');
-    expect(line('hidden', { ambient: 1 })).toBe('Bright light · Hidden from the players');
-  });
-
-  it('says that a token with vision is always shown', () => {
-    expect(line('ally')).toBe('Darkness · Always shown to the players');
-    expect(line('mirabel', { ambient: 1 })).toBe('Bright light · Always shown to the players');
-  });
-
-  it('names the sense as the collection writes it', () => {
-    const cybereye = BUILT_IN_SENSES['builtin:cyberpunkred']![0]!;
-    const viewer = { ...mirabel, vision: { enabled: true, senses: [{ id: cybereye.id }] } };
-    const all = { ...tokens, mirabel: viewer };
-    const seen = computeSight(sightSources(all, scale, bounds, { definitions: [cybereye], conditions: [] }), []);
-    expect(tokenSightLine(tokens.near!, all, seen, dark, [])).toBe(`Darkness · Seen by Mirabel: ${cybereye.name}`);
-    expect(cybereye.name).toBe('Low light / IR / UV');
-  });
-
-  it('names a viewer without a name "a token", and reads the scene without vision tokens by its light', () => {
-    const nameless = { ...tokens, mirabel: { ...at('mirabel', 100, 100), vision: mirabel.vision! } };
-    expect(tokenSightLine(tokens.near!, nameless, sight, dark, [], { conditions })).toBe('Darkness · Seen by a token: Darkvision');
-    const everything = sceneSight({}, [], [wall]);
-    expect(tokenSightLine(tokens.behind!, tokens, everything, { ambient: 1 }, [])).toBe('Bright light · Seen by the players');
-    expect(tokenSightLine(tokens.behind!, tokens, everything, dark, [])).toBe('Darkness · Not seen by the players');
-  });
-});
-
 describe('sightMarks', () => {
   it('marks every token the players do not see, sensed ones apart, and neither party nor hidden tokens', () => {
     const marks = sightMarks(tokens, tokenPerception(sight, dark, [], tokens, { conditions }), 70);
@@ -112,18 +63,16 @@ describe('senseRings', () => {
   const source = (overrides: Partial<SightSource> = {}): SightSource => ({ tokenId: 't', origin: { x: 500, y: 500 }, range: UNLIMITED, senses: [], ...overrides });
 
   it('draws a ring for sight with a range and for each sense with a distance, widest first', () => {
-    const { rings, unbounded, center } = senseRings(source({ range: 120, senses: [darkvision(60), tremorsense(90), senseSource('blindsight', 30)] }), UNLIMITED, feet);
+    const { rings, center } = senseRings(source({ range: 120, senses: [darkvision(60), tremorsense(90), senseSource('blindsight', 30)] }), UNLIMITED, feet);
     expect(center).toEqual({ x: 500, y: 500 });
     expect(rings.map((ring) => [ring.label, ring.radius, ring.style])).toEqual([
       ['Sight 120ft', 120, 'sight'], ['Tremorsense 90ft', 90, 'creatures'], ['Darkvision 60ft', 60, 'sense'], ['Blindsight 30ft', 30, 'sense'],
     ]);
-    expect(unbounded).toEqual([]);
   });
 
-  it('names what reaches without limit instead of drawing it', () => {
-    const { rings, unbounded } = senseRings(source({ senses: [senseSource('low-light-vision', UNLIMITED), darkvision(60)] }), UNLIMITED, feet);
+  it('draws no ring for what reaches without limit', () => {
+    const { rings } = senseRings(source({ senses: [senseSource('low-light-vision', UNLIMITED), darkvision(60)] }), UNLIMITED, feet);
     expect(rings.map((ring) => ring.label)).toEqual(['Darkvision 60ft']);
-    expect(unbounded).toEqual(['Sight', 'Low-light vision']);
   });
 
   it('caps a sense of the eyes at the sight range, and gives it the cone; the others reach all around', () => {

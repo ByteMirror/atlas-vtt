@@ -14,6 +14,12 @@ describe('statblock notes', () => {
     expect(rewritten).toBe('---\ntoken-image: B/g.png\nimage: "atlas-vtt/x/Gold$\'s.png"\n---\nA goblin.');
   });
 
+  it('rewrites a `token` field without touching `token-image`', () => {
+    const raw = '---\ntoken-image: B/g.png\ntoken: B/g.png\n---\n';
+    const tokenNote: BundleFile = { ...note, statblockImage: { key: 'token', path: 'B/g.png' } };
+    expect(decode(rewriteContent(tokenNote, encode(raw), new Map([['B/g.png', 'C/g.png']])))).toBe('---\ntoken-image: B/g.png\ntoken: "C/g.png"\n---\n');
+  });
+
   it('leaves notes whose artwork did not move, or that have no such field, byte for byte', () => {
     const raw = encode('---\nimage: B/g.png\n---\n');
     expect(rewriteContent(note, raw, new Map([['other', 'x']]))).toBe(raw);

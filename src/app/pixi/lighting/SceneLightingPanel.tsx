@@ -9,14 +9,24 @@ import { useDraggablePosition, type PanelArea, type PanelPosition } from '../../
 import {
   DEFAULT_EXPLORED_COLOR,
   DEFAULT_UNEXPLORED_COLOR,
+  darkSightLookOf,
+  darkSightTintOf,
   exploredMemoryOn,
   litThresholdOf,
   sightOnDropOn,
   tokenVisionOn,
 } from '../../lighting/sceneLightingOptions';
-import { ColorField, SliderField, ToggleField } from './lightingPanelFields';
+import type { DarkSightLook } from '../../types/lightingTypes';
+import type { SegmentedOption } from '../../packages/components/primitives/SegmentedControl';
+import { ChoiceField, ColorField, SliderField, TintField, ToggleField } from './lightingPanelFields';
 
 const MARGIN = 16;
+
+const DARK_SIGHT_LOOK_OPTIONS: readonly SegmentedOption<DarkSightLook>[] = [
+  { value: 'system', label: 'As the system says' },
+  { value: 'grey', label: 'Grey' },
+  { value: 'colour', label: 'In colour' },
+];
 
 /** First placement: the top right of the map, below the scene tabs, like the other map windows. */
 const topRight = (area: PanelArea, panel: PanelArea): PanelPosition => ({ x: area.width - panel.width - MARGIN, y: 64 });
@@ -83,8 +93,9 @@ function SceneLightingPanel(): React.ReactElement {
           label="Update sight when a token is dropped"
           value={sightOnDropOn(lighting)}
           tooltipOn="Dragging a token shows the players nothing new until you drop it"
-          tooltipOff="Players see everything a token passes while you drag it"
-          onChange={(sightOnDrop) => setSceneLighting({ sightOnDrop })}
+          tooltipOff="Sight and light follow a token while you drag it"
+          // Off is the default and is stored as no choice at all.
+          onChange={(on) => setSceneLighting({ sightOnDrop: on ? true : undefined })}
         />
         <div className="atlas-light-panel__row atlas-light-panel__row--pair">
           <ColorField label="Explored colour" value={lighting.exploredColor ?? DEFAULT_EXPLORED_COLOR}
@@ -98,6 +109,11 @@ function SceneLightingPanel(): React.ReactElement {
             setDragged(null);
             setSceneLighting({ litThreshold: percent / 100 });
           }} />
+        {/* Only the picture of what senses without colour show; the system's look and no tint are stored as unset. */}
+        <ChoiceField label="Darkvision looks" value={darkSightLookOf(lighting)} options={DARK_SIGHT_LOOK_OPTIONS}
+          onChange={(look) => setSceneLighting({ darkSightLook: look === 'system' ? undefined : look })} />
+        <TintField label="Darkvision tint" value={darkSightTintOf(lighting)} clearLabel="No tint"
+          onChange={(tint) => setSceneLighting({ darkSightTint: tint ?? undefined })} />
       </div>
     </motion.section>
   );

@@ -8,7 +8,8 @@
 @use '../../../../../styles/mixins' as *;
 
 // Controls of different kinds, spaced like the menu's padding rather than like its rows.
-.atlas-dropdown-section.atlas-scene-lighting {
+.atlas-dropdown-section.atlas-scene-lighting,
+.atlas-dropdown-section.atlas-explored-brush {
   gap: $spacing-s;
 }
 

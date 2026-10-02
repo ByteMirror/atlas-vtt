@@ -26,7 +26,7 @@ export function hiddenCell(x: number, y: number): TargetAndTransition {
 }
 
 /** Fades a card out where it stands, below the cards moving over it, and lets clicks pass through. */
-export function exitingCell(x: number, y: number): TargetAndTransition {
+function exitingCell(x: number, y: number): TargetAndTransition {
   return {
     opacity: 0,
     transform: cellTransform(x, y, ENTER_SCALE),
@@ -34,6 +34,18 @@ export function exitingCell(x: number, y: number): TargetAndTransition {
     pointerEvents: 'none',
     transition: { default: FADE_OUT, zIndex: INSTANT },
   };
+}
+
+const SCROLLED_AWAY: TargetAndTransition = { opacity: 0, transition: INSTANT };
+
+/**
+ * How a card leaves the grid. `listChanged` is the presence's `custom`, read at
+ * the moment the card leaves: a card the list lost fades out, a card that only
+ * scrolled out of the mounted rows is gone at once. Fading those kept every card
+ * scrolled past mounted, hundreds during a long scroll.
+ */
+export function cellVariants(x: number, y: number): Variants {
+  return { exit: (listChanged: boolean) => (listChanged ? exitingCell(x, y) : SCROLLED_AWAY) };
 }
 
 /**

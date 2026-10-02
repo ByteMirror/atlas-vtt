@@ -2,7 +2,12 @@ import { describe, expect, it } from 'vitest';
 import type { WallSegment } from '../../types/wallTypes';
 import { computeVisibility, pointInPolygon } from '../../vision/visibility';
 import { sealWalls } from '../sealWalls';
-import { TOLERANCE, key, random, timeBound, wall } from './sealFixtures';
+import { TOLERANCE, key, random, wall } from './sealFixtures';
+
+// Wall-clock bound of the timed tests here. They seal in 0.1 to 1 s run alone (6 s were seen
+// with the machine at a load average of 30); a bridge for every pair of crowded ends, which
+// they guard against, took a minute and more. The count of bridges is asserted beside it.
+const SLOW = 15_000;
 
 describe('sealWalls with crowded wall ends', () => {
   const bridgesOf = (walls: WallSegment[]): WallSegment[] => sealWalls(walls, TOLERANCE).slice(walls.length);
@@ -64,12 +69,12 @@ describe('sealWalls with crowded wall ends', () => {
     ['twenty thousand walls from six pixels', bigPile(20_000)], ['twenty thousand short walls in twelve pixels', shortPile],
     ['eight thousand long walls beside eight thousand ends', beside(false)], ['the same with the nearest wall last', beside(true)],
     ['a cave of 60,000 segments of one pixel', fineCave],
-  ] as const)('seals %s in a second or two', { timeout: 120_000 }, (_name, make) => {
+  ] as const)('seals %s within the bound', { timeout: 120_000 }, (_name, make) => {
     const walls = make();
     const { ms, bridges } = timed(walls);
     console.info(`sealWalls, ${_name}: ${walls.length} walls, ${distinctEnds(walls)} ends, ${bridges.length} bridges, ${ms.toFixed(0)} ms`);
     // Under a second on the machine it was written on; the bound is generous for slower ones.
-    expect(ms).toBeLessThan(timeBound(2000));
+    expect(ms).toBeLessThan(SLOW);
     expect(bridges.length).toBeLessThanOrEqual(distinctEnds(walls) * 16);
   });
 
@@ -78,7 +83,7 @@ describe('sealWalls with crowded wall ends', () => {
     const { ms, bridges } = timed(walls);
     console.info(`sealWalls, ${_name}: ${walls.length} walls, ${distinctEnds(walls)} ends, ${bridges.length} bridges, ${ms.toFixed(0)} ms`);
     // About 100 ms alone; the bound leaves room for a loaded machine. Pairs took a minute here.
-    expect(ms).toBeLessThan(timeBound(2000));
+    expect(ms).toBeLessThan(SLOW);
     expect(bridges.length).toBeLessThanOrEqual(distinctEnds(walls) * 16);
   });
 

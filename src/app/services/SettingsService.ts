@@ -9,6 +9,7 @@ import {
   type LaserPointerSettings,
 } from '../tools/laserPointerSettings';
 import { isDiceDisplay, type DiceDisplay } from '../dice3d/diceDisplay';
+import type { ExperimentalFeatureId } from '../experimental/experimentalFeatures';
 import {
   DEFAULT_DICE_LOOK,
   isDiceColour,
@@ -51,6 +52,8 @@ export interface AtlasSettings {
   diceFont: DiceFont;
   /** Game system presets the user saved, as stored; `SystemPresetService` validates them. */
   systemPresets: unknown[];
+  /** Experimental features the GM switched on. Read with `isExperimentalOn`. */
+  experimental: Partial<Record<ExperimentalFeatureId, boolean>>;
   localPlayerView: {
     // UI element visibility toggles
     showToolbar: boolean;
@@ -79,6 +82,7 @@ const DEFAULT_SETTINGS: AtlasSettings = {
   diceColour: DEFAULT_DICE_LOOK.colour,
   diceFont: DEFAULT_DICE_LOOK.font,
   systemPresets: [],
+  experimental: {},
   localPlayerView: {
     // UI element visibility defaults
     showToolbar: false, // Hide toolbar by default in player view
@@ -194,6 +198,7 @@ export class SettingsService {
   private applyStoredSettings(stored: Partial<AtlasSettings>): void {
     this.settings = this.deepMerge(DEFAULT_SETTINGS, stored);
     this.settings.hotkeys = readHotkeyOverrides(stored.hotkeys);
+    if (!this.isRecord(stored.experimental)) this.settings.experimental = {};
     // Rewrite files from versions that saved every binding, so they keep only the user's.
     if (JSON.stringify(stored.hotkeys ?? {}) !== JSON.stringify(this.settings.hotkeys)) this.scheduleSave();
   }
@@ -261,6 +266,7 @@ export class SettingsService {
 
   setHotkey(id: MapHotkeyId, key: string): void {
     const bindings = this.getHotkeys();
+    // The shortcuts of an experimental feature keep their keys while it is off.
     const conflict = key && availableHotkeys().find(action => action.id !== id && bindings[action.id] === key && !canShareHotkey(action.id, id));
     if (conflict) throw new Error(`Already assigned to ${conflict.label}. Clear that shortcut first.`);
     this.settings.hotkeys = withHotkey(this.settings.hotkeys, id, key);
@@ -324,6 +330,17 @@ export class SettingsService {
   setDiceDisplay(display: DiceDisplay): void {
     if (this.settings.diceDisplay === display) return;
     this.settings.diceDisplay = display;
+    this.commit();
+  }
+
+  /** Whether the GM switched an experimental feature on: off unless the file says `true`. */
+  isExperimentalOn(id: ExperimentalFeatureId): boolean {
+    return this.settings.experimental[id] === true;
+  }
+
+  setExperimental(id: ExperimentalFeatureId, on: boolean): void {
+    if (this.isExperimentalOn(id) === on) return;
+    this.settings.experimental = { ...this.settings.experimental, [id]: on };
     this.commit();
   }
 

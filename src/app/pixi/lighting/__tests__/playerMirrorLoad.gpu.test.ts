@@ -47,7 +47,7 @@ describe('the player window while a lit scene loads', () => {
       canvas: renderer.canvas as HTMLCanvasElement,
       store,
       withPlayerSafeFrame: (capture) => captureWithLayerVisibility(
-        playerLightingLayers({ enabled: host.isEnabled(), modeLayer: host.modeLayer, gmOverlays: { wallEditor: gmOverlay, lightZones: gmOverlay, doorBadges: gmOverlay, lightMarkers: gmOverlay, rangeRings: gmOverlay, sightAids: gmOverlay } }),
+        playerLightingLayers({ enabled: host.isEnabled(), modeLayer: host.modeLayer, gmOverlays: { wallEditor: gmOverlay, lightZones: gmOverlay, exploredMemory: gmOverlay, doorBadges: gmOverlay, lightMarkers: gmOverlay, rangeRings: gmOverlay, sightAids: gmOverlay } }),
         () => renderer.render({ container: viewport }),
         () => {
           const layer = engineLayer(viewport);

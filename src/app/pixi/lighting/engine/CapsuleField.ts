@@ -24,6 +24,7 @@ export class CapsuleField {
   private readonly empty = new Container();
   private readonly initialGeometry: Geometry;
   private built: { geometry: Geometry; segments: Buffer } | null = null;
+  private readonly aliases = new Map<string, UniformGroup>();
 
   constructor(private readonly renderer: Renderer, rect: Rect, readonly texel: number, wallRadius: number, readonly name = 'uField') {
     this.texture = createTarget(rect[2] / texel, rect[3] / texel, 'r16float');
@@ -70,6 +71,21 @@ export class CapsuleField {
 
   resources(): Record<string, UniformGroup | TextureSource> {
     return { [this.name]: this.texture.source, [`${this.name}Uniforms`]: this.uniforms };
+  }
+
+  /** This field for a shader that reads it under another name (`fieldGlsl(name)`): a program that reads two fields binds each under its own. */
+  resourcesAs(name: string): Record<string, UniformGroup | TextureSource> {
+    if (name === this.name) return this.resources();
+    let uniforms = this.aliases.get(name);
+    if (!uniforms) {
+      const own = this.uniforms.uniforms as Record<string, Float32Array>;
+      uniforms = new UniformGroup({
+        [`${name}Rect`]: { value: new Float32Array(own[`${this.name}Rect`]!), type: 'vec4<f32>' },
+        [`${name}Params`]: { value: new Float32Array(own[`${this.name}Params`]!), type: 'vec2<f32>' },
+      });
+      this.aliases.set(name, uniforms);
+    }
+    return { [name]: this.texture.source, [`${name}Uniforms`]: uniforms };
   }
 
   destroy(): void {

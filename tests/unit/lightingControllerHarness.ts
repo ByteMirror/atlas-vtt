@@ -15,18 +15,24 @@ import { createInMemoryApp } from '../mocks/inMemoryVault';
 import { stubJsdomGraphics } from '../mocks/jsdomGraphics';
 
 vi.mock('../../src/app/pixi/lighting/createSceneLighting', () => ({
-  createSceneLighting: (deps: SceneLightingDeps): SceneLightingView => ({
-    modeLayer: { visible: false },
-    isEnabled: () => deps.store.getState().lighting.enabled,
-    currentSight: () => SEES_ALL,
-    lightReaches: () => [],
-    ambientLight: () => ({ ambient: 1 }),
-    refreshBounds: vi.fn(),
-    resetExplored: vi.fn(),
-    beforeMapUnload: vi.fn(),
-    renderForFrame: (_frame, render) => render(),
-    destroy: vi.fn(),
-  }),
+  createSceneLighting: (deps: SceneLightingDeps): SceneLightingView => {
+    // As the engine's view does: a lit scene is built while the view is constructed, and its sight reported.
+    if (deps.store.getState().lighting.enabled) deps.onSightChange?.();
+    return lightingView(deps);
+  },
+}));
+const lightingView = vi.hoisted(() => (deps: SceneLightingDeps): SceneLightingView => ({
+  modeLayer: { visible: false },
+  isEnabled: () => deps.store.getState().lighting.enabled,
+  currentSight: () => SEES_ALL,
+  lightReaches: () => [],
+  ambientLight: () => ({ ambient: 1 }),
+  refreshBounds: vi.fn(),
+  resetExplored: vi.fn(),
+  editExplored: vi.fn(() => false),
+  beforeMapUnload: vi.fn(),
+  renderForFrame: (_frame, render) => render(),
+  destroy: vi.fn(),
 }));
 vi.mock('../../src/app/utils/activeLeafGuard', () => ({ isActiveAtlasLeaf: () => true }));
 const openContextMenuGlobal = vi.hoisted(() => vi.fn());
@@ -44,6 +50,7 @@ export interface Setup {
   light: LightPointerHandlers;
   wallDown: (x: number, y: number, e: FederatedPointerEvent) => boolean;
   contextMenu: (x: number, y: number, screenX: number, screenY: number) => void;
+  wallMove: (x: number, y: number, e: FederatedPointerEvent) => void;
   /** A torch at (400, 300) and a lantern at (600, 300). */
   torch: string;
   lantern: string;
@@ -78,18 +85,18 @@ export function setup(): Setup {
     viewport, app: { canvas } as unknown as Application, store, eventBus, obsApp, viewId: 'popover-view',
     bounds: () => ({ width: 1000, height: 1000 }), albedo: () => null,
   });
-  const wired = {} as Pick<Setup, 'light' | 'wallDown' | 'contextMenu'>;
+  const wired = {} as Pick<Setup, 'light' | 'wallDown' | 'contextMenu' | 'wallMove'>;
   const ignore = (): void => undefined;
   const sensedOutlines = { visible: false };
   controller.wire({
     setLightHandlers: (handlers: LightPointerHandlers) => { wired.light = handlers; },
     setWallPointerDownHandler: (fn: Setup['wallDown']) => { wired.wallDown = fn; },
     setWallContextMenuHandler: (fn: Setup['contextMenu']) => { wired.contextMenu = fn; },
-    setWallPointerMoveHandler: ignore, setWallPointerUpHandler: ignore, setWallDoubleClickHandler: ignore, setWallCursorProvider: ignore,
+    setWallPointerMoveHandler: (fn: Setup['wallMove']) => { wired.wallMove = fn; },
+    setWallPointerUpHandler: ignore, setWallDoubleClickHandler: ignore, setWallCursorProvider: ignore,
     setDoorMenuHandlers: (handlers: DoorMenuHandlers) => { doorMenu.current = handlers; },
     setDoorClickHandler: ignore, setPlayerSightProvider: ignore, refreshPlayerSight: ignore,
     getSensedOutlineLayer: () => sensedOutlines,
-    setSightLineProvider: () => ignore,
   } as unknown as TokenRenderer);
   const torch = store.getState().addLight({ x: 400, y: 300, emission: { ...genericLight('torch'), kind: 'torch' } });
   const lantern = store.getState().addLight({ x: 600, y: 300, emission: { ...genericLight('lantern'), kind: 'lantern' } });

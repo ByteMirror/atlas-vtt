@@ -173,7 +173,7 @@ describe('tokenSensesResolver', () => {
     resolver.sensesOf(token(GOBLIN));
 
     index.put(GOBLIN, 'darkvision 120 ft.');
-    // The hover card reads the token before the index has told anyone.
+    // Edit Token reads the token before the index has told anyone.
     expect(named(resolver.sensesOf(token(GOBLIN)))).toEqual([['Darkvision', 120]]);
     index.tell();
     expect(sight).toHaveBeenCalledTimes(1);

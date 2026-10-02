@@ -10,9 +10,7 @@ import { restingTokenUIScale } from '../token-renderer/tokenSizing';
 import { destroyTree } from '../utils/destroyTree';
 import type { TokenPerception } from './playerLightingLayers';
 import { PlayerSightMarks } from './PlayerSightMarks';
-import type { SceneLightingView } from './sceneLightingView';
 import { SenseRangeRings } from './SenseRangeRings';
-import { tokenSightLine } from './sightInfo';
 import { sightMarks } from './sightMarks';
 
 /** Above the lighting layer (90), the outlines of sensed tokens (95) and a light's range rings (96), below the token UI (100). */
@@ -24,25 +22,19 @@ export interface GmSightAidsDeps {
   measurement: () => MeasurementSettings;
   bounds: () => MapBounds | null;
   rules: () => SightRules;
-  lighting: Pick<SceneLightingView, 'isEnabled' | 'currentSight' | 'ambientLight' | 'lightReaches'>;
   /** How the players perceive each token; undefined on an unlit scene. */
   perception: () => TokenPerception | undefined;
   /** The window the canvas is in. */
   frames: () => Window;
 }
 
-/** The part of the token renderer that shows a line on a token's hover card. */
-export interface SightLineHost {
-  setSightLineProvider(provider: ((tokenId: string) => string | null) | null): () => void;
-}
-
 /**
  * What tells the GM how the rules of sight apply, on a lit scene in GM view: the ranges of the
- * selected vision tokens (`SenseRangeRings`), a mark on every token the players do not see
- * (`PlayerSightMarks`) and a line on the token hover card (`tokenSightLine`). All three follow
- * the store and the players' sight in one update per frame, however many changes arrive: a
- * dragged token asks once a frame, and nothing is worked out while nothing changes. The rings
- * and marks are one GM overlay (`GmOverlays`): never in the players' view or a picture.
+ * selected vision tokens (`SenseRangeRings`) and a mark on every token the players do not see
+ * (`PlayerSightMarks`). Both follow the store and the players' sight in one update per frame,
+ * however many changes arrive: a dragged token asks once a frame, and nothing is worked out
+ * while nothing changes. They are one GM overlay (`GmOverlays`): never in the players' view or
+ * a picture.
  */
 export class GmSightAids {
   readonly view = new Container({ label: 'gm-sight-aids', zIndex: SIGHT_AIDS_Z_INDEX, eventMode: 'none', interactiveChildren: false });
@@ -51,8 +43,6 @@ export class GmSightAids {
   private suppressed = false;
   /** The update that waits for a frame, with the window it was asked of: the canvas may be in another by then (a popout). */
   private frame: { id: number; from: Window } | null = null;
-  private host: SightLineHost | null = null;
-  private refreshHoverCard: (() => void) | null = null;
   private readonly cleanups: Array<() => void> = [];
 
   constructor(private readonly deps: GmSightAidsDeps) {
@@ -72,12 +62,6 @@ export class GmSightAids {
     theme.observe(document.body, { attributes: true, attributeFilter: ['class'] });
     this.cleanups.push(() => theme.disconnect());
     this.schedule();
-  }
-
-  /** Gives the token renderer the hover card's line. */
-  wire(host: SightLineHost): void {
-    this.host = host;
-    this.refreshHoverCard = host.setSightLineProvider((tokenId) => this.sightLine(tokenId));
   }
 
   /** Shows nothing while the canvas shows the players' view. */
@@ -107,16 +91,6 @@ export class GmSightAids {
     const { cellSize } = unitScaleOf(measurement(), state.grid);
     this.marks.sync(perceived ? sightMarks(state.objects.tokens, perceived, cellSize) : [], restingTokenUIScale(cellSize));
     this.rings.draw();
-    this.refreshHoverCard?.();
-  }
-
-  /** The hover card's line for a token: the light it stands in and how the players perceive it. None unless the GM looks at a lit scene. */
-  sightLine(tokenId: string): string | null {
-    const { store, lighting, rules } = this.deps;
-    const { tokens } = store.getState().objects;
-    const token = tokens[tokenId];
-    if (!token || !this.shown()) return null;
-    return tokenSightLine(token, tokens, lighting.currentSight(), lighting.ambientLight(), lighting.lightReaches(), { conditions: rules().conditions });
   }
 
   /** A lit, loaded scene in the GM's view. */
@@ -129,9 +103,6 @@ export class GmSightAids {
     for (const cleanup of this.cleanups.splice(0)) cleanup();
     this.frame?.from.cancelAnimationFrame(this.frame.id);
     this.frame = null;
-    this.host?.setSightLineProvider(null);
-    this.host = null;
-    this.refreshHoverCard = null;
     this.rings.destroy();
     this.marks.destroy();
     destroyTree(this.view);

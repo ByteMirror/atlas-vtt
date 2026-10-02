@@ -22,24 +22,20 @@ export interface SenseRings {
   cone?: VisionCone;
   /** How far the eyes of a token that looks one way see, in world pixels: `unlimited` without a sight range, 0 without a cone or without eyes that see. */
   coneReach: number;
-  /** The senses that reach as far as the token sees, without a ring of their own. */
-  unbounded: string[];
 }
 
 /**
  * The ranges of a vision token for the GM: a ring for its sight and for each sense that has a
- * distance, widest first, and the names of those without one. They show how far each reaches,
+ * distance, widest first; what reaches without limit has none. They show how far each reaches,
  * not what walls leave of it. `unlimited` is the reach of a sense without a distance (the map's
  * diagonal); `distance` words a world radius ("60ft", or a range band).
  */
 export function senseRings(source: SightSource, unlimited: number, distance: (radius: number) => string): SenseRings {
   const rings: SenseRing[] = [];
-  const unbounded: string[] = [];
   const add = (name: string, reach: number, eyes: boolean, style: SenseRing['style']): void => {
     const radius = eyes ? Math.min(reach, source.range) : reach;
-    if (radius <= 0) return;
-    if (radius >= unlimited) unbounded.push(name);
-    else rings.push({ label: `${name} ${distance(radius)}`, radius, ...(eyes && source.cone && { cone: source.cone }), style });
+    if (radius <= 0 || radius >= unlimited) return;
+    rings.push({ label: `${name} ${distance(radius)}`, radius, ...(eyes && source.cone && { cone: source.cone }), style });
   };
   if (!source.blinded) add(NORMAL_SIGHT.name, source.range, true, 'sight');
   for (const { definition, range } of source.senses) {
@@ -47,5 +43,5 @@ export function senseRings(source: SightSource, unlimited: number, distance: (ra
   }
   rings.sort((a, b) => b.radius - a.radius);
   const looks = source.cone && !source.blinded;
-  return { center: source.origin, rings, ...(looks && { cone: source.cone }), coneReach: looks ? Math.max(0, Math.min(source.range, unlimited)) : 0, unbounded };
+  return { center: source.origin, rings, ...(looks && { cone: source.cone }), coneReach: looks ? Math.max(0, Math.min(source.range, unlimited)) : 0 };
 }

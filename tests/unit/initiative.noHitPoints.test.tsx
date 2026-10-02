@@ -6,7 +6,7 @@ import type { TokenEntity } from '../../src/app/types';
 
 const state = vi.hoisted(() => ({
   initiativeTrackerOpen: true,
-  initiative: { entries: [] as unknown[], removedTokenIds: [] as string[], isActive: false, round: 0 },
+  initiative: { entries: [] as unknown[], isActive: false, round: 0 },
   objects: { tokens: {} as Record<string, unknown> },
   tokenSettings: { showInstanceBadges: true },
   addToInitiative: vi.fn(),
@@ -47,6 +47,7 @@ vi.mock('../../src/app/react/components/StatblockHoverPreview', () => ({
 }));
 
 import { InitiativeTracker } from '../../src/app/react/components/InitiativeTracker';
+import { initiativeEntryForToken } from '../../src/app/stores/initiativeEntries';
 
 /** An entry as the tracker holds it: no hit points, which are read from the token. */
 function entryOf(tokenId: string): InitiativeEntry {
@@ -89,14 +90,11 @@ describe('initiative entries of tokens without hit points', () => {
   it.each<[string, TokenEntity]>([
     ['a plain token', crate],
     ['a creature without a statblock', { ...crate, kind: 'character', name: 'Stranger' }],
-  ])('adds %s without inventing hit points', (_label, token) => {
-    state.objects.tokens = { crate: token };
+  ])('makes the entry of %s without inventing hit points', (_label, token) => {
+    const entry = initiativeEntryForToken(token);
 
-    render(<InitiativeTracker />);
-
-    expect(state.addToInitiative).toHaveBeenCalledTimes(1);
-    expect(state.addToInitiative.mock.calls[0]?.[0]).not.toHaveProperty('hp');
-    expect(state.addToInitiative.mock.calls[0]?.[0]).toMatchObject({ tokenId: 'crate' });
+    expect(entry).not.toHaveProperty('hp');
+    expect(entry).toMatchObject({ tokenId: 'crate' });
   });
 
   it('reads hit points from the token, whatever an entry from an older scene file still holds', () => {

@@ -787,9 +787,9 @@ export class TokenRenderer {
   }
 
   /** The layer of the sensed tokens' outlines, for the list of what the players' view shows. */
-  public getSensedOutlineLayer(): HideableLayer { return this.playerSight.outlineLayer; }
-  /** A line for the GM on a token's hover card (`UIManager.setSightLineProvider`); returns the refresh for when sight changed. */
-  public setSightLineProvider(provider: ((tokenId: string) => string | null) | null): () => void { return this.uiManager.setSightLineProvider(provider); }
+  public getSensedOutlineLayer(): HideableLayer {
+    return this.playerSight.outlineLayer;
+  }
 
   private syncTokens = async (
     tokensRecord: Record<string, TokenEntity>,
@@ -1554,6 +1554,21 @@ export class TokenRenderer {
 
   public setWallCursorProvider(fn: (worldX: number, worldY: number) => string): void {
     this.wallCursorProvider = fn;
+  }
+
+  /** The view's lighting is gone: nothing takes the pointer for lights, walls and doors any more, and no sight hides tokens. */
+  public clearLighting(): void {
+    delete this.lightHandlers;
+    delete this.doorClickHandler;
+    delete this.doorMenuHandlers;
+    delete this.wallPointerDownHandler;
+    delete this.wallPointerMoveHandler;
+    delete this.wallPointerUpHandler;
+    delete this.wallDoubleClickHandler;
+    delete this.wallContextMenuHandler;
+    delete this.wallCursorProvider;
+    this.playerSight.setProvider(() => undefined);
+    this.refreshPlayerSight();
   }
 
   public setAudioPointerDownHandler(fn: (worldX: number, worldY: number, e: FederatedPointerEvent) => boolean): void {

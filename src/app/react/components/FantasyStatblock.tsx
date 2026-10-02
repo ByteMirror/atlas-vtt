@@ -19,6 +19,7 @@ import { StatblockTokenResources, type StatblockTokenActions } from './statblock
 import type { StatblockEditApi } from './statblock/statblockEditContext';
 import { isEditableNote, writeStatblockValue } from '../../services/statblockEditing';
 import { useBestiaryRevision } from '../hooks/useBestiaryRevision';
+import { StatblockSkeleton } from './statblock/StatblockSkeleton';
 
 interface FantasyStatblockProps {
   /** Vault path of the note backing the Fantasy Statblocks creature */
@@ -71,6 +72,8 @@ export function FantasyStatblock({
   // Notes that define their statblock in a ```statblock fence never enter the
   // bestiary, so resolve those from the fence itself.
   const [noteCreature, setNoteCreature] = useState<FantasyStatblocksCreature | null>(null);
+  // The note whose own statblock has been looked for: until then "no creature" is not known yet.
+  const [readNote, setReadNote] = useState<string | null>(null);
 
   useEffect(() => {
     if (bestiaryCreature) {
@@ -79,7 +82,7 @@ export function FantasyStatblock({
     }
 
     let cancelled = false;
-    void (async () => {
+    const readNoteCreature = async (): Promise<void> => {
       if (noteContent !== undefined) {
         const source = statblockSourceFromText(noteContent);
         const basename = notePath.split('/').pop()?.replace(/\.md$/, '') ?? '';
@@ -98,7 +101,10 @@ export function FantasyStatblock({
 
       const resolved = await resolveCreatureFromFence(app, source.params, notePath);
       if (!cancelled) setNoteCreature(resolved);
-    })();
+    };
+    void readNoteCreature().finally(() => {
+      if (!cancelled) setReadNote(notePath);
+    });
 
     return () => {
       cancelled = true;
@@ -207,9 +213,10 @@ export function FantasyStatblock({
 
   if (!monster || !layout) {
     // The bestiary is parsed asynchronously at startup, so an unresolved
-    // bestiary means "not ready yet" rather than "no such creature".
-    if (!api.isResolved?.()) {
-      return <div className="atlas-statblock-missing-hint">Loading statblock…</div>;
+    // bestiary means "not ready yet" rather than "no such creature"; so does
+    // a note whose own statblock is still being read.
+    if (!api.isResolved?.() || (!bestiaryCreature && readNote !== notePath)) {
+      return <StatblockSkeleton className={className} />;
     }
 
     return (

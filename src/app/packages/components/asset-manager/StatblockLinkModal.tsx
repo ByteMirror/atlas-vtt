@@ -20,9 +20,8 @@ interface StatblockLinkModalProps {
   app: App;
 }
 
-const EMPTY_MESSAGES: Record<BestiaryStatus, React.ReactNode> = {
+const EMPTY_MESSAGES: Record<Exclude<BestiaryStatus, 'loading'>, React.ReactNode> = {
   missing: 'Install and enable the Fantasy Statblocks plugin to link statblocks.',
-  loading: 'Loading statblocks…',
   ready: (
     <>
       No statblock notes found. Add a statblock code block to a note (<code>monster: Goblin</code> is enough for a
@@ -30,6 +29,12 @@ const EMPTY_MESSAGES: Record<BestiaryStatus, React.ReactNode> = {
     </>
   ),
 };
+
+/** What the list says when it has no rows; nothing while the creatures are read, when placeholder rows stand in. */
+function emptyMessage(hasEntries: boolean, status: BestiaryStatus): React.ReactNode {
+  if (hasEntries) return 'No statblocks match your search.';
+  return status === 'loading' ? null : EMPTY_MESSAGES[status];
+}
 
 /**
  * Links a token to a Fantasy Statblocks creature: search on the left, the
@@ -132,7 +137,8 @@ const StatblockLinkModal: React.FC<StatblockLinkModalProps> = ({ isOpen, onClose
               optionId={optionId}
               onActivate={setSelectedPath}
               onChoose={link}
-              empty={hasEntries ? 'No statblocks match your search.' : EMPTY_MESSAGES[status]}
+              loading={status === 'loading'}
+              empty={emptyMessage(hasEntries, status)}
             />
           </div>
           <StatblockPreviewPane app={app} path={previewPath} token={asset} />

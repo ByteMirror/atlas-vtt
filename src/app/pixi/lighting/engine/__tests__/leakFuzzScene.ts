@@ -6,6 +6,7 @@ import type { WallSegment } from '../../../../types/wallTypes';
 import { darkvision, senseSource } from '../../../../vision/__tests__/senseSources';
 import type { SeenSpot } from '../../../../vision/perception';
 import type { SenseSource, Sight } from '../../../../vision/sight';
+import { sightWedges } from '../../../../vision/sightWedges';
 import { blocksFrom, type MapBounds } from '../../../../vision/visibility';
 import { SceneSpots, type SceneModel } from '../../sceneModel';
 import type { LightingEngine } from '../LightingEngine';
@@ -63,6 +64,19 @@ export function outsideOf(room: FuzzRoom, outline: readonly P[], bounds: MapBoun
     if (!insidePolygon(p, outline) && distToOutline(p, outline) > 60) return p;
   }
   return null;
+}
+
+/**
+ * Whether `p` lies where the picture softens a shadow of `sight`: in the wedge that opens from a
+ * wall's corner along the shadow's edge, on the side that is seen (`sightWedges`). There the
+ * rule counts the point as seen and the picture shows it from fully to not at all.
+ */
+export function inPenumbra(p: P, sight: Sight, radius: number): boolean {
+  return sight.regions.some((region) => !!region.polygon && sightWedges(region.origin, region.polygon, radius, region.apex).some(({ a, e, side, phi }) => {
+    const vx = p[0] - a.x, vy = p[1] - a.y;
+    const turn = Math.atan2(e.x * vy - e.y * vx, e.x * vx + e.y * vy) * side;
+    return turn >= -0.02 && turn <= phi + 0.02;
+  }));
 }
 
 const sense = (id: string): SenseDefinition => [...GENERIC_SENSES, ...Object.values(BUILT_IN_SENSES).flat()].find((candidate) => candidate.id === id)!;

@@ -14,7 +14,6 @@ const BORDER_WIDTH = 1.5;
 const BORDER_ALPHA = 0.18;
 const BADGE_RADIUS = 8;
 const FONT_SIZE = 13;
-const NOTE_FONT_SIZE = 12;
 const FALLBACK_FONT = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
 /** Distance between the token's ring and the card. */
 const OFFSET = 8;
@@ -24,9 +23,8 @@ const ENTRANCE_SCALE = 0.97;
 
 /**
  * Card beside a hovered token that names its conditions, one row per condition with the
- * same badge as on the token, and below them an optional note in muted text (for the GM: the
- * light the token stands in and how the players perceive it). It keeps a constant size on
- * screen, like a tooltip, and takes Obsidian's theme colours and interface font.
+ * same badge as on the token. It keeps a constant size on screen, like a tooltip, and
+ * takes Obsidian's theme colours and interface font.
  */
 export class ConditionHoverPanel {
   readonly container = new Container({ eventMode: 'none', interactiveChildren: false, visible: false });
@@ -44,15 +42,15 @@ export class ConditionHoverPanel {
     this.applyReveal();
   }
 
-  show(conditions: ActiveCondition[], animate: boolean, note: string | null = null): void {
-    if (conditions.length === 0 && !note) {
+  show(conditions: ActiveCondition[], animate: boolean): void {
+    if (conditions.length === 0) {
       this.hide(false);
       return;
     }
-    const signature = JSON.stringify([conditions, note]);
+    const signature = JSON.stringify(conditions);
     const isOpening = !this.container.visible || this.reveal.targetValue !== 1;
     // Rebuilt on every opening, so it picks up theme changes
-    if (isOpening || signature !== this.signature) this.build(conditions, note, signature);
+    if (isOpening || signature !== this.signature) this.build(conditions, signature);
     if (!isOpening) return;
     this.container.visible = true;
     if (animate) this.reveal.animateTo(1);
@@ -78,7 +76,7 @@ export class ConditionHoverPanel {
     destroyTree(this.container);
   }
 
-  private build(conditions: ActiveCondition[], note: string | null, signature: string): void {
+  private build(conditions: ActiveCondition[], signature: string): void {
     if (this.content) destroyTree(this.content);
     this.signature = signature;
 
@@ -86,22 +84,14 @@ export class ConditionHoverPanel {
     const style = new TextStyle({ fontFamily: theme.font, fontSize: FONT_SIZE, fontWeight: '500', fill: theme.text });
     const resolution = Math.max(2, window.devicePixelRatio || 1);
     const labels = conditions.map((condition) => new Text({ text: condition.name, style, resolution }));
-    const noteText = note
-      ? new Text({ text: note, style: new TextStyle({ fontFamily: theme.font, fontSize: NOTE_FONT_SIZE, fill: theme.muted }), resolution })
-      : null;
 
     const rowHeight = Math.max(BADGE_RADIUS * 2, ...labels.map((label) => label.height));
-    const rowsWidth = labels.length > 0 ? BADGE_RADIUS * 2 + GAP + Math.max(...labels.map((label) => label.width)) : 0;
-    const rowsHeight = rowHeight * conditions.length + GAP * Math.max(0, conditions.length - 1);
-    const width = PADDING + Math.max(rowsWidth, noteText?.width ?? 0) + PADDING;
-    this.height = PADDING * 2 + rowsHeight + (noteText ? noteText.height + (conditions.length > 0 ? GAP : 0) : 0);
+    const textWidth = Math.max(...labels.map((label) => label.width));
+    const width = PADDING + BADGE_RADIUS * 2 + GAP + textWidth + PADDING;
+    this.height = PADDING * 2 + rowHeight * conditions.length + GAP * (conditions.length - 1);
 
     const content = new Container({ eventMode: 'none', interactiveChildren: false });
     content.addChild(drawCard(width, this.height, theme));
-    if (noteText) {
-      noteText.position.set(PADDING, this.height - PADDING - noteText.height);
-      content.addChild(noteText);
-    }
     conditions.forEach((condition, index) => {
       const rowY = PADDING + index * (rowHeight + GAP);
       // The label already reads "Frightened 2", so the card's badge leaves out the number
@@ -131,7 +121,6 @@ export class ConditionHoverPanel {
 interface CardTheme {
   background: number;
   text: number;
-  muted: number;
   font: string;
 }
 
@@ -140,7 +129,6 @@ function readTheme(): CardTheme {
   return {
     background: cssColorToHexNumber(resolveCssColor('var(--background-primary)')),
     text: cssColorToHexNumber(resolveCssColor('var(--text-normal)')),
-    muted: cssColorToHexNumber(resolveCssColor('var(--text-muted)')),
     font: font || FALLBACK_FONT,
   };
 }

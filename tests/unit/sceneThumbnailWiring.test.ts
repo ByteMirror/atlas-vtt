@@ -53,7 +53,7 @@ function setup(contextLost = false) {
     hexLinkRenderer: { container: hexLinks },
     tokenRenderer: { getGmViewLayers: () => [{ layer: hiddenToken, visible: true, alpha: 0.5 }] },
     fogRenderer: { getGmViewLayers: () => [{ layer: fog, visible: true, alpha: 0.5 }] },
-    lighting: {
+    lightingFeature: { controller: {
       gmOverlays: () => gmOverlays,
       renderer: {
         renderForFrame: <T,>(frame: SceneFrame, render: () => T): T => {
@@ -62,7 +62,7 @@ function setup(contextLost = false) {
           try { return render(); } finally { lighting = false; }
         },
       },
-    },
+    } },
   });
   // Session view shows the fog opaque
   fog.alpha = 1;

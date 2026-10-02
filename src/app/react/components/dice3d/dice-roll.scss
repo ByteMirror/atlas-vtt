@@ -225,11 +225,14 @@ $dice-roll-engraving-fade: radial-gradient(ellipse 74% 74% at 50% 50%, #000 38%,
   color: var(--text-faint);
 }
 
-// The stage lies over everything and lets clicks through to the panel.
+// The stage lies over everything and lets clicks through to the panel. It
+// shows the bottom left corner of its canvas, which is at least as large and
+// keeps its size when the stage changes its own (`DiceRenderer.setView`).
 .atlas-dice-roll__stage {
   position: absolute;
   inset: 0;
   z-index: 1;
+  overflow: hidden;
   pointer-events: none;
 }
 
@@ -243,9 +246,12 @@ $dice-roll-engraving-fade: radial-gradient(ellipse 74% 74% at 50% 50%, #000 38%,
 }
 
 .atlas-dice-stage__canvas {
+  position: absolute;
+  bottom: 0;
+  left: 0;
   display: block;
-  width: 100%;
-  height: 100%;
+  // Wider than the stage of a row, and no rule may fit it in.
+  max-width: none;
 }
 
 .atlas-dice-roll__row {

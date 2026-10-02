@@ -1,0 +1,110 @@
+@use '../../../../../styles/tokens' as *;
+@use '../../../../../styles/mixins' as *;
+@use '../../../../../styles/skeleton' as *;
+@use 'variables' as *;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Asset Manager – Skeletons
+// ═══════════════════════════════════════════════════════════════════════════
+// What the manager shows while its content loads. The placeholders reuse the
+// classes of what they stand for (card, section header, folder grid), so they
+// take the same room and the content replaces them without a shift.
+
+// ── Content pane ────────────────────────────────────────────────────────────
+
+.atlas-asset-manager-content.atlas-content-skeleton {
+  overflow: hidden;
+  // A screenful runs off the pane's lower edge: more is on its way.
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - #{$spacing-2xl * 2}), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - #{$spacing-2xl * 2}), transparent);
+
+  .atlas-content-sections {
+    animation: atlas-skeleton-appear $transition-normal $transition-ease-out both;
+  }
+
+  .atlas-section-header {
+    cursor: default;
+  }
+}
+
+@keyframes atlas-skeleton-appear {
+  from {
+    opacity: 0;
+  }
+}
+
+// The columns `useGridMetrics` works out for the real grid.
+.atlas-asset-skeleton-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+  gap: $spacing-s;
+
+  .atlas-asset-card-thumb {
+    background: transparent;
+  }
+}
+
+.atlas-folder-skeleton {
+  height: 40px;
+  border-radius: $radius-m;
+}
+
+// ── Card art ────────────────────────────────────────────────────────────────
+// Fills the art well: a picture for maps and scenes, a token's circle for
+// characters. Also what a card shows while its thumbnail is being made.
+
+.atlas-asset-card-art-skeleton {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+
+.atlas-asset-card[data-type='tokens'] .atlas-asset-card-art-skeleton {
+  border-radius: $radius-full;
+}
+
+.atlas-encounter-skeleton-portrait {
+  position: absolute;
+  // The portraits overlap: each is opaque, like the art it stands for.
+  background:
+    linear-gradient($skeleton-tint 0 0),
+    var(--atlas-skeleton-surface, var(--background-primary));
+}
+
+// ── Header and sidebar ──────────────────────────────────────────────────────
+
+// As wide as the two digits a count has room for, so the tabs do not move when it arrives.
+.atlas-tab-count .atlas-skeleton {
+  width: 2ch;
+}
+
+.atlas-tag-skeleton {
+  height: $control-height;
+  padding: 0 $spacing-s;
+  @include atlas-flex-row($gap: $spacing-s);
+
+  .atlas-tag-skeleton__icon {
+    width: $icon-xs;
+    height: $icon-xs;
+  }
+
+  .atlas-tag-skeleton__name {
+    font-size: $font-ui-small;
+    flex: 1;
+    min-width: 0;
+  }
+}
+
+.atlas-asset-manager-sidebar {
+  --atlas-skeleton-surface: var(--background-secondary);
+}
+
+// ── Filter panel ────────────────────────────────────────────────────────────
+
+.atlas-filter-skeleton {
+  @include atlas-flex-col($gap: $spacing-l);
+}
+
+.atlas-filter-chip-skeleton {
+  height: 24px;
+}

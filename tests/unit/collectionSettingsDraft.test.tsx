@@ -179,3 +179,23 @@ describe('light presets', () => {
     expect(result.current.toSettings()).toHaveProperty('lightPresets', undefined);
   });
 });
+
+it('follows the game system\'s initiative rules until the collection has its own, and drops them with the system', () => {
+  const cairn = BUILT_IN_SYSTEM_PRESETS.find((preset) => preset.name === 'Cairn')!;
+  const own = { mode: 'turn-order' as const, roll: ' 2d6 ', firstSide: 'players' as const };
+  // Stored rules that are none read as unset
+  const { result } = draftFor({ conditions: [], systemPresetId: cairn.id, initiative: { mode: 'teams' } as never });
+  expect(result.current.initiative).toBeUndefined();
+  expect(result.current.toSettings()).toHaveProperty('initiative', undefined);
+
+  act(() => result.current.setInitiative(own));
+  expect(result.current.toSettings().initiative).toEqual({ ...own, roll: '2d6' });
+
+  // Another system brings its own rules, so the collection's go
+  act(() => result.current.applyPreset(dnd5e));
+  expect(result.current.toSettings()).toHaveProperty('initiative', undefined);
+
+  act(() => result.current.setInitiative(own));
+  act(() => result.current.clearSystem());
+  expect(result.current.toSettings()).toHaveProperty('initiative', undefined);
+});

@@ -8,6 +8,8 @@ import type { ViewAtlasState } from '../../storeFactory';
 import type { WallSegment } from '../../types/wallTypes';
 import { cssColorToHexNumber } from '../utils/colorUtils';
 import { destroyTree } from '../utils/destroyTree';
+import { KindWallLayer, type KindWall } from './KindWallLayer';
+import { drawDashedLine, hasKindLook } from './wallKindLook';
 
 const VERTEX_HANDLE_RADIUS = 4;
 const HIT_TOLERANCE = 6;
@@ -20,6 +22,8 @@ const HIT_TOLERANCE = 6;
 export class WallRenderer {
   private container: Container;
   private wallGraphics: Graphics;
+  /** The walls with a look of their own (`wallKindLook`), laid out in screen pixels. */
+  private readonly kinds: KindWallLayer;
   private handleGraphics: Graphics;
   private previewGraphics: Graphics;
   private store: StoreApi<ViewAtlasState>;
@@ -38,7 +42,7 @@ export class WallRenderer {
   private freeformPath: Array<{ x: number; y: number }> = [];
 
   constructor(
-    viewport: Viewport,
+    private readonly viewport: Viewport,
     store: StoreApi<ViewAtlasState>,
   ) {
     this.store = store;
@@ -54,6 +58,8 @@ export class WallRenderer {
     this.previewGraphics = new Graphics();
 
     this.container.addChild(this.wallGraphics);
+    this.kinds = new KindWallLayer(viewport);
+    this.container.addChild(this.kinds.graphics);
     this.container.addChild(this.handleGraphics);
     this.container.addChild(this.previewGraphics);
 
@@ -62,6 +68,14 @@ export class WallRenderer {
     // Redraw while shown; whoever shows it (the wall tool) owns `visible`.
     this._unsubscribe = store.subscribe((state, previous) => {
       if (this.container.visible && state.objects !== previous.objects) this.redraw(state);
+    });
+  }
+
+  /** The walls that block one thing or are limited, in the colours of now. */
+  private kindWalls(state: ViewAtlasState): KindWall[] {
+    return wallList(state.objects.walls).filter(hasKindLook).map((wall) => {
+      const open = (wall.type === 'door' || wall.type === 'secret-door') && !(wall.closed ?? true);
+      return { wall, color: this.selectedWallIds.has(wall.id) ? this.accentColor : open ? 0x44dd44 : this.getWallColor(wall), alpha: open ? 0.6 : 1, hollow: wall.type === 'secret-door' };
     });
   }
 
@@ -216,7 +230,7 @@ export class WallRenderer {
     g.fill({ color, alpha: 0.9 });
 
     // Preview line: dashed to show it's not placed yet
-    this.drawDashedLine(
+    drawDashedLine(
       g,
       this.previewAnchor.x, this.previewAnchor.y,
       this.previewCursor.x, this.previewCursor.y,
@@ -234,10 +248,10 @@ export class WallRenderer {
     );
     this.wallGraphics.clear();
     this.handleGraphics.clear();
-
     for (const wall of wallList(state.objects.walls)) {
       this.drawWall(wall);
     }
+    this.kinds.set(this.kindWalls(state));
   }
 
   private drawWall(wall: WallSegment): void {
@@ -249,7 +263,11 @@ export class WallRenderer {
     const g = this.wallGraphics;
     const isOpen = (wall.type === 'door' || wall.type === 'secret-door') && !(wall.closed ?? true);
 
-    switch (wall.type) {
+    switch (hasKindLook(wall) ? 'kind' : wall.type) {
+      // Drawn by `drawKindWalls`, in screen pixels.
+      case 'kind':
+        break;
+
       case 'solid':
         g.moveTo(wall.p1.x, wall.p1.y);
         g.lineTo(wall.p2.x, wall.p2.y);
@@ -267,7 +285,7 @@ export class WallRenderer {
       case 'secret-door': {
         // Dashed line only — door icons are drawn by the lighting layer
         const dashColor = isOpen ? 0x44dd44 : color;
-        this.drawDashedLine(g, wall.p1.x, wall.p1.y, wall.p2.x, wall.p2.y,
+        drawDashedLine(g, wall.p1.x, wall.p1.y, wall.p2.x, wall.p2.y,
           dashColor, isOpen ? 1.5 : 2.5, 8, 5);
         break;
       }
@@ -301,35 +319,6 @@ export class WallRenderer {
       case 'door': return 0x44aaff;
       case 'secret-door': return 0xff8844;
       default: return 0xaaaaaa;
-    }
-  }
-
-  private drawDashedLine(
-    g: Graphics,
-    x1: number, y1: number,
-    x2: number, y2: number,
-    color: number, width: number,
-    dashLength: number, gapLength: number,
-  ): void {
-    const dx = x2 - x1;
-    const dy = y2 - y1;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    if (dist === 0) return;
-    const nx = dx / dist;
-    const ny = dy / dist;
-
-    let pos = 0;
-    let drawing = true;
-    while (pos < dist) {
-      const segLen = drawing ? dashLength : gapLength;
-      const end = Math.min(pos + segLen, dist);
-      if (drawing) {
-        g.moveTo(x1 + nx * pos, y1 + ny * pos);
-        g.lineTo(x1 + nx * end, y1 + ny * end);
-        g.stroke({ width, color });
-      }
-      pos = end;
-      drawing = !drawing;
     }
   }
 
@@ -437,6 +426,7 @@ export class WallRenderer {
 
   destroy(): void {
     this._unsubscribe?.();
+    this.kinds.destroy();
     this.wallGraphics.destroy();
     this.handleGraphics.destroy();
     this.previewGraphics.destroy();

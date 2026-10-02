@@ -4,6 +4,7 @@ import { cascadeFragment, cascadeVertex, emissionFragment, resolveFragment } fro
 import { compositeFragment } from './compositeShader';
 import { darknessFragment, darknessVertex, pierceFragment, pierceVertex } from './darknessShader';
 import { lightMapFragment, lightMapVertex } from './lightMapShader';
+import { limitedFragment, limitedVertex } from './limitedShader';
 import { sightFragment, sightVertex } from './sightShader';
 import { tileFragment, tileVertex } from './tileShader';
 import { tileSmoothFragment } from './tileSmoothShader';
@@ -24,6 +25,7 @@ export const ENGINE_SHADERS = {
   capsuleField: { name: 'atlas-capsule-field', vertex: capsuleFieldVertex, fragment: capsuleFieldFragment },
   tile: { name: 'atlas-visibility-tile', vertex: tileVertex, fragment: tileFragment },
   tileSmooth: { name: 'atlas-visibility-tile-smooth', vertex: tileVertex, fragment: tileSmoothFragment },
+  tileLimited: { name: 'atlas-visibility-tile-limited', vertex: limitedVertex, fragment: limitedFragment },
   lightMap: { name: 'atlas-light-map', vertex: lightMapVertex, fragment: lightMapFragment },
   darkness: { name: 'atlas-darkness', vertex: darknessVertex, fragment: darknessFragment },
   pierce: { name: 'atlas-darkness-pierce', vertex: pierceVertex, fragment: pierceFragment },

@@ -82,6 +82,7 @@ export class CanvasLightingFallback implements SceneLightingView {
     this.update(this.deps.store.getState());
   }
   resetExplored(): void { /* The fallback keeps no explored memory. */ }
+  editExplored(): boolean { return false; }
   beforeMapUnload(): void { /* Nothing is pending in the fallback. */ }
 
   /** The GM's view is unlit, and so is its thumbnail: only the darkness of a players' view on the canvas is left out. */

@@ -15,6 +15,7 @@ import { CoinIcon } from './CoinIcon';
 import { Button } from '../../packages/components/primitives/button';
 import { useAtlasUI } from '../root/AtlasUIContext';
 import { AssetService } from '../../services/AssetService';
+import type { InitiativeRules } from '../../types/initiativeRulesTypes';
 import type { SystemPreset } from '../../types/systemPresetTypes';
 import { deleteSystemPreset } from '../../services/systemPresetDeletion';
 import { syncCollectionSystem } from '../../services/collectionSystemSync';
@@ -22,7 +23,9 @@ import { useSystemPresets } from '../hooks/useSystemPresets';
 import { savedResources, useCollectionSettingsDraft } from './collection-settings/useCollectionSettingsDraft';
 
 import { GridMeasurementTab } from './collection-settings/GridMeasurementTab';
+import { collectionConeAngle } from '../../gameSystems/coneAngle';
 import { VisionTab } from './collection-settings/VisionTab';
+import { useExperimentalFeature } from '../hooks/useExperimentalFeature';
 import { DefaultWidgetsTab } from './collection-settings/DefaultWidgetsTab';
 import { ConditionsTab } from './collection-settings/ConditionsTab';
 import { ResourcesTab } from './collection-settings/ResourcesTab';
@@ -31,6 +34,7 @@ import { LootTab } from './collection-settings/LootTab';
 import { SystemTab } from './collection-settings/SystemTab';
 import { DiceTab } from './collection-settings/DiceTab';
 import { collectionDiceRules, isValidDiceRules } from '../../gameSystems/diceRules';
+import { collectionInitiativeRules, isValidInitiativeRules } from '../../gameSystems/initiativeRules';
 import { collectionLightPresets } from '../../gameSystems/lightPresetRules';
 import { editedSenses, sensesAreValid } from '../../gameSystems/senseEditing';
 import { collectionSenses } from '../../gameSystems/senseRules';
@@ -73,6 +77,11 @@ const TABS: TabDef[] = [
   { id: 'loot', label: 'Loot', icon: <CoinIcon size={16} /> },
 ];
 
+/** Whether what was typed is the system's rules to the letter; a roll with a space or another case is kept as typed. */
+function isSameAsTyped(typed: InitiativeRules, system: InitiativeRules): boolean {
+  return typed.mode === system.mode && typed.firstSide === system.firstSide && typed.roll === system.roll;
+}
+
 // ── Component ──────────────────────────────────────────────────────────────
 
 export function CollectionSettingsModal({
@@ -82,6 +91,7 @@ export function CollectionSettingsModal({
   initialTab = 'system',
 }: CollectionSettingsModalProps): React.ReactElement | null {
   const { app } = useAtlasUI();
+  const lightingOn = useExperimentalFeature('dynamicLighting');
   const assetService = app ? AssetService.getInstance(app) : null;
   const systemPresets = useSystemPresets(app);
   const windowVariants = useDialogWindowVariants();
@@ -123,11 +133,15 @@ export function CollectionSettingsModal({
   }, [isOpen, onClose]);
 
   const dice = collectionDiceRules(draft, systemPresets.presets);
+  const systemInitiative = collectionInitiativeRules({ systemPresetId: draft.systemPresetId }, systemPresets.presets);
+  // The draft as it is typed, half a roll included; only stored rules are parsed
+  const initiative = draft.initiative ?? systemInitiative;
   const senses = collectionSenses(draft, systemPresets.presets);
   // What the collection's game system gives it; an edit that ends up there again stores nothing.
   const systemSenses = collectionSenses({ systemPresetId: draft.systemPresetId }, systemPresets.presets);
   const canSave = areRangeBandsValid(gridDefaults.abstractRangeBands)
     && isValidDiceRules(dice)
+    && isValidInitiativeRules(initiative)
     && sensesAreValid(senses)
     && draft.customCreatureFilters.every(isCompleteCreatureFilter)
     // A resource without a name or a statblock field could never show
@@ -185,7 +199,7 @@ export function CollectionSettingsModal({
         <div className="atlas-collection-settings-body">
           {/* Vertical tab sidebar */}
           <nav className="atlas-collection-settings-sidebar">
-            {TABS.map((tab) => (
+            {TABS.filter((tab) => tab.id !== 'vision' || lightingOn).map((tab) => (
               <Button
                 key={tab.id}
                 variant="ghost"
@@ -209,6 +223,7 @@ export function CollectionSettingsModal({
                   conditions,
                   defaultWidgets: draft.defaultWidgets,
                   dice,
+                  initiative,
                   resources: savedResources(draft.resources),
                   ...(draft.defaultTokenVision && { defaultTokenVision: draft.defaultTokenVision }),
                   senses,
@@ -226,10 +241,11 @@ export function CollectionSettingsModal({
             {activeTab === 'grid' && (
               <GridMeasurementTab
                 gridDefaults={gridDefaults}
+                coneAngle={collectionConeAngle(gridDefaults, draft.systemPresetId)}
                 onChange={draft.setGridDefaults}
               />
             )}
-            {activeTab === 'vision' && (
+            {activeTab === 'vision' && lightingOn && (
               <VisionTab
                 gridDefaults={gridDefaults}
                 vision={draft.defaultTokenVision}
@@ -242,6 +258,9 @@ export function CollectionSettingsModal({
               <DefaultWidgetsTab
                 defaultWidgets={draft.defaultWidgets}
                 onChange={draft.setDefaultWidgets}
+                initiative={initiative}
+                // Rules that are the game system's again store nothing, so the collection keeps following it
+                onInitiativeChange={(next) => draft.setInitiative(isSameAsTyped(next, systemInitiative) ? undefined : next)}
               />
             )}
             {activeTab === 'conditions' && (

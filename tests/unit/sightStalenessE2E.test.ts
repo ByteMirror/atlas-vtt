@@ -77,7 +77,6 @@ function world(): World {
     setWallPointerDownHandler: vi.fn(), setWallPointerMoveHandler: vi.fn(), setWallPointerUpHandler: vi.fn(), setWallDoubleClickHandler: vi.fn(),
     setWallContextMenuHandler: vi.fn(), setWallCursorProvider: vi.fn(), setDoorMenuHandlers: () => undefined, setDoorClickHandler: vi.fn(), setLightHandlers: vi.fn(),
     setPlayerSightProvider: vi.fn(), refreshPlayerSight: vi.fn(), getSensedOutlineLayer: () => ({ visible: false }),
-    setSightLineProvider: () => vi.fn(),
   } as unknown as TokenRenderer);
   cleanup = () => {
     controller.destroy();

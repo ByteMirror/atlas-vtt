@@ -70,6 +70,16 @@
     gap: $spacing-xs;
     span { color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: $font-ui-smaller; }
   }
+  // Placeholder rows while the vault is scanned: laid out like the rows, in the flow.
+  &__pending-row {
+    display: flex;
+    align-items: center;
+    padding: $spacing-m;
+    gap: $spacing-m;
+    & + & { border-top: $border-width-s solid var(--background-modifier-border); }
+  }
+  &__pending-check { width: $icon-s; height: $icon-s; }
+  &__pending-portrait { width: 48px; height: 48px; border-radius: $radius-m; }
   &__status { font-size: $font-ui-smaller; color: var(--text-muted); text-align: right; }
   &__status--ready { color: var(--text-success); }
   &__scanning { display: flex; }

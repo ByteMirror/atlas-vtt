@@ -3,7 +3,6 @@ import { exploredMemoryOn } from '../../../lighting/sceneLightingOptions';
 import type { Sight } from '../../../vision/sight';
 import { destroyTree } from '../../utils/destroyTree';
 import { BackBufferHold } from './backBuffer';
-import type { CapsuleField } from './CapsuleField';
 import { createCompositeFilter, type CompositeFilter, type LightingMode } from './compositeFilter';
 import { contextLost, glOf } from './gpu';
 import { LightingWorld } from './LightingWorld';
@@ -11,6 +10,7 @@ import type { PierceShape } from './DarknessMap';
 import { ambientLift, darkLooks, pierceShapes } from './senseDrawing';
 import { describeShaderFailures, failedEngineShaders } from './shaderCheck';
 import { SightMeshes } from './SightMeshes';
+import type { BoundFields } from './WallFields';
 import type { EngineScene, SceneFrame } from './types';
 
 /**
@@ -30,7 +30,7 @@ export class LightingEngine {
   private readonly sightMeshes = new SightMeshes();
   private world: LightingWorld | null = null;
   private composite: CompositeFilter | null = null;
-  private boundField: CapsuleField | null = null;
+  private boundFields: BoundFields | null = null;
   private explored: Texture = Texture.EMPTY;
   private mode: LightingMode = 'gm';
   private view = { screenToWorld: new Matrix(), zoom: 1 };
@@ -99,8 +99,8 @@ export class LightingEngine {
     const newSpots = scene.spots !== this.spots;
     if (newSight || newSpots) this.pierce = pierceShapes(scene.sight, scene.sight.all ? [] : scene.spots);
     world.update(scene.walls, scene.lights, scene.albedo, this.pierce);
-    if (world.fieldAll() !== this.boundField) {
-      this.boundField = world.fieldAll();
+    if (world.fields.bound() !== this.boundFields) {
+      this.boundFields = world.fields.bound();
       composite.setWorld(world);
     }
     world.setZones(scene.zones, scene);
@@ -116,7 +116,7 @@ export class LightingEngine {
       this.spots = scene.spots;
       this.sightMeshes.drawSpots(scene.sight.all ? [] : scene.spots ?? []);
     }
-    if (newSight || newSpots) composite.setDarkLooks(darkLooks(scene.sight, !!scene.spots?.length));
+    composite.setDarkLooks(darkLooks(scene.sight, !!scene.spots?.length, scene));
     composite.setAmbient(scene.ambient, scene.ambientColor, ambientLift(scene));
     composite.setMemoryShown(exploredMemoryOn(scene));
     composite.setMemoryColours(scene.exploredColor, scene.unexploredColor);
@@ -267,7 +267,7 @@ export class LightingEngine {
     this.layer.filters = null;
     this.composite?.filter.destroy();
     this.composite = null;
-    this.boundField = null;
+    this.boundFields = null;
     this.world?.destroy();
     this.world = null;
     this.scene = null;
@@ -278,7 +278,7 @@ export class LightingEngine {
   private replaceWorld(world: LightingWorld): void {
     const previous = this.world;
     this.world = world;
-    this.boundField = world.fieldAll();
+    this.boundFields = world.fields.bound();
     if (this.composite) {
       // The darkness map and the zone map are the old world's: nothing of them may stay bound when that world goes.
       this.composite.setMaps(null, null);

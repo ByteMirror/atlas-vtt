@@ -11,6 +11,7 @@ import { StoredLightingAttempt } from './lightingAttempts';
 import { LightingRenderer } from './LightingRenderer';
 import { showLightingUnavailableNotice } from './lightingNotices';
 import { LightingViewHost } from './LightingViewHost';
+import type { ExploredMemoryWatcher } from './sceneLightingView';
 
 export interface SceneLightingDeps {
   viewport: Viewport;
@@ -25,20 +26,22 @@ export interface SceneLightingDeps {
   rules?: () => SightRules;
   /** What the tokens see, or which light reaches them, changed (`playerTokenSight`). */
   onSightChange?: () => void;
+  /** Who shows the GM the engine's explored memory while it is edited. */
+  exploredWatcher?: ExploredMemoryWatcher;
 }
 
 /**
  * The scene lighting of a map view: the GPU engine where the graphics device runs it, the
  * line-of-sight fallback where it does not (`LightingViewHost` swaps them).
  */
-export function createSceneLighting({ viewport, app, store, obsApp, measurement, bounds, albedo, rules, onSightChange }: SceneLightingDeps): LightingViewHost {
+export function createSceneLighting({ viewport, app, store, obsApp, measurement, bounds, albedo, rules, onSightChange, exploredWatcher }: SceneLightingDeps): LightingViewHost {
   const attempt = new StoredLightingAttempt(obsApp, () => store.getState().mapPath);
   const sight = onSightChange ? { onSightChange } : {};
   const view = { ...sight, ...(rules && { rules }) };
   return new LightingViewHost({
     store,
     canvasRenderer: usesCanvasRenderer(app.renderer),
-    createEngineView: (onUnavailable) => new LightingRenderer({ viewport, app, store, measurement, bounds, albedo, attempt, onUnavailable, ...view }),
+    createEngineView: (onUnavailable) => new LightingRenderer({ viewport, app, store, measurement, bounds, albedo, attempt, onUnavailable, ...view, ...(exploredWatcher && { exploredWatcher }) }),
     createFallback: () => new CanvasLightingFallback({ viewport, store, measurement, bounds, ...view }),
     forgetAttempt: () => attempt.forget(),
     notify: showLightingUnavailableNotice,

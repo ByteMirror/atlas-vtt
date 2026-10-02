@@ -10,6 +10,7 @@ import { createViewAtlasStore, type ViewAtlasStore } from '../../src/app/storeFa
 import type { Character } from '../../src/app/types';
 import { creatureVault, type CreatureVault } from '../mocks/creatureVault';
 import { createInMemoryApp } from '../mocks/inMemoryVault';
+import { withDynamicLighting } from '../mocks/experimentalFeatures';
 import { AMMO, HP } from '../mocks/resourceFixtures';
 
 const darkvision = senseWithRole(GENERIC_SENSES, 'darkvision');
@@ -24,7 +25,7 @@ afterEach(() => {
 });
 
 function open(overrides: Partial<Character> = {}): { store: ViewAtlasStore; saved: () => Character; input: (label: string) => HTMLInputElement } {
-  const { app } = createInMemoryApp({ files: {} });
+  const app = withDynamicLighting(createInMemoryApp({ files: {} }).app);
   const store = createViewAtlasStore(app, `edit-token-merge-${Math.random()}`);
   const token: Character = { id: 't', kind: 'character', name: 'Gunner', imagePath: 't.png', x: 0, y: 0, ...overrides };
   store.setState({ persistenceEnabled: false, objects: { ...store.getState().objects, tokens: { t: token } } });
@@ -73,8 +74,8 @@ describe('Edit Token writes senses, light and resources together', () => {
   it('editing only senses keeps resources, hand-set maxima and extra statblock quantities', () => {
     const resources = { hp: { current: 3, max: 8 }, ammo: { current: 2, max: 6 }, mana: { current: 1, max: 4 } };
     const { saved } = open({ vision: { enabled: true }, light: torch, resources, overriddenMax: ['ammo'] });
-    fireEvent.click(screen.getByRole('button', { name: 'Add sense' }));
-    fireEvent.click(screen.getByRole('button', { name: /^Darkvision/ }));
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Add sense' }), { key: 'ArrowDown' });
+    fireEvent.click(screen.getByRole('menuitem', { name: /^Darkvision/ }));
     fireEvent.change(screen.getByLabelText('Darkvision range'), { target: { value: '60' } });
     save();
     expect(saved().vision).toEqual({ enabled: true, senses: [{ id: darkvision.id, range: 60 }] });
@@ -86,7 +87,7 @@ describe('Edit Token writes senses, light and resources together', () => {
   it('one save writes a new sense, a switched-off light and a new maximum', () => {
     const { saved, input } = open({ vision: { enabled: true, darkvision: 60 }, light: torch, resources: { hp: { current: 5, max: 8 } } });
     fireEvent.change(screen.getByLabelText('Darkvision range'), { target: { value: '90' } });
-    fireEvent.click(screen.getByRole('switch', { name: 'Carried light' }));
+    fireEvent.click(screen.getByRole('switch', { name: 'Carries a light' }));
     fireEvent.change(input('Max HP'), { target: { value: '4' } });
     save();
     expect(saved().vision).toEqual({ enabled: true, senses: [{ id: darkvision.id, range: 90 }] });
@@ -112,8 +113,8 @@ describe('Edit Token writes senses, light and resources together', () => {
     const first = open({ vision: { enabled: true }, resources: { hp: { current: 8, max: 8 } } });
     // Damage arrives while the modal is open (the map, undo, another view).
     act(() => first.store.getState().updateToken('t', { resources: { hp: { current: 2, max: 8 } }, x: 140 }));
-    fireEvent.click(screen.getByRole('button', { name: 'Add sense' }));
-    fireEvent.click(screen.getByRole('button', { name: /^Darkvision/ }));
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Add sense' }), { key: 'ArrowDown' });
+    fireEvent.click(screen.getByRole('menuitem', { name: /^Darkvision/ }));
     save();
     expect(first.saved().resources).toEqual({ hp: { current: 2, max: 8 } });
     expect(first.saved().x).toBe(140);
@@ -158,6 +159,7 @@ describe('Edit Token for a token that follows its statblock', () => {
 
   function openLinked(overrides: Partial<Character> = {}): { saved: () => Character; input: (label: string) => HTMLInputElement } {
     current = creatureVault();
+    withDynamicLighting(current.app);
     Object.assign(current.frontmatter[GOBLIN]!, { senses: 'darkvision 60 ft., passive Perception 9', hp: 7 });
     const store = createViewAtlasStore(current.app, `edit-token-linked-${Math.random()}`);
     const token: Character = { id: 't', kind: 'character', name: 'Goblin', imagePath: 't.png', x: 0, y: 0, statblockPath: GOBLIN, vision: { enabled: true }, resources: { hp: { current: 3, max: 7 } }, ...overrides };

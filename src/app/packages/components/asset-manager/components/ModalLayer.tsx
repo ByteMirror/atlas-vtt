@@ -1,5 +1,4 @@
 import React from 'react';
-import { AssetService } from '../../../../services/AssetService';
 import { AnimatePresence } from 'framer-motion';
 import { TokenCreator } from '../TokenCreator';
 import TagManager from '../TagManager';
@@ -23,7 +22,7 @@ import { tagGroupOfTab } from '../utils/assetTags';
 export interface ModalLayerProps {
   isOpen: boolean;
   activeTab: Tab;
-  selectedCollection: string | null;
+  selectedCollection: string;
   onClose: () => void;
   data: AssetData;
   sel: SelectionState;
@@ -35,8 +34,6 @@ export interface ModalLayerProps {
 export function ModalLayer({
   isOpen, activeTab, selectedCollection, onClose, data, sel, crud, tags, statblock,
 }: ModalLayerProps): React.JSX.Element {
-  const collectionOrDefault = selectedCollection || AssetService.defaultCollectionId();
-
   const importMaps = useUvttImport({
     app: data.app,
     assetService: data.assetService,
@@ -46,7 +43,7 @@ export function ModalLayer({
     isBusy: crud.isTokenCreatorOpen || crud.isCreateSceneModalOpen || crud.isMoveModalOpen || crud.isCreateFolderModalOpen
       || crud.inputModalState.isOpen || crud.isCreateCollectionModalOpen || crud.settingsModalCollectionId !== null
       || crud.transfer !== null || tags.isTagManagerOpen || statblock.linkingStatblockAsset !== null,
-    collectionId: collectionOrDefault,
+    collectionId: selectedCollection,
     onSceneOpened: () => { crud.setIsMapCreatorOpen(false); onClose(); },
   });
 
@@ -85,7 +82,7 @@ export function ModalLayer({
         {isOpen && crud.isTokenCreatorOpen && (
           <TokenCreator
             isOpen={crud.isTokenCreatorOpen}
-            selectedCollection={collectionOrDefault}
+            selectedCollection={selectedCollection}
             onClose={() => {
               crud.setIsTokenCreatorOpen(false);
               crud.setEditingToken(null);
@@ -111,7 +108,7 @@ export function ModalLayer({
             isOpen={crud.isMapCreatorOpen}
             mode="map"
             onImportMaps={importMaps}
-            selectedCollection={collectionOrDefault}
+            selectedCollection={selectedCollection}
             onClose={() => {
               crud.setIsMapCreatorOpen(false);
               if (activeTab === 'maps') void reloadAfterCreator();
@@ -198,7 +195,7 @@ export function ModalLayer({
           <CreateSceneModal
             isOpen={crud.isCreateSceneModalOpen}
             onClose={() => crud.setIsCreateSceneModalOpen(false)}
-            selectedCollection={collectionOrDefault}
+            selectedCollection={selectedCollection}
             assetService={data.assetService}
             backgroundPath={crud.createScenePrefill?.backgroundPath ?? null}
             defaultName={crud.createScenePrefill?.defaultName ?? ''}

@@ -42,11 +42,11 @@ describe('SceneSpots', () => {
     expect(spotsOf(state({ hero: { ...hero, x: 400 } }))).toMatchObject([{ x: 400, y: 300, radius: 31 }]);
   });
 
-  it('follows a dragged party token while the model stays as it was, as far as the sight left behind reaches', () => {
+  it('follows a dragged party token while the model stays as it was, as far as the sight left behind reaches, where the scene waits for the drop', () => {
     const builder = new SceneModelBuilder();
     const spots = new SceneSpots();
     const held = { hero: { x: 200, y: 300 } };
-    const at = (x: number): SceneState => state({ hero: { ...hero, x } }, { heldTokens: held });
+    const at = (x: number): SceneState => state({ hero: { ...hero, x } }, { heldTokens: held, lighting: { ...DARK, sightOnDrop: true } });
     const start = builder.update(at(200), BOUNDS, measurement);
     expect(spots.update(start.model, at(200), measurement)).toMatchObject([{ x: 200, y: 300, radius: 31 }]);
     // The hero sees 20 ft, 280 px: 150 px away it is still within the sight that stayed behind.
@@ -60,10 +60,10 @@ describe('SceneSpots', () => {
     expect(spots.update(builder.update(dropped, BOUNDS, measurement).model, dropped, measurement)).toMatchObject([{ x: 700, y: 300, radius: 31 }]);
   });
 
-  it('follows it at once with sight on drop off', () => {
+  it('follows it at once unless the scene waits for the drop', () => {
     const builder = new SceneModelBuilder();
     const spots = new SceneSpots();
-    const far = state({ hero: { ...hero, x: 700 } }, { heldTokens: { hero: { x: 200, y: 300 } }, lighting: { ...DARK, sightOnDrop: false } });
+    const far = state({ hero: { ...hero, x: 700 } }, { heldTokens: { hero: { x: 200, y: 300 } } });
     expect(spots.update(builder.update(far, BOUNDS, measurement).model, far, measurement)).toMatchObject([{ x: 700, y: 300, radius: 31 }]);
   });
 });

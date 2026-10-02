@@ -49,8 +49,9 @@ describe('LightingRenderer sight on drop', () => {
     return { objects: { walls: WALLS, lights: NO_LIGHTS, tokens: { t: { ...token, x } } } };
   }
 
-  async function setup(lighting: Partial<SceneLighting> = {}, token = HERO): Promise<Harness> {
-    harness = await createHarness({ patch: { exploredMask: null, lighting: { enabled: true, ambient: 1, ...lighting }, ...tokenAt(START.x, token) } });
+  /** A scene that waits for the drop, the option under test, unless `waits` is false: then it says nothing of it but what `lighting` does. */
+  async function setup(lighting: Partial<SceneLighting> = {}, token = HERO, waits = true): Promise<Harness> {
+    harness = await createHarness({ patch: { exploredMask: null, lighting: { enabled: true, ambient: 1, ...(waits && { sightOnDrop: true }), ...lighting }, ...tokenAt(START.x, token) } });
     await harness.settle();
     watch = watchGl(harness.renderer.gl);
     return harness;
@@ -136,7 +137,7 @@ describe('LightingRenderer sight on drop', () => {
   it('keeps the light of a dragged token without vision where the drag began, though the party looks on', async () => {
     const bearer = { ...TORCH_BEARER, id: 'b', x: 88, vision: undefined } as unknown as TokenEntity;
     const scene = (x: number): Record<string, unknown> => ({ objects: { walls: WALLS, lights: NO_LIGHTS, tokens: { t: HERO, b: { ...bearer, x } } } });
-    harness = await createHarness({ patch: { exploredMask: null, lighting: { enabled: true, ambient: 0 }, ...scene(88) } });
+    harness = await createHarness({ patch: { exploredMask: null, lighting: { enabled: true, ambient: 0, sightOnDrop: true }, ...scene(88) } });
     const h = harness;
     await h.settle();
     watch = watchGl(h.renderer.gl);
@@ -164,7 +165,7 @@ describe('LightingRenderer sight on drop', () => {
     const scene = (dx: number, heroToo: boolean): Record<string, unknown> => ({
       objects: { walls: WALLS, lights: NO_LIGHTS, tokens: { t: heroToo ? { ...HERO, x: START.x + dx } : HERO, m: { ...mule, x: 60 + dx } } },
     });
-    harness = await createHarness({ patch: { exploredMask: null, lighting: { enabled: true, ambient: 1 }, ...scene(0, false) } });
+    harness = await createHarness({ patch: { exploredMask: null, lighting: { enabled: true, ambient: 1, sightOnDrop: true }, ...scene(0, false) } });
     const h = harness;
     await h.settle();
     watch = watchGl(h.renderer.gl);
@@ -181,11 +182,16 @@ describe('LightingRenderer sight on drop', () => {
     expect(watch.findings).toEqual([]);
   });
 
-  it('records along the way when the scene switches sight on drop off', async () => {
-    const h = await setup({ sightOnDrop: false });
-    drag(h);
-    expect(h.lighting.currentSight().regions.map((region) => region.origin)).toEqual([END]);
-    expect(h.redAt(RIGHT_CORNER.x, RIGHT_CORNER.y)).toBe(255);
-    expect(watch!.findings).toEqual([]);
+  it('follows the drag and records along the way in a scene that does not wait for the drop: by default, or because it says so', async () => {
+    for (const lighting of [{}, { sightOnDrop: false }]) {
+      const h = await setup(lighting, HERO, false);
+      drag(h);
+      expect(h.lighting.currentSight().regions.map((region) => region.origin)).toEqual([END]);
+      expect(h.redAt(RIGHT_CORNER.x, RIGHT_CORNER.y)).toBe(255);
+      expect(watch!.findings).toEqual([]);
+      watch!.stop();
+      h.dispose();
+      harness = null;
+    }
   });
 });

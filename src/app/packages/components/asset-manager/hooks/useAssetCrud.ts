@@ -2,9 +2,8 @@ import type * as React from 'react';
 import { useState } from 'react';
 import { TFolder, App as ObsidianApp } from 'obsidian';
 import type { AnyAsset, CollectionOption, TokenAsset, Folder, Tab, InputModalState } from '../types';
-import { ATLAS_VTT_DIR } from '../types';
 import { saveEncounter, type EncounterTokenDraft } from '../../../../encounters/encounterSaveService';
-import { AssetService } from '../../../../services/AssetService';
+import type { AssetService } from '../../../../services/AssetService';
 import { showAtlasToast } from '../../../../react/components/AtlasToast';
 import { ensureFolder } from '../../../../plugin/vaultFolders';
 import { useCollectionTransfer, type CollectionTransferActions } from './useCollectionTransfer';
@@ -67,13 +66,13 @@ export function useAssetCrud(
   app: ObsidianApp,
   assetService: AssetService | null,
   activeTab: Tab,
-  selectedCollection: string | null,
+  selectedCollection: string,
   selectedFolderId: string | null,
   folders: Folder[],
   collections: CollectionOption[],
   setFolders: React.Dispatch<React.SetStateAction<Folder[]>>,
   reloadCollections: () => Promise<void>,
-  setSelectedCollection: (c: string | null) => void,
+  setSelectedCollection: (c: string) => void,
   loadFoldersForActiveTab: () => Promise<void>,
   loadAssetsForActiveTab: () => Promise<void>,
   draggedItems: { type: 'asset' | 'folder'; ids: string[] } | null,
@@ -114,7 +113,8 @@ export function useAssetCrud(
   const createFolderInVault = async (folderName: string): Promise<void> => {
     if (!folderName.trim() || !app) return;
     try {
-      let path = `atlas-vtt/collections/${selectedCollection || AssetService.defaultCollectionId()}/${activeTab}`;
+      const tabBase = tabFolderPath(selectedCollection, activeTab);
+      let path = tabBase;
       if (selectedFolderId) {
         const parent = folders.find((f) => f.id === selectedFolderId);
         if (parent) path = `${path}/${parent.path}`;
@@ -127,7 +127,7 @@ export function useAssetCrud(
         id: folderIdOf(path),
         name: folderName.trim(),
         type: activeTab,
-        path: path.substring(`${ATLAS_VTT_DIR}/collections/${selectedCollection || AssetService.defaultCollectionId()}/${activeTab}/`.length),
+        path: path.substring(tabBase.length + 1),
         parentId: selectedFolderId,
       };
       setFolders((prev) => [...prev, newFolder]);
@@ -154,7 +154,7 @@ export function useAssetCrud(
   const deleteFolderFromVault = async (folder: Folder): Promise<void> => {
     if (!app) return;
     try {
-      let folderPath = `atlas-vtt/collections/${selectedCollection || AssetService.defaultCollectionId()}/${folder.type}`;
+      let folderPath = tabFolderPath(selectedCollection, folder.type);
       const buildFullPath = (f: Folder): string => {
         if (f.parentId) {
           const parent = folders.find((p) => p.id === f.parentId);
@@ -218,8 +218,7 @@ export function useAssetCrud(
       if (token.statblockPath) draft.statblockPath = token.statblockPath;
       return draft;
     });
-    const collectionId = selectedCollection || assetService.getDefaultCollectionId();
-    const saved = await saveEncounter(app, assetService, collectionId, drafts);
+    const saved = await saveEncounter(app, assetService, selectedCollection, drafts);
     if (saved && activeTab === 'encounters') await loadAssetsForActiveTab();
   };
 

@@ -25,6 +25,8 @@ export const CAIRN: SystemPreset = {
     },
     // Saves roll under an attribute on a d20: a 1 always succeeds, a 20 always fails.
     dice: { defaultRoll: '1d20', crit: 'roll-under' },
+    // Side initiative: each round the PCs act, then their opponents; nothing is rolled for the order.
+    initiative: { mode: 'sides', roll: '1d20', firstSide: 'players' },
     conditions: conditionsOf('cairn', [
       { name: 'Deprived', color: '#b45309', icon: 'rations' },
       { name: 'Fatigue', color: '#78716c', icon: 'weight', valued: true },

@@ -5,8 +5,8 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // Asset Manager – Header controls: asset type, search, sort, create
 // ═══════════════════════════════════════════════════════════════════════════
-// Each control has a wide and a compact form; the header's container queries
-// show one of them (see `_header.scss`).
+// Each control has a wide and a compact form; the toolbar's `data-compact`
+// steps show one of them (see `_header.scss`).
 
 // ── Asset type ──────────────────────────────────────────────────────────────
 
@@ -78,7 +78,7 @@
   }
 }
 
-@container atlas-am-header (width < #{$header-tabs-inline-width}) {
+.atlas-am-toolbar[data-compact~='tabs'] {
   .atlas-asset-manager-tabs {
     display: none;
   }
@@ -158,7 +158,7 @@
 
 // Compact: a button; the field opens over the whole toolbar row while it has
 // focus. Kept rendered (not display: none) so it can take focus.
-@container atlas-am-header (width < #{$header-search-inline-width}) {
+.atlas-am-toolbar[data-compact~='search'] {
   .atlas-am-search .atlas-am-search-toggle {
     display: flex;
 
@@ -192,6 +192,13 @@
   }
 }
 
+// The fit tries the roomier steps first (`useHeaderCompaction`), which shows the
+// field in the row for a moment that is never painted. Without this it would
+// fade out from there over the whole row on every render.
+.atlas-am-toolbar[data-fitting] .atlas-asset-manager-search {
+  transition: none;
+}
+
 // ── Sort ────────────────────────────────────────────────────────────────────
 
 .atlas-am-sort-inline {
@@ -202,7 +209,7 @@
   display: none;
 }
 
-@container atlas-am-header (width < #{$header-sort-inline-width}) {
+.atlas-am-toolbar[data-compact~='sort'] {
   .atlas-am-sort-inline {
     display: none;
   }

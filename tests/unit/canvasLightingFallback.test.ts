@@ -182,8 +182,8 @@ describe('CanvasLightingFallback', () => {
     expect(onSightChange).toHaveBeenCalledTimes(3);
   });
 
-  it('keeps a held vision token\'s sight where it was taken until it is let go', () => {
-    const { fallback, store } = setup({ hero });
+  it('keeps a held vision token\'s sight where it was taken until it is let go, where the scene waits for the drop', () => {
+    const { fallback, store } = setup({ hero }, { sightOnDrop: true });
     holdTokens(store, ['hero']);
     store.getState().setTokenPositions([{ id: 'hero', x: 300, y: 100 }]);
     expect(fallback.currentSight().regions.map((region) => region.origin)).toEqual([{ x: 100, y: 100 }]);
@@ -191,8 +191,8 @@ describe('CanvasLightingFallback', () => {
     expect(fallback.currentSight().regions.map((region) => region.origin)).toEqual([{ x: 300, y: 100 }]);
   });
 
-  it('follows a held vision token when the scene switches sight on drop off', () => {
-    const { fallback, store } = setup({ hero }, { sightOnDrop: false });
+  it('follows a held vision token while it is dragged, as a scene does unless it waits for the drop', () => {
+    const { fallback, store } = setup({ hero });
     holdTokens(store, ['hero']);
     store.getState().setTokenPositions([{ id: 'hero', x: 300, y: 100 }]);
     expect(fallback.currentSight().regions.map((region) => region.origin)).toEqual([{ x: 300, y: 100 }]);

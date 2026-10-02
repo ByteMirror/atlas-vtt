@@ -1,0 +1,127 @@
+@use '../../../../../styles/tokens' as *;
+@use '../../../../../styles/mixins' as *;
+@use '../../../../../styles/skeleton' as *;
+
+// Skeleton shapes and the surface that holds them. A surface that is loading
+// shows one sheen passing over all of its shapes; a single late piece inside
+// real content breathes instead (`data-live`).
+
+// `:where` keeps the defaults without specificity: the class of the element a
+// shape stands for sizes and rounds it, whatever the order of the stylesheets.
+:where(.atlas-skeleton) {
+  display: block;
+  flex-shrink: 0;
+  border-radius: $radius-s;
+  @include atlas-skeleton-shape;
+
+  &[data-shape='circle'] {
+    aspect-ratio: 1;
+    border-radius: $radius-full;
+  }
+
+  &[data-shape='pill'] {
+    border-radius: $radius-full;
+  }
+
+  // Stands in a line of text: the line keeps the height of its font, the bar
+  // sits where the letters would.
+  &[data-shape='text'] {
+    display: inline-block;
+    height: 0.7em;
+    vertical-align: middle;
+    border-radius: $radius-full;
+  }
+
+  &[data-live] {
+    @include atlas-skeleton-breathing;
+  }
+}
+
+// The sheen is a band of the surface's own colour: it fades the shapes it
+// passes and can not be seen between them, so one layer moved by one transform
+// serves every shape, in step, without a mask.
+.atlas-skeleton-group {
+  position: relative;
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      100deg,
+      transparent 34%,
+      color-mix(in oklch, var(--atlas-skeleton-surface, var(--background-primary)) 62%, transparent) 50%,
+      transparent 66%
+    );
+    transform: translateX(-66%);
+    animation: atlas-skeleton-sweep $skeleton-sweep $transition-ease-in-out infinite;
+  }
+}
+
+.atlas-skeleton-label {
+  @include atlas-visually-hidden;
+}
+
+@keyframes atlas-skeleton-sweep {
+  from {
+    transform: translateX(-66%);
+  }
+  // The band has left the surface; the remainder is the rest before the next pass.
+  70%,
+  to {
+    transform: translateX(66%);
+  }
+}
+
+@keyframes atlas-skeleton-breathe {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0.45;
+  }
+}
+
+// A fade is no movement: the sheen gives way to one slow breath of the surface.
+@media (prefers-reduced-motion: reduce) {
+  .atlas-skeleton-group {
+    animation: atlas-skeleton-breathe #{$skeleton-breath * 1.5} ease-in-out infinite alternate;
+
+    &::after {
+      content: none;
+    }
+  }
+}
+
+// ── Images ──────────────────────────────────────────────────────────────────
+// `RevealImage`: a placeholder holds the image's place and the image fades in
+// over it once it can be painted. An image shown before mounts with
+// `data-shown`, so it neither waits nor fades.
+
+.atlas-image-reveal {
+  opacity: 0;
+  transition: opacity $transition-normal $transition-ease-out;
+
+  &[data-shown] {
+    opacity: 1;
+  }
+}
+
+.atlas-image-placeholder {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  transition: opacity $transition-normal $transition-ease-out;
+  @include atlas-skeleton-shape;
+  @include atlas-skeleton-breathing;
+
+  // Gone once the image is there: art with transparent parts must not keep a tint behind it.
+  &[data-settled] {
+    opacity: 0;
+    animation: none;
+  }
+}

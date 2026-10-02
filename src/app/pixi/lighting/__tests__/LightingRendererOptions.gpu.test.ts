@@ -106,4 +106,33 @@ describe('LightingRenderer scene options', () => {
     changeLighting({ litThreshold: 0.3 });
     expect(redAt(200, 200)).toBe(255);
   });
+
+  it('draws darkvision as the scene\'s lighting says, at once and back again', async () => {
+    const darkvision = { id: 't', x: 100, y: 128, vision: { enabled: true, senses: [{ id: 'darkvision', range: 60 }] } };
+    const { lighting, renderer } = await setup({ ambient: 0 }, { exploredMask: null, objects: { walls: {}, lights: {}, tokens: { t: darkvision } } });
+    const engine = (lighting as unknown as { engine: LightingEngine }).engine;
+    lighting.modeLayer.visible = true;
+    /** The players' picture of a blue-grey floor in the dark, 60 px from the token. */
+    const seen = (): readonly [number, number, number] => {
+      engine.flush();
+      return renderThroughEngine(engine, renderer, { size: SIZE, scale: 1, x: 0, y: 0, tint: 0x6699cc, map: SIZE })(160, 128);
+    };
+    const chroma = (pixel: readonly number[]): number => Math.max(...pixel) - Math.min(...pixel);
+
+    const grey = seen();
+    expect(grey[1]).toBeGreaterThan(20);
+    expect(chroma(grey)).toBeLessThan(12);
+
+    changeLighting({ darkSightLook: 'colour' });
+    const colour = seen();
+    expect(colour[2] - colour[0]).toBeGreaterThan(20);
+
+    changeLighting({ darkSightLook: 'grey', darkSightTint: '#40ff80' });
+    const tinted = seen();
+    expect(tinted[1]).toBeGreaterThan(tinted[0] + 15);
+
+    const { state, change } = harness!;
+    change({ lighting: { enabled: true, ambient: state.lighting.ambient } });
+    expect(seen()).toEqual(grey);
+  });
 });

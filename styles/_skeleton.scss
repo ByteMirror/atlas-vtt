@@ -1,0 +1,36 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// Skeletons – placeholders for content that is still loading
+// ═══════════════════════════════════════════════════════════════════════════
+// The classes and keyframes live in `primitives/skeleton.scss`; these mixins give
+// an element of a feature's own markup the same look.
+//
+// Everything here animates `transform` or `opacity` only, so a skeleton keeps
+// moving on the compositor while the main thread is busy loading what it stands
+// for. Never animate a skeleton's background: that repaints on every frame.
+
+/// Half a breath of a placeholder that waits on its own: it fades out for this
+/// long and back in for as long. `skeletonPhaseStyle` counts both to keep every
+/// such placeholder in step.
+$skeleton-breath: 1600ms;
+
+/// One pass of the sheen over a loading surface, and the rest before the next.
+$skeleton-sweep: 2200ms;
+
+/// The colour of a placeholder shape: a tint of the text colour, so it reads on
+/// every surface of every theme.
+$skeleton-tint: var(--atlas-skeleton-tint, color-mix(in oklch, var(--text-normal) 8%, transparent));
+
+/// The fill of a placeholder shape.
+@mixin atlas-skeleton-shape {
+  background: $skeleton-tint;
+}
+
+/// A single piece that is late inside content already shown (an image still on
+/// its way) breathes. `--atlas-skeleton-phase` starts it in step with the others.
+@mixin atlas-skeleton-breathing {
+  animation: atlas-skeleton-breathe $skeleton-breath ease-in-out var(--atlas-skeleton-phase, 0ms) infinite alternate;
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}

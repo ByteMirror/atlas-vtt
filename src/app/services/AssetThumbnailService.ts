@@ -8,14 +8,25 @@ export const THUMBNAIL_DIR = 'atlas-vtt/assets/thumbnails';
 export const THUMBNAIL_SIZE = 256;
 export const THUMBNAIL_SPEC: ThumbnailSpec = { size: THUMBNAIL_SIZE, quality: 0.8 };
 const MAX_CONCURRENT = 2;
-const FLUSH_DELAY_MS = 300;
+/** Lists hear of finished thumbnails this often while more are being made. */
+const ANNOUNCE_DELAY_MS = 200;
+/** Thumbnails are recorded on their assets this often while more are being made: every record saves the whole index. */
+const RECORD_DELAY_MS = 3000;
 
 export type ThumbnailRenderer = (source: Blob, size: number) => Promise<ArrayBuffer>;
 export interface ThumbnailUpdate {
   id: string;
-  thumbnailPath: string;
+  /** The thumbnail written for the asset; null when none could be made, so its list falls back to the image. */
+  thumbnailPath: string | null;
 }
 type ThumbnailListener = (updates: ThumbnailUpdate[]) => void;
+/** What a list shows for an asset's art right now. */
+export interface ThumbnailState {
+  /** The asset's thumbnail: recorded on it, or made since and not recorded yet. */
+  path?: string;
+  /** One is being made. Show a placeholder meanwhile, never the full image. */
+  pending: boolean;
+}
 /** Assets whose cards show an image: token art or a map image. */
 export type ThumbnailAsset = TokenAsset | MapAsset;
 
@@ -38,17 +49,23 @@ function pathDigest(path: string): string {
  * (a single map card would otherwise hold a decoded 5000 px image in memory).
  * Thumbnails are written next to the assets and recorded on the asset; assets
  * that lack one (older assets, imported collections) get theirs generated in
- * the background, a few at a time, and persisted in batches.
+ * the background, a few at a time. Lists hear of a thumbnail soon after it was
+ * written (`onUpdated`, `stateOf`); it is recorded on its asset in batches,
+ * since each record saves the whole index.
  */
 export class AssetThumbnailService {
   private static readonly instances = new WeakMap<App, AssetThumbnailService>();
   private readonly listeners = new Set<ThumbnailListener>();
   private readonly queued = new Set<string>();
   private readonly failedImages = new Set<string>();
-  private readonly pendingUpdates = new Map<string, string>();
-  private readonly queue: ThumbnailAsset[] = [];
+  /** Thumbnails written this session, by path: usable before their asset records them. */
+  private readonly made = new Set<string>();
+  private readonly unrecorded = new Map<string, string>();
+  private unannounced: ThumbnailUpdate[] = [];
+  private queue: ThumbnailAsset[] = [];
   private running = 0;
-  private flushTimer: number | null = null;
+  private announceTimer: number | null = null;
+  private recordTimer: number | null = null;
 
   static getInstance(app: App, assets: AssetService): AssetThumbnailService {
     let instance = AssetThumbnailService.instances.get(app);
@@ -128,7 +145,19 @@ export class AssetThumbnailService {
     }
   }
 
-  /** Receives every batch of thumbnails recorded on assets; returns the unsubscribe function. */
+  /**
+   * The art a list shows for `asset` now. Pending while its thumbnail is being
+   * made; an asset whose thumbnail could not be made has neither, and the list
+   * falls back to the image itself.
+   */
+  stateOf(asset: ThumbnailAsset): ThumbnailState {
+    if (this.hasThumbnail(asset) && asset.thumbnailPath) return { path: asset.thumbnailPath, pending: false };
+    const made = this.thumbnailPathFor(sourceImagePath(asset));
+    if (this.made.has(made) && this.app.vault.getAbstractFileByPath(made) instanceof TFile) return { path: made, pending: false };
+    return { pending: this.queued.has(asset.id) };
+  }
+
+  /** Receives every batch of thumbnails soon after they were written; returns the unsubscribe function. */
   onUpdated(listener: ThumbnailListener): () => void {
     this.listeners.add(listener);
     return () => { this.listeners.delete(listener); };
@@ -144,6 +173,14 @@ export class AssetThumbnailService {
     this.pump();
   }
 
+  /** Makes the queued thumbnails of `assetIds` next: the ones on screen, ahead of the rest of the library. */
+  prioritize(assetIds: readonly string[]): void {
+    const wanted = new Set(assetIds);
+    const first = this.queue.filter((asset) => wanted.has(asset.id));
+    if (first.length === 0) return;
+    this.queue = [...first, ...this.queue.filter((asset) => !wanted.has(asset.id))];
+  }
+
   private pump(): void {
     while (this.running < MAX_CONCURRENT && this.queue.length > 0) {
       const asset = this.queue.shift()!;
@@ -154,35 +191,44 @@ export class AssetThumbnailService {
         this.pump();
       });
     }
-    if (this.running === 0 && this.queue.length === 0 && this.pendingUpdates.size > 0) {
-      this.scheduleFlush(0);
+    if (this.running === 0 && this.queue.length === 0) {
+      // Recorded first, so a list that reloads on the announcement finds the records.
+      void this.record();
+      this.announce();
     }
   }
 
   private async generate(asset: ThumbnailAsset): Promise<void> {
     const imagePath = sourceImagePath(asset);
     const thumbnailPath = await this.tryCreateForImage(imagePath);
+    this.unannounced.push({ id: asset.id, thumbnailPath: thumbnailPath ?? null });
+    this.announceTimer ??= window.setTimeout(() => this.announce(), ANNOUNCE_DELAY_MS);
     if (!thumbnailPath) {
       this.failedImages.add(imagePath);
       return;
     }
-    this.pendingUpdates.set(asset.id, thumbnailPath);
-    this.scheduleFlush(FLUSH_DELAY_MS);
+    this.made.add(thumbnailPath);
+    this.unrecorded.set(asset.id, thumbnailPath);
+    this.recordTimer ??= window.setTimeout(() => { void this.record(); }, RECORD_DELAY_MS);
   }
 
-  private scheduleFlush(delay: number): void {
-    if (this.flushTimer !== null) window.clearTimeout(this.flushTimer);
-    this.flushTimer = window.setTimeout(() => {
-      this.flushTimer = null;
-      void this.flush();
-    }, delay);
+  /** Tells the listeners which thumbnails were written since the last time. */
+  private announce(): void {
+    if (this.announceTimer !== null) window.clearTimeout(this.announceTimer);
+    this.announceTimer = null;
+    if (this.unannounced.length === 0) return;
+    const updates = this.unannounced;
+    this.unannounced = [];
+    for (const listener of this.listeners) listener(updates);
   }
 
   /** Records the generated thumbnails on their assets with a single metadata save. */
-  private async flush(): Promise<void> {
-    if (this.pendingUpdates.size === 0) return;
-    const byId = new Map(this.pendingUpdates);
-    this.pendingUpdates.clear();
+  private async record(): Promise<void> {
+    if (this.recordTimer !== null) window.clearTimeout(this.recordTimer);
+    this.recordTimer = null;
+    if (this.unrecorded.size === 0) return;
+    const byId = new Map(this.unrecorded);
+    this.unrecorded.clear();
     try {
       await this.assets.rewriteAssets((asset) => {
         const thumbnailPath = byId.get(asset.id);
@@ -192,10 +238,7 @@ export class AssetThumbnailService {
       });
     } catch (error) {
       console.error('[AssetThumbnailService] Could not record thumbnails:', error);
-      return;
     }
-    const updates = Array.from(byId, ([id, thumbnailPath]) => ({ id, thumbnailPath }));
-    for (const listener of this.listeners) listener(updates);
   }
 
   private async writeThumbnail(path: string, content: ArrayBuffer): Promise<void> {

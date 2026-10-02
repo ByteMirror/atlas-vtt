@@ -70,31 +70,16 @@ $portrait-size: 64px;
   }
 
   &__placeholder {
-    display: block;
     width: 100%;
     height: 100%;
-    border-radius: $radius-full;
-    background: var(--background-secondary);
   }
 
-  // Marks tokens whose statblock opens on hover.
+  // Marks tokens whose statblock opens with Mod held.
   &__statblock {
     position: absolute;
     right: -$spacing-xs;
     bottom: -$spacing-xs;
-    display: grid;
-    place-items: center;
-    width: $icon-m;
-    height: $icon-m;
-    border-radius: $radius-full;
-    background: var(--background-primary);
-    box-shadow: 0 0 0 $border-width-s var(--background-modifier-border);
-    color: var(--text-muted);
-
-    svg {
-      width: $icon-xs;
-      height: $icon-xs;
-    }
+    @include atlas-statblock-badge;
   }
 
   &__name {

@@ -8,6 +8,8 @@ export interface DropdownSliderRowProps {
   max: number
   step?: number
   unit?: string
+  /** Shown, but not to be set: its value means nothing right now. */
+  disabled?: boolean
   onChange: (value: number) => void
 }
 
@@ -19,11 +21,12 @@ export const DropdownSliderRow: FC<DropdownSliderRowProps> = ({
   max,
   step = 1,
   unit = "px",
+  disabled = false,
   onChange,
 }) => {
   const labelId = useId()
   return (
-    <div className="atlas-dropdown-slider-row">
+    <div className={`atlas-dropdown-slider-row${disabled ? ' atlas-dropdown-slider-row--disabled' : ''}`}>
       <div className="atlas-dropdown-slider-row__head">
         <span id={labelId} className="atlas-dropdown-label">{label}</span>
         <span className="atlas-dropdown-slider-row__value">{value}{unit}</span>
@@ -34,6 +37,7 @@ export const DropdownSliderRow: FC<DropdownSliderRowProps> = ({
         min={min}
         max={max}
         step={step}
+        disabled={disabled}
         onValueChange={(v: number[]) => onChange(v[0] ?? value)}
       />
     </div>

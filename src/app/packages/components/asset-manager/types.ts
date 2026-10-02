@@ -32,6 +32,8 @@ export interface Asset {
   name: string;
   type: Tab;
   thumbnailUrl?: string;
+  /** The card's art is being made: it shows a placeholder until `thumbnailUrl` arrives. */
+  thumbnailPending?: boolean;
   filePath?: string;
   folderId?: string | null;
   tags?: string[];

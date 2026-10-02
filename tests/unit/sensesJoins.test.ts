@@ -161,7 +161,6 @@ describe('senses, from where they are edited to what sight does', () => {
     // The GM's rings name it as the editor does: by the definition's name.
     const rings = senseRings(sourceOf(viewer), UNLIMITED, (radius) => `${Math.round((radius / 70) * 5)}ft`);
     expect(rings.rings.map((ring) => ring.label)).toEqual(['Darkvision 60ft', 'Thermal sight 45ft']);
-    expect(rings.unbounded).toEqual(['Sight']);
 
     save({ senses: [...builtIn, { ...THERMAL, name: 'Heat sight' }] });
     await nextFrame();

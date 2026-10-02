@@ -443,6 +443,7 @@ export class TokenRenderer {
           }
         }
       }
+      this.selectionOverlayUpdater();
     };
 
     window.addEventListener('atlas-tokens-resize-update', this._handleResizeUpdate);
@@ -1073,6 +1074,11 @@ export class TokenRenderer {
     // Update instance badges for all tokens after any changes
     if (totalChanges > 0) {
       this.refreshInstanceBadges();
+    }
+
+    // A selected token that was resized or moved (size menu, undo) takes its selection frame along
+    if (this.store.getState().selectedIds.some((id) => changedTokenIds.has(id))) {
+      this.selectionOverlayUpdater();
     }
   };
 

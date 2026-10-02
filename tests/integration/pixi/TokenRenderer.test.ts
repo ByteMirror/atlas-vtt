@@ -294,6 +294,20 @@ describe('TokenRenderer Integration Tests', () => {
     });
   });
 
+  describe('Selection frame', () => {
+    it('redraws the frame of a selected token at its new size when it is resized', async () => {
+      store.getState().addToken(token({ id: 'token-1' }));
+      await waitForTokens('token-1');
+      store.setState({ selectedIds: ['token-1'] });
+      const widthsWhenDrawn: number[] = [];
+      selectionOverlayUpdater.mockImplementation(() => widthsWhenDrawn.push(tokenSprite('token-1').width));
+
+      store.getState().updateToken('token-1', { size: 1.5 });
+
+      await vi.waitFor(() => expect(widthsWhenDrawn.at(-1)).toBeCloseTo(computeTokenPixelSize(70, 1.5)));
+    });
+  });
+
   describe('Ring Color Update', () => {
     it('should update ring color when token ringColor changes', async () => {
       store.getState().addToken(token({ id: 'token-1', ringColor: '#ff0000' }));

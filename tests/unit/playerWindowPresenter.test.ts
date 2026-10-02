@@ -168,9 +168,13 @@ describe('PlayerWindowPresenter', () => {
     await flush();
     expect(serviceMock.releaseHeldFrame).not.toHaveBeenCalled();
 
+    // The frame is released two animation frames after the load finishes, and
+    // Windows' 15.6ms timer granularity makes that longer than any fixed wait
+    // worth writing. Wait for the call itself instead.
     atlasStore.setState({ isMapLoading: false });
-    await flush();
-    expect(serviceMock.releaseHeldFrame).toHaveBeenCalledWith(frameSourceFor(canvas));
+    await vi.waitFor(() =>
+      expect(serviceMock.releaseHeldFrame).toHaveBeenCalledWith(frameSourceFor(canvas)),
+    );
   });
 
   test('restores the presented scene into the existing popout and returns the DM to their tab', async () => {

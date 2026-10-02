@@ -91,25 +91,16 @@ $toast-reveal-delay: 300ms;
 
 .atlas-dice-toast {
   --atlas-dice-accent: var(--interactive-accent);
+  --atlas-ornate-accent: var(--atlas-dice-accent);
 
-  position: relative;
+  @include atlas-ornate-surface;
+  @include atlas-knotwork-frame($toast-corner, $toast-corner-inset);
   overflow: hidden;
   @include atlas-flex-row($spacing-m);
   align-items: stretch;
   padding: $spacing-l;
   min-width: 280px;
   max-width: 360px;
-  border-radius: $radius-xl;
-  border: $border-width-m solid color-mix(in oklch, var(--atlas-dice-accent) 35%, color-mix(in oklch, var(--mono-100) $border-opacity-default, transparent));
-  background:
-    radial-gradient(120% 90% at 100% 50%, color-mix(in oklch, var(--atlas-dice-accent) 14%, transparent), transparent 60%),
-    linear-gradient(180deg, color-mix(in oklch, var(--mono-100) 5%, transparent), transparent 45%),
-    var(--background-primary);
-  box-shadow:
-    inset 0 1px 0 color-mix(in oklch, var(--mono-100) 12%, transparent),
-    0 1px 2px color-mix(in oklch, var(--mono-0) 30%, transparent),
-    0 12px 32px color-mix(in oklch, var(--mono-0) 45%, transparent),
-    0 0 28px color-mix(in oklch, var(--atlas-dice-accent) 18%, transparent);
   pointer-events: auto;
   cursor: pointer;
   transition: transform $transition-fast $transition-ease, box-shadow $transition-fast $transition-ease;
@@ -137,31 +128,6 @@ $toast-reveal-delay: 300ms;
   &--crit-fail {
     --atlas-dice-accent: var(--color-red);
   }
-}
-
-// Knotwork symbol lives here once, referenced by every corner.
-.atlas-dice-toast-container__defs {
-  position: absolute;
-  width: 0;
-  height: 0;
-  overflow: hidden;
-}
-
-// Knotwork corners: the top-left corner of the frame, mirrored for the rest.
-// The mask fades the two cut tails so the band appears to run into the card.
-.atlas-dice-toast__corner {
-  position: absolute;
-  width: $toast-corner;
-  height: $toast-corner;
-  color: var(--atlas-dice-accent);
-  opacity: 0.6;
-  pointer-events: none;
-  mask-image: linear-gradient(135deg, black 10%, transparent 60%);
-
-  &--tl { top: $toast-corner-inset; left: $toast-corner-inset; }
-  &--tr { top: $toast-corner-inset; right: $toast-corner-inset; transform: scaleX(-1); }
-  &--bl { bottom: $toast-corner-inset; left: $toast-corner-inset; transform: scaleY(-1); }
-  &--br { bottom: $toast-corner-inset; right: $toast-corner-inset; transform: scale(-1); }
 }
 
 // ── Body: main row, details toggle, details ──

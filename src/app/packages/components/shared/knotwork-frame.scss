@@ -1,0 +1,28 @@
+@use '../../../../../styles/tokens' as *;
+
+// Knotwork corners for an ornate surface. The surface sets the four custom
+// properties through the `atlas-knotwork-frame` mixin; these rules only place
+// and mirror the art.
+
+.atlas-knotwork-defs {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+
+// The mask fades the two cut tails so each band appears to run into the surface.
+.atlas-knotwork-corner {
+  position: absolute;
+  width: var(--atlas-knot-size, 40px);
+  height: var(--atlas-knot-size, 40px);
+  color: var(--atlas-knot-color, var(--interactive-accent));
+  opacity: var(--atlas-knot-opacity, 0.6);
+  pointer-events: none;
+  mask-image: linear-gradient(135deg, black 10%, transparent 60%);
+
+  &--tl { top: var(--atlas-knot-inset, -5px); left: var(--atlas-knot-inset, -5px); }
+  &--tr { top: var(--atlas-knot-inset, -5px); right: var(--atlas-knot-inset, -5px); transform: scaleX(-1); }
+  &--bl { bottom: var(--atlas-knot-inset, -5px); left: var(--atlas-knot-inset, -5px); transform: scaleY(-1); }
+  &--br { bottom: var(--atlas-knot-inset, -5px); right: var(--atlas-knot-inset, -5px); transform: scale(-1); }
+}

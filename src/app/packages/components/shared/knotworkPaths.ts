@@ -1,12 +1,11 @@
 /**
- * Knotwork frame for the dice toast corners: "Celtic knot border" by pitr
- * (ClipSafari, CC0 1.0, see THIRD_PARTY_NOTICES.md). Stroked paths on a
- * 853.52 × 667.15 canvas; the toast shows only the top-left corner and
- * mirrors it for the other three.
+ * Knotwork frame: "Celtic knot border" by pitr (ClipSafari, CC0 1.0, see
+ * THIRD_PARTY_NOTICES.md). Stroked paths on a 853.52 × 667.15 canvas; a frame
+ * draws only the top-left corner and mirrors it for the other three.
+ *
+ * Shared by the dice toast and the statblock card through `KnotworkFrame`.
  */
-export const DICE_TOAST_KNOT_SYMBOL_ID = 'atlas-dice-toast-knot';
-
-export const DICE_TOAST_KNOT_PATHS: readonly string[] = [
+export const KNOT_PATHS: readonly string[] = [
   'M65.627 378.27l10-10-30-30 20-20 10 10M55.627 348.27l-30 30',
   'M25.627 318.27c-10 15-10 20-10 30s0 15 10 30l20-20c-5-4-5-7-5-10s0-6 5-10c6.703-6.793 13.267-13.267 20-20M80.677 378.27c0-3 0-6-5-10m0-40c5 5 15.774 14.365 20 20 10.774 14.365 10 20 10 30',
   'M105.677 318.27c0 10 0 15-10 30l-20-20c5-4 5-7 5-10',

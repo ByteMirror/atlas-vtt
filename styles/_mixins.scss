@@ -17,6 +17,35 @@
   box-shadow: $shadow-elevated;
 }
 
+/// Ornate card surface — an elevated surface tinted by the accent it carries,
+/// with a warm glow and a lit top edge. Use for the few surfaces that announce
+/// a result rather than hold the UI: the dice toast, the statblock card.
+/// Pair with `atlas-knotwork-frame` and the `KnotworkFrame` component.
+/// The accent comes from `--atlas-ornate-accent`, which the surface sets.
+@mixin atlas-ornate-surface {
+  position: relative;
+  border: $border-width-m solid color-mix(in oklch, var(--atlas-ornate-accent) 35%, color-mix(in oklch, var(--mono-100) $border-opacity-default, transparent));
+  border-radius: $radius-xl;
+  background:
+    radial-gradient(120% 90% at 100% 50%, color-mix(in oklch, var(--atlas-ornate-accent) 14%, transparent), transparent 60%),
+    linear-gradient(180deg, color-mix(in oklch, var(--mono-100) 5%, transparent), transparent 45%),
+    var(--background-primary);
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklch, var(--mono-100) 12%, transparent),
+    0 1px 2px color-mix(in oklch, var(--mono-0) 30%, transparent),
+    0 12px 32px color-mix(in oklch, var(--mono-0) 45%, transparent),
+    0 0 28px color-mix(in oklch, var(--atlas-ornate-accent) 18%, transparent);
+}
+
+/// Places the knotwork corners of an ornate surface. `$size` is the corner's
+/// box, `$inset` how far it sits outside the border (negative pulls it out).
+@mixin atlas-knotwork-frame($size: 40px, $inset: -5px, $opacity: 0.6) {
+  --atlas-knot-size: #{$size};
+  --atlas-knot-inset: #{$inset};
+  --atlas-knot-opacity: #{$opacity};
+  --atlas-knot-color: var(--atlas-ornate-accent);
+}
+
 /// Subtle container surface — for nested sections within elevated surfaces.
 /// Use for grouped content areas, toolbars within modals, etc.
 @mixin atlas-inset-surface {

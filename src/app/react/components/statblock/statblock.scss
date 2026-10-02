@@ -4,6 +4,8 @@
 @use 'statblock-interactive';
 @use 'statblock-vitals';
 @use 'statblock-daggerheart';
+@use 'statblock-abilities';
+@use 'statblock-columns';
 
 // Atlas-native statblock. Renders Fantasy Statblocks creature data with the
 // app's own surface, type scale and spacing.
@@ -12,10 +14,14 @@
 // property hooks live in data attributes (`data-layout`, `data-type`,
 // `data-cls`, `data-prop`), so that plugin's stylesheet can never leak in.
 
-$portrait-size: 72px;
-
+// The card is framed like the dice toast: an accent-tinted stroke, a warm glow
+// and knotwork corners. A statblock announces a creature the way a roll
+// announces a result, so the two read as the same kind of object.
 .atlas-statblock {
-  @include atlas-elevated-surface;
+  --atlas-ornate-accent: var(--interactive-accent);
+
+  @include atlas-ornate-surface;
+  @include atlas-knotwork-frame($statblock-corner, $statblock-corner-inset, 0.5);
   overflow: hidden;
   color: var(--text-normal);
   font-family: var(--font-interface);
@@ -45,7 +51,7 @@ $portrait-size: 72px;
   }
 }
 
-.atlas-statblock-body > .atlas-sb-item + .atlas-sb-item {
+.atlas-sb-flow > .atlas-sb-item + .atlas-sb-item {
   margin-top: $spacing-l;
 }
 
@@ -228,9 +234,11 @@ $portrait-size: 72px;
 }
 
 // The token, floated top right so the heading and intro text wrap around it.
+// Following the layout it fills the layout's own image slot instead; see
+// `_statblock-columns.scss`.
 .atlas-sb-portrait {
   float: right;
-  width: $portrait-size;
+  width: $statblock-portrait-size;
   margin: 0 0 $spacing-m $spacing-m;
 }
 
@@ -272,6 +280,80 @@ $portrait-size: 72px;
   color: var(--text-muted);
   font-size: $font-ui-smaller;
   line-height: var(--line-height-normal);
+}
+
+// ── Window controls ─────────────────────────────────────────────────────────
+// Pin and grip, $spacing-s inside the card's corner — the inset every Atlas
+// panel gives its corner controls — and $spacing-s apart, as the uniform
+// padding rule asks.
+.atlas-sb-window-controls {
+  position: absolute;
+  top: $spacing-s;
+  right: $spacing-s;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: $spacing-s;
+}
+
+.atlas-sb-pin,
+.atlas-sb-grip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: $radius-l;
+  background: none;
+  color: var(--text-muted);
+  transition: background-color $transition-fast $transition-ease,
+              color $transition-fast $transition-ease;
+
+  svg {
+    width: 15px;
+    height: 15px;
+  }
+
+  &:hover {
+    background: color-mix(in oklch, var(--mono-100) 8%, transparent);
+    color: var(--text-normal);
+  }
+}
+
+.atlas-sb-pin {
+  cursor: pointer;
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--interactive-accent);
+  }
+
+  // A pinned card is held open by this control alone, so it says so.
+  &--active {
+    color: var(--text-accent);
+  }
+}
+
+// The grip only advertises the drag; the header does the same job, and the
+// window itself listens for the press.
+.atlas-sb-grip {
+  cursor: grab;
+}
+
+// Anywhere in the header moves the card, so the whole block says so — except
+// its own controls, which keep their own cursors.
+.atlas-statblock:has(.atlas-sb-window-controls) .atlas-sb-item:has(> .atlas-sb-heading-row),
+.atlas-statblock:has(.atlas-sb-window-controls) .atlas-sb-item:has(.atlas-sb-heading) {
+  cursor: grab;
+}
+
+.atlas-statblock-preview-window--dragging {
+  .atlas-sb-grip,
+  .atlas-sb-item:has(.atlas-sb-heading) {
+    cursor: grabbing;
+  }
 }
 
 // Shown in place of a statblock when the plugin or creature is unavailable.

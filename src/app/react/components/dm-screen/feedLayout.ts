@@ -8,8 +8,12 @@
 export const FEED_GAP = 12;
 /** A statblock narrower than this becomes hard to read. */
 export const MIN_FEED_WIDTH = 340;
-/** A statblock wider than this only spreads its text out. */
-export const MAX_FEED_WIDTH = 540;
+/**
+ * Room for a two-column statblock to reach both its columns. A statblock whose
+ * layout asks for one column stops short of this on its own (`--atlas-sb-max-width`
+ * in `dm-screen.scss`), so the extra width only goes to those that use it.
+ */
+export const MAX_FEED_WIDTH = 760;
 
 export interface FeedLayout {
   count: number;

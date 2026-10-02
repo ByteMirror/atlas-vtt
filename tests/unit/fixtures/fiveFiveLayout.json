@@ -1,0 +1,392 @@
+{
+  "id": "5-5e-layout",
+  "name": "5.5e Layout",
+  "blocks": [
+    {
+      "type": "inline",
+      "id": "hdr55e_name",
+      "cls": "statblock-fullwidth-header",
+      "properties": [],
+      "hasRule": false,
+      "nested": [
+        {
+          "type": "image",
+          "id": "hdr55e_image",
+          "properties": [
+            "image"
+          ]
+        },
+        {
+          "type": "inline",
+          "id": "hdr55e_titles",
+          "properties": [],
+          "cls": "statblock-header-titles",
+          "hasRule": false,
+          "nested": [
+            {
+              "type": "heading",
+              "id": "hdr55e_heading",
+              "properties": [
+                "name"
+              ],
+              "conditioned": true,
+              "size": 1
+            },
+            {
+              "type": "subheading",
+              "id": "hdr55e_subheading",
+              "properties": [
+                "size",
+                "type",
+                "subtype",
+                "alignment"
+              ],
+              "conditioned": true,
+              "separator": ", "
+            }
+          ]
+        },
+        {
+          "type": "inline",
+          "id": "hdr55e_actions",
+          "properties": [],
+          "hasRule": false,
+          "nested": [
+            {
+              "type": "action",
+              "id": "hdr55e_act_enc",
+              "icon": "sword",
+              "callback": "try { InitiativeTracker.newEncounter({roll: true, creatures: [monster]}); } catch(e) {}"
+            },
+            {
+              "type": "action",
+              "id": "hdr55e_act_add",
+              "icon": "plus-with-circle",
+              "callback": "try { InitiativeTracker.addCreatures([monster]); } catch(e) {}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "group",
+      "id": "def55e_group",
+      "properties": [
+        "ac",
+        "hp",
+        "speed",
+        "initiative"
+      ],
+      "hasRule": false,
+      "conditioned": true,
+      "nested": [
+        {
+          "type": "inline",
+          "id": "def55e_acinit",
+          "properties": [],
+          "cls": "statblock-line-acinit",
+          "hasRule": false,
+          "conditioned": true,
+          "nested": [
+            {
+              "type": "property",
+              "id": "def55e_ac",
+              "display": "AC",
+              "properties": [
+                "ac"
+              ],
+              "conditioned": true,
+              "callback": "const ac = [monster.ac];\nif (\"ac_class\" in monster && `${monster.ac_class}`.length) {\n  ac.push(`(${monster.ac_class})`);\n}\nreturn ac.join(\" \");\n"
+            },
+            {
+              "type": "property",
+              "id": "def55e_init",
+              "display": "Initiative",
+              "properties": [
+                "initiative"
+              ],
+              "conditioned": true
+            }
+          ]
+        },
+        {
+          "type": "property",
+          "id": "def55e_hp",
+          "display": "HP",
+          "properties": [
+            "hp"
+          ],
+          "conditioned": true,
+          "dice": true,
+          "diceProperty": "hit_dice",
+          "diceCallback": "if (\"hit_dice\" in monster) {\n  return [{ text: monster[\"hit_dice\"] }];\n} else {\n  return property;\n}\n",
+          "callback": "let str = [monster.hp];\nif (monster.hit_dice?.length) { str.push(`(${monster.hit_dice})`); }\nreturn str.join(\" \");\n"
+        },
+        {
+          "type": "property",
+          "id": "def55e_speed",
+          "display": "Speed",
+          "properties": [
+            "speed"
+          ],
+          "conditioned": true
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "id": "stats_table_55e",
+      "properties": [
+        "stats"
+      ]
+    },
+    {
+      "type": "group",
+      "id": "det55e_group",
+      "properties": [
+        "skillsaves",
+        "immunities",
+        "damage_immunities",
+        "condition_immunities",
+        "resistances",
+        "damage_resistances",
+        "vulnerabilities",
+        "damage_vulnerabilities",
+        "gear",
+        "senses",
+        "passive",
+        "languages",
+        "cr"
+      ],
+      "hasRule": false,
+      "conditioned": true,
+      "nested": [
+        {
+          "type": "saves",
+          "id": "det55e_skills",
+          "display": "Skills",
+          "properties": [
+            "skillsaves"
+          ],
+          "conditioned": true
+        },
+        {
+          "type": "property",
+          "id": "det55e_resist",
+          "display": "Resistances",
+          "properties": [
+            "resistances",
+            "damage_resistances"
+          ],
+          "conditioned": true,
+          "callback": "const parts = [];\nconst push = (v) => {\n  if (v === undefined || v === null) return;\n  const s = Array.isArray(v) ? v.filter(Boolean).join(\", \") : String(v);\n  if (s.trim().length) parts.push(s.trim());\n};\npush(monster[\"resistances\"]);\npush(monster[\"damage_resistances\"]);\nreturn parts.join(\"; \");\n"
+        },
+        {
+          "type": "property",
+          "id": "det55e_immune",
+          "display": "Immunities",
+          "properties": [
+            "immunities",
+            "damage_immunities",
+            "condition_immunities"
+          ],
+          "conditioned": true,
+          "callback": "const parts = [];\nconst push = (v) => {\n  if (v === undefined || v === null) return;\n  const s = Array.isArray(v) ? v.filter(Boolean).join(\", \") : String(v);\n  if (s.trim().length) parts.push(s.trim());\n};\npush(monster[\"immunities\"]);\npush(monster[\"damage_immunities\"]);\npush(monster[\"condition_immunities\"]);\nreturn parts.join(\"; \");\n"
+        },
+        {
+          "type": "property",
+          "id": "det55e_vuln",
+          "display": "Vulnerabilities",
+          "properties": [
+            "vulnerabilities",
+            "damage_vulnerabilities"
+          ],
+          "conditioned": true,
+          "callback": "const parts = [];\nconst push = (v) => {\n  if (v === undefined || v === null) return;\n  const s = Array.isArray(v) ? v.filter(Boolean).join(\", \") : String(v);\n  if (s.trim().length) parts.push(s.trim());\n};\npush(monster[\"vulnerabilities\"]);\npush(monster[\"damage_vulnerabilities\"]);\nreturn parts.join(\"; \");\n"
+        },
+        {
+          "type": "property",
+          "id": "det55e_gear",
+          "display": "Gear",
+          "properties": [
+            "gear"
+          ],
+          "conditioned": true
+        },
+        {
+          "type": "property",
+          "id": "det55e_senses",
+          "display": "Senses",
+          "properties": [
+            "senses",
+            "passive"
+          ],
+          "conditioned": true,
+          "callback": "const s = monster.senses;\nlet out = Array.isArray(s) ? s.filter(Boolean).join(\", \") : String(s ?? \"\").trim();\nconst p = monster.passive ?? monster.passive_perception;\nif (p !== undefined && p !== null && `${p}`.trim().length &&\n    !/passive\\s+perception/i.test(out)) {\n  out = out.length ? `${out}; Passive Perception ${p}` : `Passive Perception ${p}`;\n}\nreturn out;\n"
+        },
+        {
+          "type": "property",
+          "id": "det55e_langs",
+          "display": "Languages",
+          "properties": [
+            "languages"
+          ],
+          "fallback": "None"
+        },
+        {
+          "type": "property",
+          "id": "det55e_cr",
+          "display": "CR",
+          "properties": [
+            "cr"
+          ],
+          "conditioned": true,
+          "callback": "const CR = {\n  \"0\": { v: 0, xp: 10 }, \"1/8\": { v: 0.125, xp: 25 }, \"0.125\": { v: 0.125, xp: 25 },\n  \"1/4\": { v: 0.25, xp: 50 }, \"0.25\": { v: 0.25, xp: 50 },\n  \"1/2\": { v: 0.5, xp: 100 }, \"0.5\": { v: 0.5, xp: 100 },\n  \"1\": { v: 1, xp: 200 }, \"2\": { v: 2, xp: 450 }, \"3\": { v: 3, xp: 700 },\n  \"4\": { v: 4, xp: 1100 }, \"5\": { v: 5, xp: 1800 }, \"6\": { v: 6, xp: 2300 },\n  \"7\": { v: 7, xp: 2900 }, \"8\": { v: 8, xp: 3900 }, \"9\": { v: 9, xp: 5000 },\n  \"10\": { v: 10, xp: 5900 }, \"11\": { v: 11, xp: 7200 }, \"12\": { v: 12, xp: 8400 },\n  \"13\": { v: 13, xp: 10000 }, \"14\": { v: 14, xp: 11500 }, \"15\": { v: 15, xp: 13000 },\n  \"16\": { v: 16, xp: 15000 }, \"17\": { v: 17, xp: 18000 }, \"18\": { v: 18, xp: 20000 },\n  \"19\": { v: 19, xp: 22000 }, \"20\": { v: 20, xp: 25000 }, \"21\": { v: 21, xp: 33000 },\n  \"22\": { v: 22, xp: 41000 }, \"23\": { v: 23, xp: 50000 }, \"24\": { v: 24, xp: 62000 },\n  \"25\": { v: 25, xp: 75000 }, \"26\": { v: 26, xp: 90000 }, \"27\": { v: 27, xp: 105000 },\n  \"28\": { v: 28, xp: 120000 }, \"29\": { v: 29, xp: 135000 }, \"30\": { v: 30, xp: 155000 }\n};\n\nconst raw = monster.cr;\nconst key = String(\n  raw && typeof raw === \"object\" ? (raw.cr ?? \"\") : (raw ?? \"\")\n).trim();\nif (!key.length) return \"\";\nconst entry = CR[key];\nif (!entry) return key;\nconst num = (x) => Number(x).toLocaleString(\"en-US\");\nconst pb = monster.pb ?? monster.proficiency_bonus ??\n  Math.max(2, Math.floor(2 + (entry.v - 1) / 4));\nconst xp = monster.xp ?? (raw && typeof raw === \"object\" ? raw.xp : undefined) ?? entry.xp;\nconst lair = monster.xp_lair ?? monster.xpLair ??\n  (raw && typeof raw === \"object\" ? raw.xpLair : undefined);\nlet out = `${key} (XP ${num(xp)}`;\nif (lair) out += `, or ${num(lair)} in lair`;\nout += `; PB +${pb})`;\nreturn out;\n"
+        }
+      ]
+    },
+    {
+      "type": "traits",
+      "id": "sec55e_traits",
+      "properties": [
+        "traits"
+      ],
+      "heading": "Traits",
+      "conditioned": true,
+      "dice": true
+    },
+    {
+      "type": "spells",
+      "id": "sec55e_spells",
+      "properties": [
+        "spells"
+      ],
+      "conditioned": true,
+      "dice": true
+    },
+    {
+      "type": "text",
+      "id": "sec55e_spellsnotes",
+      "properties": [
+        "spellsNotes"
+      ],
+      "conditioned": true,
+      "text": null
+    },
+    {
+      "type": "traits",
+      "id": "sec55e_actions",
+      "properties": [
+        "actions"
+      ],
+      "heading": "Actions",
+      "conditioned": true,
+      "dice": true
+    },
+    {
+      "type": "traits",
+      "id": "sec55e_bonus",
+      "properties": [
+        "bonus_actions"
+      ],
+      "heading": "Bonus Actions",
+      "conditioned": true,
+      "dice": true
+    },
+    {
+      "type": "traits",
+      "id": "sec55e_reactions",
+      "properties": [
+        "reactions"
+      ],
+      "heading": "Reactions",
+      "conditioned": true,
+      "dice": true
+    },
+    {
+      "type": "group",
+      "id": "sec55e_legendary",
+      "properties": [
+        "legendary_description",
+        "legendary_actions"
+      ],
+      "heading": "Legendary Actions",
+      "conditioned": true,
+      "nested": [
+        {
+          "type": "text",
+          "id": "sec55e_legendary_desc",
+          "properties": [
+            "legendary_description"
+          ],
+          "conditioned": true,
+          "text": null
+        },
+        {
+          "type": "traits",
+          "id": "sec55e_legendary_acts",
+          "properties": [
+            "legendary_actions"
+          ],
+          "conditioned": true,
+          "dice": true
+        }
+      ]
+    },
+    {
+      "type": "group",
+      "id": "sec55e_mythic",
+      "properties": [
+        "mythic_description",
+        "mythic_actions"
+      ],
+      "heading": "Mythic Actions",
+      "conditioned": true,
+      "nested": [
+        {
+          "type": "text",
+          "id": "sec55e_mythic_desc",
+          "properties": [
+            "mythic_description"
+          ],
+          "conditioned": true,
+          "text": null
+        },
+        {
+          "type": "traits",
+          "id": "sec55e_mythic_acts",
+          "properties": [
+            "mythic_actions"
+          ],
+          "conditioned": true,
+          "dice": true
+        }
+      ]
+    },
+    {
+      "type": "traits",
+      "id": "sec55e_lair",
+      "properties": [
+        "lair_actions"
+      ],
+      "heading": "Lair Actions",
+      "conditioned": true,
+      "dice": true
+    },
+    {
+      "type": "traits",
+      "id": "sec55e_regional",
+      "properties": [
+        "regional_effects"
+      ],
+      "heading": "Regional Effects",
+      "conditioned": true,
+      "dice": true
+    }
+  ],
+  "columns": 2,
+  "forceColumns": true,
+  "columnWidth": 380,
+  "edited": true,
+  "version": 9
+}

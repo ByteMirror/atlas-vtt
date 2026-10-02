@@ -91,6 +91,12 @@ export function toRollFormula(text: string): string {
 
 /** Nearest heading-ish label above the roll, used to title the dice toast. */
 function abilityNameFor(node: Node): string | undefined {
+  // A roll that names itself — an ability grid's "Strength save" — wins, since
+  // its row's label ("STR") is an abbreviation and says nothing of check vs save.
+  const from = node.nodeType === Node.ELEMENT_NODE ? (node as Element) : node.parentElement;
+  const named = from?.closest<HTMLElement>('[data-ability]')?.dataset.ability;
+  if (named) return named;
+
   const el = node.parentElement?.closest<HTMLElement>(
     '.atlas-sb-trait, .atlas-sb-property, li, p, tr',
   );

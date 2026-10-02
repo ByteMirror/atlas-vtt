@@ -13,12 +13,14 @@ import { syncStatblockVitals, type TokenVitals } from '../../services/statblockV
 import { attachDiceRolling } from '../../services/statblockDiceLinks';
 import { rollHitPoints } from '../../services/statblockHitPoints';
 import { StatblockRenderer, type StatblockPortrait } from './statblock/StatblockRenderer';
+import type { StatblockPinApi } from './statblock/StatblockPin';
 import { TokenPickerModal } from '../../packages/components/token-picker/TokenPickerModal';
 import { TokenStatblockLinkService } from '../../services/TokenStatblockLinkService';
 import { StatblockTokenResources, type StatblockTokenActions } from './statblock/StatblockTokenResources';
 import type { StatblockEditApi } from './statblock/statblockEditContext';
 import { isEditableNote, writeStatblockValue } from '../../services/statblockEditing';
 import { useBestiaryRevision } from '../hooks/useBestiaryRevision';
+import { useStatblockPresentation } from '../hooks/useStatblockPresentation';
 
 interface FantasyStatblockProps {
   /** Vault path of the note backing the Fantasy Statblocks creature */
@@ -33,6 +35,8 @@ interface FantasyStatblockProps {
   editable?: boolean;
   className?: string;
   tokenActions?: StatblockTokenActions;
+  /** Shows a pin control; the host keeps the window open while it is pinned. */
+  pin?: StatblockPinApi;
 }
 
 /** Signature of the values mirrored into the statblock, for change detection. */
@@ -51,6 +55,7 @@ export function FantasyStatblock({
   editable = false,
   className,
   tokenActions,
+  pin,
 }: FantasyStatblockProps): React.JSX.Element {
   const ref = useRef<HTMLDivElement>(null);
   const tokensRef = useRef<TokenVitals[]>(tokens);
@@ -60,6 +65,7 @@ export function FantasyStatblock({
 
   // Edits made here (and elsewhere in the vault) show up without a manual refresh.
   const revision = useBestiaryRevision(app);
+  const presentation = useStatblockPresentation(app);
 
   // A note outside the vault is read from its own text; the bestiary knows only vault notes.
   const bestiaryCreature = useMemo(
@@ -230,6 +236,8 @@ export function FantasyStatblock({
         sourcePath={notePath}
         edit={edit}
         portrait={portrait}
+        presentation={presentation}
+        pin={pin}
         replaceVitals={Boolean(tokenActions)}
         footer={tokenActions && tokens.length > 0 ? (
           <StatblockTokenResources monster={monster} layout={layout} tokens={tokens} {...tokenActions} />

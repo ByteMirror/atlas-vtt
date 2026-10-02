@@ -13,9 +13,13 @@
 - Open and close doors by clicking the door badges, with any tool.
 - Double-click a light, or right-click it, to change its kind, colour, range, brightness, softness and flicker.
 - Cairn is a built-in game system preset, with 5-foot squares and its conditions: Deprived, Fatigue, Critical Damage, Paralyzed, Delirious and Fleeing
+- Statblocks follow the layout they are given in Fantasy Statblocks, including the columns it asks for. Pick how closely in Settings, under Statblocks
+- Ability scores are shown as the 2024 grid, physical beside mental, each with its modifier and saving throw. Click any of them to roll it
+- Pin a token's statblock open from the button in its corner, and drag it anywhere by its header
 
 ## Improved
 
+- Statblocks are framed like a dice roll, with the same stroke, glow and knotwork corners
 - A map larger than 8192 pixels on a side is scaled down when you add it. Its card now shows the new size, so you know before saving that small labels may be harder to read
 - The GM dashboard is now called the DM screen. Press Tab on a map to open it; a custom key you set for it is kept
 - Large token imports are much faster. 1,000 tokens from Fantasy Statblocks now take about 40 seconds instead of 11 minutes, and imports of thousands of tokens no longer slow down as they go

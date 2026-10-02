@@ -1,6 +1,6 @@
 import React from 'react';
 import type { App } from 'obsidian';
-import type { StatblockItem, StatblockMonster, Trait } from './statblockTypes';
+import type { StatblockItem, StatblockMonster, StatblockPortrait, Trait } from './statblockTypes';
 import { runCallback } from './layoutCallbacks';
 import {
   abilityModifier,
@@ -13,9 +13,12 @@ import {
   trimLabel,
 } from './statblockUtils';
 import { StatblockMarkdown } from './StatblockText';
+import { AbilityScoreGrid } from './AbilityScoreGrid';
+import { abilityScores } from './abilityScores';
 import { EditableValue } from './EditableValue';
 import { useStatblockEdit } from './statblockEditContext';
 import { LabelTooltip } from '../../../packages/components/primitives/tooltip';
+import { TokenPortrait } from '../../../packages/components/shared/TokenPortrait';
 import { isHitPointsKey } from '../../../services/statblockResources';
 
 /** Values that map cleanly onto a single editable frontmatter entry. */
@@ -30,6 +33,8 @@ export interface BlockProps {
   sourcePath?: string | undefined;
   /** When set, the statblock's image can be clicked to assign a token. */
   onAssignToken?: (() => void) | undefined;
+  /** The token's artwork, shown in the layout's own image slot. */
+  portrait?: StatblockPortrait | undefined;
 }
 
 /** Heading above a group, traits list or text block. */
@@ -242,9 +247,18 @@ export function SavesBlock({ item, monster, app, sourcePath }: BlockProps): Reac
 export function TableBlock({ item, monster }: BlockProps): React.JSX.Element | null {
   const raw = monster[item.properties?.[0] ?? ''];
   const values = Array.isArray(raw) ? raw : [];
-  if (!values.length) return null;
-
   const headers = item.headers ?? [];
+
+  // A headerless stats table names nothing, so a bare row of six numbers would
+  // be unreadable. That is how the 5.5e layout declares the ability scores: it
+  // leaves their presentation to the renderer, which draws the 2024 grid. A
+  // table that does name its headers (the Basic 5e layout's Str…Cha row) keeps
+  // the plain table, since the layout has said how it wants them read.
+  if (!headers.length && item.properties?.[0] === 'stats' && abilityScores(monster)) {
+    return <AbilityScoreGrid item={item} monster={monster} />;
+  }
+
+  if (!values.length) return null;
 
   return (
     <table className="atlas-sb-table">
@@ -288,7 +302,24 @@ export function ImageBlock({
   app,
   sourcePath,
   onAssignToken,
+  portrait,
 }: BlockProps): React.JSX.Element | null {
+  // The token's artwork takes the layout's own image slot, so the header reads
+  // as one unit instead of the portrait floating beside it.
+  if (portrait) {
+    return (
+      <div className="atlas-sb-image atlas-sb-image--portrait">
+        <TokenPortrait
+          className="atlas-sb-portrait"
+          src={portrait.src}
+          alt=""
+          ringColor={portrait.ringColor}
+          showRing={portrait.showRing}
+        />
+      </div>
+    );
+  }
+
   const raw = item.properties?.map((property) => monster[property]).find((value) => typeof value === 'string');
   const hasImage = typeof raw === 'string' && raw.length > 0;
 

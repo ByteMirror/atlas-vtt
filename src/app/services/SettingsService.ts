@@ -7,6 +7,11 @@ import {
   resolveLaserPointerSettings,
   type LaserPointerSettings,
 } from '../tools/laserPointerSettings';
+import {
+  DEFAULT_STATBLOCK_PRESENTATION,
+  resolveStatblockPresentation,
+  type StatblockPresentation,
+} from './statblockPresentation';
 
 /**
  * How wheel events drive the map viewport.
@@ -33,6 +38,8 @@ export interface AtlasSettings {
   starterTokensAdded: boolean;
   navigation: NavigationSettings;
   laserPointer: LaserPointerSettings;
+  /** How closely a Fantasy Statblocks layout is followed; read with `getStatblockPresentation`. */
+  statblockPresentation: StatblockPresentation;
   /** Game system presets the user saved, as stored; `SystemPresetService` validates them. */
   systemPresets: unknown[];
   localPlayerView: {
@@ -61,6 +68,7 @@ const DEFAULT_SETTINGS: AtlasSettings = {
     inputMode: Platform.isMacOS ? 'trackpad' : 'mouse',
   },
   laserPointer: DEFAULT_LASER_POINTER_SETTINGS,
+  statblockPresentation: DEFAULT_STATBLOCK_PRESENTATION,
   systemPresets: [],
   localPlayerView: {
     // UI element visibility defaults
@@ -289,6 +297,15 @@ export class SettingsService {
 
   setNavigationSettings(settings: Partial<NavigationSettings>): void {
     this.settings.navigation = { ...this.settings.navigation, ...settings };
+    this.commit();
+  }
+
+  getStatblockPresentation(): StatblockPresentation {
+    return resolveStatblockPresentation(this.settings.statblockPresentation);
+  }
+
+  setStatblockPresentation(presentation: StatblockPresentation): void {
+    this.settings.statblockPresentation = resolveStatblockPresentation(presentation);
     this.commit();
   }
 

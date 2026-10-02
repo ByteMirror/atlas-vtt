@@ -4,6 +4,10 @@ import { App as ObsidianApp } from 'obsidian';
 import FantasyStatblock from '../react/components/FantasyStatblock';
 import { toTokenVitals } from './statblockVitalsSync';
 import type { NotePreviewUIManager, TokenPreviewAnchor } from './NotePreviewUIManager';
+import {
+  STATBLOCK_DRAG_EXCLUDED,
+  STATBLOCK_DRAG_HANDLE,
+} from '../react/components/statblock/StatblockPin';
 import './statblock-preview-window.scss';
 
 /**
@@ -18,6 +22,18 @@ export class StatblockPreviewWindow {
   private reactRoot: Root | null = null;
   private resizeObserver: ResizeObserver | null = null;
   private closing = false;
+  /** A pinned window stays while the modifier key is released and the pointer leaves. */
+  private pinned = false;
+  private vitals: ReturnType<typeof toTokenVitals>[] = [];
+  private detachDrag: (() => void) | null = null;
+  private detachDismiss: (() => void) | null = null;
+  /**
+   * Set once the reader unpins a window they had pinned. Such a window is being
+   * dismissed, so it closes as soon as the pointer leaves it — the manager only
+   * sweeps unpinned previews when the modifier key comes up or the window
+   * loses focus, neither of which need ever happen again.
+   */
+  private unpinnedByUser = false;
 
   constructor(
     private app: ObsidianApp,
@@ -39,15 +55,11 @@ export class StatblockPreviewWindow {
     }
 
     // The pin carries the hovered token's vitals; the statblock mirrors them.
-    const vitals = [toTokenVitals(originatingToken)];
+    this.vitals = [toTokenVitals(originatingToken)];
     this.reactRoot = createRoot(this.element);
-    this.reactRoot.render(
-      React.createElement(FantasyStatblock, {
-        notePath,
-        app: this.app,
-        tokens: vitals,
-      }),
-    );
+    this.render();
+    this.detachDrag = this.enableDragging(this.element);
+    this.detachDismiss = this.dismissOnLeaveAfterUnpin(this.element);
 
     // The statblock mounts after this constructor returns, so the window only
     // reaches its final size later. Re-clamp on every size change, otherwise
@@ -57,8 +69,89 @@ export class StatblockPreviewWindow {
     this.resizeObserver.observe(this.element);
   }
 
+  private render(): void {
+    this.reactRoot?.render(
+      React.createElement(FantasyStatblock, {
+        notePath: this.notePath,
+        app: this.app,
+        tokens: this.vitals,
+        pin: { pinned: this.pinned, onToggle: () => this.setPinned(!this.pinned) },
+      }),
+    );
+  }
+
+  /** Closes a window the reader has unpinned, once the pointer leaves it. */
+  private dismissOnLeaveAfterUnpin(element: HTMLElement): () => void {
+    const onLeave = (): void => {
+      if (!this.pinned && this.unpinnedByUser) this.hide();
+    };
+    element.addEventListener('pointerleave', onLeave);
+    return () => element.removeEventListener('pointerleave', onLeave);
+  }
+
+  /**
+   * Moves the window by its grip or its header. Dragging pins it: a window the
+   * reader has placed should not vanish the moment the modifier key comes up.
+   */
+  private enableDragging(element: HTMLElement): () => void {
+    const onPointerDown = (event: PointerEvent): void => {
+      const target = event.target;
+      if (event.button !== 0 || !(target instanceof Element)) return;
+      if (target.closest(STATBLOCK_DRAG_EXCLUDED)) return;
+      if (!target.closest(STATBLOCK_DRAG_HANDLE)) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      if (!this.pinned) this.setPinned(true);
+      // The window now rests where it is put, so it is no longer placed by the
+      // token it came from.
+      this.initialPos = undefined;
+
+      const rect = element.getBoundingClientRect();
+      const offsetX = event.clientX - rect.left;
+      const offsetY = event.clientY - rect.top;
+      element.classList.add('atlas-statblock-preview-window--dragging');
+
+      const onMove = (move: PointerEvent): void => {
+        const margin = 8;
+        const maxX = Math.max(margin, window.innerWidth - element.offsetWidth - margin);
+        const maxY = Math.max(margin, window.innerHeight - element.offsetHeight - margin);
+        element.style.left = `${Math.min(Math.max(move.clientX - offsetX, margin), maxX)}px`;
+        element.style.top = `${Math.min(Math.max(move.clientY - offsetY, margin), maxY)}px`;
+      };
+      const onUp = (): void => {
+        window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerup', onUp);
+        window.removeEventListener('pointercancel', onUp);
+        element.classList.remove('atlas-statblock-preview-window--dragging');
+      };
+
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onUp);
+      window.addEventListener('pointercancel', onUp);
+    };
+
+    element.addEventListener('pointerdown', onPointerDown);
+    return () => element.removeEventListener('pointerdown', onPointerDown);
+  }
+
+  /**
+   * Pinning keeps the window open once the modifier key is released, so the
+   * statblock can be read, scrolled and rolled from while play continues. The
+   * manager asks `getIsPinned()` before dismissing any preview.
+   */
+  private setPinned(pinned: boolean): void {
+    // Unpinning is how a pinned window is dismissed; pinning again takes that back.
+    this.unpinnedByUser = !pinned;
+    this.pinned = pinned;
+    this.element?.classList.toggle('atlas-statblock-preview-window--pinned', pinned);
+    this.render();
+  }
+
   private reposition(): void {
-    if (this.initialPos) {
+    // A pinned window stays where the reader left it; re-clamping would drag it
+    // back to the token every time the statblock resizes.
+    if (this.initialPos && !this.pinned) {
       this.setPosition(this.initialPos.x, this.initialPos.y);
     }
   }
@@ -125,6 +218,10 @@ export class StatblockPreviewWindow {
   destroy(): void {
     this.resizeObserver?.disconnect();
     this.resizeObserver = null;
+    this.detachDrag?.();
+    this.detachDrag = null;
+    this.detachDismiss?.();
+    this.detachDismiss = null;
 
     // Unmount asynchronously: React forbids unmounting while it is rendering,
     // which happens when destroy() runs from inside an effect.
@@ -141,6 +238,6 @@ export class StatblockPreviewWindow {
   }
 
   getIsPinned(): boolean {
-    return false;
+    return this.pinned;
   }
 }

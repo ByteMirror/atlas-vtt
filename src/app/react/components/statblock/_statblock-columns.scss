@@ -1,0 +1,115 @@
+@use '../../../../../styles/tokens' as *;
+@use 'statblock-mixins' as *;
+
+// The layout's own column flow, used when the statblock follows its Fantasy
+// Statblocks layout (`data-presentation="source"`).
+//
+// `columns: <count> <width>` is responsive without a media query: the browser
+// uses fewer columns whenever the surface cannot give each one its width, so the
+// same statblock is two columns in a wide DM screen feed and one column in a
+// narrow hover preview. The flow sits inside the card body rather than being it,
+// because the body is what scrolls and a multi-column box with a bounded height
+// paginates sideways instead of growing taller.
+
+.atlas-sb-flow[data-columns] {
+  columns: var(--atlas-sb-columns) var(--atlas-sb-column-width);
+  column-gap: $spacing-xl;
+
+  // The block carrying the creature's name is the header: it spans the columns,
+  // as the printed 2024 block does, and the rule beneath it closes it off.
+  > .atlas-sb-item:has(.atlas-sb-heading) {
+    column-span: all;
+    margin-bottom: $spacing-m;
+    padding-bottom: $spacing-m;
+    border-bottom: $border-width-s solid var(--background-modifier-border);
+  }
+
+  // Sections break between their lines, never through one: a trait, a stat line
+  // or an ability grid stays whole, and a heading keeps its first line with it.
+  .atlas-sb-trait,
+  .atlas-sb-property,
+  .atlas-sb-abilities,
+  .atlas-sb-table,
+  li {
+    break-inside: avoid;
+  }
+
+  .atlas-sb-section-heading {
+    break-after: avoid;
+  }
+}
+
+// ── Following the layout ────────────────────────────────────────────────────
+.atlas-statblock[data-presentation='source'] {
+  // Fantasy Statblocks sets an inline row as ordinary property lines; the
+  // label-over-value strip is Atlas' own reading, so it steps aside here.
+  // Stat lines share a baseline, so "AC 22" and "Initiative +14" sit level.
+  .atlas-sb-inline {
+    align-items: baseline;
+    column-gap: $spacing-l;
+  }
+
+  // The header row is not a line of text: it sets artwork beside a stack of two
+  // lines. A shared baseline would hang the portrait from the name's baseline,
+  // so the row centres its items on each other instead.
+  .atlas-sb-inline:has(> .atlas-sb-inline-item > .atlas-sb-item[data-type='image']),
+  .atlas-sb-inline:has(.atlas-sb-inline--titles) {
+    align-items: center;
+  }
+
+  .atlas-sb-inline-item {
+    flex: 0 1 auto;
+
+    .atlas-sb-property {
+      display: block;
+    }
+
+    .atlas-sb-property-name {
+      margin-right: $spacing-s;
+    }
+
+    .atlas-sb-property > :not(.atlas-sb-property-name) {
+      font-size: inherit;
+      font-weight: inherit;
+      line-height: inherit;
+    }
+  }
+
+  // The name sits directly above its size/type/alignment line.
+  .atlas-sb-inline--titles {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0;
+
+    > .atlas-sb-inline-item {
+      flex: 0 0 auto;
+      width: 100%;
+    }
+  }
+
+  // In the header row the artwork keeps its size and the titles take the slack.
+  .atlas-sb-inline-item:has(> .atlas-sb-item[data-type='image']) {
+    flex: 0 0 auto;
+  }
+
+  .atlas-sb-inline-item:has(.atlas-sb-inline--titles) {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .atlas-sb-image--portrait {
+    width: $statblock-portrait-size;
+    justify-content: flex-start;
+
+    .atlas-sb-portrait {
+      float: none;
+      margin: 0;
+    }
+  }
+}
+
+// A block that rendered nothing still holds its flex slot otherwise — the
+// tracker buttons of a layout, which Atlas surfaces elsewhere.
+.atlas-sb-inline-item:empty {
+  display: none;
+}

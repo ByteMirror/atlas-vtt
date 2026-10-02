@@ -1,0 +1,26 @@
+import type { Message } from '../../types';
+
+export const sceneLight = {
+  'sceneLight.day': 'Day',
+  'sceneLight.dusk': 'Dusk',
+  'sceneLight.night': 'Night',
+  'sceneLight.dark': 'Pitch black',
+  'sceneLight.dynamic': 'Dynamic lighting',
+  'sceneLight.timeOfDay': 'Time of day',
+  'sceneLight.ambient': 'Ambient light',
+  'sceneLight.ambientColour': 'Ambient colour',
+  'sceneLight.preview': 'Preview player view',
+  'sceneLight.forgetExplored': 'Forget explored areas',
+  'sceneLight.openSettings': 'Lighting settings…',
+  'sceneLight.settings': 'Lighting settings',
+  'sceneLight.closeSettings': 'Close lighting settings',
+  'sceneLight.tokenVision': 'Token vision',
+  'sceneLight.tokenVisionOn': 'Players see only what their tokens see',
+  'sceneLight.tokenVisionOff': 'Players see everything the light shows',
+  'sceneLight.memory': 'Remember explored areas',
+  'sceneLight.memoryOn': 'What tokens saw stays on the players\' map',
+  'sceneLight.memoryOff': 'Players see only what their tokens see now',
+  'sceneLight.exploredColour': 'Explored colour',
+  'sceneLight.unexploredColour': 'Unexplored colour',
+  'sceneLight.litFrom': 'Counts as lit from',
+} as const satisfies Record<string, Message>;

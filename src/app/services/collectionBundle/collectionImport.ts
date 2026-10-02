@@ -10,6 +10,7 @@ import { ImportJournal, saveOpenMaps } from './importJournal';
 import { planImport, resolvePlan, type ImportAction, type ImportPlan, type PlannedItem, type Resolution } from './importPlan';
 import { buildReview, type ImportReview } from './importReview';
 import { COLLECTION_FIELDS, readInstallRecord, writeInstallRecord, type CollectionField, type InstallRecord } from './installRecord';
+import { t } from '../../i18n';
 
 export interface ImportDecision {
   /** Name for a new collection; defaults to the bundle's, or the suggested free name when that is taken. */
@@ -68,14 +69,14 @@ export async function openCollectionImport(
   const suggestedName = !existing && nameTaken ? await assets.freeCollectionName(manifest.collection.name) : undefined;
   const collectionId = existing?.id ?? await assets.freeCollectionIdFor(manifest.collection.name);
 
-  onProgress({ message: 'Comparing with your vault…', fraction: 0.6 });
+  onProgress({ message: t('bundle.comparing'), fraction: 0.6 });
   const targets = await planTargets(app, assets, bundle, collectionId, record);
   // Compare against what the user sees: open maps may hold unsaved changes.
   await saveOpenMaps(app, new Set([...targets.paths.values(), ...Object.values(record?.files ?? {}).map((file) => file.target)]));
   const { items, unitAssets } = await gatherImportInputs(app, assets, bundle, targets, existing, record);
   const plan = planImport(items);
   const restorePlan = planImport(items, { restore: true });
-  onProgress({ message: 'Ready', fraction: 1 });
+  onProgress({ message: t('bundle.ready'), fraction: 1 });
 
   return {
     review: {
@@ -172,7 +173,7 @@ async function applyImport(
     const writes = fileItems.filter((item) => actions.get(item.key) === 'write');
     const removals = fileItems.filter((item) => actions.get(item.key) === 'remove');
     for (const [index, item] of writes.entries()) {
-      reportFileStep(onProgress, 'Writing', index, fileItems.length, 0, 0.9);
+      reportFileStep(onProgress, 'bundle.step.writing', index, fileItems.length, 0, 0.9);
       const bundlePath = idOf(item.key);
       const target = targets.targetOf(bundlePath);
       if (!target) continue;
@@ -184,14 +185,14 @@ async function applyImport(
     const removalTargets = new Set(removals.map((item) => targets.targetOf(idOf(item.key))!));
     const inUse = removalTargets.size > 0 ? await pathsInUse(app, assets, targets, upsert, remove, removalTargets) : new Set<string>();
     for (const [index, item] of removals.entries()) {
-      reportFileStep(onProgress, 'Cleaning up', writes.length + index, fileItems.length, 0, 0.9);
+      reportFileStep(onProgress, 'bundle.step.cleaning', writes.length + index, fileItems.length, 0, 0.9);
       const target = targets.targetOf(idOf(item.key));
       if (!target || inUse.has(target)) continue;
       await journal.remove(target);
       removed += 1;
     }
 
-    onProgress({ message: 'Registering assets…', fraction: 0.95 });
+    onProgress({ message: t('bundle.registering'), fraction: 0.95 });
     const merged = await mergedCollection(assets, context, actions, name);
     collection = await assets.commitCollectionImport({ collectionId: targets.collectionId, collection: merged, upsert, remove });
   } catch (error) {
@@ -208,7 +209,7 @@ async function applyImport(
   }
   // A collection is named like its folder: a new name from the review or an update moves the folder, install record included.
   const installed = await assets.matchCollectionFolder(targets.collectionId) ?? collection;
-  onProgress({ message: 'Done', fraction: 1 });
+  onProgress({ message: t('bundle.done'), fraction: 1 });
   return {
     collectionId: installed.id,
     collectionName: installed.name,

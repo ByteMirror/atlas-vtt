@@ -3,17 +3,13 @@ import type { AtlasView } from '../atlas-view';
 import { AssetValidationService } from '../services/AssetValidationService';
 import { runHistoryTransaction } from '../stores/history';
 import { ChoiceModal } from './ChoiceModal';
-
-function describeCount(count: number, singular: string): string | null {
-  if (count === 0) return null;
-  return `${count} ${singular}${count === 1 ? '' : 's'}`;
-}
+import { formatList, t } from '../i18n';
 
 /** Finds tokens and backgrounds whose image is gone and offers to drop them from the map. */
 export async function cleanupMissingAssets(app: App, view: AtlasView): Promise<void> {
   const store = view.getStore();
   if (!store) {
-    new Notice('Unable to access map data');
+    new Notice(t('cleanup.noMapData'));
     return;
   }
 
@@ -28,19 +24,19 @@ export async function cleanupMissingAssets(app: App, view: AtlasView): Promise<v
   const removable = missingTokenIds.length + missingBackgrounds;
 
   if (removable === 0) {
-    new Notice('No missing assets found');
+    new Notice(t('cleanup.nothingMissing'));
     return;
   }
 
-  const found = [
-    describeCount(missingTokenIds.length, 'token'),
-    describeCount(missingBackgrounds, 'map background'),
-  ].filter(Boolean).join(' and ');
+  const found = formatList([
+    missingTokenIds.length > 0 ? t('cleanup.tokens', { count: missingTokenIds.length }) : '',
+    missingBackgrounds > 0 ? t('cleanup.backgrounds', { count: missingBackgrounds }) : '',
+  ].filter(Boolean));
 
   const confirmed = await new ChoiceModal<true>(app, {
-    title: 'Clean up missing assets',
-    message: [`Found ${found} pointing at images that no longer exist.`, 'Remove these references from the map?'],
-    buttons: [{ text: 'Remove', value: true, variant: 'warning' }],
+    title: t('cleanup.title'),
+    message: [t('cleanup.found', { found }), t('cleanup.confirm')],
+    buttons: [{ text: t('common.remove'), value: true, variant: 'warning' }],
   }).prompt();
   if (!confirmed) return;
 
@@ -50,6 +46,6 @@ export async function cleanupMissingAssets(app: App, view: AtlasView): Promise<v
     if (missingBackgrounds > 0) actions.setBackground(null);
   });
 
-  new Notice(`Cleaned up ${removable} missing asset reference${removable === 1 ? '' : 's'}`);
+  new Notice(t('cleanup.done', { count: removable }));
   await view.saveMap();
 }

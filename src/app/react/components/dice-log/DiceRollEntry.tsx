@@ -5,6 +5,7 @@ import type { DiceRollResult } from '../../../tools/DiceTool';
 import { TokenPortrait } from '../../../packages/components/shared/TokenPortrait';
 import { useDiceAvatar } from '../dice/useDiceAvatar';
 import { LabelTooltip } from '../../../packages/components/primitives/tooltip';
+import { t } from '../../../i18n';
 
 interface DiceRollEntryProps {
   result: DiceRollResult;
@@ -39,7 +40,7 @@ export function DiceRollEntry({ result, isNew, onRepeat }: DiceRollEntryProps): 
     result.rolls.some(r => r.die === 'd20' && r.value === 1) && result.total === 1;
 
   const source = result.source;
-  const sourceTokenName = source?.tokenName ?? 'Unknown';
+  const sourceTokenName = source?.tokenName ?? t('dice.unknown');
   const avatar = useDiceAvatar(source);
 
   const hasSource = source?.type === 'statblock' && source.tokenName;
@@ -95,9 +96,9 @@ export function DiceRollEntry({ result, isNew, onRepeat }: DiceRollEntryProps): 
         <div className="dice-log-entry__footer">
           <div className={cn('dice-log-entry__callout', isExpanded && 'dice-log-entry__callout--open')}>
             <ChevronDown className={cn('dice-log-entry__chevron', isExpanded && 'dice-log-entry__chevron--open')} />
-            <span className="dice-log-entry__callout-label">Details</span>
+            <span className="dice-log-entry__callout-label">{t('dice.details')}</span>
           </div>
-          <LabelTooltip label="Roll again">
+          <LabelTooltip label={t('dice.rollAgain')}>
             <button
               className="btn btn--ghost btn--icon dice-log-entry__repeat"
               onClick={(e) => { e.stopPropagation(); onRepeat(); }}

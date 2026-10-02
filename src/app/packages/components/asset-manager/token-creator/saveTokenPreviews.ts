@@ -4,10 +4,11 @@ import { withStatblockImportLock } from '../../../../services/statblockImportLoc
 import { requireResolvedBestiary, statblockImportCandidate, statblockLookup, type StatblockLookup } from '../../../../services/statblockImportCandidates';
 import { AssetService, type NewAsset } from '../../../../services/AssetService';
 import { AssetThumbnailService } from '../../../../services/AssetThumbnailService';
+import { t } from '../../../../i18n';
 import { discardAssetFiles, writeAssetImage } from '../../../../services/assetImageFiles';
 import { prepareSaveImages, type SaveImageContext } from './prepareSaveImages';
 import { saveEditedPreview } from './saveEditedPreview';
-import { modeNoun, type EditTokenInput, type TokenPreview } from './types';
+import type { EditTokenInput, TokenPreview } from './types';
 import type { ProcessedImage } from '../../../../imageProcessing/imageProcessing';
 
 export interface SaveTokenPreviewsOptions extends SaveImageContext {
@@ -87,7 +88,7 @@ async function savePreviews(options: SaveTokenPreviewsOptions): Promise<number> 
       // An unconfirmed write may have committed; its files must stay.
       if (error instanceof AssetRegistrationUncertainError) throw error;
       await discardAssetFiles(app, written.flatMap(w => w.discard));
-      new Notice(`Could not save ${written.length} ${modeNoun(mode, written.length)}: ${error instanceof Error ? error.message : 'the asset index could not be written.'}`);
+      new Notice(t(`creator.${mode}.saveFailedCount`, { count: written.length, error: error instanceof Error ? error.message : t('creator.indexWriteFailed') }));
       return;
     }
     saved += written.length;
@@ -115,7 +116,7 @@ async function savePreviews(options: SaveTokenPreviewsOptions): Promise<number> 
       return { id: preview.id, asset, discard: mode === 'token' ? [imagePath, thumbnailPath] : [thumbnailPath] };
     } catch (error) {
       await discardAssetFiles(app, mode === 'token' ? [imagePath, thumbnailPath] : [thumbnailPath]);
-      new Notice(`${preview.name}: ${error instanceof Error ? error.message : 'Could not save this preview.'}`);
+      new Notice(`${preview.name}: ${error instanceof Error ? error.message : t('creator.saveFailed')}`);
       return null;
     } finally {
       if (!options.signal?.aborted) options.onProgress?.(++done, prepared.size);

@@ -8,6 +8,7 @@ import { AssetService } from '../../../../services/AssetService';
 import { showAtlasToast } from '../../../../react/components/AtlasToast';
 import { ensureFolder } from '../../../../plugin/vaultFolders';
 import { useCollectionTransfer, type CollectionTransferActions } from './useCollectionTransfer';
+import { t } from '../../../../i18n';
 import { folderIdOf, tabFolderPath } from '../utils/assetFolders';
 import { folderMoveProblem, moveAssetsIntoFolder } from '../utils/assetFolderMove';
 
@@ -146,7 +147,7 @@ export function useAssetCrud(
       return true;
     } catch (error) {
       console.error('[useAssetCrud] Error deleting asset:', error);
-      showAtlasToast(`Failed to delete asset "${asset.name}": ${error instanceof Error ? error.message : String(error)}`);
+      showAtlasToast(t('am.deleteFailed', { name: asset.name, error: error instanceof Error ? error.message : String(error) }));
       return false;
     }
   };

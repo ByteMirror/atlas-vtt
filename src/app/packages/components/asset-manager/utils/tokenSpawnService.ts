@@ -12,6 +12,7 @@ import {
 } from '../../../../encounters/encounterFormation';
 import type { AtlasView } from '../../../../atlas-view';
 import type { TokenInput, ViewAtlasState } from '../../../../storeFactory';
+import { t } from '../../../../i18n';
 import { mapVisionDefaults } from '../../../../gameSystems/visionDefaults';
 import type { TokenVision, TokenVisionDefaults } from '../../../../types/lightingTypes';
 
@@ -157,7 +158,7 @@ async function resolveTokenSource(ctx: SpawnContext, ref: TokenSourceRef): Promi
   }
   return {
     imagePath,
-    name: ref.name || 'Token',
+    name: ref.name || t('initiative.token'),
     statblockPath: record?.statblockPath ?? ref.statblockPath ?? null,
     size: record?.size ?? ref.size,
     showRing: record?.showRing ?? ref.showRing,

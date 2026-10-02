@@ -1,6 +1,7 @@
 import type { Asset, CollectionMetadata } from '../AssetService';
 import { isRecord } from '../assetMetadataGuards';
 import { SNAPSHOTS_DIR } from '../../snapshots/snapshotPaths';
+import { t } from '../../i18n';
 
 /** Bumped when the zip layout or manifest shape changes. */
 export const BUNDLE_FORMAT = 4;
@@ -104,9 +105,9 @@ const isBundleRelease = (value: unknown): value is BundleRelease =>
 
 /** Why a bundle cannot be imported, or null when its manifest is sound. */
 export function manifestProblem(value: unknown): string | null {
-  if (!isRecord(value) || typeof value.format !== 'number') return 'This file is not an Atlas collection export.';
-  if (value.format > BUNDLE_FORMAT) return 'This collection was exported by a newer version of Atlas. Update Atlas to import it.';
-  if (value.format < OLDEST_BUNDLE_FORMAT) return 'This collection export is too old to import.';
+  if (!isRecord(value) || typeof value.format !== 'number') return t('bundle.notExport');
+  if (value.format > BUNDLE_FORMAT) return t('bundle.tooNew');
+  if (value.format < OLDEST_BUNDLE_FORMAT) return t('bundle.tooOld');
   const { collection, assets, files, release } = value;
   const isSound = typeof value.exportedAt === 'number'
     && isRecord(collection)
@@ -121,10 +122,10 @@ export function manifestProblem(value: unknown): string | null {
       && (asset.tags === undefined || (Array.isArray(asset.tags) && asset.tags.every((tag) => typeof tag === 'string'))))
     && Array.isArray(files)
     && files.every(isBundleFile);
-  if (!isSound) return 'This collection export is damaged.';
+  if (!isSound) return t('bundle.damaged');
   const { coverPath } = collection;
-  if (coverPath !== undefined && !files.some((file) => file.role === 'cover' && file.vaultPath === coverPath)) return 'This collection export is damaged.';
+  if (coverPath !== undefined && !files.some((file) => file.role === 'cover' && file.vaultPath === coverPath)) return t('bundle.damaged');
   const unsafe = files.find((file) => !isSafeBundlePath(file.vaultPath, file.role) || (file.statblockImage && !isSafeBundlePath(file.statblockImage.path)));
-  if (unsafe) return `This collection export contains a file Atlas will not write: ${unsafe.vaultPath}`;
+  if (unsafe) return t('bundle.unsafe', { path: unsafe.vaultPath });
   return null;
 }

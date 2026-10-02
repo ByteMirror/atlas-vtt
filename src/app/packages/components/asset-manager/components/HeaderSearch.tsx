@@ -9,6 +9,7 @@ import { useSearchAutocomplete } from '../hooks/useSearchAutocomplete';
 import { useSearchShortcut } from '../hooks/useSearchShortcut';
 import { AdvancedFilterPanel } from './search/AdvancedFilterPanel';
 import { SearchSuggestions } from './search/SearchSuggestions';
+import { t } from '../../../../i18n';
 
 export interface HeaderSearchProps {
   app: App;
@@ -53,14 +54,14 @@ export function HeaderSearch({ app, search, onSearch, query }: HeaderSearchProps
 
   return (
     <div className="atlas-am-search">
-      <LabelTooltip label={search ? `Search: ${search}` : 'Search'}>
+      <LabelTooltip label={search ? t('search.current', { query: search }) : t('search.label')}>
         <Button
           ref={toggleRef}
           variant="ghost"
           size="icon"
           className={`atlas-am-icon-btn atlas-am-search-toggle ${isActive ? 'atlas-active' : ''}`}
           onClick={() => inputRef.current?.focus()}
-          aria-label="Search"
+          aria-label={t('search.label')}
         >
           <Search />
         </Button>
@@ -68,19 +69,19 @@ export function HeaderSearch({ app, search, onSearch, query }: HeaderSearchProps
 
       <div className="atlas-asset-manager-search">
         <Search />
-        <span id={labelId} hidden>Search assets</span>
+        <span id={labelId} hidden>{t('search.assets')}</span>
         <input
           ref={inputRef}
           type="text"
           value={search}
-          placeholder={query.panel ? 'Search… try cr:1-3 or type:beast' : 'Search…'}
+          placeholder={query.panel ? t('search.placeholderFilters') : t('search.placeholder')}
           spellCheck={false}
           onKeyDown={handleKeyDown}
           aria-labelledby={labelId}
           {...autocomplete.inputProps}
         />
         {search && (
-          <LabelTooltip label="Clear search">
+          <LabelTooltip label={t('common.clearSearch')}>
             <Button
               variant="ghost"
               size="icon"
@@ -95,7 +96,7 @@ export function HeaderSearch({ app, search, onSearch, query }: HeaderSearchProps
         )}
         {/* On every tab, so the field keeps its size; tabs without a filter panel yet disable it. */}
         <span className="atlas-am-search-divider" aria-hidden="true" />
-        <LabelTooltip label="Filters">
+        <LabelTooltip label={t('filters.title')}>
           <Button
             ref={filtersButtonRef}
             variant="ghost"

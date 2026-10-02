@@ -2,6 +2,7 @@ import { App, TFile, setIcon } from 'obsidian';
 import type { NotePreviewUIManager, PreviewAnchor } from './NotePreviewUIManager';
 import './map-link-preview.scss';
 import { runInBackground } from '../utils/backgroundTask';
+import { t } from '../i18n';
 import { mapThumbnailPath } from '../utils/dataFileMigration';
 
 /**
@@ -127,11 +128,11 @@ export class MapLinkPreview {
       // Gradient overlay with Open Map button
       const overlay = this.cardEl.createDiv({ cls: 'atlas-map-link-preview__overlay' });
       const button = overlay.createEl('button', {
-        text: 'Open map',
+        text: t('mapPreview.open'),
         cls: 'atlas-map-link-preview__button',
       });
       button.addEventListener('click', () => {
-        runInBackground(this.openMap(), `Opening map ${this.file.path}`, 'Could not open the map');
+        runInBackground(this.openMap(), `Opening map ${this.file.path}`, t('mapPreview.openFailed'));
       });
     } else {
       this.buildPlaceholder();
@@ -153,15 +154,15 @@ export class MapLinkPreview {
 
     placeholder.createDiv({
       cls: 'atlas-map-link-preview__placeholder-desc',
-      text: 'Atlas VTT Map',
+      text: t('mapPreview.title'),
     });
 
     const button = placeholder.createEl('button', {
-      text: 'Open map',
+      text: t('mapPreview.open'),
       cls: 'atlas-map-link-preview__button',
     });
     button.addEventListener('click', () => {
-        runInBackground(this.openMap(), `Opening map ${this.file.path}`, 'Could not open the map');
+        runInBackground(this.openMap(), `Opening map ${this.file.path}`, t('mapPreview.openFailed'));
       });
   }
 

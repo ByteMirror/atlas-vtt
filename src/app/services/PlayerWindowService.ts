@@ -10,6 +10,7 @@ import { PlayerDiceRolls } from './PlayerDiceRolls';
 import { PlayerWidgetBar } from './PlayerWidgetBar';
 import { LocalPlayerView, LOCAL_PLAYER_VIEW_TYPE, type PlayerCameraState } from '../local-player-view';
 import { freezeCanvasFrame, type SceneTransition } from '../pixi/sceneTransition';
+import { t } from '../i18n';
 import { PlayerFrameMirror, type PlayerFrameSource } from './PlayerFrameMirror';
 
 /** Scopes the rules in `player-window.scss` to the popout document. */
@@ -79,7 +80,7 @@ export class PlayerWindowService {
     } else {
       this.freezeCamera();
     }
-    new Notice(this.isFrozen() ? 'Player view camera frozen' : 'Player view camera unfrozen');
+    new Notice(this.isFrozen() ? t('player.frozen') : t('player.unfrozen'));
     return this.isFrozen();
   }
 
@@ -153,7 +154,7 @@ export class PlayerWindowService {
    */
   public presentCanvas(source: PlayerFrameSource, tabId: string, filePath?: string): void {
     if (!this.isWindowOpen()) {
-      new Notice('Player window is not open');
+      new Notice(t('player.notOpen'));
       return;
     }
     if (playerWindowStore.getState().presentedTabId !== tabId) this.crossfadeToNextMap();
@@ -276,7 +277,7 @@ export class PlayerWindowService {
       // Double-check we have the right window
       if (this.playerWindow === window) {
         console.error('[PlayerWindowService] ERROR: Player window is the same as main window!');
-        new Notice("Error: Player window is the main window");
+        new Notice(t('player.isMain'));
         return;
       }
       
@@ -290,7 +291,7 @@ export class PlayerWindowService {
       // Create our UI elements
       const loading = content.createDiv();
       loading.id = 'atlas-player-loading';
-      loading.textContent = 'Connecting to game session...';
+      loading.textContent = t('player.connecting');
 
       const canvas = content.createEl('canvas');
       canvas.id = 'atlas-player-canvas';
@@ -316,7 +317,7 @@ export class PlayerWindowService {
       freezeIcon.createSvg('line', { attr: { x1: 2, y1: 12, x2: 22, y2: 12 } });
       freezeIcon.createSvg('line', { attr: { x1: 12, y1: 2, x2: 12, y2: 22 } });
       freezeIcon.createSvg('path', { attr: { d: 'M20 16l-4-4 4-4M4 8l4 4-4 4M16 4l-4 4-4-4M8 20l4-4 4 4' } });
-      freezeIndicator.createSpan({ text: 'Camera paused' });
+      freezeIndicator.createSpan({ text: t('player.paused') });
       freezeIndicator.style.display = this.frozenCamera || this.heldFrame ? 'flex' : 'none';
       
       // Create title bar container
@@ -328,11 +329,11 @@ export class PlayerWindowService {
       titleBar.id = 'atlas-player-titlebar';
       const titleBarText = titleBar.createDiv();
       titleBarText.id = 'atlas-player-titlebar-text';
-      titleBarText.textContent = 'Atlas player view';
+      titleBarText.textContent = t('player.title');
       
 
       // Set window title
-      doc.title = 'Atlas player view';
+      doc.title = t('player.title');
 
       // Start mirroring
       this.startMirroring();
@@ -346,7 +347,7 @@ export class PlayerWindowService {
 
     } catch (error) {
       console.error('[PlayerWindowService] Error setting up player window:', error);
-      new Notice("Failed to set up player window");
+      new Notice(t('player.setupFailed'));
     }
   }
 

@@ -19,6 +19,7 @@ import { listVault, readVault } from './vault-sync/vaultListing';
 import type { CollectionSettings } from '../types/collectionSettingsTypes';
 import { isLegacyTokenRecord, isRecord, type LegacyAssetMetadata } from './assetMetadataGuards';
 import { groupLegacyTags, hasAssetTag, tagGroupOf, tagKey, type TagGroup } from './tagGroups';
+import { t } from '../i18n';
 import { trashVaultItem } from '../utils/trashVaultItem';
 
 export interface BaseAsset {
@@ -377,10 +378,10 @@ export class AssetService {
     try {
       copyPath = await preserveUnreadableMetadata(this.app.vault.adapter, stored.path);
     } catch (error) {
-      new Notice(`Atlas VTT could not read its asset index (${stored.path}) and left it untouched. Restart Obsidian to try again.`, 0);
+      new Notice(t('index.unreadable', { path: stored.path }), 0);
       throw error;
     }
-    new Notice(`Atlas VTT could not read its asset index and is rebuilding it from your collection files. The unreadable file was kept as ${copyPath}.`, 0);
+    new Notice(t('index.rebuilding', { path: copyPath }), 0);
     this.metadata = await this.createDefaultMetadata();
   }
 

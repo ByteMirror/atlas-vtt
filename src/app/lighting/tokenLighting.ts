@@ -3,6 +3,7 @@ import { emissionOfPreset } from './lightEmissionForm';
 import type { LightPresetId } from './lightPresets';
 import { numberText, parseNumberText, positiveNumber } from '../utils/numberInput';
 import { coneAngle } from '../vision/visionCone';
+import { t } from '../i18n';
 
 export interface VisionDefaultsForm {
   /** Game units as typed; blank is unlimited sight. */
@@ -33,18 +34,18 @@ export interface VisionFieldSpec {
 }
 
 export const VISION_FIELDS: readonly VisionFieldSpec[] = [
-  { key: 'range', label: 'Sight range', inGameUnits: true, placeholder: 'Unlimited', resetLabel: 'Unlimited sight' },
-  { key: 'darkvision', label: 'Darkvision', inGameUnits: true, placeholder: 'None', resetLabel: 'No darkvision' },
-  { key: 'tremorsense', label: 'Tremorsense', inGameUnits: true, placeholder: 'None', resetLabel: 'No tremorsense' },
+  { key: 'range', label: t('vision.range'), inGameUnits: true, placeholder: t('vision.unlimited'), resetLabel: t('vision.unlimitedSight') },
+  { key: 'darkvision', label: t('vision.darkvision'), inGameUnits: true, placeholder: t('vision.none'), resetLabel: t('vision.noDarkvision') },
+  { key: 'tremorsense', label: t('vision.tremorsense'), inGameUnits: true, placeholder: t('vision.none'), resetLabel: t('vision.noTremorsense') },
   {
-    key: 'angle', label: 'Vision angle (°)', inGameUnits: false, placeholder: '360', resetLabel: 'See all around',
-    hint: "Faces the token's rotation", min: 1, max: 360,
+    key: 'angle', label: t('vision.angle'), inGameUnits: false, placeholder: '360', resetLabel: t('vision.allAround'),
+    hint: t('vision.angleHint'), min: 1, max: 360,
   },
 ];
 
 /** The label of `field` with the map's game unit, which is empty for abstract units. */
 export function visionFieldLabel(field: VisionFieldSpec, unit: string): string {
-  return field.inGameUnits && unit ? `${field.label} (${unit})` : field.label;
+  return field.inGameUnits && unit ? t('vision.withUnit', { label: field.label, unit }) : field.label;
 }
 
 /** The fields a collection's default vision shows. */

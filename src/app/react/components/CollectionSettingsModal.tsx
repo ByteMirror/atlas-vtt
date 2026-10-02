@@ -35,6 +35,7 @@ import { areRangeBandsValid } from '../../grid/measurementFormat';
 
 import { CloseButton } from '../../packages/components/primitives/CloseButton';
 import { dialogOverlayMotion, useDialogWindowVariants } from '../../packages/components/primitives/dialogMotion';
+import { t } from '../../i18n';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -55,13 +56,13 @@ interface TabDef {
 }
 
 const TABS: TabDef[] = [
-  { id: 'system', label: 'Game System', icon: <Dices size={16} /> },
-  { id: 'grid', label: 'Grid & Measure', icon: <Grid3X3 size={16} /> },
-  { id: 'vision', label: 'Vision', icon: <Eye size={16} /> },
-  { id: 'widgets', label: 'Default Widgets', icon: <LayoutGrid size={16} /> },
-  { id: 'conditions', label: 'Conditions', icon: <ShieldAlert size={16} /> },
-  { id: 'creatureFilters', label: 'Creature Filters', icon: <ListFilter size={16} /> },
-  { id: 'loot', label: 'Loot', icon: <CoinIcon size={16} /> },
+  { id: 'system', label: t('csm.tab.system'), icon: <Dices size={16} /> },
+  { id: 'grid', label: t('csm.tab.grid'), icon: <Grid3X3 size={16} /> },
+  { id: 'vision', label: t('csm.tab.vision'), icon: <Eye size={16} /> },
+  { id: 'widgets', label: t('csm.tab.widgets'), icon: <LayoutGrid size={16} /> },
+  { id: 'conditions', label: t('csm.tab.conditions'), icon: <ShieldAlert size={16} /> },
+  { id: 'creatureFilters', label: t('csm.tab.creatureFilters'), icon: <ListFilter size={16} /> },
+  { id: 'loot', label: t('csm.tab.loot'), icon: <CoinIcon size={16} /> },
 ];
 
 // ── Component ──────────────────────────────────────────────────────────────
@@ -158,10 +159,10 @@ export function CollectionSettingsModal({
         {/* Header */}
         <div className="atlas-collection-settings-header">
           <h3 id="atlas-csm-title">
-            {collectionName} Settings
+            {t('csm.title', { name: collectionName })}
             {releaseLine && <span className="atlas-collection-settings-release">{releaseLine}</span>}
           </h3>
-          <CloseButton onClick={onClose} aria-label="Close settings" />
+          <CloseButton onClick={onClose} aria-label={t('csm.close')} />
         </div>
 
         {/* Body — sidebar + content */}
@@ -249,10 +250,10 @@ export function CollectionSettingsModal({
         {/* Footer */}
         <div className="atlas-collection-settings-footer">
           <Button variant="outline" className="atlas-csm-cancel" onClick={onClose}>
-            Cancel
+            {t('common.cancel')}
           </Button>
           <Button variant="default" className="atlas-csm-save" disabled={!canSave} onClick={() => { void handleSave(); }}>
-            Save
+            {t('common.save')}
           </Button>
         </div>
       </motion.div>

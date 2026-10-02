@@ -11,6 +11,7 @@ import { hasAssetTag } from '../../../../services/tagGroups';
 import type { SidebarLayout } from '../hooks/useSidebarLayout';
 import { sidebarContentVariants, sidebarMotionState, sidebarVariants } from './sidebarMotion';
 import { ClearTagsChip } from './ClearTagsChip';
+import { t } from '../../../../i18n';
 
 export interface SidebarProps {
   selectedTagIds: string[];
@@ -131,17 +132,17 @@ export function Sidebar({
         <motion.div className="atlas-asset-manager-sidebar-content" variants={sidebarContentVariants}>
           <div className="atlas-collections">
             <div className="atlas-collections-heading-row">
-              <div className="atlas-section-title">Collection</div>
+              <div className="atlas-section-title">{t('am.sidebar.collection')}</div>
               <div className="atlas-collections-heading-actions">
                 {selectedCollection && onExportCollection && (
-                  <LabelTooltip label="Export collection">
+                  <LabelTooltip label={t('am.sidebar.export')}>
                     <Button variant="ghost" size="icon" className="atlas-collection-header-btn" onClick={onExportCollection}>
                       <Download />
                     </Button>
                   </LabelTooltip>
                 )}
                 {onImportCollection && (
-                  <LabelTooltip label="Import collection">
+                  <LabelTooltip label={t('am.sidebar.import')}>
                     <Button variant="ghost" size="icon" className="atlas-collection-header-btn" onClick={onImportCollection}>
                       <Upload />
                     </Button>
@@ -161,7 +162,7 @@ export function Sidebar({
                 >
                   <span className="atlas-collection-selected">
                     <Folder />
-                    <span>{selectedCollection ? selectedCollectionName ?? selectedCollection : 'All Collections'}</span>
+                    <span>{selectedCollection ? selectedCollectionName ?? selectedCollection : t('am.sidebar.all')}</span>
                   </span>
                   <ChevronDown className={`atlas-collection-chevron ${isCollectionDropdownOpen ? 'atlas-rotated' : ''}`} />
                 </button>
@@ -172,7 +173,7 @@ export function Sidebar({
                       <Search className="atlas-collection-search-icon" />
                       <input
                         type="text"
-                        placeholder="Search collections…"
+                        placeholder={t('creator.searchCollections')}
                         value={collectionSearchQuery}
                         onChange={(e) => setCollectionSearchQuery(e.target.value)}
                         className="atlas-collection-search-input"
@@ -180,10 +181,10 @@ export function Sidebar({
                       />
                     </div>
                     <div className="atlas-collection-options">
-                      {renderCollectionOption(null, 'All Collections')}
+                      {renderCollectionOption(null, t('am.sidebar.all'))}
                       {filteredCollections.map((collection) => renderCollectionOption(collection.id, collection.name))}
                       {filteredCollections.length === 0 && collectionSearchQuery && (
-                        <div className="atlas-collection-no-results">No collections found</div>
+                        <div className="atlas-collection-no-results">{t('creator.noCollections')}</div>
                       )}
                     </div>
                   </div>
@@ -191,7 +192,7 @@ export function Sidebar({
               </div>
 
               {selectedCollection && onEditCollectionSettings && (
-                <LabelTooltip label="Collection settings">
+                <LabelTooltip label={t('am.sidebar.settings')}>
                   <Button
                     variant="ghost"
                     size="icon"
@@ -208,10 +209,10 @@ export function Sidebar({
           <div className="atlas-tags">
             <div className="atlas-tags-header">
               <div className="atlas-tags-heading">
-                <div className="atlas-section-title">Tags</div>
+                <div className="atlas-section-title">{t('am.sidebar.tags')}</div>
                 <ClearTagsChip count={selectedTagIds.length} onClear={onClearTags} />
               </div>
-              <LabelTooltip label="Search tags">
+              <LabelTooltip label={t('am.sidebar.searchTags')}>
                 <Button
                   variant="ghost"
                   size="icon"
@@ -229,13 +230,13 @@ export function Sidebar({
                 <input
                   ref={tagsSearchInputRef}
                   type="text"
-                  placeholder="Search tags…"
+                  placeholder={t('am.sidebar.searchTagsPlaceholder')}
                   value={tagsSearchQuery}
                   onChange={(e) => setTagsSearchQuery(e.target.value)}
                   className="atlas-tags-search-input"
                 />
                 {tagsSearchQuery && (
-                  <LabelTooltip label="Clear search">
+                  <LabelTooltip label={t('common.clearSearch')}>
                     <Button variant="ghost" size="icon" className="atlas-collection-header-btn" onClick={() => setTagsSearchQuery('')}>
                       <X />
                     </Button>
@@ -265,7 +266,7 @@ export function Sidebar({
               ) : (
                 <div className="atlas-tags-empty">
                   <span className="atlas-tags-empty-text">
-                    {tagsSearchQuery ? 'No matching tags' : 'No tags yet'}
+                    {tagsSearchQuery ? t('am.sidebar.noMatchingTags') : t('am.sidebar.noTags')}
                   </span>
                 </div>
               )}
@@ -280,7 +281,7 @@ export function Sidebar({
             onClick={(e) => { e.stopPropagation(); onManageTags(); }}
           >
             <Settings />
-            <span>Manage</span>
+            <span>{t('am.sidebar.manage')}</span>
           </Button>
         </motion.div>
       </motion.aside>

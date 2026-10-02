@@ -4,6 +4,7 @@ import { setIcon } from 'obsidian';
 import { runInBackground } from '../../../utils/backgroundTask';
 import { LabelTooltip } from '../../../packages/components/primitives/tooltip';
 import './atlas-context-menu.scss';
+import { t } from '../../../i18n';
 
 // ── Entry descriptor (declarative menu definition) ──────────────────────────
 
@@ -91,13 +92,13 @@ function stepperClick(action: () => unknown): (event: React.MouseEvent) => void 
 function Stepper({ stepper }: { stepper: MenuStepper }): React.ReactElement {
   return (
     <span className="atlas-ctx-stepper">
-      <LabelTooltip label={`Lower ${stepper.label}`}>
+      <LabelTooltip label={t('menu.lower', { label: stepper.label })}>
         <button type="button" tabIndex={-1} className="atlas-ctx-stepper__button" disabled={!stepper.canDecrement} onClick={stepperClick(stepper.onDecrement)}>
           <ObsidianIcon name="minus" />
         </button>
       </LabelTooltip>
       <span className="atlas-ctx-stepper__value">{stepper.value}</span>
-      <LabelTooltip label={`Raise ${stepper.label}`}>
+      <LabelTooltip label={t('menu.raise', { label: stepper.label })}>
         <button type="button" tabIndex={-1} className="atlas-ctx-stepper__button" onClick={stepperClick(stepper.onIncrement)}>
           <ObsidianIcon name="plus" />
         </button>

@@ -7,6 +7,7 @@ import { LabelTooltip } from '../primitives/tooltip';
 import { resourceUrl } from '../asset-manager/utils/assetFormatters';
 import './token-picker.scss';
 import { ATLAS_NATIVE_MODAL_CLASSES } from '../../../ui/nativeModal';
+import { t } from '../../../i18n';
 
 /** A token asset whose image exists in the vault, with its resolved resource URL. */
 interface PickableToken extends TokenAsset {
@@ -43,7 +44,7 @@ export class TokenPickerModal extends Modal {
     this.modalEl.addClass(...ATLAS_NATIVE_MODAL_CLASSES, 'token-picker-modal-wrapper');
     
     // Set modal title
-    this.titleEl.setText(`Select Token for ${this.statblockFile.basename}`);
+    this.titleEl.setText(t('picker.token.title', { name: this.statblockFile.basename }));
     
     // Create a container div for React
     const container = contentEl.createDiv({ cls: 'token-picker-root' });
@@ -61,7 +62,7 @@ export class TokenPickerModal extends Modal {
       );
     }).catch(error => {
       console.error('[TokenPicker] Failed to create React root:', error);
-      contentEl.setText('Failed to load token picker');
+      contentEl.setText(t('picker.token.failed'));
     });
   }
 
@@ -175,13 +176,13 @@ const TokenPickerContent: React.FC<TokenPickerModalProps> = ({
       <div className="token-picker-search">
         <input
           type="text"
-          placeholder="Search tokens..."
+          placeholder={t('picker.token.search')}
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="token-picker-search-input"
         />
         {currentlyAssignedToken && (
-          <LabelTooltip label="Remove current token assignment">
+          <LabelTooltip label={t('picker.token.removeCurrent')}>
             <button 
               onClick={() => { void handleRemoveToken(); }}
               className="token-picker-remove-btn"
@@ -195,7 +196,7 @@ const TokenPickerContent: React.FC<TokenPickerModalProps> = ({
       {/* Current assignment indicator */}
       {currentlyAssignedToken && (
         <div className="token-picker-current">
-          <div className="token-picker-current-label">Currently assigned:</div>
+          <div className="token-picker-current-label">{t('picker.token.current')}</div>
           <div className="token-picker-current-token">
             <div className="token-picker-current-image">
               <img 
@@ -213,18 +214,18 @@ const TokenPickerContent: React.FC<TokenPickerModalProps> = ({
       
       <div className="token-picker-content">
         {loading ? (
-          <div className="token-picker-loading">Loading tokens...</div>
+          <div className="token-picker-loading">{t('picker.token.loading')}</div>
         ) : filteredTokens.length === 0 ? (
           <div className="token-picker-empty">
-            {searchTerm ? 'No tokens found matching your search.' : 'No tokens available.'}
+            {searchTerm ? t('picker.token.noMatch') : t('picker.token.none')}
           </div>
         ) : (
           <>
             {!currentlyAssignedToken && (
-              <div className="token-picker-section-label">Select a token to assign:</div>
+              <div className="token-picker-section-label">{t('picker.token.select')}</div>
             )}
             {currentlyAssignedToken && (
-              <div className="token-picker-section-label">Select a different token to reassign:</div>
+              <div className="token-picker-section-label">{t('picker.token.reassign')}</div>
             )}
             <div className="token-picker-grid">
               {filteredTokens.map((token) => {

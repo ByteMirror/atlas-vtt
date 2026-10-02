@@ -16,6 +16,7 @@ import { dialogOverlayMotion, useDialogWindowVariants } from '../primitives/dial
 import { useDialogEscape } from '../primitives/useDialogEscape';
 import { CustomSystemStep, type CustomSystemRules } from './create-collection/CustomSystemStep';
 import { SystemChoiceList, type SystemChoice } from './create-collection/SystemChoiceList';
+import { t } from '../../../i18n';
 
 interface CreateCollectionModalProps {
   /** Names already in use, compared without case. */
@@ -57,7 +58,7 @@ export function CreateCollectionModal({ existingNames, onClose, onCreated }: Cre
   // The name is also the collection's folder name, so it must be a valid one.
   const nameError = collectionNameProblem(name)
     ?? (existingNames.some((existing) => existing.toLowerCase() === trimmedName.toLowerCase())
-      ? `A collection named "${trimmedName}" already exists`
+      ? t('am.collection.nameTaken', { name: trimmedName })
       : null);
   const presetNameError = service?.nameError(presetName) ?? null;
   const rulesValid = areRangeBandsValid(rules.gridDefaults.abstractRangeBands);
@@ -74,7 +75,7 @@ export function CreateCollectionModal({ existingNames, onClose, onCreated }: Cre
       onClose();
     } catch (error) {
       console.error('[CreateCollectionModal] Could not create the collection:', error);
-      showAtlasToast('Could not create the collection');
+      showAtlasToast(t('am.collection.createFailed'));
       setIsCreating(false);
     }
   };
@@ -95,7 +96,7 @@ export function CreateCollectionModal({ existingNames, onClose, onCreated }: Cre
   };
 
   const isCustomStep = step === 'custom';
-  const primaryLabel = isCreating ? 'Creating…' : !isCustomStep && choice.kind === 'custom' ? 'Next' : 'Create collection';
+  const primaryLabel = isCreating ? t('am.create.creating') : !isCustomStep && choice.kind === 'custom' ? t('am.create.next') : t('am.create.collection');
 
   return (
     <motion.div
@@ -125,13 +126,13 @@ export function CreateCollectionModal({ existingNames, onClose, onCreated }: Cre
         <div className="atlas-create-collection__header">
           <h3 id="atlas-create-collection-title">
             {isCustomStep ? (
-              <LabelTooltip label="Back">
+              <LabelTooltip label={t('common.back')}>
                 <Button variant="ghost" size="icon" className="atlas-create-collection__back" onClick={() => setStep('details')}>
                   <ArrowLeft />
                 </Button>
               </LabelTooltip>
             ) : <FolderPlus />}
-            {isCustomStep ? 'New game system' : 'New collection'}
+            {isCustomStep ? t('am.create.newSystem') : t('am.create.newCollection')}
           </h3>
           <CloseButton onClick={onClose} />
         </div>
@@ -148,7 +149,7 @@ export function CreateCollectionModal({ existingNames, onClose, onCreated }: Cre
           ) : (
             <>
               <div className="atlas-csm-field">
-                <label className="atlas-csm-label" htmlFor="atlas-new-collection-name">Name</label>
+                <label className="atlas-csm-label" htmlFor="atlas-new-collection-name">{t('am.create.name')}</label>
                 <input
                   ref={nameRef}
                   id="atlas-new-collection-name"
@@ -162,7 +163,7 @@ export function CreateCollectionModal({ existingNames, onClose, onCreated }: Cre
                 {showErrors && nameError && <p className="atlas-csm-hint atlas-csm-hint--error" role="alert">{nameError}</p>}
               </div>
               <section className="atlas-create-collection__section" aria-labelledby="atlas-new-collection-system">
-                <h4 id="atlas-new-collection-system" className="atlas-create-collection__heading">Game system</h4>
+                <h4 id="atlas-new-collection-system" className="atlas-create-collection__heading">{t('am.create.system')}</h4>
                 <p className="atlas-csm-hint">Sets how distances are measured and which conditions tokens can have. You can change it later in the collection&apos;s settings.</p>
                 <SystemChoiceList presets={presets} choice={choice} onChange={setChoice} />
               </section>
@@ -172,7 +173,7 @@ export function CreateCollectionModal({ existingNames, onClose, onCreated }: Cre
 
         <div className="atlas-create-collection__footer">
           <Button variant="outline" size="sm" onClick={isCustomStep ? () => setStep('details') : onClose}>
-            {isCustomStep ? 'Back' : 'Cancel'}
+            {isCustomStep ? t('common.back') : t('common.cancel')}
           </Button>
           <Button variant="default" size="sm" disabled={isCreating || !service} onClick={primary}>
             {primaryLabel}

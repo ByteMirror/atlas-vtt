@@ -3,6 +3,7 @@ import { isPersistedMapEnvelope, type PersistedMapEnvelope } from '../services/M
 import { ensureHiddenFolder, removeEmptyHiddenFolders, trashHiddenPath } from '../utils/hiddenVaultFiles';
 import { createSnapshot, isSceneSnapshot, restoreSnapshot, type SceneSnapshot } from './sceneSnapshotFormat';
 import { parentFolderOf, snapshotFilePath, snapshotFolderFor, snapshotThumbnailPath } from './snapshotPaths';
+import { t } from '../i18n';
 
 export interface SceneSnapshotEntry {
   snapshot: SceneSnapshot;
@@ -12,7 +13,7 @@ export interface SceneSnapshotEntry {
   thumbnailPath: string | null;
 }
 
-const DEFAULT_NAME = 'Snapshot';
+const DEFAULT_NAME = t('snapshots.defaultName');
 
 /** The first free default name: "Snapshot 3" when "Snapshot 1" and "Snapshot 2" exist. */
 export function nextSnapshotName(existingNames: readonly string[]): string {

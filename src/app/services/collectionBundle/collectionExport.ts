@@ -11,6 +11,7 @@ import { sha256 } from './hashing';
 import { COLLECTION_FIELDS, deleteInstallRecord, moveInstallRecord, readInstallRecord, writeInstallRecord, type InstallRecord } from './installRecord';
 import { remapPaths } from './pathRemap';
 import { readVaultBinary, vaultFileSize } from '../../utils/hiddenVaultFiles';
+import { t } from '../../i18n';
 
 /**
  * The kinds of content Atlas has today, as the asset manager shows them. Older
@@ -161,7 +162,7 @@ export async function exportCollectionBundle(
   const zip = new JSZip();
   const files: BundleFile[] = [];
   for (const [index, file] of selected.files.entries()) {
-    reportFileStep(onProgress, 'Adding', index, selected.files.length, 0, 0.6);
+    reportFileStep(onProgress, 'bundle.step.adding', index, selected.files.length, 0, 0.6);
     const content = await readVaultBinary(app, file.vaultPath);
     if (!content) continue;
     const data = rewriteContent(file, content, origin.names);
@@ -191,7 +192,7 @@ export async function exportCollectionBundle(
   zip.file(BUNDLE_MANIFEST, JSON.stringify(manifest, null, 2));
 
   const blob = await zip.generateAsync({ type: 'blob', streamFiles: true }, ({ percent }) => {
-    onProgress({ message: 'Compressing…', fraction: 0.6 + (percent / 100) * 0.4 });
+    onProgress({ message: t('bundle.compressing'), fraction: 0.6 + (percent / 100) * 0.4 });
   });
   return {
     blob,

@@ -5,6 +5,7 @@ import type { ViewAtlasStore } from '../../storeFactory';
 import { openContextMenuGlobal } from '../../react/root/ContextMenuContext';
 import { dispatchPinAction } from '../utils/pinActions';
 import type { HexLinkRenderer } from './HexLinkRenderer';
+import { t } from '../../i18n';
 
 /** A press that moves further than this (screen pixels) pans the map instead of opening the note. */
 const CLICK_TOLERANCE = 5;
@@ -89,11 +90,11 @@ export class HexLinkInteraction implements HexLinkPointerHandlers {
     const position = { x: e.clientX, y: e.clientY };
     openContextMenuGlobal(
       [
-        { type: 'item', label: 'Open Note', icon: 'file-text', onClick: () => dispatchPinAction('open', pin) },
-        { type: 'item', label: 'Change Note', icon: 'edit', onClick: () => dispatchPinAction('edit', pin) },
+        { type: 'item', label: t('pinMenu.open'), icon: 'file-text', onClick: () => dispatchPinAction('open', pin) },
+        { type: 'item', label: t('hex.changeNote'), icon: 'edit', onClick: () => dispatchPinAction('edit', pin) },
         {
           type: 'item',
-          label: 'Unlink Hex',
+          label: t('hex.unlink'),
           icon: 'unlink',
           destructive: true,
           onClick: () => this.options.store.getState().deleteMapObject('pin', pin.id),

@@ -1,4 +1,5 @@
 import { EventEmitter } from 'events';
+import { t } from '../i18n';
 
 export interface DiceRollResult {
   id: string;
@@ -113,7 +114,7 @@ export class DiceTool {
       rolls,
       modifiers,
       total,
-      player: 'Player' // TODO: Get actual player name from session
+      player: t('dice.player') // TODO: Get actual player name from session
     };
   }
 

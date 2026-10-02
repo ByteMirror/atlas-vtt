@@ -29,6 +29,7 @@ import {
 import type { ToolGroupControls } from "./toolbar/ToolGroup"
 import type { ResponsiveToolbarItem } from "./toolbar/toolbarTypes"
 
+import { t } from '../../i18n';
 /** Tool groups whose options menu is open; only one at a time. */
 type ToolMenu = 'move' | 'fog' | 'draw' | 'text' | 'measure' | 'wall'
 
@@ -177,12 +178,12 @@ export const MainToolbar = forwardRef<HTMLDivElement, MainToolbarProps>(({ viewI
       ? [toolGroupItem('text', textToolFace(activeTool), hotkeyLabel('text'), <TextToolGroup {...groupControls('text')} />)]
       : []),
     toolGroupItem('measure', measureToolFace(activeTool), hotkeyLabel('measure'), <MeasureToolGroup {...groupControls('measure')} />),
-    ...(dm ? [toolButtonItem('pin', "note-pin", MapPin, "Note Pin Tool", hotkeyLabel('pin'))] : []),
+    ...(dm ? [toolButtonItem('pin', "note-pin", MapPin, t('toolbar.notePin'), hotkeyLabel('pin'))] : []),
     ...(dm && WALLS_AND_LIGHTING_ENABLED
       ? [toolGroupItem('wall', lightingToolFace(activeTool), hotkeyLabel('wall'), <LightingToolGroup {...groupControls('wall')} />)]
       : []),
     ...(dm && AMBIENT_AUDIO_ENABLED
-      ? [toolButtonItem('audio', "audio", Volume2, "Ambient Sound", hotkeyLabel('audio'))]
+      ? [toolButtonItem('audio', "audio", Volume2, t('toolbar.ambientSound'), hotkeyLabel('audio'))]
       : []),
     {
       id: 'dice',
@@ -191,18 +192,18 @@ export const MainToolbar = forwardRef<HTMLDivElement, MainToolbarProps>(({ viewI
       pinned: isDiceTrayOpen,
       element: (
         <div ref={diceButtonRef} className="relative flex items-center">
-          <ToolButton icon={Dices} label="Roll Dice" shortcut={hotkeyLabel('diceTray')} isActive={isDiceTrayOpen} onClick={toggleDiceTray} />
+          <ToolButton icon={Dices} label={t('toolbar.rollDice')} shortcut={hotkeyLabel('diceTray')} isActive={isDiceTrayOpen} onClick={toggleDiceTray} />
           {diceTool && (
             <DiceDropdownMenu diceTool={diceTool} isOpen={isDiceTrayOpen} onToggle={toggleDiceTray} triggerRef={diceButtonRef} />
           )}
         </div>
       ),
-      menuEntry: { icon: Dices, label: "Roll Dice", shortcut: hotkeyLabel('diceTray'), isActive: isDiceTrayOpen, onSelect: toggleDiceTray },
+      menuEntry: { icon: Dices, label: t('toolbar.rollDice'), shortcut: hotkeyLabel('diceTray'), isActive: isDiceTrayOpen, onSelect: toggleDiceTray },
     },
     ...(dm ? [
-      buttonItem('loot', { icon: CoinIcon, label: "Loot Roller", shortcut: hotkeyLabel('lootRoller'), isActive: lootRollerOpen, onClick: () => setLootRollerOpen(!lootRollerOpen) }, false),
-      buttonItem('assets', { icon: ImageIcon, label: "Asset Manager", shortcut: hotkeyLabel('assets'), isActive: isAssetManagerOpen, onClick: handleAssetManagerClick }, false),
-      buttonItem('palette', { icon: Command, label: "Command Palette", shortcut: hotkeyLabel('palette'), isActive: isCommandPaletteOpen, onClick: () => setCommandPaletteOpen(!isCommandPaletteOpen) }, false),
+      buttonItem('loot', { icon: CoinIcon, label: t('toolbar.lootRoller'), shortcut: hotkeyLabel('lootRoller'), isActive: lootRollerOpen, onClick: () => setLootRollerOpen(!lootRollerOpen) }, false),
+      buttonItem('assets', { icon: ImageIcon, label: t('toolbar.assetManager'), shortcut: hotkeyLabel('assets'), isActive: isAssetManagerOpen, onClick: handleAssetManagerClick }, false),
+      buttonItem('palette', { icon: Command, label: t('toolbar.commandPalette'), shortcut: hotkeyLabel('palette'), isActive: isCommandPaletteOpen, onClick: () => setCommandPaletteOpen(!isCommandPaletteOpen) }, false),
     ] : []),
   ]
 
@@ -218,8 +219,8 @@ export const MainToolbar = forwardRef<HTMLDivElement, MainToolbarProps>(({ viewI
             onChange={toggleGMView}
             iconOn={Eye}
             iconOff={EyeOff}
-            tooltipOn={`GM View (${hotkeyLabel('gmView')})`}
-            tooltipOff={`Session View (${hotkeyLabel('gmView')})`}
+            tooltipOn={t('toolbar.gmView', { key: hotkeyLabel('gmView') })}
+            tooltipOff={t('toolbar.sessionView', { key: hotkeyLabel('gmView') })}
           />
         )}
       />
@@ -245,8 +246,8 @@ export const MainToolbar = forwardRef<HTMLDivElement, MainToolbarProps>(({ viewI
           borderRadius: 'var(--atlas-radius-l)',
           zIndex: 1000
         }}>
-          <p>Dice tool not initialized. Please try reloading the view.</p>
-          <button onClick={() => setDiceTrayOpen(false)}>Close</button>
+          <p>{t('toolbar.diceFailed')}</p>
+          <button onClick={() => setDiceTrayOpen(false)}>{t('common.close')}</button>
         </div>
       )}
     </TooltipProvider>

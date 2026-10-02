@@ -19,6 +19,7 @@ import { useSpawnCountTyping } from '../hooks/useSpawnCountTyping';
 import { useRememberedScroll, type ScrollMemory } from '../hooks/useRememberedScroll';
 import { useScrollbarGutter } from '../../primitives/useScrollbarGutter';
 import { Button } from '../../primitives/button';
+import { t } from '../../../../i18n';
 
 export interface ContentPaneProps {
   activeTab: Tab;
@@ -150,11 +151,11 @@ export function ContentPane(props: ContentPaneProps): React.JSX.Element {
         {isEmpty ? (
           <motion.div key="empty" className="atlas-empty-state" variants={fadeVariants} initial="hidden" animate="visible" exit="exit">
             <PackageOpen className="atlas-empty-icon" />
-            <h3>No {getTabDisplayName(activeTab).toLowerCase()} {props.onClearFilters ? 'match these filters' : 'yet'}</h3>
+            <h3>{t(props.onClearFilters ? 'am.empty.noMatch' : 'am.empty.none', { tab: getTabDisplayName(activeTab).toLocaleLowerCase() })}</h3>
             {props.onClearFilters ? (
-              <Button variant="outline" className="atlas-empty-action" onClick={props.onClearFilters}>Clear filters</Button>
+              <Button variant="outline" className="atlas-empty-action" onClick={props.onClearFilters}>{t('am.empty.clearFilters')}</Button>
             ) : (
-              <p>Use the + button to add some, or adjust your search and tag filters.</p>
+              <p>{t('am.empty.hint')}</p>
             )}
           </motion.div>
         ) : (
@@ -170,7 +171,7 @@ export function ContentPane(props: ContentPaneProps): React.JSX.Element {
             {folders.length > 0 && (
               <section className="atlas-content-section">
                 <SectionHeader
-                  title="Folders"
+                  title={t('am.folders')}
                   count={folders.length}
                   collapsed={collapsedSections.folders}
                   onToggle={() => setCollapsedSections((prev) => ({ ...prev, folders: !prev.folders }))}

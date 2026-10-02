@@ -5,6 +5,7 @@ import { useAtlasUI } from '../root/AtlasUIContext';
 import { useAtlasStore } from '../ViewStoreContext';
 import { zoomToTokenWithHighlight } from '../../pixi/utils/tokenHighlight';
 import { isModHeld, isModKey } from '../../keyboard/modKey';
+import { t } from '../../i18n';
 
 interface InitiativeCardProps {
   entry: InitiativeEntry;
@@ -217,7 +218,7 @@ export const InitiativeCard: React.FC<InitiativeCardProps> = ({
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
       role="listitem"
-      aria-roledescription="initiative card"
+      aria-roledescription={t('initiative.card')}
     >
       {/* Drag Handle */}
       <div className="atlas-initiative-card__drag-handle">

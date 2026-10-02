@@ -1,6 +1,7 @@
 import { ItemView, type WorkspaceLeaf, type ViewStateResult } from 'obsidian';
 import { PlayerWindowService } from './services/PlayerWindowService';
 import { restorePlayerWindow } from './services/PlayerWindowPresenter';
+import { t } from './i18n';
 
 export const LOCAL_PLAYER_VIEW_TYPE = 'atlas-vtt-local-player';
 
@@ -35,7 +36,7 @@ export class LocalPlayerView extends ItemView {
   }
 
   getViewType(): string { return LOCAL_PLAYER_VIEW_TYPE; }
-  getDisplayText(): string { return 'Player view'; }
+  getDisplayText(): string { return t('view.player'); }
   getIcon(): string { return 'presentation'; }
   getState(): LocalPlayerSession { return { ...this.session }; }
 
@@ -58,7 +59,7 @@ export class LocalPlayerView extends ItemView {
         this.restoreTimer = null;
         if (!this.isClosed) void restorePlayerWindow(this.app, this).catch((error: unknown) => {
           console.error('[LocalPlayerView] Could not restore presentation:', error);
-          this.contentEl.setText('Unable to restore player view. Send a scene to this window again.');
+          this.contentEl.setText(t('view.playerRestoreFailed'));
         });
       }, 0);
     });
@@ -67,7 +68,7 @@ export class LocalPlayerView extends ItemView {
   async onOpen(): Promise<void> {
     this.isClosed = false;
     this.contentEl.addClass('atlas-local-player-content');
-    this.contentEl.setText('Connecting to game session…');
+    this.contentEl.setText(t('view.connecting'));
     if (this.contentEl.win !== window) this.contentEl.doc.body.addClass('atlas-player-window');
   }
 

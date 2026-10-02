@@ -3,6 +3,7 @@ import type { ViewAtlasState } from '../../../storeFactory';
 import type { ContextMenuEntry } from './AtlasContextMenu';
 import { LIGHT_PRESETS, LIGHT_PRESET_IDS, presetOf, type LightPresetId } from '../../../lighting/lightPresets';
 import { carriedLight } from '../../../lighting/tokenLighting';
+import { t } from '../../../i18n';
 
 /**
  * Vision and carried light for `tokenId` and the rest of `targets` (the selection it belongs to),
@@ -28,7 +29,7 @@ export function tokenLightingEntries(store: StoreApi<ViewAtlasState>, tokenId: s
   return [
     {
       type: 'item',
-      label: 'Vision',
+      label: t('vision.toggle'),
       icon: 'scan-eye',
       checked: sees,
       onClick: () => store.getState().updateTokens(
@@ -37,9 +38,9 @@ export function tokenLightingEntries(store: StoreApi<ViewAtlasState>, tokenId: s
     },
     {
       type: 'submenu',
-      label: 'Carry light',
+      label: t('vision.carryLight'),
       icon: 'flame',
-      children: [option('None', null), ...LIGHT_PRESET_IDS.map((id) => option(LIGHT_PRESETS[id].label, id))],
+      children: [option(t('common.none'), null), ...LIGHT_PRESET_IDS.map((id) => option(LIGHT_PRESETS[id].label, id))],
     },
   ];
 }

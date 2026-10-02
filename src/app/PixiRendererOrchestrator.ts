@@ -44,6 +44,7 @@ import { mapMeasurementSettings } from './services/mapMeasurementSettings';
 import { findAtlasLeafByViewId } from './utils/atlasLeafLookup';
 import { destroyTree } from './pixi/utils/destroyTree';
 import { requestRender } from './pixi/RenderScheduler';
+import { t } from './i18n';
 
 export class PixiRendererOrchestrator { // Renamed class
   private _isDestroyed: boolean = false;
@@ -950,7 +951,7 @@ export class PixiRendererOrchestrator { // Renamed class
     runInBackground(
       this.spatialAudioEngine.previewSound(soundId),
       `Previewing sound ${soundId}`,
-      'Could not play the sound preview',
+      t('light.previewFailed'),
     );
   }
 

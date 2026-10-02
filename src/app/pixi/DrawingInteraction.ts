@@ -6,6 +6,7 @@ import { beginHistoryTransaction, endHistoryTransaction } from '../stores/histor
 import { hitTestDrawing } from './drawingGeometry';
 import { MAP_ICON_LABELS } from './mapIcons';
 import { openContextMenuGlobal, type ContextMenuEntry } from '../react/root/ContextMenuContext';
+import { t } from '../i18n';
 
 /** Screen-space slack around ink, so thin lines stay grabbable at any zoom. */
 const HIT_TOLERANCE_PX = 6;
@@ -13,8 +14,8 @@ const HIT_TOLERANCE_PX = 6;
 const DRAG_THRESHOLD = 5;
 /** Same inks the toolbar offers. */
 const INK_COLORS = [
-  { label: 'White', value: '#ffffff' },
-  { label: 'Black', value: '#000000' },
+  { label: t('color.white'), value: '#ffffff' },
+  { label: t('color.black'), value: '#000000' },
 ];
 
 /**
@@ -126,7 +127,7 @@ export class DrawingInteraction {
     const entries: ContextMenuEntry[] = [
       {
         type: 'submenu',
-        label: 'Color',
+        label: t('drawing.color'),
         icon: 'palette',
         children: INK_COLORS.map(({ label, value }) => ({
           type: 'item' as const,
@@ -141,7 +142,7 @@ export class DrawingInteraction {
     if (clicked.type === 'icon') {
       entries.push({
         type: 'submenu',
-        label: 'Change Icon',
+        label: t('drawing.changeIcon'),
         icon: 'shapes',
         children: Object.entries(MAP_ICON_LABELS).map(([icon, label]) => ({
           type: 'item' as const,
@@ -153,8 +154,8 @@ export class DrawingInteraction {
     }
 
     entries.push(
-      { type: 'item', label: 'Duplicate', icon: 'files', onClick: () => this.store.getState().duplicateMapObjects(ids) },
-      { type: 'item', label: 'Delete', icon: 'trash', destructive: true, onClick: () => this.store.getState().deleteSelected() },
+      { type: 'item', label: t('common.duplicate'), icon: 'files', onClick: () => this.store.getState().duplicateMapObjects(ids) },
+      { type: 'item', label: t('common.delete'), icon: 'trash', destructive: true, onClick: () => this.store.getState().deleteSelected() },
     );
 
     const original = e.originalEvent as unknown;

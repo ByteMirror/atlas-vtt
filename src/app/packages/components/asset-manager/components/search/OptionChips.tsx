@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react';
 import type { FacetOption } from '../../../../../creatures/creatureFilterEngine';
 import type { OptionState } from '../../../../../types/creatureFilterTypes';
 import { Button } from '../../../primitives/button';
+import { t } from '../../../../../i18n';
 
 interface OptionChipsProps {
   options: readonly FacetOption[];
@@ -58,7 +59,7 @@ export function OptionChips({ options, label, onChange }: OptionChipsProps): Rea
       ))}
       {foldable && (
         <Button variant="ghost" className="atlas-filter-chips__more" onClick={() => setExpanded(!expanded)}>
-          {expanded ? 'Show fewer' : `Show all ${options.length}`}
+          {expanded ? t('filters.showFewer') : t('filters.showAll', { count: options.length })}
         </Button>
       )}
     </div>

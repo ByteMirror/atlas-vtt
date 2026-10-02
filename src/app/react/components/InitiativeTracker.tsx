@@ -17,6 +17,7 @@ import type { InitiativeEntry } from '../../types/initiativeTypes';
 import type { Character } from '../../types';
 import type { ViewAtlasState } from '../../storeFactory';
 import './initiative-tracker.scss';
+import { t } from '../../i18n';
 
 /**
  * Compact popup for editing initiative value
@@ -104,7 +105,7 @@ function EditInitiativePopup({
           onChange={(e) => onChange(e.target.value)}
           placeholder="0"
         />
-        <span className="atlas-initiative-edit-popup__hint">Enter to save · Esc to cancel</span>
+        <span className="atlas-initiative-edit-popup__hint">{t('initiative.editHint')}</span>
       </div>
     </>
   );
@@ -201,7 +202,7 @@ export const InitiativeTracker: React.FC = () => {
 
       const entry: NewInitiativeEntry = {
         tokenId,
-        name: character ? character.name : 'Token',
+        name: character ? character.name : t('initiative.token'),
         initiative: 0,
         initiativeModifier: 0,
         hp,
@@ -298,18 +299,18 @@ export const InitiativeTracker: React.FC = () => {
   const handleContextMenu = useCallback(
     (e: React.MouseEvent, entry: InitiativeEntry, cardElement: HTMLElement): void => {
       const entries: ContextMenuEntry[] = [
-        { type: 'item', label: 'Roll Initiative', icon: 'dice', onClick: () => rollEntryInitiative(entry.id) },
-        { type: 'item', label: 'Move to Front', icon: 'arrow-up-to-line', onClick: () => moveToFront(entry.id) },
-        { type: 'item', label: 'Move to Back', icon: 'arrow-down-to-line', onClick: () => moveToBack(entry.id) },
+        { type: 'item', label: t('initiative.roll'), icon: 'dice', onClick: () => rollEntryInitiative(entry.id) },
+        { type: 'item', label: t('initiative.toFront'), icon: 'arrow-up-to-line', onClick: () => moveToFront(entry.id) },
+        { type: 'item', label: t('initiative.toBack'), icon: 'arrow-down-to-line', onClick: () => moveToBack(entry.id) },
         {
-          type: 'item', label: 'Edit Initiative', icon: 'pencil',
+          type: 'item', label: t('initiative.edit'), icon: 'pencil',
           onClick: () => {
             setEditingEntry(entry);
             setEditAnchorRect(cardElement.getBoundingClientRect());
             setEditValue(String(entry.initiative));
           },
         },
-        { type: 'item', label: 'Remove from Initiative', icon: 'trash-2', destructive: true, onClick: () => removeFromInitiative(entry.id) },
+        { type: 'item', label: t('initiative.remove'), icon: 'trash-2', destructive: true, onClick: () => removeFromInitiative(entry.id) },
       ];
 
       openContextMenuGlobal(entries, { x: e.clientX, y: e.clientY });

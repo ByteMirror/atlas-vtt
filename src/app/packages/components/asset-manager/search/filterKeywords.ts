@@ -3,6 +3,7 @@ import type { CreatureFacets } from '../../../../creatures/creatureFilterEngine'
 import type { CreatureFilterDefinition, NumericRange } from '../../../../types/creatureFilterTypes';
 import type { QueryKeyword } from '../../../../search/querySyntax';
 import type { Tab } from '../types';
+import { t } from '../../../../i18n';
 
 /** A keyword of the asset search and what it filters. */
 export type FilterKeyword = QueryKeyword & (
@@ -53,7 +54,7 @@ function creatureKeyword(definition: CreatureFilterDefinition, taken: Set<string
   return definition.kind === 'range'
     ? {
       kind: 'range', filterId: definition.id, prefix: names.prefix, aliases, numeric: true,
-      description: `${definition.label}: a value or a range, like ${names.prefix}:1-3 or ${names.prefix}>=5`,
+      description: t('filters.keyword.range', { label: definition.label, example1: `${names.prefix}:1-3`, example2: `${names.prefix}>=5` }),
       accepts: (value) => rangeValue(value) !== null,
     }
     : { kind: 'options', filterId: definition.id, prefix: names.prefix, aliases, numeric: false, negatable: true, description: definition.label };
@@ -62,13 +63,13 @@ function creatureKeyword(definition: CreatureFilterDefinition, taken: Set<string
 /** The keywords the search of a tab understands: name and tag everywhere, statblock fields on the Characters tab. */
 export function filterKeywords(tab: Tab, definitions: readonly CreatureFilterDefinition[]): FilterKeyword[] {
   const keywords: FilterKeyword[] = [
-    { kind: 'name', prefix: 'name', aliases: ['n'], numeric: false, description: 'Part of the name' },
-    { kind: 'tag', prefix: 'tag', aliases: ['tags'], numeric: false, description: 'Tag' },
+    { kind: 'name', prefix: 'name', aliases: ['n'], numeric: false, description: t('filters.keyword.name') },
+    { kind: 'tag', prefix: 'tag', aliases: ['tags'], numeric: false, description: t('filters.tag') },
   ];
   if (tab !== 'tokens') return keywords;
   keywords.push(
-    { kind: 'statblock', prefix: 'statblock', aliases: ['sb'], numeric: false, description: 'With or without a statblock: yes or no', accepts: (value) => statblockValue(value) !== null },
-    { kind: 'layout', prefix: 'layout', aliases: [], numeric: false, negatable: true, description: 'Statblock layout' },
+    { kind: 'statblock', prefix: 'statblock', aliases: ['sb'], numeric: false, description: t('filters.keyword.statblock'), accepts: (value) => statblockValue(value) !== null },
+    { kind: 'layout', prefix: 'layout', aliases: [], numeric: false, negatable: true, description: t('filters.keyword.layout') },
   );
   const taken = new Set(keywords.flatMap((keyword) => [keyword.prefix, ...keyword.aliases]));
   for (const definition of definitions) {

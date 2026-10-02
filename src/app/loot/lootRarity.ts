@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 /**
  * The classic item-rarity ladder games colour loot by. An item's own rarity
  * names map onto it, so a Rarity property can use the words its system uses.
@@ -7,11 +8,11 @@ export const RARITY_TONES = ['common', 'uncommon', 'rare', 'epic', 'legendary'] 
 export type RarityTone = typeof RARITY_TONES[number];
 
 export const RARITY_LABELS: Record<RarityTone, string> = {
-  common: 'Common',
-  uncommon: 'Uncommon',
-  rare: 'Rare',
-  epic: 'Epic',
-  legendary: 'Legendary',
+  common: t('loot.rarity.common'),
+  uncommon: t('loot.rarity.uncommon'),
+  rare: t('loot.rarity.rare'),
+  epic: t('loot.rarity.epic'),
+  legendary: t('loot.rarity.legendary'),
 };
 
 const TONES: ReadonlyArray<readonly [RegExp, RarityTone]> = [

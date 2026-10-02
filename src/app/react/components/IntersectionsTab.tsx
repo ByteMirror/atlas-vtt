@@ -14,12 +14,13 @@ import {
   describeGridType,
 } from '../hooks/useGridAlignmentEffects';
 import type { AlignmentTabProps } from '../hooks/useGridAlignmentEffects';
+import { t } from '../../i18n';
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
-const QUADRANT_LABELS = ['top-left', 'top-right', 'bottom-left', 'bottom-right'] as const;
+const QUADRANT_LABELS = [t('align.area.topLeft'), t('align.area.topRight'), t('align.area.bottomLeft'), t('align.area.bottomRight')] as const;
 const TOTAL_PAIRS = 4;
 const TOTAL_STEPS = TOTAL_PAIRS * 2;
 
@@ -51,13 +52,13 @@ export function IntersectionsTab({ controller, view, result, setResult, gridType
 
   function getInstructionText(): string {
     if (isPreviewing) {
-      return 'Preview the grid alignment. Use arrow keys to nudge offset (Shift for sub-pixel).';
+      return t('align.preview');
     }
     const label = QUADRANT_LABELS[quadrantIndex];
     if (isPlacingA) {
-      return `Click a ${hints.first} in the ${label} area.`;
+      return t(hints.first, { area: label ?? '' });
     }
-    return hints.second;
+    return t(hints.second);
   }
 
   // -----------------------------------------------------------------------
@@ -152,20 +153,20 @@ export function IntersectionsTab({ controller, view, result, setResult, gridType
       {result && (
         <div className="atlas-grid-alignment-result">
           <div>
-            Cell size: {result.cellSize.toFixed(2)} px
-            {measurements.length > 0 && ` (from ${measurements.length} measurement${measurements.length === 1 ? '' : 's'})`}
+            {t('align.cellSize', { size: result.cellSize.toFixed(2) })}
+            {measurements.length > 0 && t('align.fromMeasurements', { count: measurements.length })}
           </div>
           {measurements.length > 1 && (
             <div className="atlas-grid-alignment-measurements">
-              Individual: {individualSizes.map(s => s.toFixed(1)).join(', ')} px
+              {t('align.individual', { sizes: individualSizes.map(s => s.toFixed(1)).join(', ') })}
             </div>
           )}
           {result.gridType && result.gridType !== 'square' && (
-            <div className="atlas-grid-alignment-measurements">Detected {describeGridType(result.gridType)}</div>
+            <div className="atlas-grid-alignment-measurements">{t('align.detected', { type: describeGridType(result.gridType) })}</div>
           )}
           {result.maxResidual !== undefined && result.maxResidual > 3 && (
             <div className="atlas-grid-alignment-measurements">
-              Measurements disagree by up to {result.maxResidual.toFixed(1)} px. Re-check the clicked corners.
+              {t('align.disagree', { residual: result.maxResidual.toFixed(1) })}
             </div>
           )}
         </div>

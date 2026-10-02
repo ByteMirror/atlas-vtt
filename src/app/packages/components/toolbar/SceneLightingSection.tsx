@@ -1,3 +1,4 @@
+import { t } from '../../../i18n';
 import React from "react"
 import { RotateCcw, SlidersHorizontal } from "lucide-react"
 import { DEFAULT_AMBIENT_COLOR } from "../../../lighting/sceneLightingOptions"
@@ -11,10 +12,10 @@ import { LabelTooltip } from "../primitives/tooltip"
 type TimeOfDay = 'day' | 'dusk' | 'night' | 'dark'
 
 const TIMES_OF_DAY: { value: TimeOfDay; label: string; ambient: number }[] = [
-  { value: 'day', label: 'Day', ambient: 1 },
-  { value: 'dusk', label: 'Dusk', ambient: 0.5 },
-  { value: 'night', label: 'Night', ambient: 0.15 },
-  { value: 'dark', label: 'Pitch black', ambient: 0 },
+  { value: 'day', label: t('sceneLight.day'), ambient: 1 },
+  { value: 'dusk', label: t('sceneLight.dusk'), ambient: 0.5 },
+  { value: 'night', label: t('sceneLight.night'), ambient: 0.15 },
+  { value: 'dark', label: t('sceneLight.dark'), ambient: 0 },
 ]
 
 interface SceneLightingSectionProps {
@@ -33,13 +34,13 @@ export function SceneLightingSection({ lighting, onChange, preview, onPreviewCha
   const time = TIMES_OF_DAY.find((stop) => stop.ambient === lighting.ambient)?.value ?? 'custom'
   return (
     <div className="atlas-dropdown-section">
-      <DropdownToggleRow label="Dynamic lighting" value={lighting.enabled} onChange={() => onChange({ enabled: !lighting.enabled })} />
+      <DropdownToggleRow label={t('sceneLight.dynamic')} value={lighting.enabled} onChange={() => onChange({ enabled: !lighting.enabled })} />
       {lighting.enabled && (
         <>
           <SegmentedControl<TimeOfDay | 'custom'>
             value={time}
             options={TIMES_OF_DAY}
-            ariaLabel="Time of day"
+            ariaLabel={t('sceneLight.timeOfDay')}
             onChange={(value) => {
               const stop = TIMES_OF_DAY.find((candidate) => candidate.value === value)
               if (stop) onChange({ ambient: stop.ambient })
@@ -47,14 +48,14 @@ export function SceneLightingSection({ lighting, onChange, preview, onPreviewCha
           />
           <div className="atlas-scene-lighting-ambient">
             <DropdownSliderRow
-              label="Ambient light"
+              label={t('sceneLight.ambient')}
               value={Math.round(lighting.ambient * 100)}
               min={0}
               max={100}
               unit="%"
               onChange={(percent) => onChange({ ambient: percent / 100 })}
             />
-            <LabelTooltip label="Ambient colour">
+            <LabelTooltip label={t('sceneLight.ambientColour')}>
               <input
                 type="color"
                 className="atlas-scene-lighting-ambient__swatch"
@@ -63,9 +64,9 @@ export function SceneLightingSection({ lighting, onChange, preview, onPreviewCha
               />
             </LabelTooltip>
           </div>
-          <DropdownToggleRow label="Preview player view" value={preview} onChange={() => onPreviewChange(!preview)} />
-          <DropdownMenuItem icon={RotateCcw} label="Forget explored areas" onClick={onResetExplored} />
-          <DropdownMenuItem icon={SlidersHorizontal} label="Lighting settings…" onClick={onOpenSettings} />
+          <DropdownToggleRow label={t('sceneLight.preview')} value={preview} onChange={() => onPreviewChange(!preview)} />
+          <DropdownMenuItem icon={RotateCcw} label={t('sceneLight.forgetExplored')} onClick={onResetExplored} />
+          <DropdownMenuItem icon={SlidersHorizontal} label={t('sceneLight.openSettings')} onClick={onOpenSettings} />
         </>
       )}
     </div>

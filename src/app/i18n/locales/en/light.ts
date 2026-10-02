@@ -1,0 +1,28 @@
+import type { Message } from '../../types';
+
+export const light = {
+  'light.title': 'Light',
+  'light.previewFailed': 'Could not play the sound preview',
+  'light.configure': 'Configure light…',
+  'light.delete': 'Delete light',
+  'light.preset.candle': 'Candle',
+  'light.preset.torch': 'Torch',
+  'light.preset.lantern': 'Lantern',
+  'light.preset.magical': 'Magical light',
+  'light.anim.none': 'Steady',
+  'light.anim.torch': 'Torch flicker',
+  'light.anim.candle': 'Candle flicker',
+  'light.anim.pulse': 'Pulse',
+  'light.anim.magic': 'Magical shimmer',
+  'light.custom': 'Custom',
+  'light.settings': 'Light settings',
+  'light.closeSettings': 'Close light settings',
+  'light.kind': 'Kind of light',
+  'light.bright': 'Bright ({unit})',
+  'light.dim': 'Dim ({unit})',
+  'light.intensity': 'Intensity',
+  'light.softness': 'Softness',
+  'light.animation': 'Animation',
+  'light.turnOn': 'Turn on',
+  'light.turnOff': 'Turn off',
+} as const satisfies Record<string, Message>;

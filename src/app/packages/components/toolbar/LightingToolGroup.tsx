@@ -1,3 +1,4 @@
+import { t } from '../../../i18n';
 import React, { useState } from "react"
 import { BrickWall, Flame, FlameKindling, Lamp, Lightbulb, MousePointer2, Pencil, Sparkles } from "lucide-react"
 import { useHotkeyLabels } from "../../../keyboard/useMapHotkeys"
@@ -39,7 +40,7 @@ export function LightingToolGroup({ activeTool, selectTool, menuOpen, toggleMenu
     <ToolGroup
       face={face}
       shortcut={hotkeyLabel('wall')}
-      menuLabel="Lighting options"
+      menuLabel={t('toolbar.lightingOptions')}
       menuOpen={menuOpen}
       onSelect={() => selectTool(face.tool)}
       onMenuToggle={toggleMenu}
@@ -48,8 +49,8 @@ export function LightingToolGroup({ activeTool, selectTool, menuOpen, toggleMenu
         <DropdownModeSelector
           value={subMode}
           options={[
-            { value: 'draw' as const, icon: BrickWall, label: 'Draw walls' },
-            { value: 'place-light' as const, icon: Lightbulb, label: 'Place lights' },
+            { value: 'draw' as const, icon: BrickWall, label: t('toolbar.drawWalls') },
+            { value: 'place-light' as const, icon: Lightbulb, label: t('toolbar.placeLights') },
           ]}
           onChange={(mode) => {
             setSubMode(mode)
@@ -64,8 +65,8 @@ export function LightingToolGroup({ activeTool, selectTool, menuOpen, toggleMenu
           <DropdownModeSelector
             value={drawMode}
             options={[
-              { value: 'point-to-point' as const, icon: MousePointer2, label: 'Point to point' },
-              { value: 'freeform' as const, icon: Pencil, label: 'Freehand' },
+              { value: 'point-to-point' as const, icon: MousePointer2, label: t('toolbar.pointToPoint') },
+              { value: 'freeform' as const, icon: Pencil, label: t('toolbar.freehand') },
             ]}
             onChange={(mode) => {
               setDrawMode(mode)

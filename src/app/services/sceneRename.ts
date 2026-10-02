@@ -2,6 +2,7 @@ import { Notice, normalizePath, type App } from 'obsidian';
 import type { AssetService } from './AssetService';
 import { getLoadedAtlasView } from '../plugin/atlasLeaves';
 import { INVALID_NAME_CHARACTERS } from './assetPaths';
+import { t } from '../i18n';
 
 /**
  * Writes the pending changes of an open scene before its file moves;
@@ -22,7 +23,7 @@ export async function renameScene(app: App, assetService: AssetService, sceneId:
   const scene = await assetService.getAssetById(sceneId);
   if (!name || scene?.type !== 'scene') return false;
   if (INVALID_NAME_CHARACTERS.test(name)) {
-    new Notice('Scene names cannot contain \\ / : * ? " < > | # ^ [ or ]');
+    new Notice(t('names.invalidScene'));
     return false;
   }
 
@@ -36,7 +37,7 @@ export async function renameScene(app: App, assetService: AssetService, sceneId:
   const mapPath = normalizePath(`${folder}${name}.${mapFile.extension}`);
   if (mapPath !== mapFile.path) {
     if (app.vault.getAbstractFileByPath(mapPath)) {
-      new Notice(`A scene named "${name}" already exists`);
+      new Notice(t('am.scene.nameTaken', { name }));
       return false;
     }
     await saveOpenScene(app, mapFile.path);

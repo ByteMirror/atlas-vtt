@@ -6,6 +6,7 @@ import type { SortOption } from '../types';
 import type { SelectionState } from '../hooks/useSelectionHandlers';
 import { SORT_LABELS } from '../utils/assetSort';
 import { HeaderMenu } from './HeaderMenu';
+import { t } from '../../../../i18n';
 
 const ALL_SORT_OPTIONS = Object.keys(SORT_LABELS) as SortOption[];
 
@@ -24,7 +25,7 @@ export function SortControls({ sortBy, sortOptions, setSortBy, sortOrder, setSor
   return (
     <>
       <div className="atlas-am-sort-inline">
-        <LabelTooltip label={`Sort by ${SORT_LABELS[sortBy]} (click to change)`}>
+        <LabelTooltip label={t('sort.current', { field: SORT_LABELS[sortBy] })}>
           <Button variant="ghost" className="atlas-am-sort" onClick={cycleSort}>
             {/* Every label is rendered in the same cell so the button is always as wide as the longest one */}
             <span className="atlas-am-sort-stack">
@@ -36,7 +37,7 @@ export function SortControls({ sortBy, sortOptions, setSortBy, sortOrder, setSor
             </span>
           </Button>
         </LabelTooltip>
-        <LabelTooltip label={sortOrder === 'asc' ? 'Ascending' : 'Descending'}>
+        <LabelTooltip label={sortOrder === 'asc' ? t('am.menu.ascending') : t('am.menu.descending')}>
           <Button
             variant="ghost"
             size="icon"
@@ -50,7 +51,7 @@ export function SortControls({ sortBy, sortOptions, setSortBy, sortOrder, setSor
 
       <HeaderMenu
         className="atlas-am-sort-menu"
-        label={`Sort by ${SORT_LABELS[sortBy]}, ${sortOrder === 'asc' ? 'ascending' : 'descending'}`}
+        label={t(sortOrder === 'asc' ? 'sort.ascending' : 'sort.descending', { field: SORT_LABELS[sortBy] })}
         triggerClassName="atlas-am-icon-btn"
         iconTrigger
         triggerContent={<ArrowUpDown />}
@@ -61,8 +62,8 @@ export function SortControls({ sortBy, sortOptions, setSortBy, sortOrder, setSor
             checked: option === sortBy,
             onSelect: () => setSortBy(option),
           })),
-          { key: 'asc', label: 'Ascending', checked: sortOrder === 'asc', separated: true, onSelect: () => setSortOrder('asc') },
-          { key: 'desc', label: 'Descending', checked: sortOrder === 'desc', onSelect: () => setSortOrder('desc') },
+          { key: 'asc', label: t('am.menu.ascending'), checked: sortOrder === 'asc', separated: true, onSelect: () => setSortOrder('asc') },
+          { key: 'desc', label: t('am.menu.descending'), checked: sortOrder === 'desc', onSelect: () => setSortOrder('desc') },
         ]}
       />
     </>

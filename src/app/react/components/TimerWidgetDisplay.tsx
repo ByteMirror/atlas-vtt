@@ -6,6 +6,7 @@ import type { ViewAtlasStore } from '../../storeFactory';
 import { WidgetIconGlyph } from './WidgetIconGlyph';
 import { LabelTooltip } from '../../packages/components/primitives/tooltip';
 import { DEFAULT_TIMER_COLOR, formatTimerTime } from '../../utils/timerWidget';
+import { t } from '../../i18n';
 
 interface TimerWidgetDisplayProps {
   widget: TimerWidget;
@@ -219,7 +220,7 @@ export function TimerWidgetDisplay({
         <div className="atlas-widget-value-row">
           {/* GM-only controls: play/pause */}
           {!isPlayerView && (
-            <LabelTooltip label={isRunning ? 'Pause' : 'Start'}>
+            <LabelTooltip label={isRunning ? t('timer.pause') : t('timer.start')}>
               <button
                 onClick={handlePlayPause}
                 className="atlas-timer-btn"
@@ -236,7 +237,7 @@ export function TimerWidgetDisplay({
               type="text"
               className="atlas-timer-edit-input"
               defaultValue={formatTimerTime(duration)}
-              placeholder="MM:SS"
+              placeholder={t('timer.placeholder')}
               onBlur={() => commitEdit(true)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') commitEdit(true);
@@ -254,7 +255,7 @@ export function TimerWidgetDisplay({
 
           {/* GM-only controls: reset */}
           {!isPlayerView && (
-            <LabelTooltip label="Reset">
+            <LabelTooltip label={t('common.reset')}>
               <button
                 onClick={handleReset}
                 className="atlas-timer-btn"

@@ -12,11 +12,12 @@ import type { CreatureFilterPanel } from '../../hooks/useCreatureFilters';
 import { FilterSection } from './FilterSection';
 import { OptionChips } from './OptionChips';
 import { RangeFilter } from './RangeFilter';
+import { t } from '../../../../../i18n';
 
 const STATBLOCK_CHOICES = [
-  { value: 'any', label: 'All' },
-  { value: 'linked', label: 'With statblock' },
-  { value: 'unlinked', label: 'Without' },
+  { value: 'any', label: t('filters.all') },
+  { value: 'linked', label: t('filters.withStatblock') },
+  { value: 'unlinked', label: t('filters.without') },
 ] as const;
 
 const PANEL_MOTION = {
@@ -28,10 +29,10 @@ const PANEL_MOTION = {
 
 function hiddenText({ withoutStatblock, withoutField }: HiddenSummary): string | null {
   const parts = [
-    ...(withoutStatblock > 0 ? [`${withoutStatblock} without a statblock`] : []),
-    ...withoutField.map(({ label, count }) => `${count} without ${label.toLowerCase()}`),
+    ...(withoutStatblock > 0 ? [t('filters.hiddenNoStatblock', { count: withoutStatblock })] : []),
+    ...withoutField.map(({ label, count }) => t('filters.hiddenNoField', { count, field: label.toLocaleLowerCase() })),
   ];
-  return parts.length > 0 ? `Hidden: ${parts.join(', ')}` : null;
+  return parts.length > 0 ? t('filters.hidden', { parts: parts.join(', ') }) : null;
 }
 
 interface AdvancedFilterPanelProps {
@@ -70,18 +71,18 @@ export function AdvancedFilterPanel({ panel, onClose, onReset, anchorRef }: Adva
   }, [onClose, anchorRef]);
 
   return (
-    <motion.div ref={rootRef} className="atlas-filter-panel" role="dialog" aria-label="Filters" {...PANEL_MOTION}>
+    <motion.div ref={rootRef} className="atlas-filter-panel" role="dialog" aria-label={t('filters.title')} {...PANEL_MOTION}>
       <div className="atlas-filter-panel__header">
-        <h3>Filters</h3>
-        <CloseButton onClick={onClose} aria-label="Close filters" />
+        <h3>{t('filters.title')}</h3>
+        <CloseButton onClick={onClose} aria-label={t('filters.close')} />
       </div>
 
       <div className="atlas-filter-panel__body">
-        <p className="atlas-filter-panel__hint">Click an option to require it, double-click to exclude it.</p>
-        <FilterSection title="Statblock" active={selection.statblock !== 'any'}>
+        <p className="atlas-filter-panel__hint">{t('filters.hint')}</p>
+        <FilterSection title={t('filters.statblock')} active={selection.statblock !== 'any'}>
           <SegmentedControl
             className="atlas-filter-panel__statblock"
-            ariaLabel="Statblock"
+            ariaLabel={t('filters.statblock')}
             value={selection.statblock}
             options={STATBLOCK_CHOICES}
             onChange={(value: StatblockLinkFilter) => setSelection((current) => withStatblockFilter(current, value))}
@@ -107,9 +108,9 @@ export function AdvancedFilterPanel({ panel, onClose, onReset, anchorRef }: Adva
         ))}
 
         {showLayouts && (
-          <FilterSection title="Layout" active={hasPicks(selection.layouts)}>
+          <FilterSection title={t('filters.layout')} active={hasPicks(selection.layouts)}>
             <OptionChips
-              label="Layout"
+              label={t('filters.layout')}
               options={facets.layouts}
               onChange={(layout, state) => setSelection((current) => withOptionState(current, LAYOUT_FACET, layout, state))}
             />
@@ -118,15 +119,15 @@ export function AdvancedFilterPanel({ panel, onClose, onReset, anchorRef }: Adva
 
         {!hasStatblockFields && (
           <p className="atlas-filter-panel__empty">
-            {panel.pending ? 'Reading statblocks…' : 'Link statblocks to these characters to filter them by challenge rating, type and more.'}
+            {panel.pending ? t('csm.filters.reading') : t('filters.linkHint')}
           </p>
         )}
       </div>
 
       <div className="atlas-filter-panel__footer">
         {hidden && <span className="atlas-filter-panel__hidden" role="status">{hidden}</span>}
-        <Button variant="ghost" className="atlas-filter-panel__reset" disabled={panel.activeCount === 0} onClick={onReset}>Reset</Button>
-        <Button variant="default" className="atlas-filter-panel__done" onClick={onClose}>Done</Button>
+        <Button variant="ghost" className="atlas-filter-panel__reset" disabled={panel.activeCount === 0} onClick={onReset}>{t('common.reset')}</Button>
+        <Button variant="default" className="atlas-filter-panel__done" onClick={onClose}>{t('common.done')}</Button>
       </div>
     </motion.div>
   );

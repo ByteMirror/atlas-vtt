@@ -1,4 +1,5 @@
 import type { FantasyStatblocksCreature } from '../../../../services/FantasyStatblocksService';
+import { t } from '../../../../i18n';
 
 /** A note-backed creature a token can link to. */
 export interface StatblockEntry {
@@ -20,7 +21,7 @@ export function describeCreature(creature: FantasyStatblocksCreature): string {
   const cr = label(creature.cr);
   const tier = label(creature.tier);
   const level = label(creature.level);
-  const rating = cr ? `CR ${cr}` : tier ? `Tier ${tier}` : level ? `Level ${level}` : '';
+  const rating = cr ? t('am.rating.cr', { value: cr }) : tier ? t('am.rating.tier', { value: tier }) : level ? t('am.rating.level', { value: level }) : '';
   return [kind, rating].filter(Boolean).join(' · ');
 }
 

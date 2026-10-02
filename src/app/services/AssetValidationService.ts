@@ -1,5 +1,6 @@
 import { App, Notice, TFile, normalizePath } from 'obsidian';
 import type { MapFile } from './MapPersistence';
+import { t } from '../i18n';
 
 /** The parts of a map that reference vault images; satisfied by a MapFile and by the live store state. */
 export interface MapAssetReferences {
@@ -86,7 +87,7 @@ export class AssetValidationService {
                 type: 'map',
                 path: mapData.background,
                 objectId: 'background',
-                objectName: 'Map Background'
+                objectName: t('validation.mapBackground')
             });
         }
 
@@ -116,11 +117,11 @@ export class AssetValidationService {
         const tokenCount = missingAssets.filter(a => a.type === 'token').length;
         const mapCount = missingAssets.filter(a => a.type === 'map').length;
 
-        let message = 'Missing assets detected:\n';
-        if (tokenCount > 0) message += `- ${tokenCount} token image${tokenCount > 1 ? 's' : ''}\n`;
-        if (mapCount > 0) message += `- ${mapCount} map background${mapCount > 1 ? 's' : ''}\n`;
+        let message = `${t('validation.missing')}\n`;
+        if (tokenCount > 0) message += `- ${t('validation.tokenImages', { count: tokenCount })}\n`;
+        if (mapCount > 0) message += `- ${t('validation.backgrounds', { count: mapCount })}\n`;
         
-        message += '\nMissing assets will display as placeholders.';
+        message += `\n${t('validation.placeholders')}`;
 
         new Notice(message, 5000);
     }

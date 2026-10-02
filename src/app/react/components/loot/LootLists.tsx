@@ -3,10 +3,10 @@ import { History, Map as MapIcon, Sparkles, X } from 'lucide-react';
 import type { LootDraw } from '../../../loot/lootRoller';
 import type { LootRoll } from '../../../loot/lootHistory';
 import { formatRelativeTime } from '../../../utils/relativeTime';
-import { plural } from '../../../utils/plural';
 import { Button } from '../../../packages/components/primitives/button';
 import { LabelTooltip } from '../../../packages/components/primitives/tooltip';
 import { LootResultCard } from './LootResultCard';
+import { t } from '../../../i18n';
 
 interface CardHandlers {
   onOpenSource: (draw: LootDraw) => void;
@@ -34,7 +34,7 @@ export function LootResults({ roll, fresh, ...handlers }: LootResultsProps): Rea
     return (
       <div className="atlas-loot-list__empty">
         <Sparkles />
-        <span>Rolled items appear here</span>
+        <span>{t('loot.results.empty')}</span>
       </div>
     );
   }
@@ -58,7 +58,7 @@ export function LootHistory({ rolls, onRemove, ...handlers }: LootHistoryProps):
     return (
       <div className="atlas-loot-list__empty">
         <History />
-        <span>Rolls from every map of this collection are kept here</span>
+        <span>{t('loot.history.empty')}</span>
       </div>
     );
   }
@@ -69,9 +69,9 @@ export function LootHistory({ rolls, onRemove, ...handlers }: LootHistoryProps):
           <div className="atlas-loot-history__meta">
             <span className="atlas-loot-history__when">{formatRelativeTime(roll.rolledAt)}</span>
             <span className="atlas-loot-history__map"><MapIcon />{roll.mapName}</span>
-            <span className="atlas-loot-history__count">{plural(roll.draws.length, 'item')}</span>
-            <LabelTooltip label="Remove this roll">
-              <Button variant="ghost" size="icon" className="atlas-loot-history__remove" aria-label="Remove this roll" onClick={() => onRemove(roll.id)}>
+            <span className="atlas-loot-history__count">{t('loot.items', { count: roll.draws.length })}</span>
+            <LabelTooltip label={t('loot.history.remove')}>
+              <Button variant="ghost" size="icon" className="atlas-loot-history__remove" aria-label={t('loot.history.remove')} onClick={() => onRemove(roll.id)}>
                 <X />
               </Button>
             </LabelTooltip>

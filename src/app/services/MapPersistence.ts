@@ -12,6 +12,7 @@ import { normalizeImagePath } from '../utils/pathUtils';
 import { fixMapTokenPaths } from '../utils/fixMapPaths';
 import { getDataFilePath } from '../utils/dataFileMigration';
 import { ensureFolder } from '../plugin/vaultFolders';
+import { t } from '../i18n';
 
 // Type definitions
 export interface CameraState {
@@ -146,7 +147,7 @@ async function preserveUnreadableMapData(app: App, file: TFile, reason: string):
   const backupPath = `${file.path}.${Date.now()}.bak`;
   try {
     await app.vault.copy(file, backupPath);
-    new Notice(`Atlas VTT could not read ${file.name} (${reason}). A copy was kept at ${backupPath}.`, 0);
+    new Notice(t('map.readFailed', { file: file.name, reason, backup: backupPath }), 0);
   } catch (error) {
     console.error(`[AtlasStorage] Could not back up ${file.path}:`, error);
   }

@@ -8,11 +8,12 @@ import { useArrowNudge, useCrosshairCursor } from '../hooks/useGridAlignmentEffe
 import type { AlignmentTabProps } from '../hooks/useGridAlignmentEffects';
 import { useFreehandGridPlacement } from '../hooks/useFreehandGridPlacement';
 import type { FreehandPlacement } from '../hooks/useFreehandGridPlacement';
+import { t } from '../../i18n';
 
 const GRID_TYPE_CHOICES: ReadonlyArray<{ type: GridType; label: string; tooltip: string; icon: React.ReactElement }> = [
-  { type: 'square', label: 'Square', tooltip: 'Square grid', icon: <Square /> },
-  { type: 'hex-vertical', label: 'Pointy', tooltip: 'Hex grid, pointy-top hexes in rows', icon: <Hexagon /> },
-  { type: 'hex-horizontal', label: 'Flat', tooltip: 'Hex grid, flat-top hexes in columns', icon: <Hexagon className="atlas-grid-alignment-icon--flat" /> },
+  { type: 'square', label: t('align.square'), tooltip: t('align.squareTip'), icon: <Square /> },
+  { type: 'hex-vertical', label: t('align.pointy'), tooltip: t('align.pointyTip'), icon: <Hexagon /> },
+  { type: 'hex-horizontal', label: t('align.flat'), tooltip: t('align.flatTip'), icon: <Hexagon className="atlas-grid-alignment-icon--flat" /> },
 ];
 
 /**
@@ -46,15 +47,14 @@ export function FreehandTab({ controller, view, result, setResult, gridType: sce
 
   useEffect(() => () => view?.renderer?.cancelGridAlignment(), [view]);
 
-  const cell = isHexGridType(gridType) ? 'hex' : 'square';
   const hint = isPlaced
-    ? 'Arrow keys nudge the grid (Shift for sub-pixel). Apply to keep it, or place it again.'
-    : `Zoom the map (mouse wheel or pinch) until each ${cell} of the preview covers one ${cell} of the map, then click to place the grid.`;
+    ? t('align.placed')
+    : t(isHexGridType(gridType) ? 'align.zoomHex' : 'align.zoomSquare');
   const cellSize = result?.cellSize ?? liveCellSize;
 
   return (
     <>
-      <div className="atlas-grid-alignment-tabs" role="radiogroup" aria-label="Grid type">
+      <div className="atlas-grid-alignment-tabs" role="radiogroup" aria-label={t('align.gridType')}>
         {GRID_TYPE_CHOICES.map(choice => (
           <LabelTooltip key={choice.type} label={choice.tooltip} describe>
             <button
@@ -83,7 +83,7 @@ export function FreehandTab({ controller, view, result, setResult, gridType: sce
           className="atlas-grid-alignment-btn atlas-grid-alignment-btn--secondary atlas-grid-alignment-btn--wide"
           onClick={() => setPlacement(null)}
         >
-          Place again
+          {t('align.placeAgain')}
         </button>
       )}
     </>

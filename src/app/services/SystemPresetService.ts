@@ -2,6 +2,7 @@ import { BUILT_IN_SYSTEM_PRESETS } from '../gameSystems/builtInPresets';
 import { parseUserPreset, parseUserPresets } from '../gameSystems/presetValidation';
 import type { SystemPreset, SystemRules } from '../types/systemPresetTypes';
 import type { SettingsService } from './SettingsService';
+import { t } from '../i18n';
 
 type StoredPreset = Record<string, unknown>;
 
@@ -24,9 +25,9 @@ export class SystemPresetService {
   /** Why `name` cannot name a preset, or null when it can. `exceptId` is the preset being renamed. */
   nameError(name: string, exceptId?: string): string | null {
     const key = name.trim().toLowerCase();
-    if (!key) return 'Enter a name';
+    if (!key) return t('names.enter');
     const taken = this.list().some((preset) => preset.id !== exceptId && preset.name.toLowerCase() === key);
-    return taken ? 'A preset with this name already exists' : null;
+    return taken ? t('names.presetTaken') : null;
   }
 
   create(name: string, rules: SystemRules): SystemPreset {

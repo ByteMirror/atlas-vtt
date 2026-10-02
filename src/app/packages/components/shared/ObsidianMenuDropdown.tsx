@@ -3,6 +3,7 @@ import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { renderEntries, type ContextMenuEntry } from '../../../react/components/context-menu/AtlasContextMenu';
 import { Button } from '../primitives/button';
 import { useExclusiveDropdown } from '../primitives/useExclusiveDropdown';
+import { t } from '../../../i18n';
 
 interface ObsidianMenuDropdownProps {
   id?: string;
@@ -14,7 +15,7 @@ interface ObsidianMenuDropdownProps {
   className?: string;
 }
 
-const EMPTY_OPTION_LABEL = 'None';
+const EMPTY_OPTION_LABEL = t('common.none');
 
 function formatOptionLabel(label: string): string {
   const normalizedLabel = label.trim();
@@ -60,7 +61,7 @@ export const ObsidianMenuDropdown: React.FC<ObsidianMenuDropdownProps> = ({
           className={`text-icon-button atlas-obsidian-menu-dropdown ${className || ''}`}
         >
           <span className="text-button-label">
-            {displayValue || placeholder || 'Select...'}
+            {displayValue || placeholder || t('common.select')}
           </span>
           <span className="text-button-icon">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="svg-icon lucide-chevron-down">

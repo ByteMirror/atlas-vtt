@@ -7,6 +7,7 @@ import type { MapFile } from './MapPersistence';
 import { getHistoryStore } from '../stores/history';
 import { autoDetectGridOnFirstLoad } from './gridAutoDetect';
 import { backgroundTextureCache } from '../pixi/backgroundTextureCache';
+import { t } from '../i18n';
 import { describeError } from '../utils/errors';
 
 export class MapService {
@@ -26,7 +27,7 @@ export class MapService {
         return withoutExtension;
       }
     }
-    return 'Untitled Map';
+    return t('map.untitled');
   }
   
   constructor(private app: App, eventBus: EventEmitter, private store: ViewAtlasStore) {
@@ -47,7 +48,7 @@ export class MapService {
       if (this.currentMapFilePath !== null) this.eventBus.emit('map-unloading');
 
       // Show loading overlay FIRST before any state changes
-      this.store.getState().setMapLoading(true, 0, 'Loading map...');
+      this.store.getState().setMapLoading(true, 0, t('map.loadingShort'));
 
       this.currentMapFilePath = filePath;
       
@@ -90,10 +91,10 @@ export class MapService {
       history?.pause();
       
       // Update loading progress
-      storeState.setMapLoading(true, 20, 'Clearing previous data...');
+      storeState.setMapLoading(true, 20, t('map.clearing'));
       
       // Update loading progress
-      storeState.setMapLoading(true, 40, 'Loading map image...');
+      storeState.setMapLoading(true, 40, t('map.loadingImage'));
       
       // Load and display the map in the renderer
       // Note: this loads the actual map image and sets up the grid
@@ -108,7 +109,7 @@ export class MapService {
 
       if (this.currentMapData) {
         // Update loading progress
-        storeState.setMapLoading(true, 60, 'Restoring map data...');
+        storeState.setMapLoading(true, 60, t('map.restoring'));
         
         // Set the background from loaded map data BEFORE rehydration
         // This ensures we have a valid background even if rehydration fails
@@ -144,7 +145,7 @@ export class MapService {
         storeState.setPersistenceEnabled(true);
         
         // Update loading progress
-        storeState.setMapLoading(true, 80, 'Loading tokens and pins...');
+        storeState.setMapLoading(true, 80, t('map.loadingTokens'));
 
         // After rehydration, check if we got valid data
         // If not, populate from the map file data we just loaded
@@ -195,7 +196,7 @@ export class MapService {
       }
       
       if (this.store.getState().grid?.autoDetect) {
-        storeState.setMapLoading(true, 85, 'Detecting grid...');
+        storeState.setMapLoading(true, 85, t('map.detectingGrid'));
         // Let the overlay paint before the CPU-bound detection blocks the thread.
         await new Promise(resolve => window.setTimeout(resolve, 30));
         autoDetectGridOnFirstLoad(this.store, renderer.getBackgroundSprite());
@@ -206,7 +207,7 @@ export class MapService {
       // Update loading progress
       const finalState = this.store.getState();
       const tokenCount = Object.keys(finalState.objects?.tokens || {}).length;
-      const loadingMessage = tokenCount > 0 ? `Loading ${tokenCount} tokens...` : 'Finalizing...';
+      const loadingMessage = tokenCount > 0 ? t('map.loadingNTokens', { count: tokenCount }) : t('map.finalizing');
       storeState.setMapLoading(true, 90, loadingMessage);
       
       // Get current grid settings from store (live settings) instead of static map file data
@@ -237,7 +238,7 @@ export class MapService {
       console.error('[MapService] Error loading map:', error);
       // Without this the view only shows an empty canvas
       const reason = describeError(error).replace(/^\[\w+\]\s*/, '');
-      new Notice(`Atlas VTT could not open the scene ${this.resolveMapName(filePath)} (${reason}).`, 0);
+      new Notice(t('map.openFailed', { name: this.resolveMapName(filePath), reason }), 0);
       this.currentMapFilePath = null;
       this.currentMapData = null;
       this.holdBackground(null);

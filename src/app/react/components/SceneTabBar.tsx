@@ -8,6 +8,7 @@ import { playerWindowStore } from '../../stores/playerWindowStore';
 import type { SceneTab } from '../../types/sceneTabTypes';
 import { LabelTooltip, TooltipProvider } from '../../packages/components/primitives/tooltip';
 import './scene-tab-bar.scss';
+import { t } from '../../i18n';
 
 interface SceneTabBarProps {
   onSwitchTab: (tabId: string) => void;
@@ -65,7 +66,7 @@ export function SceneTabBar({ onSwitchTab, onCloseTab, onAddTab, onPresentTab, o
         <div
           ref={setStrip}
           role="tablist"
-          aria-label="Open maps"
+          aria-label={t('tabs.openMaps')}
           className={cn(
             'atlas-scene-tab-bar__strip',
             hiddenBefore && 'atlas-scene-tab-bar__strip--hidden-before',
@@ -108,17 +109,17 @@ export function SceneTabBar({ onSwitchTab, onCloseTab, onAddTab, onPresentTab, o
                 {tab.isDirty && <span className="atlas-scene-tab__dirty" />}
                 <TabActionButton
                   icon={Eye}
-                  label={isPresented ? `${tab.displayName} is shown on the player view` : `Show ${tab.displayName} on the player view`}
+                  label={t(isPresented ? 'tabs.shown' : 'tabs.show', { name: tab.displayName })}
                   isActive={isPresented}
                   onClick={() => onPresentTab(tab.id)}
                 />
-                <TabActionButton icon={X} label={`Close ${tab.displayName}`} onClick={() => onCloseTab(tab.id)} />
+                <TabActionButton icon={X} label={t('tabs.close', { name: tab.displayName })} onClick={() => onCloseTab(tab.id)} />
               </div>
             );
           })}
         </div>
         {overflows && (
-          <LabelTooltip side="bottom" label="All open maps">
+          <LabelTooltip side="bottom" label={t('tabs.allOpen')}>
             <button
               type="button"
               className="atlas-scene-tab atlas-scene-tab-bar__button"
@@ -129,7 +130,7 @@ export function SceneTabBar({ onSwitchTab, onCloseTab, onAddTab, onPresentTab, o
             </button>
           </LabelTooltip>
         )}
-        <LabelTooltip side="bottom" label="Open scene">
+        <LabelTooltip side="bottom" label={t('tabs.openScene')}>
           <button
             type="button"
             className="atlas-scene-tab atlas-scene-tab-bar__button atlas-scene-tab-bar__add"

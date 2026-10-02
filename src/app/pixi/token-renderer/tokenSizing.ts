@@ -1,3 +1,4 @@
+import { t } from '../../i18n';
 /**
  * Shared token sizing derived from the grid cell size.
  *
@@ -22,10 +23,10 @@ export function tokenDiameterInCells(sizeInCells: number): number {
 
 /** Named footprints offered in menus, stored as the multiplier `tokenDiameterInCells` expects. */
 export const TOKEN_SIZE_OPTIONS: ReadonlyArray<{ label: string; size: number }> = [
-  { label: 'Medium (1×1)', size: 1 },
-  { label: 'Large (2×2)', size: 1.5 },
-  { label: 'Huge (3×3)', size: 2 },
-  { label: 'Gargantuan (4×4)', size: 2.5 },
+  { label: t('token.size.medium'), size: 1 },
+  { label: t('token.size.large'), size: 1.5 },
+  { label: t('token.size.huge'), size: 2 },
+  { label: t('token.size.gargantuan'), size: 2.5 },
 ];
 
 const CREATURE_SIZE_MULTIPLIERS: Record<string, number> = { tiny: 1, small: 1, medium: 1, large: 1.5, huge: 2, gargantuan: 2.5 };

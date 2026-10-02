@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ProcessedImage } from '../../../../imageProcessing/imageProcessing';
 import { convertForPreview } from './tokenImages';
 import type { CreatorMode, EditTokenInput, PreviewImage, TokenPreview, TokenPreviewPatch } from './types';
+import { t } from '../../../../i18n';
 import { cropReset } from './cropMath';
 import { useBatchProgress } from './useBatchProgress';
 import type { ProgressCount } from '../../primitives/useLingeringTask';
@@ -51,7 +52,7 @@ function previewFromFile(file: File): TokenPreview {
     id: `token-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
     file,
     previewUrl: '',
-    name: baseName || 'Untitled',
+    name: baseName || t('creator.untitled'),
     ...cropReset({ file }),
     isSelected: true,
     isOptimizing: true,

@@ -6,6 +6,7 @@ import type { GridSystem } from '../grid/GridSystem';
 import { AssetService } from '../services/AssetService';
 import { captureFormation, formationGridFromOptions } from './encounterFormation';
 import { saveEncounter, type EncounterTokenDraft } from './encounterSaveService';
+import { t } from '../i18n';
 
 /** Token nearest the group's centroid becomes the anchor, so the encounter spawns centred on the viewport. */
 function orderByCentroidDistance(tokens: TokenEntity[]): TokenEntity[] {
@@ -35,7 +36,7 @@ export async function saveMapTokensAsEncounter(
     .filter((t): t is TokenEntity => !!t && typeof t.imagePath === 'string' && t.imagePath.length > 0);
 
   if (tokens.length === 0) {
-    new Notice('Selected tokens have no image and cannot be saved as an encounter');
+    new Notice(t('encounter.noImage'));
     return;
   }
 
@@ -47,7 +48,7 @@ export async function saveMapTokensAsEncounter(
     const character = token.kind === 'character' ? token : null;
     const draft: EncounterTokenDraft = {
       id: token.id,
-      name: character?.name ?? 'Token',
+      name: character?.name ?? t('initiative.token'),
       imagePath: token.imagePath,
       cell: slots[index]!.cell,
       offset: slots[index]!.offset,

@@ -3,6 +3,7 @@
  */
 
 import React from 'react';
+import { t } from '../../../i18n';
 
 interface DefaultWidgetsTabProps {
   defaultWidgets: Record<string, boolean>;
@@ -13,23 +14,23 @@ interface DefaultWidgetsTabProps {
 const WIDGET_OPTIONS: { key: string; label: string; description: string }[] = [
   {
     key: 'initiativeTracker',
-    label: 'Initiative Tracker',
-    description: 'Turn-order tracker for combat encounters',
+    label: t('csm.widgets.initiative'),
+    description: t('csm.widgets.initiativeDesc'),
   },
   {
     key: 'hpBar',
-    label: 'HP Bar',
-    description: 'Health bar displayed under tokens',
+    label: t('csm.widgets.hp'),
+    description: t('csm.widgets.hpDesc'),
   },
   {
     key: 'stressBar',
-    label: 'Secondary resource bar',
-    description: 'Secondary resource (stress, sanity, mana…) shown under tokens',
+    label: t('csm.widgets.secondary'),
+    description: t('csm.widgets.secondaryDesc'),
   },
   {
     key: 'timer',
-    label: 'Timer',
-    description: 'Countdown timer for timed encounters or breaks',
+    label: t('csm.widgets.timer'),
+    description: t('csm.widgets.timerDesc'),
   },
 ];
 
@@ -44,8 +45,7 @@ export function DefaultWidgetsTab({
   return (
     <>
       <p className="atlas-csm-hint">
-        Resource bars follow these settings in every scene of the collection,
-        also scenes that already exist. The other defaults apply to new maps.
+        {t('csm.widgets.intro')}
       </p>
       {WIDGET_OPTIONS.map((w) => (
         <div key={w.key} className="atlas-csm-toggle-row">

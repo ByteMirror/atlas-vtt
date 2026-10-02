@@ -1,5 +1,6 @@
 import { App, TFile, setIcon } from 'obsidian';
 import { mayLinkFromScene } from '../services/sceneLinks';
+import { t } from '../i18n';
 import { baseName, parentPath } from '../utils/pathUtils';
 
 const RESULT_LIMIT = 30;
@@ -40,9 +41,9 @@ export function createPinNoteSearch(container: HTMLElement, options: PinNoteSear
     cls: 'pin-search-input',
     attr: {
       type: 'text',
-      placeholder: 'Search notes and maps...',
+      placeholder: t('pin.search.placeholder'),
       role: 'combobox',
-      'aria-label': 'Search notes and maps',
+      'aria-label': t('pin.search.label'),
       'aria-controls': listId,
       'aria-expanded': 'true',
       'aria-autocomplete': 'list',
@@ -52,7 +53,7 @@ export function createPinNoteSearch(container: HTMLElement, options: PinNoteSear
   const results = container.createDiv({ cls: 'pin-results', attr: { id: listId, role: 'listbox' } });
 
   const footer = container.createDiv({ cls: 'pin-footer' });
-  const footerHints: Array<[key: string, label: string]> = [['↑↓', 'navigate'], ['Enter', 'select'], ['Esc', 'cancel']];
+  const footerHints: Array<[key: string, label: string]> = [['↑↓', t('pin.search.navigate')], ['Enter', t('pin.search.select')], ['Esc', t('pin.search.cancel')]];
   footerHints.forEach(([key, label]) => {
     const hint = footer.createSpan({ cls: 'pin-footer-hint' });
     hint.createEl('kbd', { text: key });
@@ -141,7 +142,7 @@ export function createPinNoteSearch(container: HTMLElement, options: PinNoteSear
     item.createSpan({ cls: 'pin-result-name', text: file.basename });
     const folder = sharedNameFolder(file);
     if (folder !== null) item.createSpan({ cls: 'pin-header-file', text: folder });
-    if (isMap) item.createSpan({ cls: 'pin-result-badge is-map', text: 'Map' });
+    if (isMap) item.createSpan({ cls: 'pin-result-badge is-map', text: t('pin.search.map') });
   };
 
   /** The notes whose headings `note#` lists: the picked one, else every note of that name, else every note containing it. */
@@ -157,7 +158,7 @@ export function createPinNoteSearch(container: HTMLElement, options: PinNoteSear
     const targets = headingTargets(fileNamePart);
     const targetFile = targets[0];
     if (!targetFile) {
-      results.createDiv({ cls: 'pin-empty-state', text: 'File not found' });
+      results.createDiv({ cls: 'pin-empty-state', text: t('pin.search.notFound') });
       return;
     }
     if (targets.length > 1) {
@@ -169,15 +170,15 @@ export function createPinNoteSearch(container: HTMLElement, options: PinNoteSear
     const needle = headingQuery.toLowerCase();
     const headings = app.metadataCache.getFileCache(targetFile)?.headings ?? [];
     if (headings.length === 0) {
-      addWholeNoteEntry(targetFile, 'Pin to entire note');
+      addWholeNoteEntry(targetFile, t('pin.search.pinWhole'));
       return;
     }
 
-    if (needle === '') addWholeNoteEntry(targetFile, 'Entire note');
+    if (needle === '') addWholeNoteEntry(targetFile, t('pin.search.whole'));
 
     const matching = headings.filter((h) => h.heading.toLowerCase().includes(needle));
     if (matching.length === 0) {
-      results.createDiv({ cls: 'pin-empty-state', text: 'No matching headers found' });
+      results.createDiv({ cls: 'pin-empty-state', text: t('pin.search.noHeaders') });
       return;
     }
     matching.forEach((header) => {
@@ -193,7 +194,7 @@ export function createPinNoteSearch(container: HTMLElement, options: PinNoteSear
     const needle = query.toLowerCase();
     const matching = files.filter((f) => f.basename.toLowerCase().includes(needle));
     if (matching.length === 0) {
-      results.createDiv({ cls: 'pin-empty-state', text: 'No notes found' });
+      results.createDiv({ cls: 'pin-empty-state', text: t('pin.search.noNotes') });
       return;
     }
     matching.slice(0, RESULT_LIMIT).forEach((file) => addFileEntry(file));

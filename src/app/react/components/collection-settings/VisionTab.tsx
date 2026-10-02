@@ -3,6 +3,7 @@
  * tremorsense and vision cone. Vision itself stays off until switched on per token.
  */
 
+import { t } from '../../../i18n';
 import React, { useState } from 'react';
 import { unitLabelFor } from '../../../grid/measurementFormat';
 import { hasVisionDefaults } from '../../../gameSystems/visionDefaults';
@@ -46,7 +47,7 @@ export function VisionTab({ gridDefaults, vision, onChange }: VisionTabProps): R
   return (
     <>
       <p className="atlas-csm-hint">
-        New tokens start with these values; vision itself stays off until you switch it on for a token.
+        {t('vision.defaultsIntro')}
       </p>
       {VISION_FIELDS.map((field) => (
         <NumberOverrideField

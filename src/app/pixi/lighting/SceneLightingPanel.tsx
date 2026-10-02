@@ -14,6 +14,7 @@ import {
   tokenVisionOn,
 } from '../../lighting/sceneLightingOptions';
 import { ColorField, SliderField, ToggleField } from './lightingPanelFields';
+import { t } from '../../i18n';
 
 const MARGIN = 16;
 
@@ -55,36 +56,36 @@ function SceneLightingPanel(): React.ReactElement {
       initial="hidden"
       animate="visible"
       exit="exit"
-      aria-label="Lighting settings"
+      aria-label={t('sceneLight.settings')}
     >
       <header className="atlas-light-panel__header" onPointerDown={startDrag}>
         <GripHorizontal className="atlas-light-panel__grip" />
         <SlidersHorizontal className="atlas-light-panel__icon" />
-        <h2 className="atlas-light-panel__title">Lighting settings</h2>
-        <CloseButton onClick={() => setOpen(false)} aria-label="Close lighting settings" />
+        <h2 className="atlas-light-panel__title">{t('sceneLight.settings')}</h2>
+        <CloseButton onClick={() => setOpen(false)} aria-label={t('sceneLight.closeSettings')} />
       </header>
       <div className="atlas-light-panel__body">
         <ToggleField
-          label="Token vision"
+          label={t('sceneLight.tokenVision')}
           value={tokenVisionOn(lighting)}
-          tooltipOn="Players see only what their tokens see"
-          tooltipOff="Players see everything the light shows"
+          tooltipOn={t('sceneLight.tokenVisionOn')}
+          tooltipOff={t('sceneLight.tokenVisionOff')}
           onChange={(tokenVision) => setSceneLighting({ tokenVision })}
         />
         <ToggleField
-          label="Remember explored areas"
+          label={t('sceneLight.memory')}
           value={exploredMemoryOn(lighting)}
-          tooltipOn="What tokens saw stays on the players' map"
-          tooltipOff="Players see only what their tokens see now"
+          tooltipOn={t('sceneLight.memoryOn')}
+          tooltipOff={t('sceneLight.memoryOff')}
           onChange={(exploredMemory) => setSceneLighting({ exploredMemory })}
         />
         <div className="atlas-light-panel__row atlas-light-panel__row--pair">
-          <ColorField label="Explored colour" value={lighting.exploredColor ?? DEFAULT_EXPLORED_COLOR}
+          <ColorField label={t('sceneLight.exploredColour')} value={lighting.exploredColor ?? DEFAULT_EXPLORED_COLOR}
             onChange={(exploredColor) => setSceneLighting({ exploredColor })} />
-          <ColorField label="Unexplored colour" value={lighting.unexploredColor ?? DEFAULT_UNEXPLORED_COLOR}
+          <ColorField label={t('sceneLight.unexploredColour')} value={lighting.unexploredColor ?? DEFAULT_UNEXPLORED_COLOR}
             onChange={(unexploredColor) => setSceneLighting({ unexploredColor })} />
         </div>
-        <SliderField label="Counts as lit from" value={threshold} min={0} max={100} step={1} display={`${threshold} %`}
+        <SliderField label={t('sceneLight.litFrom')} value={threshold} min={0} max={100} step={1} display={`${threshold} %`}
           onChange={setDragged}
           onCommit={(percent) => {
             setDragged(null);

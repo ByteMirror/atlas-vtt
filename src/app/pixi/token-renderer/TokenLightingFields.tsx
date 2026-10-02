@@ -4,6 +4,7 @@ import { Select } from '../../packages/components/primitives/Select';
 import { LIGHT_PRESETS, LIGHT_PRESET_IDS, type LightPresetId } from '../../lighting/lightPresets';
 import { VISION_FIELDS, visionFieldLabel, type VisionForm } from '../../lighting/tokenLighting';
 import { NumberOverrideField } from './NumberOverrideField';
+import { t } from '../../i18n';
 
 /** A preset, no light, or an emission edited elsewhere that saving leaves as it is. */
 export type LightChoice = LightPresetId | 'none' | 'custom';
@@ -22,22 +23,22 @@ export function TokenLightingFields({ vision, onVisionChange, light, onLightChan
   const lightLabel = useId();
   const visionLabel = useId();
   const options = [
-    { value: 'none' as const, label: 'None' },
+    { value: 'none' as const, label: t('common.none') },
     ...LIGHT_PRESET_IDS.map((id) => ({ value: id, label: LIGHT_PRESETS[id].label })),
-    ...(light === 'custom' ? [{ value: 'custom' as const, label: 'Custom' }] : []),
+    ...(light === 'custom' ? [{ value: 'custom' as const, label: t('light.custom') }] : []),
   ];
   return (
     <>
       <div className="atlas-edit-token__section-divider" />
-      <div className="atlas-edit-token__section-label">Vision &amp; light</div>
+      <div className="atlas-edit-token__section-label">{t('vision.sectionLabel')}</div>
       <div className="atlas-edit-token__field atlas-edit-token__field--row">
-        <span id={visionLabel} className="atlas-edit-token__label">Vision</span>
+        <span id={visionLabel} className="atlas-edit-token__label">{t('vision.toggle')}</span>
         <Toggle
           labelledBy={visionLabel}
           value={vision.enabled}
           onChange={() => onVisionChange({ ...vision, enabled: !vision.enabled })}
-          tooltipOn="The token sees; players see what it sees"
-          tooltipOff="The token does not see"
+          tooltipOn={t('vision.toggleOn')}
+          tooltipOff={t('vision.toggleOff')}
         />
       </div>
       {VISION_FIELDS.map((field) => (
@@ -54,7 +55,7 @@ export function TokenLightingFields({ vision, onVisionChange, light, onLightChan
         />
       ))}
       <div className="atlas-edit-token__field">
-        <span id={lightLabel} className="atlas-edit-token__label">Carried light</span>
+        <span id={lightLabel} className="atlas-edit-token__label">{t('vision.carriedLight')}</span>
         <Select value={light} options={options} onChange={onLightChange} labelledBy={lightLabel} />
       </div>
     </>

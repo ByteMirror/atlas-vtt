@@ -12,6 +12,7 @@ import type { GridType } from '../../grid/GridSystem';
 import { isHexGridType } from '../../grid/hexGeometry';
 import { setCanvasCursor } from '../../pixi/utils/canvasCursor';
 import type { AtlasView } from '../../atlas-view';
+import { t, type MessageKey } from '../../i18n';
 
 // ---------------------------------------------------------------------------
 // Shared prop type for both alignment tabs
@@ -25,18 +26,18 @@ export interface AlignmentTabProps {
   gridType: GridType;
 }
 
-/** Instruction fragments for the two clicks of a measurement, per grid type. */
-export function alignmentPointHints(gridType: GridType): { first: string; second: string } {
+/** Instructions for the two clicks of a measurement, per grid type; `first` takes the `{area}` to click in. */
+export function alignmentPointHints(gridType: GridType): { first: MessageKey; second: MessageKey } {
   if (isHexGridType(gridType)) {
-    return { first: 'hex corner', second: 'Click the neighbouring corner along the same hex edge.' };
+    return { first: 'align.clickHexCorner', second: 'align.nextHexCorner' };
   }
-  return { first: 'grid intersection', second: 'Click the adjacent intersection to the right.' };
+  return { first: 'align.clickIntersection', second: 'align.nextIntersection' };
 }
 
 export function describeGridType(gridType: GridType): string {
-  if (gridType === 'hex-vertical') return 'pointy-top hexes';
-  if (gridType === 'hex-horizontal') return 'flat-top hexes';
-  return 'squares';
+  if (gridType === 'hex-vertical') return t('align.pointyHexes');
+  if (gridType === 'hex-horizontal') return t('align.flatHexes');
+  return t('align.squares');
 }
 
 // ---------------------------------------------------------------------------

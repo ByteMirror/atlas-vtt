@@ -2,6 +2,7 @@ import type { ViewAtlasStore } from '../../storeFactory';
 import { openContextMenuGlobal, type ContextMenuEntry } from '../../react/root/ContextMenuContext';
 import type { WallInteraction } from '../vision/WallInteraction';
 import type { WallRenderer } from '../vision/WallRenderer';
+import { t } from '../../i18n';
 
 export interface LightingMenuContext {
   store: ViewAtlasStore;
@@ -15,14 +16,14 @@ export function showLightMenu(context: LightingMenuContext, lightId: string, scr
   const light = context.store.getState().objects.lights[lightId];
   if (!light) return;
   const entries: ContextMenuEntry[] = [
-    { type: 'item', label: 'Configure light…', icon: 'settings', onClick: () => context.configureLight(lightId, screenX, screenY) },
+    { type: 'item', label: t('light.configure'), icon: 'settings', onClick: () => context.configureLight(lightId, screenX, screenY) },
     {
       type: 'item',
-      label: light.hidden ? 'Turn on' : 'Turn off',
+      label: light.hidden ? t('light.turnOn') : t('light.turnOff'),
       icon: light.hidden ? 'lightbulb' : 'lightbulb-off',
       onClick: () => context.store.getState().updateLight(lightId, { hidden: !light.hidden }),
     },
-    { type: 'item', label: 'Delete light', icon: 'trash-2', onClick: () => context.store.getState().deleteLight(lightId) },
+    { type: 'item', label: t('light.delete'), icon: 'trash-2', onClick: () => context.store.getState().deleteLight(lightId) },
   ];
   openContextMenuGlobal(entries, { x: screenX, y: screenY });
 }
@@ -49,8 +50,8 @@ export function showWallMenu(context: LightingMenuContext, worldX: number, world
 
   if (single?.type === 'solid') {
     entries.push(
-      { type: 'item', label: 'Place door', icon: 'door-open', onClick: () => walls.startDoorPlacement(single.id, 'door') },
-      { type: 'item', label: 'Place secret door', icon: 'lock', onClick: () => walls.startDoorPlacement(single.id, 'secret-door') },
+      { type: 'item', label: t('wall.placeDoor'), icon: 'door-open', onClick: () => walls.startDoorPlacement(single.id, 'door') },
+      { type: 'item', label: t('wall.placeSecretDoor'), icon: 'lock', onClick: () => walls.startDoorPlacement(single.id, 'secret-door') },
     );
   }
 
@@ -62,14 +63,14 @@ export function showWallMenu(context: LightingMenuContext, worldX: number, world
   });
   entries.push({
     type: 'submenu',
-    label: 'Light direction',
+    label: t('wall.direction'),
     icon: 'arrow-left-right',
-    children: [direction('Block both sides', undefined), direction('Allow from left', 'left'), direction('Allow from right', 'right')],
+    children: [direction(t('wall.blockBoth'), undefined), direction(t('wall.allowLeft'), 'left'), direction(t('wall.allowRight'), 'right')],
   });
 
   entries.push({
     type: 'item',
-    label: selected.length > 1 ? `Delete (${selected.length} walls)` : 'Delete',
+    label: selected.length > 1 ? t('wall.deleteMany', { count: selected.length }) : t('common.delete'),
     icon: 'trash-2',
     onClick: () => walls.deleteSelected(),
   });

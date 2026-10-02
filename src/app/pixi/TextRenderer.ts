@@ -17,6 +17,7 @@ import { TextRotationUI } from './TextRotationUI';
 import { TextResizeUI } from './TextResizeUI';
 import { promptForText } from '../ui/textInputDialog';
 import { destroyTree } from './utils/destroyTree';
+import { t } from '../i18n';
 
 export class TextRenderer {
   private viewport: Viewport;
@@ -382,36 +383,36 @@ export class TextRenderer {
 
   private showContextMenu(textElement: TextElement, e: FederatedPointerEvent): void {
     const textColors = [
-      { name: 'White', value: '#FFFFFF' },
-      { name: 'Black', value: '#000000' },
-      { name: 'Red', value: '#FF0000' },
-      { name: 'Green', value: '#00FF00' },
-      { name: 'Blue', value: '#0000FF' },
-      { name: 'Yellow', value: '#FFFF00' },
-      { name: 'Purple', value: '#FF00FF' },
-      { name: 'Cyan', value: '#00FFFF' },
-      { name: 'Orange', value: '#FFA500' },
-      { name: 'Pink', value: '#FFC0CB' },
+      { name: t('color.white'), value: '#FFFFFF' },
+      { name: t('color.black'), value: '#000000' },
+      { name: t('color.red'), value: '#FF0000' },
+      { name: t('color.green'), value: '#00FF00' },
+      { name: t('color.blue'), value: '#0000FF' },
+      { name: t('color.yellow'), value: '#FFFF00' },
+      { name: t('color.purple'), value: '#FF00FF' },
+      { name: t('color.cyan'), value: '#00FFFF' },
+      { name: t('color.orange'), value: '#FFA500' },
+      { name: t('color.pink'), value: '#FFC0CB' },
     ];
 
     const bgColors: Array<{ name: string; value: string | undefined }> = [
-      { name: 'None', value: undefined },
-      { name: 'Black', value: '#000000' },
-      { name: 'White', value: '#FFFFFF' },
-      { name: 'Dark Gray', value: '#333333' },
-      { name: 'Red', value: '#FF0000' },
-      { name: 'Green', value: '#00FF00' },
-      { name: 'Blue', value: '#0000FF' },
-      { name: 'Yellow', value: '#FFFF00' },
+      { name: t('common.none'), value: undefined },
+      { name: t('color.black'), value: '#000000' },
+      { name: t('color.white'), value: '#FFFFFF' },
+      { name: t('color.darkGray'), value: '#333333' },
+      { name: t('color.red'), value: '#FF0000' },
+      { name: t('color.green'), value: '#00FF00' },
+      { name: t('color.blue'), value: '#0000FF' },
+      { name: t('color.yellow'), value: '#FFFF00' },
     ];
 
     const fontSizes = [12, 16, 20, 24, 28, 32, 36, 40, 48, 56, 64, 72];
 
     const entries: ContextMenuEntry[] = [
-      { type: 'item', label: 'Edit Text', icon: 'edit', onClick: () => void this.editText(textElement) },
+      { type: 'item', label: t('text.edit'), icon: 'edit', onClick: () => void this.editText(textElement) },
       {
         type: 'submenu',
-        label: 'Text Color',
+        label: t('text.color'),
         icon: 'palette',
         children: textColors.map(c => ({
           type: 'item' as const,
@@ -421,7 +422,7 @@ export class TextRenderer {
       },
       {
         type: 'submenu',
-        label: 'Background Color',
+        label: t('text.background'),
         icon: 'square',
         children: bgColors.map(c => ({
           type: 'item' as const,
@@ -431,7 +432,7 @@ export class TextRenderer {
       },
       {
         type: 'submenu',
-        label: 'Font Size',
+        label: t('text.fontSize'),
         icon: 'text-cursor',
         children: fontSizes.map(s => ({
           type: 'item' as const,
@@ -442,17 +443,17 @@ export class TextRenderer {
       },
       {
         type: 'item',
-        label: textElement.bold ? '\u2713 Bold' : 'Bold',
+        label: textElement.bold ? `\u2713 ${t('text.bold')}` : t('text.bold'),
         onClick: () => this.store.getState().updateText(textElement.id, { bold: !textElement.bold }),
       },
       {
         type: 'item',
-        label: textElement.italic ? '\u2713 Italic' : 'Italic',
+        label: textElement.italic ? `\u2713 ${t('text.italic')}` : t('text.italic'),
         onClick: () => this.store.getState().updateText(textElement.id, { italic: !textElement.italic }),
       },
       {
         type: 'item',
-        label: 'Delete',
+        label: t('common.delete'),
         icon: 'trash',
         destructive: true,
         onClick: () => this.store.getState().deleteText(textElement.id),
@@ -465,8 +466,8 @@ export class TextRenderer {
 
   private async editText(textElement: TextElement): Promise<void> {
     const newText = await promptForText({
-      title: 'Edit text',
-      confirmLabel: 'Save',
+      title: t('text.editTitle'),
+      confirmLabel: t('common.save'),
       initialValue: textElement.text,
     });
     if (newText && newText !== textElement.text) {

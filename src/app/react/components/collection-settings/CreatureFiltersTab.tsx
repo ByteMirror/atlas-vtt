@@ -15,6 +15,7 @@ import type { CreatureFilterDefinition } from '../../../types/creatureFilterType
 import { CatalogFilterList } from './CatalogFilterList';
 import { CreatureFieldSuggestions } from './CreatureFieldSuggestions';
 import { CreatureFilterRow } from './CreatureFilterRow';
+import { t } from '../../../i18n';
 
 interface CreatureFiltersTabProps {
   /** Ids of Atlas' own filters switched off. */
@@ -61,21 +62,18 @@ export function CreatureFiltersTab({ hidden, onHiddenChange, custom, onCustomCha
   return (
     <>
       <p className="atlas-csm-hint">
-        The asset manager filters this collection&apos;s characters by what their linked
-        statblocks say. Atlas knows the fields most statblock layouts share, whatever the
-        game system, and shows each filter only where the statblocks have its field.
+        {t('csm.filters.intro')}
       </p>
 
       <div className="atlas-csm-field">
-        <div className="atlas-csm-label">Atlas filters</div>
+        <div className="atlas-csm-label">{t('csm.filters.atlasFilters')}</div>
         <CatalogFilterList hidden={hidden} onHiddenChange={onHiddenChange} creatures={creatures} pending={pending} />
       </div>
 
       <div className="atlas-csm-field">
-        <div className="atlas-csm-label">Your filters</div>
+        <div className="atlas-csm-label">{t('csm.filters.yours')}</div>
         <p className="atlas-csm-hint">
-          Filter by other fields: a range for numbers such as hit dice, options for
-          categories. Options can merge several fields.
+          {t('csm.filters.yoursHint')}
         </p>
         {custom.length > 0 && (
           <div className="atlas-csm-condition-list">
@@ -94,7 +92,7 @@ export function CreatureFiltersTab({ hidden, onHiddenChange, custom, onCustomCha
         )}
         <Button variant="ghost" className="atlas-csm-add-btn" onClick={addBlank}>
           <Plus />
-          Add filter
+          {t('csm.filters.add')}
         </Button>
       </div>
 

@@ -14,20 +14,21 @@ import { unitLabelFor } from '../../grid/measurementFormat';
 import { LIGHT_PRESETS, LIGHT_PRESET_IDS, presetOf } from '../../lighting/lightPresets';
 import { editEmission, emissionOfPreset, type EmissionNumberField } from '../../lighting/lightEmissionForm';
 import { ColorField, SliderField } from './lightingPanelFields';
+import { t } from '../../i18n';
 
 const GAP = 16;
 
 const ANIMATIONS: { value: LightAnimation; label: string }[] = [
-  { value: 'none', label: 'Steady' },
-  { value: 'torch', label: 'Torch flicker' },
-  { value: 'candle', label: 'Candle flicker' },
-  { value: 'pulse', label: 'Pulse' },
-  { value: 'magic', label: 'Magical shimmer' },
+  { value: 'none', label: t('light.anim.none') },
+  { value: 'torch', label: t('light.anim.torch') },
+  { value: 'candle', label: t('light.anim.candle') },
+  { value: 'pulse', label: t('light.anim.pulse') },
+  { value: 'magic', label: t('light.anim.magic') },
 ];
 
 const PRESET_OPTIONS = [
   ...LIGHT_PRESET_IDS.map((id) => ({ value: id, label: LIGHT_PRESETS[id].label })),
-  { value: 'custom' as const, label: 'Custom' },
+  { value: 'custom' as const, label: t('light.custom') },
 ];
 
 /** The settings panel of the light the GM configures, if any. */
@@ -87,29 +88,29 @@ function LightPanel({ target }: { target: LightPanelTarget }): React.ReactElemen
       initial="hidden"
       animate="visible"
       exit="exit"
-      aria-label="Light settings"
+      aria-label={t('light.settings')}
     >
       <header className="atlas-light-panel__header" onPointerDown={startDrag}>
         <GripHorizontal className="atlas-light-panel__grip" />
         <Lightbulb className="atlas-light-panel__icon" />
-        <h2 className="atlas-light-panel__title">Light</h2>
-        <CloseButton onClick={close} aria-label="Close light settings" />
+        <h2 className="atlas-light-panel__title">{t('light.title')}</h2>
+        <CloseButton onClick={close} aria-label={t('light.closeSettings')} />
       </header>
       <div className="atlas-light-panel__body">
         <SegmentedControl
           value={presetOf(emission) ?? 'custom'}
           options={PRESET_OPTIONS}
-          ariaLabel="Kind of light"
+          ariaLabel={t('light.kind')}
           onChange={(id) => { if (id !== 'custom') update(emissionOfPreset(id)); }}
         />
         <div className="atlas-light-panel__row">
-          <NumberField label={`Bright (${unit})`} emission={emission} field="bright" onChange={update} />
-          <NumberField label={`Dim (${unit})`} emission={emission} field="dim" onChange={update} />
-          <ColorField label="Colour" value={emission.color} onChange={(color) => update({ ...emission, color })} />
+          <NumberField label={t('light.bright', { unit })} emission={emission} field="bright" onChange={update} />
+          <NumberField label={t('light.dim', { unit })} emission={emission} field="dim" onChange={update} />
+          <ColorField label={t('common.colour')} value={emission.color} onChange={(color) => update({ ...emission, color })} />
         </div>
-        <SliderField label="Intensity" value={emission.intensity} min={0} max={2} step={0.05} onPointerDown={onSliderPointerDown}
+        <SliderField label={t('light.intensity')} value={emission.intensity} min={0} max={2} step={0.05} onPointerDown={onSliderPointerDown}
           onChange={(value) => update(editEmission(emission, 'intensity', String(value)))} />
-        <SliderField label="Softness" value={emission.sourceRadius ?? 1} min={0} max={5} step={0.25} onPointerDown={onSliderPointerDown}
+        <SliderField label={t('light.softness')} value={emission.sourceRadius ?? 1} min={0} max={5} step={0.25} onPointerDown={onSliderPointerDown}
           onChange={(value) => update(editEmission(emission, 'sourceRadius', String(value)))} />
         <AnimationField value={emission.animation} onChange={(animation) => update({ ...emission, animation })} />
       </div>
@@ -148,7 +149,7 @@ function AnimationField({ value, onChange }: { value: LightAnimation; onChange: 
   const id = useId();
   return (
     <div className="atlas-light-panel__field">
-      <span id={id}>Animation</span>
+      <span id={id}>{t('light.animation')}</span>
       <Select value={value} options={ANIMATIONS} onChange={onChange} labelledBy={id} />
     </div>
   );

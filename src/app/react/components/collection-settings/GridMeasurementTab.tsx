@@ -17,10 +17,11 @@ import type {
   MeasurementMode,
   RangeBand,
 } from '../../../types/collectionSettingsTypes';
+import { t } from '../../../i18n';
 
 const MEASUREMENT_MODES: readonly SegmentedOption<MeasurementMode>[] = [
-  { value: 'metric', label: 'Metric' },
-  { value: 'abstract', label: 'Abstract' },
+  { value: 'metric', label: t('csm.grid.metric') },
+  { value: 'abstract', label: t('csm.grid.abstract') },
 ];
 
 interface GridMeasurementTabProps {
@@ -29,17 +30,17 @@ interface GridMeasurementTabProps {
 }
 
 const UNIT_OPTIONS: Record<GridUnitType, string> = {
-  feet: 'Feet',
-  yards: 'Yards',
-  meters: 'Meters',
-  units: 'Units',
-  custom: 'Custom',
+  feet: t('csm.grid.unit.feet'),
+  yards: t('csm.grid.unit.yards'),
+  meters: t('csm.grid.unit.meters'),
+  units: t('csm.grid.unit.units'),
+  custom: t('csm.grid.unit.custom'),
 };
 
 const DIAGONAL_OPTIONS: Record<DiagonalRule, string> = {
-  equidistant: 'Every diagonal counts 1 (5e)',
-  alternating: 'Alternate 1 and 2 (5/10/5)',
-  euclidean: 'Exact distance',
+  equidistant: t('csm.grid.diagonal.equidistant'),
+  alternating: t('csm.grid.diagonal.alternating'),
+  euclidean: t('csm.grid.diagonal.euclidean'),
 };
 
 export function GridMeasurementTab({
@@ -76,7 +77,7 @@ export function GridMeasurementTab({
     <>
       {/* Unit type */}
       <div className="atlas-csm-field">
-        <label className="atlas-csm-label">Unit Type</label>
+        <label className="atlas-csm-label">{t('csm.grid.unitType')}</label>
         <ObsidianMenuDropdown
           className="atlas-setting-dropdown atlas-csm-dropdown"
           value={gridDefaults.unitType}
@@ -87,7 +88,7 @@ export function GridMeasurementTab({
 
       {/* Distance per square */}
       <div className="atlas-csm-field">
-        <label className="atlas-csm-label">Distance per Square</label>
+        <label className="atlas-csm-label">{t('csm.grid.distance')}</label>
         <input
           type="number"
           className="atlas-csm-input atlas-csm-input--number"
@@ -102,7 +103,7 @@ export function GridMeasurementTab({
 
       {/* Diagonal rule (square grids; hex grids always count hex steps) */}
       <div className="atlas-csm-field">
-        <label className="atlas-csm-label">Diagonal Movement</label>
+        <label className="atlas-csm-label">{t('csm.grid.diagonal')}</label>
         <ObsidianMenuDropdown
           className="atlas-setting-dropdown atlas-csm-dropdown"
           value={gridDefaults.diagonalRule ?? 'equidistant'}
@@ -113,9 +114,9 @@ export function GridMeasurementTab({
 
       {/* Measurement mode */}
       <div className="atlas-csm-field">
-        <label className="atlas-csm-label">Measurement Mode</label>
+        <label className="atlas-csm-label">{t('csm.grid.mode')}</label>
         <SegmentedControl
-          ariaLabel="Measurement mode"
+          ariaLabel={t('csm.grid.mode')}
           value={gridDefaults.measurementMode}
           options={MEASUREMENT_MODES}
           onChange={(mode) => updateField('measurementMode', mode)}
@@ -125,7 +126,7 @@ export function GridMeasurementTab({
       {/* Range Bands — only visible in abstract mode */}
       {gridDefaults.measurementMode === 'abstract' && (
         <div className="atlas-csm-field">
-          <label className="atlas-csm-label">Range Bands</label>
+          <label className="atlas-csm-label">{t('csm.grid.bands')}</label>
           {bands.length > 0 ? (
             <div className="atlas-csm-band-list">
               {bands.map((band, i) => {
@@ -135,7 +136,7 @@ export function GridMeasurementTab({
                     <input
                       type="text"
                       className="atlas-csm-input"
-                      placeholder="Band name"
+                      placeholder={t('csm.grid.bandName')}
                       value={band.name}
                       onChange={(e) => updateBand(i, { name: e.target.value })}
                     />
@@ -144,7 +145,7 @@ export function GridMeasurementTab({
                       className="atlas-csm-input atlas-csm-input--number"
                       min={1}
                       step={1}
-                      placeholder="Max"
+                      placeholder={t('csm.grid.max')}
                       aria-invalid={!thresholdValid || undefined}
                       value={Number.isNaN(band.maxSquares) ? '' : band.maxSquares}
                       onChange={(e) => {
@@ -153,7 +154,7 @@ export function GridMeasurementTab({
                         updateBand(i, { maxSquares: raw === '' ? NaN : Number(raw) });
                       }}
                     />
-                    <LabelTooltip label="Remove band">
+                    <LabelTooltip label={t('csm.grid.removeBand')}>
                       <Button
                         variant="ghost"
                         size="icon"
@@ -168,16 +169,16 @@ export function GridMeasurementTab({
               })}
             </div>
           ) : (
-            <div className="atlas-csm-empty">No range bands defined</div>
+            <div className="atlas-csm-empty">{t('csm.grid.noBands')}</div>
           )}
           {!bandsValid && (
             <p className="atlas-csm-hint atlas-csm-hint--error" role="alert">
-              Every band needs a whole number of squares, 1 or more.
+              {t('csm.grid.bandsInvalid')}
             </p>
           )}
           <Button variant="ghost" className="atlas-csm-add-btn" onClick={addBand}>
             <Plus />
-            Add Band
+            {t('csm.grid.addBand')}
           </Button>
         </div>
       )}

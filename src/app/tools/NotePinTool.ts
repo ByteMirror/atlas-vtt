@@ -13,6 +13,7 @@ import { NotePinPreview } from './notePinPreview';
 import { nearestHexCenter, type HexLayout } from '../grid/hexGeometry';
 import { hexLinkAt } from '../grid/hexLinks';
 import { linkedSceneFile, mayLinkFromScene } from '../services/sceneLinks';
+import { t } from '../i18n';
 
 interface NotePinDropdownResult {
   accepted: boolean;
@@ -276,7 +277,7 @@ export class NotePinTool {
       const leaf = this.obsidianApp.workspace.getLeavesOfType('atlas-vtt')[0] ?? this.obsidianApp.workspace.getLeaf(true);
       this.openMapInLeaf(leaf, scene.path);
     } else if (!mayLinkFromScene(mapPath, pin.notePath)) {
-      new Notice('This pin links to a scene of another collection. Link it to a scene of this collection instead.');
+      new Notice(t('pin.crossCollection'));
     } else {
       // Open the linked note normally - openLinkText handles headers automatically
       runInBackground(this.obsidianApp.workspace.openLinkText(pin.notePath, '', true), `Opening ${pin.notePath}`, 'Could not open the linked note');
@@ -324,7 +325,7 @@ export class NotePinTool {
     runInBackground(
       leaf.setViewState({ type: 'atlas-vtt', state: { file: filePath } }),
       `Opening map ${filePath}`,
-      'Could not open the linked map',
+      t('pin.openMapFailed'),
     );
     this.obsidianApp.workspace.setActiveLeaf(leaf, { focus: true });
   }

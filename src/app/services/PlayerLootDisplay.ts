@@ -5,6 +5,7 @@ import { PlayerWindowService } from './PlayerWindowService';
 import { PlayerLootWindow } from '../react/components/loot/PlayerLootWindow';
 import { MOTION_EASE_OUT, MOTION_NORMAL_MS } from '../utils/motion';
 import type { LootDraw } from '../loot/lootRoller';
+import { t } from '../i18n';
 
 type Listener = (shownIds: ReadonlySet<string>) => void;
 
@@ -53,7 +54,7 @@ export class PlayerLootDisplay {
     }
     const win = PlayerWindowService.getInstance()?.getWindow();
     if (!win) {
-      new Notice('Open the player view to show loot to your players.');
+      new Notice(t('loot.openPlayerView'));
       return;
     }
     // Rebuilt in a new player window, or when the page dropped it.

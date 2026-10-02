@@ -2,6 +2,11 @@
   "version": "0.6.0-beta.0",
   "releases": [
     {
+      "version": "0.6.0-beta.0",
+      "title": "Coming in 0.6.0",
+      "markdown": "## Fixed\n\n- Corrected the swapped export and import icons in the asset manager's collection header."
+    },
+    {
       "version": "0.5.0",
       "date": "2026-10-02",
       "title": "Dynamic lighting as an experimental feature, 3D dice, token resources and map imports",

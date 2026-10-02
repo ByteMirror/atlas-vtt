@@ -59,6 +59,7 @@
 
 ## Fixed
 
+- Cone measurements follow the game system. A D&D 5e cone is now as wide as it is long (about 53°) instead of twice as wide, other systems keep the quarter circle, and Grid & Measurement in the collection settings has a Cone Angle to change it. Contributed by ISorokaI
 - Escape closes a light's settings, clears the selection or cancels a wall being drawn even while a tooltip is showing. Before, the first Escape closed only the tooltip
 - Explored areas stay on the players' screen while a token stands in them in the dark. Before, a remembered room turned black as soon as a token had it in its line of sight without light, and showed again from behind a wall; a thin grey line also ran along the edges of shadows
 - Map shortcuts work on any keyboard layout. On a Russian, Greek or other non-Latin layout, the key in the same physical place as the Latin letter now triggers its shortcut. Contributed by ISorokaI

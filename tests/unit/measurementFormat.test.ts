@@ -47,7 +47,7 @@ describe('rangeBandName', () => {
 });
 
 describe('formatDistance', () => {
-  const metric: MeasurementSettings = { mode: 'metric', unitType: 'feet', unitDistance: 5, diagonalRule: 'equidistant', rangeBands: [] };
+  const metric: MeasurementSettings = { mode: 'metric', unitType: 'feet', unitDistance: 5, diagonalRule: 'equidistant', rangeBands: [], coneAngle: 90 };
 
   it('multiplies cells by the unit distance and rounds', () => {
     expect(formatDistance(6, metric)).toBe('30ft');
@@ -73,7 +73,7 @@ describe('resolveMeasurementSettings', () => {
       { unitType: 'meters', unitDistance: 2, measurementMode: 'metric', diagonalRule: 'alternating' },
       { ...grid, unitType: 'feet', unitDistance: 5, measurementType: 'abstract' },
     );
-    expect(settings).toEqual({ mode: 'metric', unitType: 'meters', unitDistance: 2, diagonalRule: 'alternating', rangeBands: [] });
+    expect(settings).toEqual({ mode: 'metric', unitType: 'meters', unitDistance: 2, diagonalRule: 'alternating', rangeBands: [], coneAngle: 90 });
   });
 
   it('defaults collections without a diagonal rule to every diagonal counting 1', () => {
@@ -82,7 +82,7 @@ describe('resolveMeasurementSettings', () => {
 
   it('falls back to the map grid, measuring in range bands unless it asks for units', () => {
     expect(resolveMeasurementSettings(undefined, { ...grid, measurementType: 'units', unitType: 'meters', unitDistance: 3 }))
-      .toEqual({ mode: 'metric', unitType: 'meters', unitDistance: 3, diagonalRule: 'equidistant', rangeBands: [] });
+      .toEqual({ mode: 'metric', unitType: 'meters', unitDistance: 3, diagonalRule: 'equidistant', rangeBands: [], coneAngle: 90 });
     expect(resolveMeasurementSettings(undefined, grid).mode).toBe('abstract');
     expect(resolveMeasurementSettings(undefined, null)).toMatchObject({ unitType: 'feet', unitDistance: 5 });
   });
@@ -115,7 +115,7 @@ describe('unitLabelFor', () => {
 });
 
 describe('formatReach', () => {
-  const metric = (unitDistance: number, unitType: 'feet' | 'meters'): MeasurementSettings => ({ mode: 'metric', unitType, unitDistance, diagonalRule: 'equidistant', rangeBands: [] });
+  const metric = (unitDistance: number, unitType: 'feet' | 'meters'): MeasurementSettings => ({ mode: 'metric', unitType, unitDistance, diagonalRule: 'equidistant', rangeBands: [], coneAngle: 90 });
 
   it('words a set distance with one decimal where it has one', () => {
     expect(formatReach(12, metric(5, 'feet'))).toBe('60ft');

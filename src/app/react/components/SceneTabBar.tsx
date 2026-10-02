@@ -102,16 +102,17 @@ export function SceneTabBar({ onSwitchTab, onCloseTab, onAddTab, onPresentTab, o
                   }
                 }}
               >
-                <LabelTooltip side="bottom" label={tab.filePath}>
-                  <span className="atlas-scene-tab__name">{tab.displayName}</span>
-                </LabelTooltip>
-                {tab.isDirty && <span className="atlas-scene-tab__dirty" />}
+                {/* Show and close sit at opposite ends, so one is never clicked for the other */}
                 <TabActionButton
                   icon={Eye}
                   label={isPresented ? `${tab.displayName} is shown on the player view` : `Show ${tab.displayName} on the player view`}
                   isActive={isPresented}
                   onClick={() => onPresentTab(tab.id)}
                 />
+                <LabelTooltip side="bottom" label={tab.filePath}>
+                  <span className="atlas-scene-tab__name">{tab.displayName}</span>
+                </LabelTooltip>
+                {tab.isDirty && <span className="atlas-scene-tab__dirty" />}
                 <TabActionButton icon={X} label={`Close ${tab.displayName}`} onClick={() => onCloseTab(tab.id)} />
               </div>
             );

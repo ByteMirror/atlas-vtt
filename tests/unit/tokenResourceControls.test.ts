@@ -58,6 +58,15 @@ describe('resource bar controls', () => {
     return { controls, viewport, hits, top, press, minus, plus, commit, stored, store };
   }
 
+  it('stays above tokens added to the map after it', () => {
+    const { controls, viewport } = mount({ hp: { current: 5, max: 10 } });
+    // The token layer joins the viewport after the controls, as TokenRenderer does
+    const tokens = new Container();
+    viewport.addChild(tokens);
+    viewport.sortChildren();
+    expect(viewport.getChildIndex(controls.getContainer())).toBeGreaterThan(viewport.getChildIndex(tokens));
+  });
+
   it('edits the resource whose bar was clicked', () => {
     const { controls, viewport, hits, press, commit, stored } = mount({ hp: { current: 100, max: 100 }, stress: { current: 0, max: 10 } });
     try {

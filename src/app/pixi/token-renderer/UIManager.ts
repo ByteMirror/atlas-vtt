@@ -14,7 +14,7 @@ import type { ITokenUIManager, TokenGroupContainer } from './types';
 import type { TokenEntity } from '../../types';
 import type { ViewAtlasState, ViewAtlasStore } from '../../storeFactory';
 import { TokenUIRenderer } from '../TokenUIRenderer';
-import { TokenControlsUI } from '../TokenControlsUI';
+import { TOKEN_UI_Z_INDEX, TokenControlsUI } from '../TokenControlsUI';
 import { TokenRotationUI } from '../TokenRotationUI';
 import { TokenResizeUI } from '../TokenResizeUI';
 import type { ConditionDefinition } from '../../types/collectionSettingsTypes';
@@ -69,7 +69,7 @@ export class UIManager implements ITokenUIManager {
     this.uiContainer.sortableChildren = true;
     this.uiContainer.eventMode = 'passive'; // UI should not block token interactions
     this.uiContainer.interactiveChildren = true;
-    this.uiContainer.zIndex = 100; // Higher z-index to ensure UI appears above tokens
+    this.uiContainer.zIndex = TOKEN_UI_Z_INDEX;
     this.viewport.addChild(this.uiContainer);
     
     // Force viewport to sort children to ensure proper z-ordering

@@ -73,6 +73,7 @@
 - Spawn on Map and Spawn Multiple now work in the asset manager opened from the scene browser, the dashboard or a command: tokens and encounters go to the open scene, and when no scene is open Atlas says so instead of doing nothing
 - You can create a scene by right-clicking a map. Before, a scene could only be made by double-clicking a map, which nothing pointed to
 - The dice tray no longer shows on top of the asset manager and the DM dashboard
+- A selected token's resource buttons stay above neighbouring tokens, so the minus button is no longer hidden behind a token diagonally below it. Contributed by ISorokaI
 - Panels in the player window, such as dice rolls and widgets, follow Obsidian's light or dark theme and its accent colour. Before, they stayed dark
 - A roll such as d20+2d6 no longer adds a stray +2 to its total, and subtracted dice (2d6-1d4) now subtract
 - A natural 1 or 20 counts as critical even when a modifier is added, and a maxed damage die never does

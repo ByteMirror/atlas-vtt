@@ -44,7 +44,7 @@ export const toolbar: Translation = {
   'toolbar.icons': 'Значки',
   'toolbar.drawWalls': 'Рисовать стены',
   'toolbar.pointToPoint': 'По точкам',
-  'toolbar.gmView': 'Вид ведущего ({key})',
+  'toolbar.gmView': 'Вид мастера ({key})',
   'toolbar.sessionView': 'Вид сессии ({key})',
   'toolbar.diceFailed': 'Инструмент кубиков не запущен. Попробуйте перезагрузить вид.',
   'toolbar.laserColour': 'Цвет лазера',

@@ -1422,7 +1422,7 @@ export class TokenRenderer {
       
       // Get current position and snap to new grid
       const currentPos = { x: token.x, y: token.y };
-      const snappedPos = this.gridSystem.snapToCellCenter(currentPos.x, currentPos.y);
+      const snappedPos = this.gridSystem.snapTokenCenter(currentPos.x, currentPos.y, token.size || 1);
       
       // Only update if position actually changed
       if (Math.abs(snappedPos.x - currentPos.x) > 0.1 || Math.abs(snappedPos.y - currentPos.y) > 0.1) {

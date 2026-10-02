@@ -100,12 +100,14 @@ describe('TokenRenderer Integration Tests', () => {
   let isRendererDestroyed: boolean;
   let canvas: HTMLCanvasElement;
 
+  const snapToCellCenter = (x: number, y: number): { x: number; y: number } => ({
+    x: Math.floor(x / gridSize) * gridSize + gridSize / 2,
+    y: Math.floor(y / gridSize) * gridSize + gridSize / 2,
+  });
   const gridSystem = {
     getOptions: () => ({ type: 'square', size: gridSize, offsetX: 0, offsetY: 0 }),
-    snapToCellCenter: (x: number, y: number) => ({
-      x: Math.floor(x / gridSize) * gridSize + gridSize / 2,
-      y: Math.floor(y / gridSize) * gridSize + gridSize / 2,
-    }),
+    snapToCellCenter,
+    snapTokenCenter: snapToCellCenter,
   } as unknown as GridSystem;
 
   const createRenderer = (viewStore: ViewStore = store): TokenRenderer => {

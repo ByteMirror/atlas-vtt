@@ -182,3 +182,27 @@ describe('edge cases', () => {
     expect(placeFormation(slots, formation, { x: 0, y: 0 }, square(70))).toEqual([]);
   });
 });
+
+describe('token sizes', () => {
+  it('puts a Large token back on a grid intersection, with its neighbours where they stood', () => {
+    const source = square(70);
+    const target = square(100, 33, 17);
+    // A Large token centred on the corner of cells (0,0)-(1,1), a Medium one in the cell right of its footprint.
+    const tokens = [{ x: 70, y: 70, size: 1.5 }, { ...cellToWorld(source, { q: 2, r: 0 }), size: 1 }];
+    const { formation, slots } = captureFormation(tokens, source);
+
+    const [large, medium] = placeFormation(slots, formation, { x: 500, y: 500 }, target, [1.5, 1]);
+
+    const corner = cellToWorld(target, worldToCell(target, { x: 500, y: 500 }));
+    expect(large).toEqual({ x: corner.x + 50, y: corner.y + 50 });
+    expect(medium).toEqual(cellToWorld(target, { q: worldToCell(target, corner).q + 2, r: worldToCell(target, corner).r }));
+  });
+
+  it('keeps a Gargantuan token on an intersection and a Huge one on a cell centre', () => {
+    const grid = square(70);
+    const tokens = [{ x: 140, y: 140, size: 2.5 }, { ...cellToWorld(grid, { q: 5, r: 1 }), size: 2 }];
+    const { formation, slots } = captureFormation(tokens, grid);
+
+    expect(placeFormation(slots, formation, { x: 105, y: 105 }, grid, [2.5, 2])).toEqual(tokens.map(({ x, y }) => ({ x, y })));
+  });
+});

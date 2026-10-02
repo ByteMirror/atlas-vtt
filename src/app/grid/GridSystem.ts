@@ -7,6 +7,7 @@ import type { GridBounds, GridLineType } from './gridLineStyle';
 import { createHexLayout, hexCellExtent, isHexGridType, nearestHexCenter } from './hexGeometry';
 import type { HexLayout } from './hexGeometry';
 import { contrastColorForSprite } from './gridContrastColor';
+import { snapTokenCenter } from './gridPlacement';
 import { numberHexes, type HexNumberStyle } from './hexNumbering';
 import { HexNumberLabels, type HexNumberView } from './hexNumberLabels';
 import { destroyTree } from '../pixi/utils/destroyTree';
@@ -441,6 +442,12 @@ export class GridSystem {
       x: col * size + offsetX + size / 2,
       y: row * size + offsetY + size / 2,
     };
+  }
+
+  /** Snap a token's centre: a cell centre, or a grid intersection for an even footprint on a square grid */
+  public snapTokenCenter(x: number, y: number, tokenSize: number): { x: number; y: number } {
+    const { type, size } = this.options;
+    return snapTokenCenter({ x, y }, tokenSize, type, size, (point) => this.snapToCellCenter(point.x, point.y));
   }
 
   /** Get current grid size */

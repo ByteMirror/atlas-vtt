@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { gridOffsetCenteredAt, normaliseGridOffset } from '../../src/app/grid/gridPlacement';
+import { gridOffsetCenteredAt, normaliseGridOffset, resizedTokenCenter, snapTokenCenter } from '../../src/app/grid/gridPlacement';
 import { createHexLayout, hexCellExtent, nearestHexCenter } from '../../src/app/grid/hexGeometry';
 import type { HexGridType } from '../../src/app/grid/hexGeometry';
 import { freehandCellSize, FREEHAND_CELL_SCREEN_SIZE } from '../../src/app/pixi/FreehandGridPreview';
@@ -49,5 +49,45 @@ describe('freehandCellSize', () => {
     expect(freehandCellSize(1)).toBe(FREEHAND_CELL_SCREEN_SIZE);
     expect(freehandCellSize(2)).toBe(FREEHAND_CELL_SCREEN_SIZE / 2);
     expect(freehandCellSize(0.5)).toBe(FREEHAND_CELL_SCREEN_SIZE * 2);
+  });
+});
+
+describe('snapTokenCenter', () => {
+  const CELL = 70;
+  const toCell = (point: { x: number; y: number }): { x: number; y: number } => ({
+    x: Math.floor((point.x - 5) / CELL) * CELL + 5 + CELL / 2,
+    y: Math.floor((point.y - 5) / CELL) * CELL + 5 + CELL / 2,
+  });
+
+  it.each([1, 2, 3])('centres an odd footprint (size %s) on a cell centre', (size) => {
+    expect(snapTokenCenter({ x: 150, y: 90 }, size, 'square', CELL, toCell)).toEqual({ x: 180, y: 110 });
+  });
+
+  it.each([1.5, 2.5])('centres an even footprint (size %s) on the nearest grid intersection', (size) => {
+    expect(snapTokenCenter({ x: 150, y: 90 }, size, 'square', CELL, toCell)).toEqual({ x: 145, y: 75 });
+    expect(snapTokenCenter({ x: 190, y: 130 }, size, 'square', CELL, toCell)).toEqual({ x: 215, y: 145 });
+  });
+
+  it.each(HEX_TYPES)('centres every footprint on a hex on %s grids', (type) => {
+    const layout = createHexLayout(type, 64, 0, 0);
+    const toHex = (point: { x: number; y: number }): { x: number; y: number } => nearestHexCenter(layout, point);
+    const point = { x: 200, y: 150 };
+    expect(snapTokenCenter(point, 1.5, type, 64, toHex)).toEqual(toHex(point));
+  });
+});
+
+describe('resizedTokenCenter', () => {
+  const grid = { type: 'square' as const, size: 70, snapToGrid: true };
+
+  it('keeps the top-left corner, so a Medium token grown to Large moves onto the intersection', () => {
+    expect(resizedTokenCenter({ x: 35, y: 35 }, 1, 1.5, grid)).toEqual({ x: 70, y: 70 });
+    expect(resizedTokenCenter({ x: 70, y: 70 }, 1.5, 2.5, grid)).toEqual({ x: 140, y: 140 });
+    expect(resizedTokenCenter({ x: 140, y: 140 }, 2.5, 1, grid)).toEqual({ x: 35, y: 35 });
+  });
+
+  it('keeps the centre without snapping and on hex grids', () => {
+    expect(resizedTokenCenter({ x: 35, y: 35 }, 1, 1.5, { ...grid, snapToGrid: false })).toEqual({ x: 35, y: 35 });
+    expect(resizedTokenCenter({ x: 35, y: 35 }, 1, 1.5, { ...grid, type: 'hex-vertical' })).toEqual({ x: 35, y: 35 });
+    expect(resizedTokenCenter({ x: 35, y: 35 }, 1, 1.5, null)).toEqual({ x: 35, y: 35 });
   });
 });

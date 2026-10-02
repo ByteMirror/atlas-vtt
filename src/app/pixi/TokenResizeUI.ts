@@ -8,6 +8,7 @@ import { toError } from '../utils/errors';
 import type { TokenHandleContainer } from './token-renderer/types';
 import { findTokenGroup } from './token-renderer/findTokenGroup';
 import { destroyTree } from './utils/destroyTree';
+import { resizedTokenCenter } from '../grid/gridPlacement';
 
 export class TokenResizeUI {
   private viewport: Viewport;
@@ -414,25 +415,22 @@ export class TokenResizeUI {
   private onResizeEnd = (e: FederatedPointerEvent): void => {
     if (!this.isResizing) return;
     
-    let pendingUpdates: Array<{ id: string; changes: { size: number } }> = [];
+    let pendingUpdates: Array<{ id: string; changes: { size: number; x: number; y: number } }> = [];
     // If resize occurred, create a single undo state for all resizes
     if (this.hasResized) {
-      const finalSizes: Array<{ id: string; size: number }> = [];
+      const { grid, objects } = this.store.getState();
       
       for (const tokenId of this.resizingTokenIds) {
         const tempSize = this.temporarySizes[tokenId];
         const startSize = this.startSizes[tokenId] || 1;
+        const token = objects.tokens[tokenId];
         
         // Check if size actually changed from start
-        if (tempSize !== undefined && tempSize !== startSize) {
-          finalSizes.push({ 
-            id: tokenId, 
-            size: tempSize 
-          });
+        if (token && tempSize !== undefined && tempSize !== startSize) {
+          const center = resizedTokenCenter(token, startSize, tempSize, grid);
+          pendingUpdates.push({ id: tokenId, changes: { size: tempSize, x: center.x, y: center.y } });
         }
       }
-      
-      pendingUpdates = finalSizes.map(({ id, size }) => ({ id, changes: { size } }));
     }
     
     // Store the token IDs before clearing resize state

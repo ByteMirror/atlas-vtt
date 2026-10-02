@@ -21,6 +21,7 @@ import type { Character, TokenEntity } from '../../types';
 import type { ViewAtlasState } from '../../storeFactory';
 import type { StoreApi } from 'zustand';
 import type { GridSystem } from '../../grid/GridSystem';
+import { resizedTokenCenter } from '../../grid/gridPlacement';
 import { beginHistoryTransaction, endHistoryTransaction } from '../../stores/history';
 import { initiativeEntryForToken } from '../../stores/initiativeEntries';
 import { EventEmitter } from 'events';
@@ -473,6 +474,7 @@ export class InteractionController implements ITokenInteractionController {
       
       const tokenUpdates: Array<{id: string, x: number, y: number}> = [];
       const snapToGrid = this.store.getState().grid?.snapToGrid ?? true;
+      const tokens = this.store.getState().objects.tokens;
       
       for (const id of this.dragState.dragIds) {
         const initPos = this.dragState.initialPositions[id];
@@ -483,7 +485,7 @@ export class InteractionController implements ITokenInteractionController {
         
         // Snap to grid if enabled
         const finalPos = snapToGrid 
-          ? this.gridSystem.snapToCellCenter(newX, newY)
+          ? this.gridSystem.snapTokenCenter(newX, newY, tokens[id]?.size || 1)
           : { x: newX, y: newY };
         
         const sprite = this.getTokenSprite?.(id);
@@ -568,7 +570,13 @@ export class InteractionController implements ITokenInteractionController {
     }
 
     // Size
-    entries.push(tokenSizeSubmenu(token.size, size => this.store.getState().updateToken(token.id, { size })));
+    entries.push(tokenSizeSubmenu(token.size, size => {
+      const { grid, objects, updateToken } = this.store.getState();
+      const current = objects.tokens[token.id];
+      if (!current) return;
+      const center = resizedTokenCenter(current, current.size || 1, size, grid);
+      updateToken(token.id, { size, x: center.x, y: center.y });
+    }));
 
     // Hide/Show the selection in one undo step; the clicked token decides which way
     const currentToken = this.store.getState().objects.tokens[token.id];

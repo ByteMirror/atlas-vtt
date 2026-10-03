@@ -10,6 +10,7 @@
  *   node scripts/pr-review.js prepare <pr> <dir>
  *   node scripts/pr-review.js publish <dir> <result.json>
  *   node scripts/pr-review.js fail <dir>
+ *   node scripts/pr-review.js explain <result.json>
  */
 const { execFileSync } = require('child_process');
 const fs = require('fs');
@@ -222,13 +223,43 @@ function fail(dir) {
   setStatus(job.head, 'error', 'Review unavailable; never treated as a pass. Comment /review to retry', run);
 }
 
+/**
+ * Why a reviewer run failed, without its findings or any source it quoted:
+ * the end reason, and the message only when the API refused the request.
+ * @param {Record<string, any>} response
+ * @returns {string}
+ */
+function failureReason(response) {
+  const reason = [`ended: ${String(response.terminal_reason ?? response.subtype ?? 'unknown')}`];
+  if (Number.isInteger(response.api_error_status)) {
+    reason.push(`API status ${response.api_error_status}: ${String(response.result ?? '').slice(0, 300)}`);
+  }
+  return reason.join('; ');
+}
+
+function explain(resultFile) {
+  if (!fs.existsSync(resultFile) || fs.statSync(resultFile).size === 0) {
+    console.error('pr-review: the reviewer wrote no output');
+    return;
+  }
+  let response;
+  try {
+    response = JSON.parse(fs.readFileSync(resultFile, 'utf8'));
+  } catch {
+    console.error('pr-review: the reviewer output is not JSON');
+    return;
+  }
+  console.error(`pr-review: ${failureReason(response)}`);
+}
+
 function main(argv) {
   const [command, ...args] = argv;
   if (command === 'schema') return void process.stdout.write(JSON.stringify(SCHEMA));
   if (command === 'prepare' && /^[1-9]\d*$/.test(args[0] ?? '') && args[1]) return prepare(Number(args[0]), args[1]);
   if (command === 'publish' && args.length === 2) return publish(args[0], args[1]);
   if (command === 'fail' && args.length === 1) return fail(args[0]);
-  throw new Error('Usage: pr-review.js schema | prepare <pr> <dir> | publish <dir> <result.json> | fail <dir>');
+  if (command === 'explain' && args.length === 1) return explain(args[0]);
+  throw new Error('Usage: pr-review.js schema | prepare <pr> <dir> | publish <dir> <result.json> | fail <dir> | explain <result.json>');
 }
 
 if (require.main === module) {
@@ -241,4 +272,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { SCHEMA, validateResult, reviewBody };
+module.exports = { SCHEMA, validateResult, reviewBody, failureReason };

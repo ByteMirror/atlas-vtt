@@ -2,7 +2,7 @@ import { createRequire } from 'module';
 import { describe, expect, it } from 'vitest';
 
 const require = createRequire(import.meta.url);
-const { validateResult, reviewBody } = require('../../scripts/pr-review.js');
+const { validateResult, reviewBody, failureReason } = require('../../scripts/pr-review.js');
 
 const changed = { 'src/a.ts': 40 };
 const finding = (overrides: Record<string, unknown> = {}): Record<string, unknown> => ({
@@ -39,5 +39,11 @@ describe('pr review verdicts', () => {
     expect(body.startsWith(`Reviewed head: ${'h'.repeat(40)}\nReviewed base: ${'b'.repeat(40)}\n`)).toBe(true);
     expect(body).toContain('`src/a.ts:10` — 🟡 p');
     expect(body.endsWith('<!-- atlas-verdict:PASS -->')).toBe(true);
+  });
+
+  it('explains a failure by its end reason and an API refusal only', () => {
+    expect(failureReason({ terminal_reason: 'api_error', api_error_status: 401, result: 'Failed to authenticate.' }))
+      .toBe('ended: api_error; API status 401: Failed to authenticate.');
+    expect(failureReason({ terminal_reason: 'max_turns', result: 'source text' })).toBe('ended: max_turns');
   });
 });

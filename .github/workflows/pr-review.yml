@@ -83,6 +83,10 @@ jobs:
           relative to source/ (src/app/..., not source/src/app/...). Return the structured review result.
           PROMPT
 
+      - name: Explain a failed review
+        if: failure()
+        run: node scripts/pr-review.js explain "$RUNNER_TEMP/result.json"
+
       - name: Publish the verdict
         run: node scripts/pr-review.js publish "$SNAPSHOT" "$RUNNER_TEMP/result.json"
 

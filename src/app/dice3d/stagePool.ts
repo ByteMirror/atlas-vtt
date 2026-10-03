@@ -86,11 +86,12 @@ function gpuOf(doc: Document, dice: DocumentDice): DiceGpu | null {
 
 /**
  * Whether `doc` can show 3D dice: not where its context could not be made or is
- * lost. Its rolls then show as result cards.
+ * lost. Its rolls then show as result cards. The context is made here if no
+ * stage made it yet, so a roll before the warm-up finds out too.
  */
 export function canShowDice(doc: Document): boolean {
-  const dice = documents.get(doc);
-  return dice === undefined || (dice.gpu !== null && !dice.lost);
+  const dice = diceOf(doc);
+  return gpuOf(doc, dice) !== null && !dice.lost;
 }
 
 function buildStage(doc: Document, dice: DocumentDice): StageLease {

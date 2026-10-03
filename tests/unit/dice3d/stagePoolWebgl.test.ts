@@ -32,14 +32,19 @@ describe('stagePool without WebGL', () => {
   it('shows rolls as cards in a document whose context could not be made, and only there', () => {
     const popout = document.implementation.createHTMLDocument('popout');
     failGpu = true;
-    expect(canShowDice(document)).toBe(true);
     borrowStage(document);
     expect(canShowDice(document)).toBe(false);
+    failGpu = false;
     expect(canShowDice(popout)).toBe(true);
   });
 
+  it('finds out before any stage was built, so the first roll shows as a card', () => {
+    failGpu = true;
+    expect(canShowDice(document)).toBe(false);
+    expect(gpuCanvases).toHaveLength(0);
+  });
+
   it('shows rolls as cards while the context is lost, and dice again once it comes back', () => {
-    borrowStage(document);
     expect(canShowDice(document)).toBe(true);
     const [gpuCanvas] = gpuCanvases;
     gpuCanvas!.dispatchEvent(new Event('webglcontextlost'));
@@ -52,6 +57,7 @@ describe('stagePool without WebGL', () => {
     failGpu = true;
     borrowStage(document);
     releaseStagePool(document);
+    failGpu = false;
     expect(canShowDice(document)).toBe(true);
   });
 });

@@ -42,9 +42,9 @@ export function DiceRollDisplay({ container, prepare, muted = false }: DiceRollD
     const handler = (e: Event): void => {
       const raw = (e as CustomEvent<DiceRollResult>).detail;
       const result = prepare ? prepare(raw) : raw;
+      const scene = diceSceneToShow(result, display);
       // Without WebGL a stage stays blank (white on some systems), so the roll shows as a card
-      const scene = canShowDice(stageDoc) ? diceSceneToShow(result, display) : null;
-      if (!scene) {
+      if (!scene || !canShowDice(stageDoc)) {
         addToast(result);
         return;
       }

@@ -92,7 +92,9 @@ export class DragRuler {
 
   private snap(point: Point): Point {
     const snapToGrid = this.store.getState().grid?.snapToGrid ?? true;
-    return snapToGrid ? this.gridSystem.snapToCellCenter(point.x, point.y) : { x: point.x, y: point.y };
+    if (!snapToGrid) return { x: point.x, y: point.y };
+    const size = this.tokenId ? this.store.getState().objects.tokens[this.tokenId]?.size : undefined;
+    return this.gridSystem.snapTokenCenter(point.x, point.y, size || 1);
   }
 }
 

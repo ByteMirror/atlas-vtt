@@ -92,6 +92,14 @@ const frameSourceFor = (canvas: HTMLCanvasElement): PlayerFrameSource =>
 
 const flush = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 10));
 
+/**
+ * The frame is released two animation frames after the load finishes, and Windows' 15.6ms timer
+ * granularity makes that longer than any fixed wait worth writing. Waits for the call itself.
+ * A check that nothing was released keeps `flush`: a poll cannot show that nothing happened.
+ */
+const waitForRelease = (canvas: HTMLCanvasElement): Promise<void> =>
+  vi.waitFor(() => expect(serviceMock.releaseHeldFrame).toHaveBeenCalledWith(frameSourceFor(canvas)));
+
 describe('PlayerWindowPresenter', () => {
   beforeEach(() => {
     vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => setTimeout(() => cb(0), 0));
@@ -201,10 +209,9 @@ describe('PlayerWindowPresenter', () => {
       await flush();
       expect(serviceMock.releaseHeldFrame).not.toHaveBeenCalled();
       for (const step of lastSteps) atlasStore.setState(step);
-      await flush();
+      await waitForRelease(canvas);
 
       expect(serviceMock.releaseHeldFrame).toHaveBeenCalledTimes(1);
-      expect(serviceMock.releaseHeldFrame).toHaveBeenCalledWith(frameSourceFor(canvas));
     });
 
     test('keeps the held frame when the scene fails to load, and releases it when a retry succeeds', async () => {
@@ -218,9 +225,7 @@ describe('PlayerWindowPresenter', () => {
       // The retry loads the same tab again: no tab change tells the presenter about it
       atlasStore.setState({ isMapLoading: true, mapPath: TAVERN });
       atlasStore.setState({ isMapLoading: false, mapLoaded: true });
-      await flush();
-
-      expect(serviceMock.releaseHeldFrame).toHaveBeenCalledWith(frameSourceFor(canvas));
+      await waitForRelease(canvas);
     });
 
     test('keeps the held frame while another scene loads into the view', async () => {

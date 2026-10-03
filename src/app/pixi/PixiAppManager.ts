@@ -20,7 +20,14 @@ export class PixiAppManager {
   private _canvasContextMenuPreventer: ((e: Event) => void) | null = null;
   public onRecoverCallback?: () => void;
 
-  constructor(initialWidth: number, initialHeight: number) {
+  /**
+   * `throughBackBuffer`: WebGL draws through a multisampled back buffer and the canvas gets no
+   * samples. For a view that will light its scenes: dynamic lighting needs the back buffer anyway
+   * and from resolution 2 draws it plain (`BackBufferHold`), so samples on the canvas were 190 to
+   * 250 MB of graphics memory nothing drew into. Unlit, the back buffer costs about 80 MB more
+   * than samples on the canvas, so a view without dynamic lighting keeps those.
+   */
+  constructor(initialWidth: number, initialHeight: number, private readonly throughBackBuffer = false) {
     this.width = initialWidth;
     this.height = initialHeight;
     this.canvasEl = createEl('canvas');
@@ -126,6 +133,7 @@ export class PixiAppManager {
       backgroundColor: 0xf4e8d0, // Default parchment color
       backgroundAlpha: 1,
       antialias: true,
+      useBackBuffer: this.throughBackBuffer,
       autoDensity: true,
       resolution: window.devicePixelRatio || 1,
     };

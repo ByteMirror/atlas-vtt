@@ -119,7 +119,7 @@ function createScene(tokens: TokenEntity[], lighting: SceneLightingChanges = {})
     plugins: { pause: vi.fn(), resume: vi.fn() },
     options: { events: { domElement: canvas } },
   };
-  const gridSystem = { snapToCellCenter: (x: number, y: number) => ({ x, y }) };
+  const gridSystem = { snapTokenCenter: (x: number, y: number) => ({ x, y }) };
   const controller = new InteractionController(viewport as never, store, gridSystem as never, {} as never, app, false);
   // Sprites stand where their tokens do, as the token renderer keeps them.
   controller.setTokenSpriteProvider((id) => {

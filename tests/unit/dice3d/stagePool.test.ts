@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { borrowStage, resetStagePool, returnStage, warmStages } from '../../../src/app/dice3d/stagePool';
+import { borrowStage, releaseStagePool, releaseStagePools, returnStage, warmStages } from '../../../src/app/dice3d/stagePool';
 
 describe('stagePool', () => {
   beforeEach(() => {
@@ -9,7 +9,7 @@ describe('stagePool', () => {
   });
 
   afterEach(() => {
-    resetStagePool();
+    releaseStagePools();
     vi.restoreAllMocks();
   });
 
@@ -30,6 +30,15 @@ describe('stagePool', () => {
     expect(borrowStage(document)).not.toBe(lease);
   });
 
+  it('takes no stage back into a pool that was given back', () => {
+    const lease = borrowStage(document);
+    document.body.appendChild(lease.canvas);
+    releaseStagePool(document);
+    returnStage(lease);
+    expect(lease.canvas.isConnected).toBe(false);
+    expect(borrowStage(document)).not.toBe(lease);
+  });
+
   it('keeps a separate pool per document', () => {
     const popout = document.implementation.createHTMLDocument('popout');
     const lease = borrowStage(document);
@@ -42,8 +51,9 @@ describe('stagePool', () => {
   });
 
   describe('warming', () => {
-    /** How many stages were ever built: each one adopts a canvas into its document. */
-    const built = (): number => vi.mocked(document.adoptNode).mock.calls.length;
+    /** How many stages were ever built: each one adopts its canvas into its document. */
+    const built = (): number =>
+      vi.mocked(document.adoptNode).mock.calls.filter(([node]) => node instanceof HTMLElement && node.classList.contains('atlas-dice-stage__canvas')).length;
 
     beforeEach(() => {
       vi.useFakeTimers();
@@ -87,6 +97,15 @@ describe('stagePool', () => {
       warmStages(document, Promise.resolve());
       await vi.runAllTimersAsync();
       expect(built()).toBe(4);
+    });
+
+    it('builds nothing more for a pool that was given back', async () => {
+      warmStages(document, Promise.resolve());
+      await vi.advanceTimersByTimeAsync(600);
+      expect(built()).toBe(1);
+      releaseStagePool(document);
+      await vi.runAllTimersAsync();
+      expect(built()).toBe(1);
     });
   });
 });

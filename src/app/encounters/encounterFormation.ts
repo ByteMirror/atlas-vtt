@@ -1,4 +1,5 @@
 import { axialToPixel, createHexLayout, pixelToAxial, type HexLayout } from '../grid/hexGeometry';
+import { tokenCenterShift } from '../grid/gridPlacement';
 
 export type FormationGridType = 'square' | 'hex-horizontal' | 'hex-vertical';
 
@@ -13,6 +14,11 @@ export interface FormationGrid {
 export interface Point {
   x: number;
   y: number;
+}
+
+/** A token's centre and size (unset is 1), as a formation records and places it. */
+export interface FormationToken extends Point {
+  size?: number | undefined;
 }
 
 /** Integer cell address. Square grids use q = column, r = row; hex grids use axial coordinates. */
@@ -109,6 +115,19 @@ export function cellToWorld(grid: FormationGrid, cell: CellCoord): Point {
   };
 }
 
+/** Centre of the cell a token's position is recorded by: the cell under its centre, or for an even footprint (centred where cells meet) the cell its footprint starts from. */
+function tokenCellPoint(grid: FormationGrid, token: FormationToken): Point {
+  const shift = tokenCenterShift(grid.type, grid.size, token.size ?? 1);
+  return { x: token.x - shift.x, y: token.y - shift.y };
+}
+
+/** Where a token whose position is recorded by `cell` stands. */
+function tokenWorldPosition(grid: FormationGrid, cell: CellCoord, size: number): Point {
+  const shift = tokenCenterShift(grid.type, grid.size, size);
+  const center = cellToWorld(grid, cell);
+  return { x: center.x + shift.x, y: center.y + shift.y };
+}
+
 function cellKey(cell: CellCoord): string {
   return `${cell.q},${cell.r}`;
 }
@@ -144,17 +163,17 @@ function nearestFreeCell(grid: FormationGrid, start: CellCoord, occupied: Set<st
  * Works without a grid by falling back to a nominal pitch.
  */
 export function captureFormation(
-  positions: Point[],
+  positions: FormationToken[],
   grid: FormationGrid | null,
 ): { formation: EncounterFormation; slots: FormationSlot[] } {
   const anchor = positions[0] ?? { x: 0, y: 0 };
   const pitch = grid ? cellPitch(grid) : FALLBACK_PITCH;
-  const anchorCell = grid ? worldToCell(grid, anchor) : null;
+  const anchorCell = grid ? worldToCell(grid, tokenCellPoint(grid, anchor)) : null;
 
   const slots = positions.map((position): FormationSlot => {
     const offset = { x: (position.x - anchor.x) / pitch, y: (position.y - anchor.y) / pitch };
     if (grid && anchorCell) {
-      const cell = worldToCell(grid, position);
+      const cell = worldToCell(grid, tokenCellPoint(grid, position));
       return { cell: { q: cell.q - anchorCell.q, r: cell.r - anchorCell.r }, offset };
     }
     return { cell: { q: Math.round(offset.x), r: Math.round(offset.y) }, offset };
@@ -176,6 +195,7 @@ export function placeFormation(
   formation: EncounterFormation,
   anchor: Point,
   grid: FormationGrid | null,
+  sizes: ReadonlyArray<number | undefined> = [],
 ): Point[] {
   const capturePitch = isFiniteNumber(formation.pitch) && formation.pitch > 0 ? formation.pitch : FALLBACK_PITCH;
 
@@ -192,15 +212,19 @@ export function placeFormation(
   const targetPitch = cellPitch(grid);
   const occupied = new Set<string>();
 
-  return slots.map((slot) => {
+  const anchorShift = tokenCenterShift(grid.type, grid.size, sizes[0] ?? 1);
+
+  return slots.map((slot, index) => {
+    const size = sizes[index] ?? 1;
     const desired = sameGridType
       ? addCells(anchorCell, slot.cell)
-      : worldToCell(grid, {
-          x: anchorCenter.x + slot.offset.x * targetPitch,
-          y: anchorCenter.y + slot.offset.y * targetPitch,
-        });
+      : worldToCell(grid, tokenCellPoint(grid, {
+          x: anchorCenter.x + anchorShift.x + slot.offset.x * targetPitch,
+          y: anchorCenter.y + anchorShift.y + slot.offset.y * targetPitch,
+          size,
+        }));
     const cell = nearestFreeCell(grid, desired, occupied);
     occupied.add(cellKey(cell));
-    return cellToWorld(grid, cell);
+    return tokenWorldPosition(grid, cell, size);
   });
 }

@@ -1,5 +1,6 @@
 import type { GridState } from '../services/MapPersistence';
 import { cellToWorld, formationGridFromOptions, worldToCell, type FormationGrid } from '../encounters/encounterFormation';
+import { snapTokenCenter } from '../grid/gridPlacement';
 import {
   anchorKey,
   contentCenter,
@@ -21,8 +22,8 @@ function tokenSnapGrid(grid: GridState | null): FormationGrid | null {
   return geometry && (grid?.snapToGrid ?? true) ? geometry : null;
 }
 
-function snapToCellCenter(grid: FormationGrid, point: Point): Point {
-  return cellToWorld(grid, worldToCell(grid, point));
+function snapToken(grid: FormationGrid, point: Point, tokenSize: number): Point {
+  return snapTokenCenter(point, tokenSize, grid.type, grid.size, (p) => cellToWorld(grid, worldToCell(grid, p)));
 }
 
 /** One diagonal cell as a lattice vector, so shifted copies stay aligned with the grid. */
@@ -36,7 +37,7 @@ export function duplicateStep(grid: GridState | null): Point {
 
 /**
  * Offset that centres the content on `target`. When tokens snap, the offset is adjusted so the
- * first token lands on a cell centre, which keeps the whole group's grid alignment intact.
+ * first token lands where it snaps, which keeps the whole group's grid alignment intact.
  */
 export function pasteOffset(content: MapObjectContent, target: Point, grid: GridState | null): Point {
   const center = contentCenter(content);
@@ -44,7 +45,7 @@ export function pasteOffset(content: MapObjectContent, target: Point, grid: Grid
   const geometry = tokenSnapGrid(grid);
   const anchor = content.tokens[0];
   if (!geometry || !anchor) return offset;
-  const snapped = snapToCellCenter(geometry, { x: anchor.x + offset.x, y: anchor.y + offset.y });
+  const snapped = snapToken(geometry, { x: anchor.x + offset.x, y: anchor.y + offset.y }, anchor.size || 1);
   return { x: snapped.x - anchor.x, y: snapped.y - anchor.y };
 }
 
@@ -61,14 +62,14 @@ export function placeMapObjects(
   existing: CopyableCollections,
 ): MapObjectContent {
   const geometry = tokenSnapGrid(grid);
-  const placeToken = geometry ? (point: Point): Point => snapToCellCenter(geometry, point) : undefined;
+  const placeToken = geometry ? (point: Point, tokenSize: number): Point => snapToken(geometry, point, tokenSize) : undefined;
   const occupied = new Set(objectAnchors(existing).map(({ kind, point }) => anchorKey(kind, point)));
   const anchors = objectAnchors(content);
   const step = duplicateStep(grid);
   const offsetAt = (steps: number): Point => ({ x: offset.x + step.x * steps, y: offset.y + step.y * steps });
-  const overlapsAt = (shift: Point): boolean => anchors.some(({ kind, point, isToken }) => {
+  const overlapsAt = (shift: Point): boolean => anchors.some(({ kind, point, tokenSize }) => {
     const moved = { x: point.x + shift.x, y: point.y + shift.y };
-    return occupied.has(anchorKey(kind, isToken && placeToken ? placeToken(moved) : moved));
+    return occupied.has(anchorKey(kind, tokenSize !== undefined && placeToken ? placeToken(moved, tokenSize) : moved));
   });
 
   let steps = 0;

@@ -100,12 +100,14 @@ describe('TokenRenderer Integration Tests', () => {
   let isRendererDestroyed: boolean;
   let canvas: HTMLCanvasElement;
 
+  const snapToCellCenter = (x: number, y: number): { x: number; y: number } => ({
+    x: Math.floor(x / gridSize) * gridSize + gridSize / 2,
+    y: Math.floor(y / gridSize) * gridSize + gridSize / 2,
+  });
   const gridSystem = {
     getOptions: () => ({ type: 'square', size: gridSize, offsetX: 0, offsetY: 0 }),
-    snapToCellCenter: (x: number, y: number) => ({
-      x: Math.floor(x / gridSize) * gridSize + gridSize / 2,
-      y: Math.floor(y / gridSize) * gridSize + gridSize / 2,
-    }),
+    snapToCellCenter,
+    snapTokenCenter: snapToCellCenter,
   } as unknown as GridSystem;
 
   const createRenderer = (viewStore: ViewStore = store): TokenRenderer => {
@@ -289,6 +291,20 @@ describe('TokenRenderer Integration Tests', () => {
 
       expect(tokenSprite('token-1').width).toBeCloseTo(computeTokenPixelSize(100, 2));
       expect(tokenSprite('token-1').height).toBeCloseTo(computeTokenPixelSize(100, 2));
+    });
+  });
+
+  describe('Selection frame', () => {
+    it('redraws the frame of a selected token at its new size when it is resized', async () => {
+      store.getState().addToken(token({ id: 'token-1' }));
+      await waitForTokens('token-1');
+      store.setState({ selectedIds: ['token-1'] });
+      const widthsWhenDrawn: number[] = [];
+      selectionOverlayUpdater.mockImplementation(() => widthsWhenDrawn.push(tokenSprite('token-1').width));
+
+      store.getState().updateToken('token-1', { size: 1.5 });
+
+      await vi.waitFor(() => expect(widthsWhenDrawn.at(-1)).toBeCloseTo(computeTokenPixelSize(70, 1.5)));
     });
   });
 

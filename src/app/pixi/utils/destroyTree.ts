@@ -1,7 +1,10 @@
 import type { Container } from 'pixi.js';
 
 export interface DestroyTreeOptions {
-  /** Also destroy textures of sprites in the tree. Off by default: most textures come from shared caches. */
+  /**
+   * Also destroy textures of sprites in the tree. Off by default: most textures come from shared
+   * caches. Their sources stay: destroy a texture whose source is its own with `destroy(true)`.
+   */
   textures?: boolean;
 }
 

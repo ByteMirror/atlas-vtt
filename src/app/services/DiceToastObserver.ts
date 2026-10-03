@@ -11,7 +11,7 @@ import type { DiceRollResult } from '../tools/DiceTool';
 export class DiceToastObserver {
     private soundEffectService: SoundEffectService;
 
-    constructor(soundEffectService: SoundEffectService, private readonly settings: Pick<SettingsService, 'getDiceDisplay'>) {
+    constructor(soundEffectService: SoundEffectService, private readonly settings: Pick<SettingsService, 'getDiceDisplay' | 'getDiceVolume'>) {
         this.soundEffectService = soundEffectService;
         document.addEventListener('atlas-dice-rolled', this.handleDiceRolled);
     }
@@ -19,7 +19,7 @@ export class DiceToastObserver {
     private handleDiceRolled = (event: Event): void => {
         const result = (event as CustomEvent<DiceRollResult>).detail;
         if (diceSceneToShow(result, this.settings.getDiceDisplay())) return;
-        this.soundEffectService.playDiceResult(result.crit ?? null);
+        this.soundEffectService.playDiceResult(result.crit ?? null, this.settings.getDiceVolume());
     };
 
     destroy(): void {

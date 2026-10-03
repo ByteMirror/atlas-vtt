@@ -85,13 +85,16 @@ export class ExploredTexture {
     return Texture.from(image.naturalWidth < width || image.naturalHeight < height ? sharpened(image, width, height) : image);
   }
 
-  /** Replaces the memory with a decoded image of it, which it then destroys. */
+  /** Replaces the memory with a decoded image of it, which it then destroys with its source. */
   draw(image: Texture): void {
     const sprite = new Sprite(image);
     sprite.width = this.texture.width;
     sprite.height = this.texture.height;
     this.renderer.render({ container: sprite, target: this.texture, clear: true, clearColor: [0, 0, 0, 0] });
-    destroyTree(sprite, { textures: true });
+    destroyTree(sprite);
+    // The source is the decoded image and its upload, as large as the memory itself; a texture
+    // destroyed without it leaves both behind for every scene loaded.
+    image.destroy(true);
   }
 
   /** Replaces the memory with a saved image of it. */

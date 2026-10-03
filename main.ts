@@ -27,6 +27,7 @@ import { hotkeySettingsSection, onboardingSettingsSection } from './src/app/sett
 import { navigationSettingsSection } from './src/app/settings/navigationSettingsSection';
 import { diceSettingsSection } from './src/app/settings/diceSettingsSection';
 import { registerDiceLookSync } from './src/app/plugin/diceLookSync';
+import { registerDiceStageRelease } from './src/app/plugin/diceStageRelease';
 import { supportSettingsSection } from './src/app/settings/supportSettingsSection';
 import { registerAtlasLeafSync } from './src/app/plugin/atlasLeaves';
 import { EXTENSION_ATLASMAP } from './src/app/utils/sceneFiles';
@@ -76,6 +77,7 @@ export default class AtlasVTTPlugin extends Plugin {
     // Before the views: a restored map may start Atlas's first check of the vault,
     // whose folder renames reach map files only through these vault events.
     registerVaultSync(this);
+    registerDiceStageRelease(this);
     // Views first, so workspace restore can resolve persisted Atlas tabs
     // before the slower startup path finishes.
     this.registerAtlasViews();

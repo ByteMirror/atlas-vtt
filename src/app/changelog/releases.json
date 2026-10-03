@@ -2,6 +2,11 @@
   "version": "0.6.0-beta.0",
   "releases": [
     {
+      "version": "0.6.0-beta.0",
+      "title": "Coming in 0.6.0",
+      "markdown": "## Improved\n\n- An open map uses much less graphics memory: 3D dice share one drawing context per window, and with dynamic lighting on the map no longer keeps antialiasing buffers it does not draw into\n\n## Fixed\n\n- Reloading Atlas no longer leaves the previous 3D dice in graphics memory\n- Loading a scene with explored areas no longer keeps a copy of them in graphics memory"
+    },
+    {
       "version": "0.5.0",
       "date": "2026-10-02",
       "title": "Dynamic lighting as an experimental feature, 3D dice, token resources and map imports",

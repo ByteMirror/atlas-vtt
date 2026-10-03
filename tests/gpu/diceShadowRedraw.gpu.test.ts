@@ -1,5 +1,6 @@
 import '../setup/obsidianDom';
 import { describe, expect, it } from 'vitest';
+import { DiceGpu } from '../../src/app/dice3d/DiceGpu';
 import { DiceRenderer, type StageDie } from '../../src/app/dice3d/DiceRenderer';
 import { loadDiceArtwork } from '../../src/app/dice3d/dieArtwork';
 import { dieGeometry, faceIndexForValue, lyingHeight, restingQuaternion } from '../../src/app/dice3d/dieGeometry';
@@ -22,8 +23,9 @@ interface Stage {
 }
 
 function stageWithRestingDie(): Stage {
+  const context = document.createElement('canvas');
   const canvas = document.createElement('canvas');
-  const renderer = new DiceRenderer(canvas);
+  const renderer = new DiceRenderer(new DiceGpu(context), canvas);
   const resize = (): void => renderer.setSize(WIDTH, HEIGHT, 1);
   resize();
   renderer.setPlan([20]);
@@ -32,7 +34,8 @@ function stageWithRestingDie(): Stage {
   restImmediately(anim, restingQuaternion(geometry, faceIndexForValue(geometry, 20), 0.2));
   const dice: StageDie[] = [{ anim, sides: 20 }];
 
-  const gl = canvas.getContext('webgl2')!;
+  const gl = context.getContext('webgl2')!;
+  const shown = canvas.getContext('2d')!;
   let draws = 0;
   const drawElements = gl.drawElements.bind(gl);
   const drawArrays = gl.drawArrays.bind(gl);
@@ -42,9 +45,7 @@ function stageWithRestingDie(): Stage {
   const frame = (): Frame => {
     draws = 0;
     renderer.render(dice, 1, null);
-    const pixels = new Uint8Array(WIDTH * HEIGHT * 4);
-    gl.readPixels(0, 0, WIDTH, HEIGHT, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
-    return { draws, pixels };
+    return { draws, pixels: new Uint8Array(shown.getImageData(0, 0, WIDTH, HEIGHT).data) };
   };
   return { renderer, dice, frame, resize };
 }

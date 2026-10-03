@@ -7,8 +7,11 @@ import type { GridBounds, GridLineType } from './gridLineStyle';
 import { createHexLayout, hexCellExtent, isHexGridType, nearestHexCenter } from './hexGeometry';
 import type { HexLayout } from './hexGeometry';
 import { contrastColorForSprite } from './gridContrastColor';
-import { numberHexes, type HexNumberStyle } from './hexNumbering';
-import { HexNumberLabels, type HexNumberView } from './hexNumberLabels';
+import { snapTokenCenter } from './gridPlacement';
+import { numberCells, type CellLattice, type CellNumberStyle } from './cellNumbering';
+import { hexLattice } from './hexLattice';
+import { squareLattice } from './squareLattice';
+import { CellNumberLabels, type CellNumberView } from './cellNumberLabels';
 import { destroyTree } from '../pixi/utils/destroyTree';
 
 export type GridType = 'square' | 'hex-horizontal' | 'hex-vertical';
@@ -46,8 +49,8 @@ export interface GridOptions {
   mapScale?: number;
   /** Whether in alignment mode (for visual feedback) */
   isAligning?: boolean;
-  /** Numbers every hex on hex grids in this style; unset shows no numbers. */
-  hexNumbers?: HexNumberStyle | undefined;
+  /** Numbers every cell of the grid in this style; unset shows no numbers. */
+  cellNumbers?: CellNumberStyle | undefined;
 }
 
 /** Colour of every grid preview while the grid is being aligned. */
@@ -58,12 +61,12 @@ export const ALIGNMENT_GRID_COLOR = 0x00ff00;
  * staying locked under pan/zoom by the Pixi‑Viewport container.
  */
 export class GridSystem {
-  /** Holds the grid lines and, on numbered hex grids, the hex numbers. */
+  /** Holds the grid lines and, on a numbered grid, the cell numbers. */
   private gridSprite: Container | null = null;
   private gridMask: Graphics | null = null;
-  private hexNumberLabels: HexNumberLabels | null = null;
+  private cellNumberLabels: CellNumberLabels | null = null;
   private readonly onViewportZoomed = (): void => {
-    this.hexNumberLabels?.setView(this.numberView());
+    this.cellNumberLabels?.setView(this.numberView());
   };
   /** The map the grid overlays; null between two maps, when there is nothing to draw on. */
   private bgSprite: Sprite | null;
@@ -202,17 +205,18 @@ export class GridSystem {
     grid.addChild(lines);
     grid.position.set(bounds.minX, bounds.minY);
 
-    const hexNumbers = this.options.hexNumbers;
-    if (hexLayout && hexNumbers) {
+    const cellNumbers = this.options.cellNumbers;
+    if (cellNumbers) {
+      const lattice: CellLattice = hexLayout ? hexLattice(hexLayout) : squareLattice(size, offsetX, offsetY);
       const mapRect = { x: bgX, y: bgY, width: bgSprite.width, height: bgSprite.height };
-      this.hexNumberLabels = new HexNumberLabels(
-        numberHexes(hexLayout, mapRect, hexNumbers.format),
-        hexLayout,
+      this.cellNumberLabels = new CellNumberLabels(
+        numberCells(lattice, mapRect, cellNumbers.format),
+        lattice.size,
         { x: bounds.minX, y: bounds.minY },
-        { color: gridColor, opacity: hexNumbers.opacity },
+        { color: gridColor, opacity: cellNumbers.opacity },
         this.numberView(),
       );
-      grid.addChild(this.hexNumberLabels.container);
+      grid.addChild(this.cellNumberLabels.container);
     }
 
     // Clip the grid to the map bounds
@@ -248,7 +252,7 @@ export class GridSystem {
     this._isCreating = false;
   }
 
-  private numberView(): HexNumberView {
+  private numberView(): CellNumberView {
     return { zoom: this.viewport.scale.x, pixelRatio: this.app.renderer.resolution };
   }
 
@@ -265,7 +269,7 @@ export class GridSystem {
 
   /** Clean up grid-only resources */
   private destroyGridResources(): void {
-    this.hexNumberLabels = null;
+    this.cellNumberLabels = null;
     if (this.gridMask) {
       if (this.gridMask.parent) {
         this.gridMask.parent.removeChild(this.gridMask);
@@ -342,10 +346,10 @@ export class GridSystem {
   }
 
   /** Changes only the numbers' opacity, without rebuilding the grid. */
-  public setHexNumberOpacity(opacity: number): void {
-    if (!this.options.hexNumbers) return;
-    this.options.hexNumbers = { ...this.options.hexNumbers, opacity };
-    this.hexNumberLabels?.setOpacity(opacity);
+  public setCellNumberOpacity(opacity: number): void {
+    if (!this.options.cellNumbers) return;
+    this.options.cellNumbers = { ...this.options.cellNumbers, opacity };
+    this.cellNumberLabels?.setOpacity(opacity);
   }
 
   /** Return current options */
@@ -358,7 +362,7 @@ export class GridSystem {
     return this.options.mapScale || 1;
   }
 
-  /** Returns the grid container: its lines and, on numbered hex grids, the hex numbers */
+  /** Returns the grid container: its lines and, on a numbered grid, the cell numbers */
   public getGridSprite(): Container | null {
     return this.gridSprite;
   }
@@ -441,6 +445,12 @@ export class GridSystem {
       x: col * size + offsetX + size / 2,
       y: row * size + offsetY + size / 2,
     };
+  }
+
+  /** Snap a token's centre: a cell centre, or where cells meet for an even footprint (`tokenCenterShift`) */
+  public snapTokenCenter(x: number, y: number, tokenSize: number): { x: number; y: number } {
+    const { type, size } = this.options;
+    return snapTokenCenter({ x, y }, tokenSize, type, size, (point) => this.snapToCellCenter(point.x, point.y));
   }
 
   /** Get current grid size */

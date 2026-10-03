@@ -72,12 +72,12 @@ export function contentCenter(content: MapObjectContent): Point {
 export function translateMapObjects(
   content: MapObjectContent,
   offset: Point,
-  placeToken: (position: Point) => Point = (position) => position,
+  placeToken: (position: Point, tokenSize: number) => Point = (position) => position,
 ): MapObjectContent {
   const shift = (point: Point): Point => ({ x: point.x + offset.x, y: point.y + offset.y });
   const move = <T extends Point>(object: T): T => ({ ...structuredClone(object), ...shift(object) });
   return {
-    tokens: content.tokens.map((token) => ({ ...structuredClone(token), ...placeToken(shift(token)) })),
+    tokens: content.tokens.map((token) => ({ ...structuredClone(token), ...placeToken(shift(token), token.size || 1) })),
     drawings: content.drawings.map((drawing) => ({
       ...structuredClone(drawing),
       points: drawing.points.map(shift),
@@ -91,8 +91,8 @@ export function translateMapObjects(
 export interface ObjectAnchor {
   kind: string;
   point: Point;
-  /** Tokens snap to the grid when placed; other objects keep their exact offset. */
-  isToken: boolean;
+  /** Size of a token, which snaps to the grid when placed; unset for other objects, which keep their exact offset. */
+  tokenSize?: number;
 }
 
 export function anchorKey(kind: string, point: Point): string {
@@ -103,10 +103,10 @@ export function anchorKey(kind: string, point: Point): string {
 export function objectAnchors(objects: CopyableCollections | MapObjectContent): ObjectAnchor[] {
   const values = <T>(collection: Record<string, T> | T[]): T[] => (Array.isArray(collection) ? collection : Object.values(collection));
   const anchors: ObjectAnchor[] = [];
-  const add = (kind: string, point: Point | undefined, isToken = false): void => {
-    if (point) anchors.push({ kind, point: { x: point.x, y: point.y }, isToken });
+  const add = (kind: string, point: Point | undefined, tokenSize?: number): void => {
+    if (point) anchors.push({ kind, point: { x: point.x, y: point.y }, ...(tokenSize !== undefined && { tokenSize }) });
   };
-  values(objects.tokens).forEach((token) => add(`token:${token.imagePath}`, token, true));
+  values(objects.tokens).forEach((token) => add(`token:${token.imagePath}`, token, token.size || 1));
   values(objects.texts).forEach((text) => add('text', text));
   values(objects.pins).forEach((pin) => add('pin', pin));
   values(objects.drawings).forEach((drawing) => add('drawing', drawing.points[0]));

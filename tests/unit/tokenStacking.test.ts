@@ -137,7 +137,7 @@ describe('dragging a token onto another', () => {
       plugins: { pause: vi.fn(), resume: vi.fn() },
       options: { events: { domElement: document.body.createEl('canvas') } },
     };
-    const gridSystem = { snapToCellCenter: (x: number, y: number) => ({ x, y }) };
+    const gridSystem = { snapTokenCenter: (x: number, y: number) => ({ x, y }) };
     const controller = new InteractionController(viewport as never, store, gridSystem as never, {} as never, createInMemoryApp().app, false);
     controller.setTokenSpriteProvider((id) => {
       const entry = store.getState().objects.tokens[id];

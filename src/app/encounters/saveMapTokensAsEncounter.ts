@@ -43,7 +43,7 @@ export async function saveMapTokensAsEncounter(
 
   const ordered = orderByCentroidDistance(tokens);
   const grid = formationGridFromOptions(gridSystem?.getOptions());
-  const { formation, slots } = captureFormation(ordered.map((t) => ({ x: t.x, y: t.y })), grid);
+  const { formation, slots } = captureFormation(ordered.map((t) => ({ x: t.x, y: t.y, size: t.size })), grid);
 
   const drafts = ordered.map((token, index): EncounterTokenDraft => {
     const character = token.kind === 'character' ? token : null;

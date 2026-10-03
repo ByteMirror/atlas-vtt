@@ -1,16 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { borrowStage, canShowDice, resetStagePool, returnStage, warmStages } from '../../../src/app/dice3d/stagePool';
-
-// jsdom has no WebGL. three's renderer would fail halfway and leave context listeners on the
-// canvas that throw when a test dispatches context events, so the stage fails as a whole.
-vi.mock('../../../src/app/dice3d/DiceRenderer', async (importOriginal) => ({
-  ...await importOriginal<typeof import('../../../src/app/dice3d/DiceRenderer')>(),
-  DiceRenderer: class {
-    constructor() {
-      throw new Error('No WebGL');
-    }
-  },
-}));
+import { borrowStage, releaseStagePool, releaseStagePools, returnStage, warmStages } from '../../../src/app/dice3d/stagePool';
 
 describe('stagePool', () => {
   beforeEach(() => {
@@ -20,7 +9,7 @@ describe('stagePool', () => {
   });
 
   afterEach(() => {
-    resetStagePool();
+    releaseStagePools();
     vi.restoreAllMocks();
   });
 
@@ -32,31 +21,21 @@ describe('stagePool', () => {
     expect(lease.canvas.getAttribute('aria-hidden')).toBe('true');
   });
 
-  it('shows rolls as cards in a document once a stage got no WebGL, and only there', () => {
-    const popout = document.implementation.createHTMLDocument('popout');
-    expect(canShowDice(document)).toBe(true);
-    borrowStage(document);
-    expect(canShowDice(document)).toBe(false);
-    expect(canShowDice(popout)).toBe(true);
-  });
-
-  it('shows rolls as cards while a stage has lost its WebGL context', () => {
-    const lease = borrowStage(document);
-    // Forget the missing context of jsdom: only the loss below should count
-    resetStagePool();
-    expect(canShowDice(document)).toBe(true);
-    lease.canvas.dispatchEvent(new Event('webglcontextlost'));
-    expect(canShowDice(document)).toBe(false);
-    lease.canvas.dispatchEvent(new Event('webglcontextrestored'));
-    expect(canShowDice(document)).toBe(true);
-  });
-
   it('reuses a returned stage for the same document', () => {
     const lease = borrowStage(document);
     document.body.appendChild(lease.canvas);
     returnStage(lease);
     expect(lease.canvas.isConnected).toBe(false);
     expect(borrowStage(document)).toBe(lease);
+    expect(borrowStage(document)).not.toBe(lease);
+  });
+
+  it('takes no stage back into a pool that was given back', () => {
+    const lease = borrowStage(document);
+    document.body.appendChild(lease.canvas);
+    releaseStagePool(document);
+    returnStage(lease);
+    expect(lease.canvas.isConnected).toBe(false);
     expect(borrowStage(document)).not.toBe(lease);
   });
 
@@ -72,8 +51,9 @@ describe('stagePool', () => {
   });
 
   describe('warming', () => {
-    /** How many stages were ever built: each one adopts a canvas into its document. */
-    const built = (): number => vi.mocked(document.adoptNode).mock.calls.length;
+    /** How many stages were ever built: each one adopts its canvas into its document. */
+    const built = (): number =>
+      vi.mocked(document.adoptNode).mock.calls.filter(([node]) => node instanceof HTMLElement && node.classList.contains('atlas-dice-stage__canvas')).length;
 
     beforeEach(() => {
       vi.useFakeTimers();
@@ -117,6 +97,15 @@ describe('stagePool', () => {
       warmStages(document, Promise.resolve());
       await vi.runAllTimersAsync();
       expect(built()).toBe(4);
+    });
+
+    it('builds nothing more for a pool that was given back', async () => {
+      warmStages(document, Promise.resolve());
+      await vi.advanceTimersByTimeAsync(600);
+      expect(built()).toBe(1);
+      releaseStagePool(document);
+      await vi.runAllTimersAsync();
+      expect(built()).toBe(1);
     });
   });
 });

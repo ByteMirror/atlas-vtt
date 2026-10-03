@@ -12,7 +12,7 @@ function makeRuler(token: { isHidden?: boolean } = {}): { ruler: DragRuler; view
   const view = { draw: vi.fn(), clear: vi.fn(), destroy: vi.fn(), layers: [{ visible: true }, { visible: true }] };
   const gridSystem = {
     getOptions: () => ({ type: 'square', size: CELL, offsetX: 0, offsetY: 0 }),
-    snapToCellCenter: (x: number, y: number) => center(Math.floor(x / CELL), Math.floor(y / CELL)),
+    snapTokenCenter: (x: number, y: number) => center(Math.floor(x / CELL), Math.floor(y / CELL)),
   };
   const state = { grid: { snapToGrid: true }, objects: { tokens: { t1: { id: 't1', size: 1, ...token } } } };
   const settings: MeasurementSettings = { mode: 'metric', unitType: 'feet', unitDistance: 5, diagonalRule: 'equidistant', rangeBands: [] };

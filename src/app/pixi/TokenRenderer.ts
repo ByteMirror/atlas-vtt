@@ -443,6 +443,7 @@ export class TokenRenderer {
           }
         }
       }
+      this.selectionOverlayUpdater();
     };
 
     window.addEventListener('atlas-tokens-resize-update', this._handleResizeUpdate);
@@ -1074,6 +1075,11 @@ export class TokenRenderer {
     if (totalChanges > 0) {
       this.refreshInstanceBadges();
     }
+
+    // A selected token that was resized or moved (size menu, undo) takes its selection frame along
+    if (this.store.getState().selectedIds.some((id) => changedTokenIds.has(id))) {
+      this.selectionOverlayUpdater();
+    }
   };
 
   /** Shows the new content of a changed image file on every token that uses it. */
@@ -1422,7 +1428,7 @@ export class TokenRenderer {
       
       // Get current position and snap to new grid
       const currentPos = { x: token.x, y: token.y };
-      const snappedPos = this.gridSystem.snapToCellCenter(currentPos.x, currentPos.y);
+      const snappedPos = this.gridSystem.snapTokenCenter(currentPos.x, currentPos.y, token.size || 1);
       
       // Only update if position actually changed
       if (Math.abs(snappedPos.x - currentPos.x) > 0.1 || Math.abs(snappedPos.y - currentPos.y) > 0.1) {

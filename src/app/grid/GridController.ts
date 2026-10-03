@@ -1,7 +1,7 @@
 import { PixiRendererOrchestrator } from '../PixiRendererOrchestrator';
 import type { GridOptions } from './GridSystem';
 import { parseGridColor } from './gridContrastColor';
-import { hexNumberStyleOfGrid } from './hexNumbering';
+import { cellNumberStyleOfGrid } from './cellNumbering';
 import type { MapFile } from '../services/MapPersistence';
 import { Sprite } from 'pixi.js';
 
@@ -29,7 +29,7 @@ function ensureInitialised(
     alpha: mapData.grid?.opacity ?? 0.7,
     lineWidth: mapData.grid?.lineWidth ?? 1,
     lineType: mapData.grid?.lineType ?? 'solid',
-    hexNumbers: hexNumberStyleOfGrid(mapData.grid),
+    cellNumbers: cellNumberStyleOfGrid(mapData.grid),
     enabled: true,
   } as const;
 

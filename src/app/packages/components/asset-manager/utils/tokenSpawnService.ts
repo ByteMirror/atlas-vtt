@@ -36,7 +36,7 @@ interface ViewportLike {
 
 interface GridSystemLike {
   getOptions(): { type?: string; size: number; offsetX?: number; offsetY?: number; enabled?: boolean };
-  snapToCellCenter(x: number, y: number): { x: number; y: number };
+  snapTokenCenter(x: number, y: number, tokenSize: number): { x: number; y: number };
 }
 
 export interface SpawnContext {
@@ -97,7 +97,8 @@ function gridPosition(
   centerX: number,
   centerY: number,
   cellSize: number,
-  gridSystem: GridSystemLike | null
+  gridSystem: GridSystemLike | null,
+  tokenSize: number
 ): { x: number; y: number } {
   const tokensPerRow = Math.ceil(Math.sqrt(total));
   const totalRows = Math.ceil(total / tokensPerRow);
@@ -108,7 +109,7 @@ function gridPosition(
   let y = centerY + (row - (totalRows - 1) / 2) * cellSize;
 
   if (gridSystem) {
-    const snapped = gridSystem.snapToCellCenter(x, y);
+    const snapped = gridSystem.snapTokenCenter(x, y, tokenSize);
     x = snapped.x;
     y = snapped.y;
   }
@@ -259,7 +260,7 @@ export async function spawnTokenAsset(
   const template = await buildTokenData(ctx.app, center, source, targetResources(ctx, target), spawnVisionDefaults(ctx, target));
   const tokens = Array.from({ length: count }, (_, i): TokenInput => ({
     ...structuredClone(template),
-    ...gridPosition(i, count, center.x, center.y, pitch, gridSystem),
+    ...gridPosition(i, count, center.x, center.y, pitch, gridSystem, template.size || 1),
   }));
   return addSpawnedTokens(target, tokens);
 }
@@ -280,7 +281,7 @@ export async function spawnEncounterTokens(
 
   const slots = encounterSlots(encounter);
   const formationPositions = slots && encounter.formation
-    ? placeFormation(slots, encounter.formation, center, grid)
+    ? placeFormation(slots, encounter.formation, center, grid, tokensToSpawn.map((token) => token.size))
     : null;
 
   const definitions = targetResources(ctx, target);
@@ -299,13 +300,13 @@ export async function spawnEncounterTokens(
       let x = center.x + token.x;
       let y = center.y + token.y;
       if (gridSystem) {
-        const snapped = gridSystem.snapToCellCenter(x, y);
+        const snapped = gridSystem.snapTokenCenter(x, y, token.size || 1);
         x = snapped.x;
         y = snapped.y;
       }
       pos = { x, y };
     } else {
-      pos = gridPosition(i, tokensToSpawn.length, center.x, center.y, pitch, gridSystem);
+      pos = gridPosition(i, tokensToSpawn.length, center.x, center.y, pitch, gridSystem, token.size || 1);
     }
 
     // A saved state snapshot is restored as saved (in today's token format). Encounters built from token
@@ -352,7 +353,7 @@ export async function spawnSelectedTokens(
 
     const source = await resolveTokenSource(ctx, tokenAsset);
     if (!source) continue;
-    const pos = gridPosition(i, tokensToSpawn.length, center.x, center.y, pitch, gridSystem);
+    const pos = gridPosition(i, tokensToSpawn.length, center.x, center.y, pitch, gridSystem, source.size || 1);
     tokens.push(await buildTokenData(ctx.app, pos, source, definitions, visionDefaults));
   }
 

@@ -6,8 +6,7 @@ import { ObsidianMenuDropdown } from '../ObsidianMenuDropdown';
 import { SettingRow, SettingSliderRow, SettingToggleRow } from './SettingRows';
 import type { AtlasView } from '../../../atlas-view';
 import type { GridType } from '../../../grid/GridSystem';
-import { isHexGridType } from '../../../grid/hexGeometry';
-import { DEFAULT_HEX_NUMBER_OPACITY, isHexNumberFormat, type HexNumberFormat } from '../../../grid/hexNumbering';
+import { DEFAULT_CELL_NUMBER_OPACITY, isCellNumberFormat, type CellNumberFormat } from '../../../grid/cellNumbering';
 import { debounce } from '../../../../utils/debounce';
 
 /** `undefined` leaves the colour to the grid, which picks black or white from the map's brightness. */
@@ -36,10 +35,11 @@ function isGridType(value: string): value is GridType {
   return value in GRID_TYPE_OPTIONS;
 }
 
-const HEX_NUMBER_OPTIONS: Record<HexNumberFormat | 'off', string> = {
+const HEX_NUMBER_OPTIONS: Record<CellNumberFormat | 'off', string> = {
   off: 'Off',
   'column-row': 'Column and row (0101)',
   sequential: 'Sequential (1, 2, 3)',
+  'letter-number': 'Letters and numbers (A1)',
 };
 
 const LINE_STYLE_OPTIONS = {
@@ -81,9 +81,9 @@ export function GridSettingsPanel({
   const currentColor: string | undefined = currentGrid?.color;
   const currentLineType: string = currentGrid?.lineType ?? 'solid';
   // Held locally: the palette does not re-render when the store's grid changes
-  const [hexNumbers, setHexNumbers] = React.useState<HexNumberFormat | undefined>(currentGrid?.hexNumbers);
+  const [hexNumbers, setHexNumbers] = React.useState<CellNumberFormat | undefined>(currentGrid?.cellNumbers);
   const [hexNumberOpacity, setHexNumberOpacity] = React.useState(
-    currentGrid?.hexNumberOpacity ?? DEFAULT_HEX_NUMBER_OPACITY,
+    currentGrid?.cellNumberOpacity ?? DEFAULT_CELL_NUMBER_OPACITY,
   );
 
   const patchGrid = React.useCallback((patch: Record<string, unknown>): void => {
@@ -95,7 +95,7 @@ export function GridSettingsPanel({
 
   // Dragging the slider settles into one grid change (and one undo step)
   const debouncedNumberOpacityUpdate = React.useMemo(
-    () => debounce((opacity: number) => patchGrid({ hexNumberOpacity: opacity }), 100),
+    () => debounce((opacity: number) => patchGrid({ cellNumberOpacity: opacity }), 100),
     [patchGrid],
   );
 
@@ -136,22 +136,20 @@ export function GridSettingsPanel({
         />
       </SettingRow>
 
-      {isHexGridType(currentType) && (
-        <SettingRow label="Hex numbers">
-          <ObsidianMenuDropdown
-            className="atlas-setting-dropdown"
-            value={hexNumbers ?? 'off'}
-            options={HEX_NUMBER_OPTIONS}
-            onChange={(value) => {
-              const format = isHexNumberFormat(value) ? value : undefined;
-              setHexNumbers(format);
-              patchGrid({ hexNumbers: format });
-            }}
-          />
-        </SettingRow>
-      )}
+      <SettingRow label="Cell numbers">
+        <ObsidianMenuDropdown
+          className="atlas-setting-dropdown"
+          value={hexNumbers ?? 'off'}
+          options={HEX_NUMBER_OPTIONS}
+          onChange={(value) => {
+            const format = isCellNumberFormat(value) ? value : undefined;
+            setHexNumbers(format);
+            patchGrid({ cellNumbers: format });
+          }}
+        />
+      </SettingRow>
 
-      {isHexGridType(currentType) && hexNumbers && (
+      {hexNumbers && (
         <SettingSliderRow
           label="Number opacity"
           value={hexNumberOpacity * 100}

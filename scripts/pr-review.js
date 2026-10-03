@@ -161,7 +161,8 @@ function prepare(pr, dir) {
   const repo = repository();
   const pull = gh(`repos/${repo}/pulls/${pr}`);
   if (pull.state !== 'open') throw new Error('Only open pull requests are reviewed');
-  const job = { pr, head: pull.head.sha, base: pull.base.sha, baseRef: pull.base.ref, url: pull.html_url };
+  // A pull request's base.sha is updated lazily; the base branch's tip is the base.
+  const job = { pr, head: pull.head.sha, base: baseTip(repo, pull.base.ref), baseRef: pull.base.ref, url: pull.html_url };
   const cache = path.join(dir, 'repo.git');
   fs.mkdirSync(cache, { recursive: true });
   const git = gitIn(cache);
@@ -185,13 +186,18 @@ function prepare(pr, dir) {
   setStatus(job.head, 'pending', 'Automated source review in progress', job.url);
 }
 
+function baseTip(repo, ref) {
+  return gh(`repos/${repo}/branches/${encodeURIComponent(ref)}`).commit.sha;
+}
+
 function readJob(dir) {
   return JSON.parse(fs.readFileSync(path.join(dir, 'job.json'), 'utf8'));
 }
 
 function unchanged(job) {
   const pull = gh(`repos/${repository()}/pulls/${job.pr}`);
-  return pull.state === 'open' && pull.head.sha === job.head && pull.base.sha === job.base;
+  return pull.state === 'open' && pull.head.sha === job.head && pull.base.ref === job.baseRef
+    && baseTip(repository(), job.baseRef) === job.base;
 }
 
 function publish(dir, resultFile) {

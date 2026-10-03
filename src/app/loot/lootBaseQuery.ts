@@ -21,14 +21,8 @@ export function baseViewNames(base: unknown): string[] {
   return viewsOf(base).map((view) => view.name);
 }
 
-/**
- * The base config that runs `viewName` of `base` with Atlas's view type: the
- * base's own filters, formulas and property names, and the view's filters,
- * sort and visible properties. Null when the base has no such view.
- */
-export function lootQueryConfig(base: unknown, viewName: string): Record<string, unknown> | null {
-  const view = viewsOf(base).find((entry) => entry.name === viewName);
-  if (!view || !isRecord(base)) return null;
+/** A config of the base's own filters, formulas and property names that runs `view` with Atlas's view type. */
+function queryConfig(base: Record<string, unknown>, view: Record<string, unknown>): Record<string, unknown> {
   const { filters, formulas, properties } = base;
   return {
     ...(filters !== undefined && { filters }),
@@ -36,4 +30,30 @@ export function lootQueryConfig(base: unknown, viewName: string): Record<string,
     ...(isRecord(properties) && { properties }),
     views: [{ ...view, type: LOOT_QUERY_VIEW }],
   };
+}
+
+/**
+ * The base config that runs `viewName` of `base` with Atlas's view type: the
+ * base's own filters, formulas and property names, and the view's filters,
+ * sort and visible properties. Null when the base has no such view.
+ */
+export function lootQueryConfig(base: unknown, viewName: string): Record<string, unknown> | null {
+  const view = viewsOf(base).find((entry) => entry.name === viewName);
+  return view && isRecord(base) ? queryConfig(base, view) : null;
+}
+
+/** Whether a filter of a base names a condition: `and: []` filters nothing. */
+function hasCondition(filter: unknown): boolean {
+  if (typeof filter === 'string') return filter.trim() !== '';
+  return isRecord(filter) && Object.values(filter).some((group) => Array.isArray(group) && group.some(hasCondition));
+}
+
+/**
+ * The base config that lists every file the base itself holds, also those no
+ * view shows: its own filters with one view that filters nothing more. Null
+ * when the base has no filter of its own: it then holds the whole vault, and
+ * only its views say what belongs to it.
+ */
+export function wholeBaseQueryConfig(base: unknown): Record<string, unknown> | null {
+  return isRecord(base) && hasCondition(base.filters) ? queryConfig(base, { name: LOOT_QUERY_VIEW }) : null;
 }

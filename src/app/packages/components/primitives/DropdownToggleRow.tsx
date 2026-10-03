@@ -1,5 +1,5 @@
-import React, { FC } from "react"
-import { Check, X } from "lucide-react"
+import React, { FC, useId } from "react"
+import { ToggleSwitch } from "./Toggle"
 
 export interface DropdownToggleRowProps {
   label: string
@@ -7,19 +7,13 @@ export interface DropdownToggleRowProps {
   onChange: () => void
 }
 
-export const DropdownToggleRow: FC<DropdownToggleRowProps> = ({
-  label,
-  value,
-  onChange,
-}) => (
-  <div className="atlas-dropdown-menu-item atlas-dropdown-toggle-row">
-    <span className="text-sm text-[var(--text-normal)]" style={{ gridColumn: '1 / 4' }}>{label}</span>
-    <div className="atlas-toggle" onClick={onChange}>
-      <div className={value ? "atlas-toggle__switch atlas-toggle__switch--on" : "atlas-toggle__switch atlas-toggle__switch--off"}>
-        <div className={value ? "atlas-toggle__thumb atlas-toggle__thumb--on" : "atlas-toggle__thumb atlas-toggle__thumb--off"}>
-          {value ? <Check className="atlas-toggle__icon" /> : <X className="atlas-toggle__icon" />}
-        </div>
-      </div>
+/** A menu row with a switch, which the row's text names. */
+export const DropdownToggleRow: FC<DropdownToggleRowProps> = ({ label, value, onChange }) => {
+  const labelId = useId()
+  return (
+    <div className="atlas-dropdown-toggle-row">
+      <span id={labelId} className="atlas-dropdown-toggle-row__label">{label}</span>
+      <ToggleSwitch value={value} onChange={onChange} labelledBy={labelId} />
     </div>
-  </div>
-)
+  )
+}

@@ -2,10 +2,10 @@ import React, { useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { cn } from '../../../../utils/cn';
 import type { DiceRollResult } from '../../../tools/DiceTool';
-import { getDiceCrit } from '../../../tools/diceCrit';
 import { TokenPortrait } from '../../../packages/components/shared/TokenPortrait';
 import { useDiceAvatar } from './useDiceAvatar';
 import { DICE_TOAST_KNOT_SYMBOL_ID } from './diceToastOrnament';
+import { dieLabel } from '../../../tools/diceLabels';
 
 export type ToastPhase = 'entering' | 'visible' | 'exiting';
 
@@ -20,7 +20,7 @@ interface DiceToastProps {
 export function DiceToast({ result, phase, onDismiss }: DiceToastProps): React.ReactElement {
   const [isExpanded, setIsExpanded] = useState(false);
 
-  const crit = getDiceCrit(result);
+  const crit = result.crit;
   const source = result.source;
   const sourceTokenName = source?.tokenName ?? 'Unknown';
   const avatar = useDiceAvatar(source);
@@ -93,7 +93,7 @@ export function DiceToast({ result, phase, onDismiss }: DiceToastProps): React.R
                   roll.value === 1 && 'atlas-dice-toast__die-badge--min',
                 )}
               >
-                {roll.die}: {roll.value}
+                {dieLabel(result.rolls, i)}
               </span>
             ))}
           </div>

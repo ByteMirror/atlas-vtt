@@ -37,3 +37,8 @@
   box-shadow: none;
   img { object-fit: contain; }
 }
+
+// Cut-out art has no outline of its own until it is there: its placeholder is a token's circle.
+.atlas-token-portrait--unframed .atlas-image-placeholder {
+  border-radius: 50%;
+}

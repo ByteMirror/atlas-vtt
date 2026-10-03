@@ -21,22 +21,22 @@ import { TagSearchModal } from '../TagSearchModal';
 import { runInBackground } from '../../../../utils/backgroundTask';
 import { confirmAction } from '../../../../ui/confirmDialog';
 import type { AtlasView } from '../../../../atlas-view';
-import type { ViewAtlasState } from '../../../../storeFactory';
 import { applyTokenDeleteImpact, describeTokenDeleteImpact, findTokenDeleteImpact } from '../utils/tokenDeleteImpact';
 import { tokenSizeSubmenu } from '../../../../react/components/context-menu/tokenSizeMenu';
 import type { TransferMode } from '../../../../services/assetTransfer/transferPlan';
+import type { CreateScenePrefill } from '../hooks/useAssetCrud';
+import { scenePrefillFromMap } from '../utils/sceneCreation';
 
 export interface AssetContextMenuDeps {
   app: ObsidianApp;
   view: AtlasView | null;
-  addTokens: ViewAtlasState['addTokens'];
-  setSelection: (ids: string[]) => void;
   assetService: AssetService | null;
   onClose: () => void;
   // State setters
   setEditingToken: (asset: AnyAsset | null) => void;
   setIsTokenCreatorOpen: (open: boolean) => void;
   setIsMoveModalOpen: (open: boolean) => void;
+  openCreateScene: (prefill: CreateScenePrefill) => void;
   setInputModalState: (state: InputModalState) => void;
   setAssets: React.Dispatch<React.SetStateAction<AnyAsset[]>>;
   setSelectedAssetIds: React.Dispatch<React.SetStateAction<string[]>>;
@@ -66,10 +66,18 @@ export function buildAssetContextMenuEntries(
   const spawnCtx: SpawnContext = {
     app: deps.app,
     view: deps.view,
-    addTokens: deps.addTokens,
-    setSelection: deps.setSelection,
     assetService: deps.assetService,
   };
+
+  // ── Create Scene from Map ─────────────────────────────────────
+  if (asset.type === 'maps') {
+    entries.push({
+      type: 'item',
+      label: 'Create Scene',
+      icon: 'clapperboard',
+      onClick: () => deps.openCreateScene(scenePrefillFromMap(asset)),
+    });
+  }
 
   // ── Spawn Encounter ───────────────────────────────────────────
   if (asset.type === 'encounters') {

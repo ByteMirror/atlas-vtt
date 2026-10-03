@@ -17,6 +17,24 @@
   box-shadow: $shadow-elevated;
 }
 
+/// Marks a token with a linked statblock: a small round badge on its art,
+/// holding the ScrollText icon.
+@mixin atlas-statblock-badge($size: $icon-m) {
+  display: grid;
+  place-items: center;
+  width: $size;
+  height: $size;
+  border-radius: $radius-full;
+  background: var(--background-primary);
+  box-shadow: 0 0 0 $border-width-s var(--background-modifier-border);
+  color: var(--text-muted);
+
+  svg {
+    width: $icon-xs;
+    height: $icon-xs;
+  }
+}
+
 /// Subtle container surface — for nested sections within elevated surfaces.
 /// Use for grouped content areas, toolbars within modals, etc.
 @mixin atlas-inset-surface {
@@ -273,7 +291,7 @@
   font-size: $font-ui-small;
   font-weight: $font-weight-medium;
   border-radius: $radius-m;
-  background-color: var(--background-primary) !important;
+  background-color: var(--background-modifier-form-field) !important;
   color: var(--text-normal);
   border: $border-width-s solid var(--background-modifier-border) !important;
   cursor: pointer;

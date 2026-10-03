@@ -96,7 +96,8 @@ export function useAssetManagerEffects({
         t.closest('.atlas-onboarding-overlay') || t.closest('.menu') || t.closest('.atlas-ctx-menu') ||
         t.closest('.modal-container') || t.closest('.modal') ||
         t.closest('.atlas-text-dialog-backdrop') ||
-        t.closest('.atlas-collection-settings-overlay')
+        t.closest('.atlas-collection-settings-overlay') ||
+        t.closest('.atlas-statblock-preview-window')
       ) return;
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         // The tag filter stays: the manager reopens where it was left

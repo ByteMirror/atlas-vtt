@@ -5,7 +5,7 @@ import type { BundleFile } from '../collectionBundle/bundleFormat';
 import { CollectionReferenceCollector } from '../collectionBundle/collectionReferences';
 import { saveOpenMaps } from '../collectionBundle/importJournal';
 import type { PathMap } from '../collectionBundle/pathRemap';
-import { collectionMapFiles, openMapViews } from '../collectionScenes';
+import { collectionMapFiles, viewOnScene } from '../collectionScenes';
 import { collectionFolderPath } from '../assetPaths';
 import { SceneSnapshotService } from '../../snapshots/SceneSnapshotService';
 import { listHiddenFiles } from '../../utils/hiddenVaultFiles';
@@ -199,21 +199,12 @@ async function unlinkStayingScenes(app: App, files: TransferFiles, sourceCollect
   }
 }
 
-/** Rewrites a scene's map; if the scene is open, it reloads from the result so its store cannot save the old state over it. */
+/** Rewrites a scene's map; if a view is on the scene, it reloads from the result so its store cannot save the old state over it. */
 async function rewriteSceneMap(app: App, files: TransferFiles, path: string, rewrite: TextRewrite): Promise<void> {
   const file = app.vault.getFileByPath(path);
   if (!file || rewrite(await app.vault.read(file)) === null) return;
-  let done = false;
-  const apply = async (): Promise<void> => {
-    await files.rewrite(path, rewrite);
-    done = true;
-  };
-  const view = openMapViews(app).find((candidate) => candidate.file?.path === path);
-  if (!view) {
-    await apply();
-    return;
-  }
-  await view.reloadActiveScene(apply);
-  // The view skips the reload while it switches scenes; writing then would race its autosave.
-  if (!done) throw new Error(`"${file.basename}" is busy switching scenes. Try again in a moment.`);
+  const apply = (): Promise<void> => files.rewrite(path, rewrite);
+  const view = viewOnScene(app, path);
+  if (view) await view.reloadActiveScene(apply);
+  else await apply();
 }

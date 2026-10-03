@@ -3,11 +3,9 @@ import type { Viewport } from 'pixi-viewport';
 import type { NotePin } from '../../types';
 import type { ViewAtlasStore } from '../../storeFactory';
 import { openContextMenuGlobal } from '../../react/root/ContextMenuContext';
+import { watchClick } from '../utils/clickRelease';
 import { dispatchPinAction } from '../utils/pinActions';
 import type { HexLinkRenderer } from './HexLinkRenderer';
-
-/** A press that moves further than this (screen pixels) pans the map instead of opening the note. */
-const CLICK_TOLERANCE = 5;
 
 /** What the viewport-level pointer dispatch calls for linked hexes. */
 export interface HexLinkPointerHandlers {
@@ -16,6 +14,7 @@ export interface HexLinkPointerHandlers {
   hover(pinId: string | null, e?: FederatedPointerEvent): void;
   /** Left button went down on a linked hex. The event stays unhandled, so dragging still pans or selects. */
   press(pinId: string, e: FederatedPointerEvent): void;
+  /** The right button was released in place on a linked hex. */
   openContextMenu(pinId: string, e: FederatedPointerEvent): void;
 }
 
@@ -55,32 +54,20 @@ export class HexLinkInteraction implements HexLinkPointerHandlers {
   press(pinId: string, e: FederatedPointerEvent): void {
     this.releasePress?.();
     const { viewport, renderer } = this.options;
-    const start = { x: e.global.x, y: e.global.y };
     renderer.setPressed(pinId);
-
-    const isClick = (event: FederatedPointerEvent): boolean =>
-      Math.hypot(event.global.x - start.x, event.global.y - start.y) <= CLICK_TOLERANCE;
-
     // Once the pointer travels, the press is a pan or a marquee and the hex lets go
-    const onMove = (move: FederatedPointerEvent): void => {
-      if (!isClick(move)) this.releasePress?.();
-    };
-    const onRelease = (up: FederatedPointerEvent): void => {
-      this.releasePress?.();
-      const pin = this.pin(pinId);
-      if (pin && isClick(up)) dispatchPinAction('open', pin);
-    };
-    const onReleaseOutside = (): void => this.releasePress?.();
-    viewport.on('pointermove', onMove);
-    viewport.on('pointerup', onRelease);
-    viewport.on('pointerupoutside', onReleaseOutside);
-    this.releasePress = (): void => {
-      viewport.off('pointermove', onMove);
-      viewport.off('pointerup', onRelease);
-      viewport.off('pointerupoutside', onReleaseOutside);
-      renderer.setPressed(null);
-      this.releasePress = null;
-    };
+    this.releasePress = watchClick(
+      viewport,
+      e,
+      () => {
+        const pin = this.pin(pinId);
+        if (pin) dispatchPinAction('open', pin);
+      },
+      () => {
+        renderer.setPressed(null);
+        this.releasePress = null;
+      },
+    );
   }
 
   openContextMenu(pinId: string, e: FederatedPointerEvent): void {

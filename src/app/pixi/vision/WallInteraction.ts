@@ -1,8 +1,10 @@
+import { wallList } from '../../vision/wallList';
 import type { StoreApi } from 'zustand';
 import type { ViewAtlasState } from '../../storeFactory';
 import { beginHistoryTransaction, endHistoryTransaction, runHistoryTransaction } from '../../stores/history';
 import type { WallRenderer } from './WallRenderer';
-import type { WallType } from '../../types/wallTypes';
+import { keptByParts } from '../../lighting/segments';
+import type { WallSegment, WallType } from '../../types/wallTypes';
 
 const SHARED_VERTEX_TOLERANCE = 2;
 
@@ -15,18 +17,12 @@ interface VertexDragState {
   linkedVertices: Array<{ wallId: string; vertex: 'p1' | 'p2' }>;
 }
 
-interface LightDragState {
-  type: 'light';
-  lightId: string;
-  startX: number;
-  startY: number;
-}
-
-type DragState = VertexDragState | LightDragState;
+type DragState = VertexDragState;
 
 /**
- * Handles wall/light interaction: multi-selection, endpoint dragging,
- * door toggling, bulk type changes, and deletion.
+ * Handles wall interaction: multi-selection, endpoint dragging, door toggling,
+ * bulk type changes, and deletion. Lights join the selection through
+ * `selectLight` (their markers take the pointer themselves, see `LightInteraction`).
  *
  * Multi-select: Ctrl/Cmd+click toggles a wall chain in/out of the selection.
  * Plain click replaces the selection with the clicked chain.
@@ -49,7 +45,8 @@ export class WallInteraction {
   private selectedLightIds: Set<string> = new Set();
   private doorPlacement: DoorPlacementState | null = null;
 
-  constructor(store: StoreApi<ViewAtlasState>, wallRenderer: WallRenderer) {
+  /** `onLightSelection` shows which lights are selected, on their markers. */
+  constructor(store: StoreApi<ViewAtlasState>, wallRenderer: WallRenderer, private readonly onLightSelection: (lightIds: string[]) => void = () => undefined) {
     this.store = store;
     this.wallRenderer = wallRenderer;
   }
@@ -78,14 +75,6 @@ export class WallInteraction {
       return true;
     }
 
-    // 3. Check lights (select + start drag)
-    const lightId = this.wallRenderer.hitTestLights(worldX, worldY);
-    if (lightId) {
-      this.selectLight(lightId, addToSelection);
-      this.startDrag({ type: 'light', lightId, startX: worldX, startY: worldY });
-      return true;
-    }
-
     // Clicked on nothing — clear unless adding to selection
     if (!addToSelection) {
       this.clearSelection();
@@ -98,14 +87,10 @@ export class WallInteraction {
 
     const state = this.store.getState();
 
-    if (this.dragState.type === 'vertex') {
-      for (const link of this.dragState.linkedVertices) {
-        state.updateWall(link.wallId, {
-          [link.vertex]: { x: worldX, y: worldY },
-        });
-      }
-    } else if (this.dragState.type === 'light') {
-      state.updateLight(this.dragState.lightId, { x: worldX, y: worldY });
+    for (const link of this.dragState.linkedVertices) {
+      state.updateWall(link.wallId, {
+        [link.vertex]: { x: worldX, y: worldY },
+      });
     }
   }
 
@@ -144,7 +129,7 @@ export class WallInteraction {
         this.store.getState().deleteLight(id);
       }
       this.selectedLightIds.clear();
-      this.wallRenderer.setSelectedLights([]);
+      this.onLightSelection([]);
     }
   }
 
@@ -164,10 +149,10 @@ export class WallInteraction {
     this.wallRenderer.forceRedraw();
   }
 
-  /** Set the light pass-through direction on all selected walls. */
-  setSelectedDirection(direction: 'left' | 'right' | undefined): void {
+  /** Changes all selected walls alike, as one undo step: the side they let light through, what they block, whether they are limited. */
+  updateSelected(changes: Partial<Pick<WallSegment, 'direction' | 'blocks' | 'limited'>>): void {
     const state = this.store.getState();
-    runHistoryTransaction(this.store, () => this.selectedWallIds.forEach((id) => state.updateWall(id, { direction })));
+    runHistoryTransaction(this.store, () => this.selectedWallIds.forEach((id) => state.updateWall(id, changes)));
     this.wallRenderer.forceRedraw();
   }
 
@@ -214,10 +199,7 @@ export class WallInteraction {
     const pMid2 = { x: wall.p1.x + dx * tEnd, y: wall.p1.y + dy * tEnd };
     const pEnd = { x: wall.p1.x + dx * tEnd, y: wall.p1.y + dy * tEnd };
 
-    const shared = {
-      ...(wall.chainId !== undefined && { chainId: wall.chainId }),
-      ...(wall.direction !== undefined && { direction: wall.direction }),
-    };
+    const shared = keptByParts(wall);
     const doorType = this.doorPlacement.doorType;
 
     // Replacing one wall with up to three segments is a single undoable edit
@@ -285,7 +267,7 @@ export class WallInteraction {
    * Select a wall chain. With addToSelection, toggles the chain in/out.
    * Without it, replaces the selection.
    */
-  private selectWallChain(wallId: string, addToSelection: boolean): void {
+  selectWallChain(wallId: string, addToSelection: boolean): void {
     const walls = this.store.getState().objects.walls;
     const wall = walls[wallId];
     if (!wall) return;
@@ -293,7 +275,7 @@ export class WallInteraction {
     // Resolve chain IDs
     const chainId = wall.chainId;
     const chainIds: string[] = chainId
-      ? Object.values(walls).filter(w => w.chainId === chainId).map(w => w.id)
+      ? wallList(walls).filter(w => w.chainId === chainId).map(w => w.id)
       : [wallId];
 
     if (addToSelection) {
@@ -313,7 +295,8 @@ export class WallInteraction {
     this.syncRendererSelection();
   }
 
-  private selectLight(lightId: string, addToSelection: boolean): void {
+  /** Selects a light; with `addToSelection` toggles it in or out. */
+  selectLight(lightId: string, addToSelection: boolean): void {
     if (addToSelection) {
       if (this.selectedLightIds.has(lightId)) {
         this.selectedLightIds.delete(lightId);
@@ -336,7 +319,7 @@ export class WallInteraction {
 
   private syncRendererSelection(): void {
     this.wallRenderer.setSelectedWalls(Array.from(this.selectedWallIds));
-    this.wallRenderer.setSelectedLights(Array.from(this.selectedLightIds));
+    this.onLightSelection(Array.from(this.selectedLightIds));
   }
 
   private startVertexDrag(wallId: string, vertex: 'p1' | 'p2', worldX: number, worldY: number): void {
@@ -349,7 +332,7 @@ export class WallInteraction {
     // Find all walls sharing this vertex position
     const linked: VertexDragState['linkedVertices'] =[{ wallId, vertex }];
 
-    for (const other of Object.values(walls)) {
+    for (const other of wallList(walls)) {
       if (other.id === wallId) continue;
       if (Math.abs(other.p1.x - dragPoint.x) < SHARED_VERTEX_TOLERANCE &&
           Math.abs(other.p1.y - dragPoint.y) < SHARED_VERTEX_TOLERANCE) {

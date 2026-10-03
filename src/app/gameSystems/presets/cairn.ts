@@ -1,4 +1,6 @@
 import type { SystemPreset } from '../../types/systemPresetTypes';
+import { CAIRN_LIGHTS } from '../lightPresets/cairn';
+import { HP_RESOURCE } from '../../resources/resourceDefinitions';
 import { builtInPresetId, conditionsOf } from './presetHelpers';
 
 /**
@@ -21,6 +23,10 @@ export const CAIRN: SystemPreset = {
       diagonalRule: 'equidistant',
       abstractRangeBands: [],
     },
+    // Saves roll under an attribute on a d20: a 1 always succeeds, a 20 always fails.
+    dice: { defaultRoll: '1d20', crit: 'roll-under' },
+    // Side initiative: each round the PCs act, then their opponents; nothing is rolled for the order.
+    initiative: { mode: 'sides', roll: '1d20', firstSide: 'players' },
     conditions: conditionsOf('cairn', [
       { name: 'Deprived', color: '#b45309', icon: 'rations' },
       { name: 'Fatigue', color: '#78716c', icon: 'weight', valued: true },
@@ -29,6 +35,11 @@ export const CAIRN: SystemPreset = {
       { name: 'Delirious', color: '#7c3aed', icon: 'spiral-bloom' },
       { name: 'Fleeing', color: '#f59e0b', icon: 'run' },
     ]),
-    defaultWidgets: { hpBar: true },
+    resources: [
+      { ...HP_RESOURCE },
+      // STR is the second health track: damage past 0 HP comes off it. The Cairn layout keeps it first in `stats`.
+      { key: 'str', name: 'STR', field: 'stats.0', direction: 'drains', color: '#dc2626', visibleToPlayers: false },
+    ],
+    lightPresets: CAIRN_LIGHTS,
   },
 };

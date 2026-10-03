@@ -81,7 +81,7 @@ describe('wall faces', () => {
 
   it('shows no sight past a wall beyond filtering', async () => {
     const { renderer, engine } = await setup();
-    const sight = computeSight([{ tokenId: 't', origin: { x: 300, y: 300 }, range: 4000, darkvision: 0 }], room);
+    const sight = computeSight([{ tokenId: 't', origin: { x: 300, y: 300 }, range: 4000, senses: [] }], room);
     engine.update(scene({ lights: [], ambient: 1, sight }));
     engine.flush();
     const at = render(engine, renderer);

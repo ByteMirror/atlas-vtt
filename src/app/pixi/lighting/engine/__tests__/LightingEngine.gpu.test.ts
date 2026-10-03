@@ -1,7 +1,8 @@
-import type { WebGLRenderer } from 'pixi.js';
+import { Matrix, type WebGLRenderer } from 'pixi.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { WallSegment } from '../../../../types/wallTypes';
-import { SEES_ALL } from '../../../../vision/sight';
+import { SEES_ALL, computeSight } from '../../../../vision/sight';
+import type { CompositeFilter } from '../compositeFilter';
 import { LightingEngine } from '../LightingEngine';
 import { LightingWorld } from '../LightingWorld';
 import type { EngineLight, EngineScene } from '../types';
@@ -108,20 +109,15 @@ describe('LightingEngine', () => {
     expect(engine.layer.visible).toBe(true);
   });
 
-  it('rebuilds its world from the last scene when the WebGL context is restored', async () => {
-    const renderer = await createTestRenderer(SIZE);
-    cleanup.push(() => renderer.destroy());
-    const restored = vi.fn();
-    const engine = new LightingEngine(renderer, restored);
-    cleanup.push(() => engine.destroy());
-    engine.setEnabled(true);
+  it('rebuilds its world from the last scene after the WebGL context is restored', async () => {
+    const { renderer, engine } = await setup();
     engine.setMode('player');
     engine.update(scene({ walls: room }));
     engine.flush();
     expect(render(engine, renderer, 0.5, -22, -22)(128, 128)).toBeGreaterThan(150);
     // PIXI's systems forget every GL object, as after a real restore: render textures come back blank.
     renderer.runners.contextChange.emit(renderer.gl);
-    expect(restored).toHaveBeenCalledOnce();
+    expect(engine.takeRestored()).toBe(true);
     engine.flush();
     expect(render(engine, renderer, 0.5, -22, -22)(128, 128)).toBeGreaterThan(150);
   });
@@ -129,18 +125,19 @@ describe('LightingEngine', () => {
   it('reports a restored context while lighting is off, with no world to rebuild', async () => {
     const renderer = await createTestRenderer(SIZE);
     cleanup.push(() => renderer.destroy());
-    const restored = vi.fn();
-    const engine = new LightingEngine(renderer, restored);
+    const engine = new LightingEngine(renderer);
     cleanup.push(() => engine.destroy());
     renderer.runners.contextChange.emit(renderer.gl);
-    expect(restored).toHaveBeenCalledTimes(1);
+    expect(engine.takeRestored()).toBe(true);
 
     engine.setEnabled(true);
     engine.update(scene({ walls: room }));
     engine.setEnabled(false);
     renderer.runners.contextChange.emit(renderer.gl);
-    expect(restored).toHaveBeenCalledTimes(2);
+    expect(engine.takeRestored()).toBe(true);
+    engine.flush();
     expect(engine.busy()).toBe(false);
+    expect(engine.hasWorld()).toBe(false);
     expect(engine.layer.filters).toBeNull();
   });
 
@@ -193,5 +190,50 @@ describe('LightingEngine', () => {
     const at = render(engine, renderer, 0.5, -22, -22);
     expect(warn).not.toHaveBeenCalled();
     expect(at(128, 128)).toBeGreaterThan(150);
+  });
+
+  describe('a frame rendered outside the stage', () => {
+    /** The camera puts the light at pixel (128, 128); the frame starts 100 px further left, so it shows the light at (228, 128). */
+    const camera = { size: SIZE, scale: 1, x: -172, y: -172 };
+    const frame = { x: 72, y: 172, resolution: 1 };
+    /** A token whose sight (100 px) never reaches the light: the players' view of it is black. */
+    const farSight = computeSight([{ tokenId: 't', origin: { x: 850, y: 850 }, range: 100, senses: [] }], []);
+
+    it('stays on the GM view of its frame while the canvas camera and mode are set, and gives them back', async () => {
+      const { renderer, engine } = await setup();
+      engine.update(scene({ walls: room, sight: farSight }));
+      engine.flush();
+
+      const picture = engine.renderFrame(frame, () => {
+        // As a player-frame capture and the layer's `onRender` do: the mode, then the camera's view
+        engine.setMode('player');
+        return renderThroughEngine(engine, renderer, camera);
+      });
+      expect(picture(228, 128)[0]).toBeGreaterThan(150);
+      expect(picture(228, 128)[0]).toBeGreaterThan(picture(128, 128)[0] + 40);
+
+      // The mode set meanwhile applies afterwards, with the camera of the next render.
+      expect(render(engine, renderer, 1, -172, -172)(128, 128)).toBeLessThan(5);
+      engine.setMode('gm');
+      const onCanvas = render(engine, renderer, 1, -172, -172);
+      expect(onCanvas(128, 128)).toBeGreaterThan(150);
+      expect(onCanvas(128, 128)).toBeGreaterThan(onCanvas(228, 128) + 40);
+    });
+
+    it('gives the composite the frame\'s pixel size, and the camera\'s back afterwards', async () => {
+      const { engine } = await setup();
+      engine.update(scene());
+      engine.setView(new Matrix(), 2);
+      const uniforms = (engine as unknown as { composite: CompositeFilter }).composite.filter.resources.compositeUniforms.uniforms as { uPixelWorld: number };
+      expect(uniforms.uPixelWorld).toBe(0.5);
+      expect(engine.renderFrame({ x: 0, y: 0, resolution: 0.25 }, () => uniforms.uPixelWorld)).toBe(4);
+      expect(uniforms.uPixelWorld).toBe(0.5);
+    });
+
+    it('renders as it is while lighting is off', async () => {
+      const { engine } = await setup();
+      engine.setEnabled(false);
+      expect(engine.renderFrame(frame, () => 'picture')).toBe('picture');
+    });
   });
 });

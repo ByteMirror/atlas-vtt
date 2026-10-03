@@ -339,11 +339,6 @@
   
   // Hide scrollbar for IE/Edge
   -ms-overflow-style: none;
-  
-  // Empty state takes full width
-  .atlas-dm-empty-state {
-    width: 100%;
-  }
 }
 
 // `StatblockFeeds` sizes and places the statblocks itself (dm-screen/feedLayout.ts).
@@ -448,21 +443,6 @@
   
   // Scale up font size on larger screens
   @media (min-width: 1200px) {
-    font-size: 14px;
-  }
-}
-
-.atlas-dm-empty-state {
-  text-align: center;
-  padding: 40px;
-  color: var(--text-muted);
-  background-color: var(--background-primary);
-  border: 1px solid var(--background-modifier-border);
-  border-radius: 8px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
-  
-  p {
-    margin: 0;
     font-size: 14px;
   }
 }

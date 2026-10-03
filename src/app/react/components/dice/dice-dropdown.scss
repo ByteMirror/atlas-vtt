@@ -10,11 +10,11 @@
 @keyframes atlas-dice-slide-up {
   from {
     opacity: 0;
-    transform: translate(-50%, -100%) translateY(8px);
+    transform: translateX(-50%) translateY(8px);
   }
   to {
     opacity: 1;
-    transform: translate(-50%, -100%) translateY(0);
+    transform: translateX(-50%) translateY(0);
   }
 }
 
@@ -27,13 +27,16 @@
   }
 }
 
-// ── Portal wrapper ───────────────────────────
+// ── Tray wrapper ─────────────────────────────
 
-// Portaled to document.body, so the portal itself carries .atlas-vtt-plugin.
-&.atlas-dice-portal {
-  position: fixed;
-  transform: translate(-50%, -100%);
-  z-index: 99999;
+// Above its toolbar button, inside the map view like the other toolbar dropdowns.
+.atlas-dice-tray {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  margin-bottom: $spacing-l;
+  transform: translateX(-50%);
+  z-index: $z-atlas-dropdown;
   pointer-events: auto;
   animation: atlas-dice-slide-up 0.2s ease-out both;
   @include atlas-keep-in-view;
@@ -53,144 +56,226 @@
   width: fit-content;
 }
 
-// ── Dice Grid ────────────────────────────────
+// ── Tray ─────────────────────────────────────
 
-.atlas-dice-grid {
-  display: flex;
-  flex-direction: row;
-  gap: $spacing-s;
-  align-items: flex-start;
-}
+// Square faces, all seven dice in one row.
+$tray-face: 48px;
+$tray-dice: 7;
+$tray-grip-height: 24px;
+$tray-art: 32px;
 
-// The dice row sits $spacing-s below the panel's top border: the outer dice's
-// top corners run concentric with the panel's.
-.atlas-dice-cell:first-child > .atlas-dice-btn {
-  @include atlas-panel-inset-radius($spacing-s, top-left);
-}
-
-.atlas-dice-cell:last-child > .atlas-dice-btn {
-  @include atlas-panel-inset-radius($spacing-s, top-right);
-}
-
-.atlas-dice-cell {
-  position: relative;
+.atlas-dice-tray__content {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  gap: $spacing-s;
+}
+
+.atlas-dice-tray__dice {
+  display: grid;
+  grid-template-columns: repeat($tray-dice, $tray-face);
+  gap: $spacing-s;
+}
+
+.atlas-dice-tray__die {
+  display: flex;
+  flex-direction: column;
   gap: $spacing-xs;
 }
 
-.atlas-dice-btn {
-  position: relative;
-  width: $button-height-l;
-  height: $button-height-l;
-  padding: 0;
-  margin: 0;
-  background: var(--background-modifier-hover);
-  border: $border-width-m solid color-mix(in oklch, var(--mono-100) $border-opacity-subtle, transparent);
-  border-radius: $radius-l;
+// Obsidian styles every <button>; the tray's own controls start from nothing.
+.atlas-dice-tray__face,
+.atlas-dice-tray__grip {
   display: flex;
   align-items: center;
   justify-content: center;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  box-shadow: none;
   cursor: pointer;
-  transition: transform $transition-press $transition-ease-out;
-  color: var(--text-muted);
+  @include atlas-corner-shape;
+  transition: background-color $transition-fast $transition-ease;
 
-  &:hover {
-    background: var(--background-modifier-active-hover);
-    border-color: color-mix(in oklch, var(--mono-100) $border-opacity-default, transparent);
-    color: var(--text-normal);
+  &:disabled {
+    cursor: default;
+    opacity: 0.6;
+  }
+}
+
+.atlas-dice-tray__face {
+  position: relative;
+  height: $tray-face;
+  background: var(--background-secondary);
+  border: $border-width-m solid color-mix(in oklch, var(--mono-100) $border-opacity-subtle, transparent);
+  border-radius: $radius-l;
+
+  &:hover:not(:disabled) {
+    background: var(--background-modifier-hover);
   }
 
-  &:active {
+  &:active:not(:disabled) {
     transform: scale(0.96);
   }
+}
 
-  &--selected {
-    background: var(--interactive-accent);
-    border-color: var(--interactive-accent);
-    color: var(--text-on-accent);
+// The outer dice sit $spacing-s below the panel's top corners: concentric with them.
+.atlas-dice-tray__die:first-child > .atlas-dice-tray__face {
+  @include atlas-panel-inset-radius($spacing-s, top-left);
+}
 
-    &:hover {
-      filter: brightness(1.1);
-      background: var(--interactive-accent);
-      color: var(--text-on-accent);
-    }
+.atlas-dice-tray__die:last-child > .atlas-dice-tray__face {
+  @include atlas-panel-inset-radius($spacing-s, top-right);
+}
+
+.atlas-dice-tray__grip {
+  height: $tray-grip-height;
+  background: transparent;
+  border: none;
+  border-radius: $radius-m;
+  color: var(--text-muted);
+
+  svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  &:hover:not(:disabled) {
+    background: var(--background-modifier-hover);
+    color: var(--text-normal);
   }
 }
 
-.atlas-dice-label {
-  font-size: 10px;
-  font-weight: 600;
-  color: var(--text-faint);
-  user-select: none;
-  line-height: 1;
-  letter-spacing: 0.02em;
-  text-transform: lowercase;
+.atlas-dice-tray__grip-space {
+  height: $tray-grip-height;
 }
 
-.atlas-dice-badge {
+.atlas-dice-tray__count {
   position: absolute;
-  top: -5px;
-  right: -5px;
+  top: 2px;
+  right: 2px;
   min-width: 18px;
   height: 18px;
   padding: 0 5px;
   display: flex;
   align-items: center;
   justify-content: center;
+  border-radius: $radius-full;
   background: var(--interactive-accent);
   color: var(--text-on-accent);
-  border-radius: $radius-full;
   font-size: 11px;
   font-weight: 700;
   line-height: 1;
-  box-shadow: $shadow-sm;
-  animation: atlas-dice-badge-pop 0.15s ease-out both;
+  font-variant-numeric: tabular-nums;
   pointer-events: none;
-  border: $border-width-l solid var(--background-primary);
+  animation: atlas-dice-badge-pop 0.15s ease-out both;
 }
 
-// ── Formula Bar ──────────────────────────────
+// Pencil drawings lie in the surface rather than on it; the dark theme inverts
+// the graphite, since a drawing has tones and cannot take `currentColor`.
+.atlas-die-face {
+  display: block;
+  width: $tray-art;
+  height: $tray-art;
+}
 
-.atlas-dice-formula-bar {
+.atlas-die-face__art {
+  mix-blend-mode: multiply;
+
+  .theme-dark & {
+    filter: invert(1) hue-rotate(180deg);
+    mix-blend-mode: screen;
+  }
+}
+
+// d100 has no body of its own: two offset d10s, tens behind and units in front.
+.atlas-die-face--percentile {
+  position: relative;
+
+  > .atlas-die-face__art {
+    position: absolute;
+    width: 24px;
+    height: 24px;
+  }
+
+  > .atlas-die-face__art--tens {
+    top: 0;
+    left: 0;
+    opacity: 0.7;
+  }
+
+  > .atlas-die-face__art--units {
+    right: 0;
+    bottom: 0;
+  }
+}
+
+.atlas-dice-tray__modifier {
   display: flex;
   align-items: center;
-  gap: $spacing-s;
-  padding-top: $spacing-s;
-  border-top: $border-width-s solid color-mix(in oklch, var(--mono-100) $border-opacity-subtle, transparent);
-}
-
-.atlas-dice-formula-text {
-  flex: 1;
-  font-family: var(--font-monospace);
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--text-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.atlas-dice-formula-actions {
-  display: flex;
   gap: $spacing-xs;
-  flex-shrink: 0;
+}
+
+.atlas-dice-tray__modifier-label {
+  margin-right: auto;
+  font-size: $font-ui-smaller;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.atlas-dice-tray__step {
+  width: 32px;
+}
+
+.atlas-dice-tray__modifier-value {
+  width: 32px;
+  text-align: center;
+  font-family: $font-dice-display;
+  font-size: $font-ui-medium;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-normal);
+}
+
+// Always there, even empty: a region that appears with its content goes unheard.
+.atlas-dice-tray__formula {
+  margin: 0;
+  padding: $spacing-xs $spacing-s;
+  border: $border-width-s solid color-mix(in oklch, var(--mono-100) $border-opacity-subtle, transparent);
+  border-radius: $radius-l;
+  background: var(--background-secondary);
+  text-align: center;
+  font-family: $font-dice-display;
+  font-size: $font-ui-medium;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-normal);
+  @include atlas-corner-shape;
+
+  &--empty {
+    font-style: italic;
+    color: var(--text-faint);
+  }
+}
+
+.atlas-dice-tray__actions {
+  display: flex;
+  gap: $spacing-s;
 
   .btn {
     height: $button-height-m;
-    font-size: 12px;
-    padding: 0 $spacing-s;
     border-radius: $radius-l;
   }
 
-  .btn--ghost {
-    width: $button-height-m;
-    padding: 0;
+  // The buttons sit in the panel's bottom corners.
+  > .btn:first-child {
+    @include atlas-panel-inset-radius($spacing-s, bottom-left);
   }
 
-  // Roll sits in the panel's bottom-right corner.
-  > .btn:last-of-type {
+  > .btn:last-child {
     @include atlas-panel-inset-radius($spacing-s, bottom-right);
   }
+}
+
+.atlas-dice-tray__roll {
+  flex: 1;
 }

@@ -6,6 +6,9 @@
  * NOT persisted — the partialize whitelist in storeFactory.ts excludes these.
  */
 
+import { DEFAULT_EXPLORED_BRUSH, type ExploredBrushOptions } from '../lighting/exploredEdits';
+import type { HeldTokens } from '../lighting/sightOnDrop';
+
 /** State fields added to ViewAtlasState */
 export interface UISlice {
   // Panel visibility
@@ -17,10 +20,16 @@ export interface UISlice {
   assetManagerInitialTab?: 'scenes' | 'maps' | 'encounters' | 'tokens' | undefined;
   isCommandPaletteOpen: boolean;
   isDiceTrayOpen: boolean;
-  /** The light whose settings panel is open, and the screen point (client pixels) it opened from. */
-  lightPanel: LightPanelTarget | null;
+  /** The placed light whose popover is open, with its range rings on the map. */
+  lightPopover: string | null;
+  /** The light zone whose popover is open; never together with a light's. */
+  lightZonePopover: string | null;
   /** The scene lighting settings panel, opened from the lighting tool's menu. */
   isSceneLightingPanelOpen: boolean;
+  /** The tokens the pointer holds (pressed or dragged), each where it stood when taken; set through `holdTokens`. */
+  heldTokens: HeldTokens;
+  /** What the lighting tool's explored-memory mode does with a stroke: the one place the menu and the tool read it from. */
+  exploredBrush: ExploredBrushOptions;
 
   // Actions
   setGridSettingsOpen: (open: boolean) => void;
@@ -31,15 +40,13 @@ export interface UISlice {
   closeAssetManager: () => void;
   setCommandPaletteOpen: (open: boolean) => void;
   setDiceTrayOpen: (open: boolean) => void;
-  openLightPanel: (target: LightPanelTarget) => void;
-  closeLightPanel: () => void;
+  openLightPopover: (lightId: string) => void;
+  closeLightPopover: () => void;
+  openLightZonePopover: (zoneId: string) => void;
+  closeLightZonePopover: () => void;
   setSceneLightingPanelOpen: (open: boolean) => void;
-}
-
-export interface LightPanelTarget {
-  lightId: string;
-  clientX: number;
-  clientY: number;
+  setHeldTokens: (held: HeldTokens) => void;
+  setExploredBrush: (changes: Partial<ExploredBrushOptions>) => void;
 }
 
 /** Default state — all panels closed */
@@ -53,8 +60,11 @@ export function createInitialUIState(): Pick<
   | 'assetManagerInitialTab'
   | 'isCommandPaletteOpen'
   | 'isDiceTrayOpen'
-  | 'lightPanel'
+  | 'lightPopover'
+  | 'lightZonePopover'
   | 'isSceneLightingPanelOpen'
+  | 'heldTokens'
+  | 'exploredBrush'
 > {
   return {
     isGridSettingsOpen: false,
@@ -65,8 +75,11 @@ export function createInitialUIState(): Pick<
     assetManagerInitialTab: undefined,
     isCommandPaletteOpen: false,
     isDiceTrayOpen: false,
-    lightPanel: null,
+    lightPopover: null,
+    lightZonePopover: null,
     isSceneLightingPanelOpen: false,
+    heldTokens: {},
+    exploredBrush: DEFAULT_EXPLORED_BRUSH,
   };
 }
 
@@ -83,9 +96,13 @@ export function createUIActions(
   | 'closeAssetManager'
   | 'setCommandPaletteOpen'
   | 'setDiceTrayOpen'
-  | 'openLightPanel'
-  | 'closeLightPanel'
+  | 'openLightPopover'
+  | 'closeLightPopover'
+  | 'openLightZonePopover'
+  | 'closeLightZonePopover'
   | 'setSceneLightingPanelOpen'
+  | 'setHeldTokens'
+  | 'setExploredBrush'
 > {
   return {
     setGridSettingsOpen: (open) => set((draft) => { draft.isGridSettingsOpen = open; }),
@@ -102,8 +119,18 @@ export function createUIActions(
     }),
     setCommandPaletteOpen: (open) => set((draft) => { draft.isCommandPaletteOpen = open; }),
     setDiceTrayOpen: (open) => set((draft) => { draft.isDiceTrayOpen = open; }),
-    openLightPanel: (target) => set((draft) => { draft.lightPanel = target; }),
-    closeLightPanel: () => set((draft) => { draft.lightPanel = null; }),
+    openLightPopover: (lightId) => set((draft) => {
+      draft.lightPopover = lightId;
+      draft.lightZonePopover = null;
+    }),
+    openLightZonePopover: (zoneId) => set((draft) => {
+      draft.lightZonePopover = zoneId;
+      draft.lightPopover = null;
+    }),
+    closeLightZonePopover: () => set((draft) => { draft.lightZonePopover = null; }),
+    closeLightPopover: () => set((draft) => { draft.lightPopover = null; }),
     setSceneLightingPanelOpen: (open) => set((draft) => { draft.isSceneLightingPanelOpen = open; }),
+    setHeldTokens: (held) => set((draft) => { draft.heldTokens = held; }),
+    setExploredBrush: (changes) => set((draft) => { draft.exploredBrush = { ...draft.exploredBrush, ...changes }; }),
   };
 }

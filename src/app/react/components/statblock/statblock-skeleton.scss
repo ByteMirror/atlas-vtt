@@ -1,0 +1,34 @@
+@use '../../../../../styles/tokens' as *;
+@use '../../../../../styles/mixins' as *;
+
+// The placeholder of a statblock that is being read (`StatblockSkeleton`).
+.atlas-statblock-skeleton {
+  @include atlas-flex-col($gap: $spacing-l);
+  width: 100%;
+  font-size: $font-ui-small;
+
+  &__heading,
+  &__lines {
+    @include atlas-flex-col($gap: $spacing-s);
+  }
+
+  &__name {
+    font-size: $font-ui-large;
+  }
+
+  &__rule {
+    height: $border-width-m;
+    border-radius: $radius-full;
+  }
+
+  &__stats {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: $spacing-s;
+  }
+
+  &__stat {
+    height: 40px;
+    border-radius: $radius-m;
+  }
+}

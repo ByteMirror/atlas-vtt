@@ -4,12 +4,13 @@ import type { SystemPreset } from '../types/systemPresetTypes';
 import type { AnyWidget } from '../types/widgetTypes';
 import { AssetService } from './AssetService';
 import { removeUndefinedConditions } from './collectionConditionCleanup';
+import { removeUndefinedSenses } from './collectionSenseCleanup';
 import { WidgetSyncService } from './WidgetSyncService';
 
 /**
  * Brings everything a collection's game system reaches in line with its saved
  * settings: the collection gets exactly the widgets of its preset, and tokens in
- * all its scenes lose the conditions it does not define. Runs after every save,
+ * all its scenes lose the conditions and the senses it does not define. Runs after every save,
  * so switching systems leaves nothing of the previous one behind, and a
  * collection that drifted (e.g. edited by an older Atlas) is repaired.
  *
@@ -32,4 +33,5 @@ export async function syncCollectionSystem(app: App, collectionId: string, prese
   }
 
   await removeUndefinedConditions(app, collectionId);
+  await removeUndefinedSenses(app, collectionId, presets);
 }

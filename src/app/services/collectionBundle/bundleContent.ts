@@ -1,5 +1,5 @@
 import type { BundleFile, BundleFileRole } from './bundleFormat';
-import { remapPaths, type PathMap } from './pathRemap';
+import { movedFolders, remapPaths, type PathMap } from './pathRemap';
 
 /** JSON files carry vault paths and asset ids that must follow the files and records they point at. */
 const JSON_ROLES: ReadonlySet<BundleFileRole> = new Set<BundleFileRole>(['asset-file', 'scene-map', 'scene-snapshot']);
@@ -41,7 +41,7 @@ function relinkStatblockNote(file: BundleFile, text: string, rewrites: PathMap):
   if (!image || !target) return text;
   const frontmatter = FRONTMATTER.exec(text);
   if (!frontmatter) return text;
-  // The manifest check limits the key to `image` or `token-image`, so it is safe inside the pattern.
+  // The manifest check limits the key to the statblock image fields, so it is safe inside the pattern.
   const line = new RegExp(`^${image.key}:[ \\t]*\\S[^\\n]*$`, 'm').exec(frontmatter[2]!);
   if (!line) return text;
   // Splice at the matched line: a plain replace would hit the first equal text and expand `$` patterns in the path.
@@ -49,17 +49,41 @@ function relinkStatblockNote(file: BundleFile, text: string, rewrites: PathMap):
   return `${text.slice(0, start)}${image.key}: ${JSON.stringify(target)}${text.slice(start + line[0].length)}`;
 }
 
+/** A quoted text without quotes inside, so the folder in `'file.inFolder("Items")'` is found within the quoted filter. */
+const QUOTED = /(["'])([^"'\n]+)\1/g;
+
+/** What stands before a quoted path in a base: `file.inFolder(`, or `file.folder` / `file.path` compared or asked (`.startsWith(`). */
+const PATH_CONTEXT = /(?:\.inFolder\(|file\.(?:folder|path)(?:\.\w+\()?\s*(?:[=!]=)?)\s*$/;
+
+/**
+ * Points the folders and files a base names at where they now are. A base
+ * finds its notes by path (`file.inFolder("Items/Armor")`), so each quoted
+ * path that moved is replaced where the base asks for a path; a tag or a
+ * property value that reads like a moved folder is left alone.
+ */
+function relinkLootBase(text: string, rewrites: PathMap): string {
+  const folders = movedFolders(rewrites);
+  return text.replace(QUOTED, (literal: string, quote: string, value: string, offset: number) => {
+    const path = value.endsWith('/') ? value.slice(0, -1) : value;
+    const target = rewrites.get(path) ?? folders.get(path);
+    if (!target || !PATH_CONTEXT.test(text.slice(Math.max(0, offset - 80), offset))) return literal;
+    return `${quote}${target}${value.slice(path.length)}${quote}`;
+  });
+}
+
 /** `text` of a file that `refersToFiles`, with the paths and ids it refers to rewritten; `text` itself when nothing changes. */
 export function rewriteText(file: BundleFile, text: string, rewrites: PathMap): string {
   if (JSON_ROLES.has(file.role)) return rewriteJson(text, rewrites);
   if (file.role === 'statblock-note') return relinkStatblockNote(file, text, rewrites);
+  if (file.role === 'loot-base') return relinkLootBase(text, rewrites);
   return text;
 }
 
 /**
  * `raw` with the paths and ids it refers to rewritten: JSON files follow moved
- * files and renamed records, statblock notes follow their artwork. Returns
- * `raw` itself when nothing changes, so unchanged files keep their exact bytes.
+ * files and renamed records, statblock notes follow their artwork, loot bases
+ * the folders of their items. Returns `raw` itself when nothing changes, so
+ * unchanged files keep their exact bytes.
  */
 export function rewriteContent(file: BundleFile, raw: ArrayBuffer, rewrites: PathMap): ArrayBuffer {
   if (!mayRewrite(file, rewrites)) return raw;
@@ -68,9 +92,9 @@ export function rewriteContent(file: BundleFile, raw: ArrayBuffer, rewrites: Pat
   return rewritten === text ? raw : toBuffer(rewritten);
 }
 
-/** Whether the file is text that refers to other files or records: JSON, or a statblock note that shows artwork. */
+/** Whether the file is text that refers to other files or records: JSON, a statblock note that shows artwork, or a loot base. */
 export const refersToFiles = (file: BundleFile): boolean =>
-  JSON_ROLES.has(file.role) || (file.role === 'statblock-note' && file.statblockImage !== undefined);
+  JSON_ROLES.has(file.role) || file.role === 'loot-base' || (file.role === 'statblock-note' && file.statblockImage !== undefined);
 
 /** Whether `rewriteContent` may change the file's bytes, so they must be read to know the result. */
 export const mayRewrite = (file: BundleFile, rewrites: PathMap): boolean => rewrites.size > 0 && refersToFiles(file);

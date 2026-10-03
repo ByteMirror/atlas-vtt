@@ -21,6 +21,8 @@ export const SETTINGS_PANEL_IDS = [
   'token-settings',
   'widget-settings',
   'local-player-view-settings',
+  'dice-settings',
+  'experimental-features',
 ] as const;
 
 export type SettingsPanelId = (typeof SETTINGS_PANEL_IDS)[number];

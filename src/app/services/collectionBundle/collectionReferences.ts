@@ -3,9 +3,10 @@ import type { Asset, AssetService, GroupTokenRef } from '../AssetService';
 import { isPersistedMapEnvelope, type PersistedMapEnvelope } from '../MapPersistence';
 import { SceneSnapshotService } from '../../snapshots/SceneSnapshotService';
 import { isRecord } from '../assetMetadataGuards';
-import { imageReference, localImage } from '../statblockImportCandidates';
+import { localImage, statblockImageField } from '../statblockImportCandidates';
 import { linkedFilePath } from '../sceneLinks';
-import type { BundleFile, BundleFileRole, StatblockImageKey } from './bundleFormat';
+import { readLootBaseItems } from '../../loot/lootBaseItems';
+import type { BundleFile, BundleFileRole } from './bundleFormat';
 
 /** The scene thumbnail lives next to its map file. */
 export const sceneThumbnailPath = (mapPath: string): string => mapPath.replace(/\.atlasmap$/, '.thumb.jpg');
@@ -14,7 +15,7 @@ export const sceneThumbnailPath = (mapPath: string): string => mapPath.replace(/
 export interface MissingReference {
   path: string;
   role: BundleFileRole;
-  /** Name of the asset that refers to it. */
+  /** Name of the asset that refers to it, or what else does. */
   assetName: string;
 }
 
@@ -23,6 +24,10 @@ interface CollectedFiles {
   missing: MissingReference[];
 }
 
+/** What names a loot base in a report of missing files: the collection's settings refer to it, no asset does. */
+const LOOT_TABLE = 'loot table';
+const UNREADABLE_LOOT_TABLE = 'loot table, needs the Bases core plugin';
+
 /** Previews are regenerated when missing, so their absence is not worth a warning. */
 const OPTIONAL_ROLES = new Set<BundleFileRole>(['thumbnail', 'scene-thumbnail']);
 
@@ -30,10 +35,11 @@ const OPTIONAL_ROLES = new Set<BundleFileRole>(['thumbnail', 'scene-thumbnail'])
  * Lists every vault file a collection depends on, so a bundle can carry the
  * whole collection: asset records and images, scene maps and their snapshots
  * with the backgrounds and artwork of tokens placed on them, the notes their
- * pins and characters open, and the statblock notes tokens link to together
- * with their artwork. Every file lists the
- * assets that use it; the first role claimed for a path wins. Referenced
- * files that are gone are reported instead of packed.
+ * pins and characters open, the statblock notes tokens link to together
+ * with their artwork, and the loot bases the collection's settings pick with
+ * the item notes they hold. Every file lists the assets that use it; the first
+ * role claimed for a path wins. Referenced files that are gone are reported
+ * instead of packed.
  */
 export class CollectionReferenceCollector {
   private readonly files = new Map<string, BundleFile>();
@@ -43,7 +49,9 @@ export class CollectionReferenceCollector {
 
   constructor(private readonly app: App, private readonly assets: AssetService) {}
 
-  async collect(assets: readonly Asset[]): Promise<CollectedFiles> {
+  async collect(assets: readonly Asset[], lootBases: readonly string[] = []): Promise<CollectedFiles> {
+    // Loot comes first: an item note a pin also opens must still travel with its base.
+    for (const path of lootBases) await this.collectLootBase(path);
     for (const asset of assets) {
       this.owner = asset;
       await this.collectAsset(asset);
@@ -51,6 +59,27 @@ export class CollectionReferenceCollector {
     this.owner = null;
     for (const notePath of this.statblockNotes) this.collectStatblockImage(notePath);
     return { files: [...this.files.values()], missing: [...this.missing.values()] };
+  }
+
+  /**
+   * A base and the files it holds. They belong to the collection, not to
+   * an asset, so they list no owners. A base Obsidian cannot run stays behind:
+   * without its items it would arrive empty.
+   */
+  private async collectLootBase(path: string): Promise<void> {
+    if (this.files.has(path) || this.missing.has(path)) return;
+    const exists = this.app.vault.getAbstractFileByPath(path) instanceof TFile;
+    const items = exists ? await readLootBaseItems(this.app, path) : null;
+    if (!items) {
+      this.missing.set(path, { path, role: 'loot-base', assetName: exists ? UNREADABLE_LOOT_TABLE : LOOT_TABLE });
+      return;
+    }
+    this.files.set(path, { vaultPath: path, role: 'loot-base' });
+    for (const item of items) {
+      const entry = this.files.get(item);
+      if (entry) entry.linkedFrom?.push(path);
+      else if (this.app.vault.getAbstractFileByPath(item) instanceof TFile) this.files.set(item, { vaultPath: item, role: 'loot-item', linkedFrom: [path] });
+    }
   }
 
   private async collectAsset(asset: Asset): Promise<void> {
@@ -145,13 +174,11 @@ export class CollectionReferenceCollector {
     const note = this.app.vault.getAbstractFileByPath(notePath);
     const entry = this.files.get(notePath);
     if (!(note instanceof TFile) || !entry) return;
-    const frontmatter: Record<string, unknown> = this.app.metadataCache.getFileCache(note)?.frontmatter ?? {};
-    const key: StatblockImageKey = imageReference(frontmatter.image) ? 'image' : 'token-image';
-    const reference = imageReference(frontmatter[key]);
-    const image = reference ? localImage(this.app, reference, notePath) : null;
-    if (!image) return;
+    const field = statblockImageField(this.app.metadataCache.getFileCache(note)?.frontmatter ?? {});
+    const image = field ? localImage(this.app, field.reference, notePath) : null;
+    if (!field || !image) return;
     this.add(image.path, 'statblock-image', entry.owners);
-    entry.statblockImage = { key, path: image.path };
+    entry.statblockImage = { key: field.key, path: image.path };
   }
 
   /** Records a file in a hidden folder, which the vault index does not list; the caller already found it on disk. */
@@ -164,7 +191,8 @@ export class CollectionReferenceCollector {
     if (!path) return false;
     const existing = this.files.get(path);
     if (existing) {
-      existing.owners = [...new Set([...(existing.owners ?? []), ...owners])];
+      // Loot has no owners: it travels with the collection, whichever assets also use it.
+      if (existing.owners) existing.owners = [...new Set([...existing.owners, ...owners])];
       return false;
     }
     if (!(this.app.vault.getAbstractFileByPath(path) instanceof TFile)) {

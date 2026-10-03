@@ -81,15 +81,6 @@ export function GridAlignmentOverlay({ onClose }: GridAlignmentOverlayProps): Re
     // (e.g. the command palette backdrop that sits full-screen above the canvas).
     const backdrop = document.querySelector<HTMLElement>('.atlas-command-palette-backdrop');
     if (backdrop) backdrop.click();
-
-    // The drag plugin is paused for most tools (select, fog, draw…).
-    // We need right-click drag (panning) while placing alignment points.
-    const wasDragPaused = viewport.plugins.get('drag')?.paused ?? false;
-    viewport.plugins.resume('drag');
-
-    return () => {
-      if (wasDragPaused) viewport.plugins.pause('drag');
-    };
   }, [view]);
 
   useEffect(() => {

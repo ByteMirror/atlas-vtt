@@ -27,12 +27,12 @@ import { MeasureRenderer } from "./pixi/MeasureRenderer"; // Import MeasureRende
 import { LaserPointerRenderer } from "./pixi/LaserPointerRenderer"; // Import LaserPointerRenderer
 import { DrawingRenderer } from "./pixi/DrawingRenderer"; // Import DrawingRenderer
 import { DrawingInteraction } from "./pixi/DrawingInteraction";
-import { isViewportPanEnabled } from "./pixi/utils/viewportPan";
 import { TextRenderer } from "./pixi/TextRenderer"; // Import TextRenderer
 import { TextTool } from "./tools/TextTool"; // Import TextTool
-import { LightingController } from './pixi/lighting/LightingController';
-import { playerLightingLayers, tokenSeenPredicate } from './pixi/lighting/playerLightingLayers';
-import { WALLS_AND_LIGHTING_ENABLED } from './featureFlags';
+import type { LightingController } from './pixi/lighting/LightingController';
+import { LightingFeature } from './pixi/lighting/LightingFeature';
+import type { SceneFrame } from './pixi/lighting/engine/types';
+import { captureSceneFrame } from './pixi/sceneFrameCapture';
 import { AudioTool } from './tools/AudioTool';
 import { openAudioConfigPanel } from './pixi/audio/AudioConfigPanel';
 import { AudioRenderer } from './pixi/audio/AudioRenderer';
@@ -60,8 +60,11 @@ export class PixiRendererOrchestrator { // Renamed class
   private drawingInteraction?: DrawingInteraction;
   private textRenderer?: TextRenderer; // Add TextRenderer instance
   private textTool?: TextTool; // Add TextTool instance
-  /** IDs of wall segments created during the current drawing chain (for Escape undo). */
-  private lighting?: LightingController;
+  /** The view's lighting, built and removed as the GM switches dynamic lighting on and off. */
+  private lightingFeature?: LightingFeature;
+  private get lighting(): LightingController | undefined {
+    return this.lightingFeature?.controller;
+  }
   private audioRenderer?: AudioRenderer;
   private audioTool?: AudioTool;
   private soundRegistry?: SoundRegistry;
@@ -155,15 +158,8 @@ export class PixiRendererOrchestrator { // Renamed class
       this._unsubscribeFromToolChanges = this.store.subscribe(
         (state: ViewAtlasState) => state.activeTool,
         (tool) => {
-          // Use getter to always get current viewport, not the one from closure
-          const vp = this.viewport;
-          if (!vp) return;
-          if (isViewportPanEnabled(tool)) {
-            vp.plugins.resume('drag');
-          } else {
-            vp.plugins.pause('drag');
-          }
-          
+          if (!this.viewport) return;
+
           // Handle text tool activation/deactivation
           if (tool === 'text' && this.textTool) {
             this.textTool.activate();
@@ -365,6 +361,7 @@ export class PixiRendererOrchestrator { // Renamed class
         this.store,
         this.eventBus
     );
+    this.selectionManager.barsReachProvider = (tokenId) => this.tokenRenderer?.barsReach(tokenId) ?? 0;
 
     // Initialize FogOfWarRenderer after pins so it can be on top when active
     this.fogRenderer = new FogOfWarRenderer(viewport, this.app, this.eventBus, this.store);
@@ -376,15 +373,15 @@ export class PixiRendererOrchestrator { // Renamed class
     // Set the fog container to a high z-index to ensure it's on top when visible
     fogContainer.zIndex = 1000;
 
-    if (WALLS_AND_LIGHTING_ENABLED && !isPlayerView) {
-      this.lighting = new LightingController({
+    if (!isPlayerView) {
+      this.lightingFeature = new LightingFeature({
         viewport,
         app: this.pixiAppManager.app,
         store: this.store,
         eventBus: this.eventBus,
         obsApp: this.obsApp,
         viewId: this.viewId,
-        bounds: () => (this.backgroundSprite?.width ? { width: this.backgroundSprite.width, height: this.backgroundSprite.height } : null),
+        bounds: () => this.getMapRect(),
         albedo: () => (this.backgroundSprite && !this.backgroundSprite.destroyed ? this.backgroundSprite.texture : null),
       });
     }
@@ -470,7 +467,7 @@ export class PixiRendererOrchestrator { // Renamed class
 
       // Wait for sprite to be ready
       const checkAndInitGrid = () => {
-        if (this._isDestroyed) {
+        if (this._isDestroyed || this.backgroundSprite !== bgSprite) {
           this.gridInitRetryTimeout = null;
           return;
         }
@@ -593,15 +590,10 @@ export class PixiRendererOrchestrator { // Renamed class
     const currentViewport = this.viewport;
     if (!currentViewport) return;
 
-    // Remove old background from viewport if it's different from the new one
-    if (this.backgroundSprite && this.backgroundSprite !== sprite) {
-      if (this.backgroundSprite.parent) {
-        currentViewport.removeChild(this.backgroundSprite);
-      }
-      // Destroy the old sprite; its texture is unloaded by whoever loaded it
-      destroyTree(this.backgroundSprite);
-    }
+    const previous = this.backgroundSprite;
     this.backgroundSprite = sprite;
+    // The texture of the sprite it replaces is unloaded by whoever loaded it
+    if (previous && previous !== sprite) destroyTree(previous);
     this.lighting?.renderer.refreshBounds();
 
     // Ensure new background is at the bottom
@@ -625,6 +617,26 @@ export class PixiRendererOrchestrator { // Renamed class
       // Don't pass empty options - this would reset the grid settings!
       // The updateBackgroundSprite call should trigger recreation with current options
     }
+  }
+
+  /**
+   * Takes a background sprite off the map and destroys it. When it was the one
+   * shown, the map has no background until `setBackgroundSprite` brings the next:
+   * the grid and the lighting must not keep reading a destroyed sprite.
+   */
+  public removeBackgroundSprite(sprite: Sprite): void {
+    if (this.backgroundSprite === sprite) {
+      this.backgroundSprite = null;
+      this.gridSystem?.clearBackgroundSprite();
+      if (!this._isDestroyed) this.lighting?.renderer.refreshBounds();
+      this.eventBus.emit('background-sprite-updated', undefined);
+    }
+    destroyTree(sprite);
+  }
+
+  /** Takes the map image off the canvas, as when its scene could not be opened. */
+  public clearBackgroundSprite(): void {
+    if (this.backgroundSprite) this.removeBackgroundSprite(this.backgroundSprite);
   }
 
   /** The map image in world space; null until it has loaded. */
@@ -717,18 +729,12 @@ export class PixiRendererOrchestrator { // Renamed class
   public withPlayerSafeFrame(capture: () => void, settings: AtlasSettings['localPlayerView'], camera?: PlayerCameraState, renderFollows = false): void {
     const app = this.pixiAppManager.getApp();
     if (!app?.renderer) return;
-    const layers: LayerVisibility[] = [];
-    if (this.pinRenderer) layers.push({ layer: this.pinRenderer.getPinContainer(), visible: false });
-    if (this.hexLinkRenderer) layers.push({ layer: this.hexLinkRenderer.container, visible: false });
+    const layers = this.markerLayers();
     const grid = this.gridSystem?.getGridSprite();
     if (grid) layers.push({ layer: grid, visible: settings.showGrid });
-    const lighting = this.lighting?.renderer;
-    const lit = !!lighting?.isEnabled();
-    const isSeen = lighting && lit
-      ? tokenSeenPredicate(lighting.currentSight(), lighting.ambientLight(), lighting.lightReaches(), this.store.getState().objects.tokens)
-      : undefined;
-    layers.push(...(this.tokenRenderer?.getPlayerViewLayers(settings, isSeen) ?? []));
-    if (this.lighting) layers.push(...playerLightingLayers({ enabled: lit, modeLayer: this.lighting.renderer.modeLayer, gmOverlays: this.lighting.gmOverlays() }));
+    // The lighting's part is the list session view holds on this canvas (`SessionLighting`).
+    layers.push(...(this.tokenRenderer?.getPlayerViewLayers(settings, this.lighting?.playerSight()) ?? []));
+    layers.push(...(this.lighting?.playerLayers() ?? []));
     layers.push(...(this.fogRenderer?.getPlayerViewLayers() ?? []));
     layers.push(...(this.selectionManager?.getPlayerViewLayers() ?? []));
     for (const overlay of this.dmScreenOverlays) layers.push({ layer: overlay, visible: false });
@@ -736,6 +742,31 @@ export class PixiRendererOrchestrator { // Renamed class
     const playerCamera = camera && viewport ? { target: viewport, camera } : undefined;
     const captureFrame = renderFollows ? captureBeforeRender : captureWithLayerVisibility;
     captureFrame(layers, () => app.renderer.render(app.stage), capture, playerCamera);
+  }
+
+  /** The GM's markers on the map: neither the players nor a picture of the scene show them. */
+  private markerLayers(): LayerVisibility[] {
+    const layers: LayerVisibility[] = [];
+    if (this.pinRenderer) layers.push({ layer: this.pinRenderer.getPinContainer(), visible: false });
+    if (this.hexLinkRenderer) layers.push({ layer: this.hexLinkRenderer.container, visible: false });
+    return layers;
+  }
+
+  /**
+   * Runs `render`, the off-screen render of a thumbnail's `frame`: always the GM's picture
+   * (`gmViewLayers`), lit as the GM sees the scene, without the GM's overlays.
+   */
+  public captureSceneFrame<T>(frame: SceneFrame, render: () => T): T {
+    return captureSceneFrame({ gmViewLayers: this.gmViewLayers(), markerLayers: this.markerLayers(), lighting: this.lighting }, frame, render);
+  }
+
+  /**
+   * Tokens and fog as the GM view shows them, for a picture taken while the canvas is in session
+   * view. Session view must hide through these layers' `visible` and `alpha`; what it hides in
+   * another way is added here.
+   */
+  private gmViewLayers(): LayerVisibility[] {
+    return [...(this.tokenRenderer?.getGmViewLayers() ?? []), ...(this.fogRenderer?.getGmViewLayers() ?? [])];
   }
 
   getViewportInstance(): Viewport | null { return this.pixiAppManager.getViewport(); }
@@ -778,6 +809,12 @@ export class PixiRendererOrchestrator { // Renamed class
         }
       }
       
+      // Enter closes the light zone being drawn
+      if (e.key === 'Enter' && this.lighting?.handleEnter()) {
+        e.preventDefault();
+        return;
+      }
+
       // Delete selected tokens on Delete or Backspace key
       if (!this.store.getState().isPlayerView && (matchesMapHotkey(e, 'delete', settings) || matchesMapHotkey(e, 'deleteAlt', settings))) {
         if (this.lighting?.handleDelete()) {
@@ -860,7 +897,7 @@ export class PixiRendererOrchestrator { // Renamed class
       );
     }
 
-    this.lighting?.wire(this.tokenRenderer);
+    this.lightingFeature?.wire(this.tokenRenderer);
 
     // Wire audio tool viewport handlers
     if (this.audioRenderer && this.audioTool) {
@@ -992,25 +1029,14 @@ export class PixiRendererOrchestrator { // Renamed class
     this.drawingInteraction?.destroy();
     this.textRenderer?.destroy(); // Destroy TextRenderer
     this.textTool?.destroy(); // Destroy TextTool
-    this.lighting?.destroy();
+    this.lightingFeature?.destroy();
     this.audioRenderer?.destroy();
     this.spatialAudioEngine?.dispose();
     this.bufferCache?.dispose();
     this.gridSystem?.destroy(); // Destroy GridSystem
     this.selectionManager?.destroy(); // Destroy SelectionManager
     
-    // Clean up background sprite and texture
-    if (this.backgroundSprite) {
-      // Remove from parent if needed
-      if (this.backgroundSprite.parent) {
-        this.backgroundSprite.parent.removeChild(this.backgroundSprite);
-      }
-      
-      // Destroy the sprite
-      destroyTree(this.backgroundSprite);
-      this.backgroundSprite = null;
-      this.eventBus.emit('background-sprite-updated', undefined);
-    }
+    this.clearBackgroundSprite();
 
     this.pixiAppManager.destroy();
 

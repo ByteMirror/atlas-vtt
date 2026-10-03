@@ -1,7 +1,8 @@
 import { App, TFile, normalizePath } from 'obsidian';
 import { Assets, Texture } from 'pixi.js';
 import type { MapFile } from './services/MapPersistence';
-import { migrateMapFile, isLegacyMapFile, isPersistedMapEnvelope } from './services/MapPersistence';
+import { migrateMapFile, parseSceneFile } from './services/MapPersistence';
+import { SceneFileError } from './services/sceneFileProblems';
 import { AssetValidationService, type MissingAsset } from './services/AssetValidationService';
 import { backgroundTextureCache } from './pixi/backgroundTextureCache';
 
@@ -26,21 +27,17 @@ export class MapLoader {
     if (!(file instanceof TFile)) {
       throw new Error(`[MapLoader] Map file not found: ${mapFilePath}`);
     }
-    const raw = await app.vault.read(file);
-    let parsed: unknown;
+    let raw: string;
     try {
-      parsed = JSON.parse(raw);
-    } catch {
-      throw new Error('[MapLoader] Failed to parse map JSON');
-    }
-    // Support Zustand persist format: wrap under `state` key
-    const data = isPersistedMapEnvelope(parsed) && parsed.state ? parsed.state : parsed;
-    if (!isLegacyMapFile(data)) {
-      throw new Error('[MapLoader] Map file has an unexpected structure');
+      raw = await app.vault.read(file);
+    } catch (error) {
+      console.error(`[MapLoader] Error reading map file ${mapFilePath}:`, error);
+      throw new SceneFileError('unreadable');
     }
 
+    // The same check the store's storage makes, so a file never shows as a map that then loads empty.
     // Apply migration to convert app:// URLs to relative paths
-    const mapData = migrateMapFile(data);
+    const mapData = migrateMapFile(parseSceneFile(raw).state);
 
     let texture: Texture;
     let hasBackground = false;

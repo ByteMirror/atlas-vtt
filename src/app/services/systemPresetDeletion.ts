@@ -2,7 +2,6 @@ import type { App } from 'obsidian';
 import { vanillaSystemSettings } from '../gameSystems/systemRules';
 import { AssetService } from './AssetService';
 import { syncCollectionSystem } from './collectionSystemSync';
-import { applyTokenBars, changedTokenBars, tokenBarsOf } from './collectionTokenBars';
 import type { SystemPresetService } from './SystemPresetService';
 
 /**
@@ -22,11 +21,8 @@ export async function deleteSystemPreset(app: App, presets: SystemPresetService,
 
   for (const collection of affected) {
     const vanilla = vanillaSystemSettings();
-    // Read before the update, which replaces the collection's settings.
-    const bars = changedTokenBars(tokenBarsOf(collection.settings.defaultWidgets), tokenBarsOf(vanilla.defaultWidgets));
     await assets.updateCollectionSettings(collection.id, vanilla);
     await syncCollectionSystem(app, collection.id, known);
-    await applyTokenBars(app, collection.id, bars);
   }
   return affected.map((collection) => collection.id);
 }

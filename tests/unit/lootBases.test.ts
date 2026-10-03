@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { baseViewNames, LOOT_QUERY_VIEW, lootQueryConfig } from '../../src/app/loot/lootBaseQuery';
+import { baseViewNames, LOOT_QUERY_VIEW, lootQueryConfig, wholeBaseQueryConfig } from '../../src/app/loot/lootBaseQuery';
 import { roleProperties, toLootItems, type LootQuerySnapshot } from '../../src/app/loot/lootItem';
 
 const BASE = {
@@ -32,6 +32,16 @@ describe('reading a base', () => {
   it('has no query for a view the base does not have', () => {
     expect(lootQueryConfig(BASE, 'Rings')).toBeNull();
     expect(lootQueryConfig({ views: [{ name: 'Only' }] }, 'Only')).toEqual({ views: [{ name: 'Only', type: LOOT_QUERY_VIEW }] });
+  });
+
+  it('lists everything a base holds by its own filters, and nothing for a base that filters nothing itself', () => {
+    const filters = { and: ['file.inFolder("Items")'] };
+    expect(wholeBaseQueryConfig({ filters, views: [{ name: 'Weapons', filters: { and: ['type == "Weapon"'] } }] }))
+      .toEqual({ filters, views: [{ name: LOOT_QUERY_VIEW, type: LOOT_QUERY_VIEW }] });
+    // Such a base would list the whole vault.
+    for (const base of [{ views: [{ name: 'Weapons' }] }, { filters: { and: [] } }, { filters: { or: [{ and: [' '] }] } }, null]) {
+      expect(wholeBaseQueryConfig(base)).toBeNull();
+    }
   });
 });
 

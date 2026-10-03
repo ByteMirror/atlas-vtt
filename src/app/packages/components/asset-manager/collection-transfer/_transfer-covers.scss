@@ -67,7 +67,7 @@
       width: 100%;
       height: 100%;
       object-fit: cover;
-      transition: transform 400ms $transition-ease-out;
+      transition: transform 400ms $transition-ease-out, opacity $transition-normal $transition-ease-out;
     }
 
     svg {

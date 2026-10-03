@@ -1,6 +1,7 @@
 import { EventEmitter } from 'events';
 import { Howl } from 'howler';
 import { disposeDiceRevealSound, playDiceReveal } from '../audio/diceRevealSound';
+import { disposeDiceSounds } from '../dice3d/audio/diceSounds';
 import type { DiceCrit } from '../tools/diceCrit';
 import timerDingSoundUrl from '../sounds/timer-ding.wav?inline';
 
@@ -95,6 +96,7 @@ export class SoundEffectService extends EventEmitter {
         this.sounds.clear();
         this.timerDingSound = null;
         disposeDiceRevealSound();
+        disposeDiceSounds();
         
         // Remove all listeners
         this.removeAllListeners();

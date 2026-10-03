@@ -8,6 +8,10 @@ import { zoomToTokenWithHighlight } from '../../src/app/pixi/utils/tokenHighligh
 
 vi.mock('../../src/app/atlas-view', () => ({ ATLAS_VIEW_TYPE: 'atlas-vtt' }));
 vi.mock('../../src/app/react/components/LinkedNotePicker', () => ({ default: () => null }));
+vi.mock('../../src/app/resources/useMapResources', async () => {
+  const definitions = [(await import('../../src/app/resources/resourceDefinitions')).HP_RESOURCE];
+  return { useMapResources: () => definitions };
+});
 vi.mock('../../src/app/react/root/AtlasUIContext', () => ({ useAtlasUI: () => ({ app, view }) }));
 vi.mock('../../src/app/react/ViewStoreContext', () => ({
   useAtlasStore: (selector: (value: typeof state) => unknown) => selector(state),
@@ -52,6 +56,7 @@ const state = {
 function showDMScreen(paths: string[], onClose = vi.fn()) {
   state.objects.tokens = Object.fromEntries(paths.map((statblockPath, index) => [index, {
     id: String(index), kind: 'character', x: index * 100, y: 50, instanceNumber: index, name: index === 0 ? 'Sunborne Beacon' : 'Acid Burrower', statblockPath,
+    resources: { hp: { current: 8, max: 8 } },
   }]));
   Object.assign(window, { FantasyStatblocks: {
     getBestiaryCreatures: () => [creature],
@@ -77,14 +82,17 @@ describe('DM screen statblock selection', () => {
 
   it('keeps creatures defined in code fences even though they are not in the bestiary', async () => {
     const { container } = showDMScreen([legacyPath, fencePath]);
-    await waitFor(() => expect(container.querySelector('.atlas-statblock')).not.toBeNull());
-    expect(container.textContent).toContain('Inline Creature');
+    // The note is read before its statblock shows: until then the pane says that it is loading.
+    await waitFor(() => expect(container.textContent).toContain('Inline Creature'));
+    expect(container.querySelector('.atlas-statblock')).not.toBeNull();
     expect(container.textContent).not.toContain('No Fantasy Statblocks creature found');
   });
 
-  it('shows the empty state when all linked notes use an unsupported format', async () => {
+  it('leaves the statblock pane empty when all linked notes use an unsupported format', async () => {
     const { container } = showDMScreen([legacyPath]);
-    await waitFor(() => expect(container.textContent).toContain('No statblocks currently in use'));
+    await waitFor(() => expect(container.querySelector('.atlas-dm-statblocks-grid')).not.toBeNull());
+    expect(container.querySelector('.atlas-dm-statblocks-grid')?.childElementCount).toBe(0);
+    expect(container.querySelector('.atlas-dm-statblocks-section')).not.toBeNull();
     expect(container.textContent).not.toContain('No Fantasy Statblocks creature found');
   });
 });
@@ -94,8 +102,9 @@ describe('DM screen token actions', () => {
   it('persists an independent resource update through the map store', async () => {
     showDMScreen([legacyPath, creaturePath, creaturePath]);
     const entry = await screen.findByRole('group', { name: 'Acid Burrower #2' });
+    // A basic layout draws no tracks, so hit points are a gauge
     fireEvent.click(within(entry).getByRole('button', { name: 'Decrease HP' }));
-    expect(state.updateToken).toHaveBeenLastCalledWith('2', { hp: { current: 7, max: 8 } });
+    expect(state.updateToken).toHaveBeenLastCalledWith('2', { resources: { hp: { current: 7, max: 8 } } });
     expect(screen.getAllByRole('group')).toHaveLength(2);
   });
 

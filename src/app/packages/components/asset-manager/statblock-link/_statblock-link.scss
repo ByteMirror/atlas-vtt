@@ -70,6 +70,15 @@ $statblock-max-width: 560px;
     @include atlas-scrollbar-while-scrolling;
   }
 
+  // The placeholder rows take the list's own layout and can not be chosen.
+  &__list-skeleton {
+    @include atlas-flex-col($gap: 2px);
+
+    .atlas-statblock-link__option {
+      cursor: default;
+    }
+  }
+
   &__list-empty {
     padding: $spacing-xl $spacing-l;
     color: var(--text-faint);

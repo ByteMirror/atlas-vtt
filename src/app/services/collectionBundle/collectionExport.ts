@@ -3,12 +3,14 @@ import { COLLECTIONS_DIR, type Asset, type AssetService, type CollectionMetadata
 import { BUNDLE_FORMAT, BUNDLE_MANIFEST, zipPathFor, type BundleFile, type CollectionBundleManifest } from './bundleFormat';
 import { rewriteContent } from './bundleContent';
 import { selectContent } from './bundleContents';
+import { withLootBases } from './bundleSettings';
 import { reportFileStep, type BundleProgressListener } from './bundleProgress';
 import { coverCandidates, coverFileFor, currentCover, storeCover, type CoverCandidate, type CoverChoice, type CoverFile, type CurrentCover } from './collectionCover';
 import { CollectionReferenceCollector, type MissingReference } from './collectionReferences';
 import { assetFingerprint, fieldFingerprint } from './fingerprints';
 import { sha256 } from './hashing';
 import { COLLECTION_FIELDS, deleteInstallRecord, moveInstallRecord, readInstallRecord, writeInstallRecord, type InstallRecord } from './installRecord';
+import { withLinkedFiles } from './noteLinks';
 import { remapPaths } from './pathRemap';
 import { readVaultBinary, vaultFileSize } from '../../utils/hiddenVaultFiles';
 
@@ -83,7 +85,8 @@ export async function prepareCollectionExport(app: App, assets: AssetService, co
   const collection = await assets.getCollection(collectionId);
   if (!collection) throw new Error(`Collection ${collectionId} not found`);
   const collectionAssets = (await assets.getAssets(collectionId)).filter((asset) => EXPORTED_TYPES.has(asset.type));
-  const { files, missing } = await new CollectionReferenceCollector(app, assets).collect(collectionAssets);
+  const { files: referenced, missing } = await new CollectionReferenceCollector(app, assets).collect(collectionAssets, collection.settings.lootBases);
+  const files = withLinkedFiles(app, referenced);
   const fileSizes = new Map<string, number>();
   for (const file of files) fileSizes.set(file.vaultPath, await vaultFileSize(app, file.vaultPath));
   const publisher = await publisherOf(app, assets, collection);
@@ -154,7 +157,14 @@ export async function exportCollectionBundle(
     : { collectionId: preview.collection.id, name: preview.collection.name, names: new Map<string, string>() };
   const named = (value: string): string => origin.names.get(value) ?? value;
   const exported = await exportedCollection(assets, preview, choice, exportedAt);
-  const collection: CollectionMetadata = { ...exported, id: origin.collectionId, name: choice.kind === 'share' ? origin.name : exported.name };
+  // The settings name only the loot bases that travel, as the bundle names them.
+  const packed = new Set(selected.files.map((file) => file.vaultPath));
+  const collection: CollectionMetadata = {
+    ...exported,
+    id: origin.collectionId,
+    name: choice.kind === 'share' ? origin.name : exported.name,
+    settings: withLootBases(exported.settings, (path) => (packed.has(path) ? named(path) : undefined)),
+  };
   if (cover) collection.coverPath = named(cover.path);
   else delete collection.coverPath;
   const { default: JSZip } = await import('jszip');
@@ -171,6 +181,7 @@ export async function exportCollectionBundle(
       vaultPath: bundlePath,
       sha256: await sha256(data),
       ...(file.owners && { owners: file.owners.map(named) }),
+      ...(file.linkedFrom && { linkedFrom: file.linkedFrom.map(named) }),
       ...(file.statblockImage && { statblockImage: { ...file.statblockImage, path: named(file.statblockImage.path) } }),
     });
     zip.file(zipPathFor(bundlePath), data, { compression: STORED_EXTENSIONS.test(bundlePath) ? 'STORE' : 'DEFLATE' });

@@ -76,8 +76,9 @@ function linkText(target: string, alias: string | undefined): string {
   return alias?.trim() ? alias.trim() : noteName(target);
 }
 
-function cleanOption(text: string): string | null {
-  const cleaned = text
+/** Statblock text as it reads: links as what they show, rulebook-font glyphs dropped, spaces single. */
+export function plainText(text: string): string {
+  return text
     .replace(PRIVATE_USE, '')
     .replace(ENCODED_LINK, (_match, _kind: string, link: string) => {
       const [target = '', alias] = link.split('|');
@@ -85,9 +86,12 @@ function cleanOption(text: string): string | null {
     })
     .replace(WIKI_LINK, (_match, target: string, alias: string | undefined) => linkText(target, alias))
     .replace(MARKDOWN_LINK, (_match, label: string) => label)
-    .replace(PAGE_REFERENCE, '')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+function cleanOption(text: string): string | null {
+  const cleaned = plainText(text).replace(PAGE_REFERENCE, '').trim();
   return cleaned && cleaned.length <= MAX_OPTION_LENGTH ? cleaned : null;
 }
 

@@ -35,6 +35,18 @@ describe('syncCollectionSystem', () => {
     expect(JSON.parse(files.get(SCENE)!).state.objects.tokens.a.conditions).toEqual(['shadowdark-dying']);
   });
 
+  it('takes the senses the collection no longer defines off the tokens of every scene', async () => {
+    const adapted = shadowdark.rules.senses![0]!.id;
+    const token = { id: 'a', vision: { enabled: true, senses: [{ id: 'dnd5e-darkvision', range: 60 }, { id: adapted }] } };
+    const { app, files } = createInMemoryApp({ files: { [SCENE]: JSON.stringify({ version: 4, state: { objects: { tokens: { a: token } } } }) } });
+    app.workspace = { getLeavesOfType: () => [] } as any;
+    collection(shadowdark.id, { [torch.id]: { ...torch, order: 0 } });
+
+    await syncCollectionSystem(app as any, 'dungeon', BUILT_IN_SYSTEM_PRESETS);
+
+    expect(JSON.parse(files.get(SCENE)!).state.objects.tokens.a.vision).toEqual({ enabled: true, senses: [{ id: adapted }] });
+  });
+
   it('removes the old system\'s widgets through the widget sync while a map is open', async () => {
     const { app } = createInMemoryApp();
     app.workspace = { getLeavesOfType: () => [] } as any;

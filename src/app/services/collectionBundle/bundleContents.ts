@@ -1,8 +1,9 @@
 import type { Asset } from '../AssetService';
-import type { BundleFile, BundleFileRole } from './bundleFormat';
+import type { BundleFile } from './bundleFormat';
+import { noteName, noteTree, type NoteOrigin } from './noteTree';
 import { baseName } from '../../utils/pathUtils';
 
-export type ContentCategory = 'scenes' | 'maps' | 'tokens' | 'encounters' | 'statblocks' | 'notes';
+export type ContentCategory = 'scenes' | 'maps' | 'tokens' | 'encounters' | 'statblocks' | 'notes' | 'attachments' | 'loot';
 
 /** How a token looks when spawned, and the statblock it opens. Paths are the vault's when exporting and the bundle's when importing. */
 export interface TokenPreview {
@@ -17,6 +18,11 @@ export interface ContentItem {
   key: string;
   name: string;
   token?: TokenPreview | undefined;
+  /** Notes only: how many links from a scene the note is (see `noteTree`). */
+  depth?: number | undefined;
+  origin?: NoteOrigin | undefined;
+  /** Notes only: how many notes were found through this one. */
+  linked?: number | undefined;
 }
 
 export interface ContentGroup {
@@ -33,9 +39,6 @@ const ASSET_CATEGORIES: Partial<Record<Asset['type'], ContentCategory>> = {
   scene: 'scenes', map: 'maps', token: 'tokens', encounter: 'encounters',
 };
 
-/** Files that stand for content of their own; every other file belongs to the assets that use it. */
-const FILE_CATEGORIES: Partial<Record<BundleFileRole, ContentCategory>> = { 'statblock-note': 'statblocks', 'linked-note': 'notes' };
-
 /** In display order; the ones people look for first are listed even when empty. */
 const GROUPS: ReadonlyArray<{ category: ContentCategory; label: string; alwaysShown?: boolean }> = [
   { category: 'scenes', label: 'Scenes', alwaysShown: true },
@@ -44,12 +47,13 @@ const GROUPS: ReadonlyArray<{ category: ContentCategory; label: string; alwaysSh
   { category: 'encounters', label: 'Encounters' },
   { category: 'statblocks', label: 'Statblocks', alwaysShown: true },
   { category: 'notes', label: 'Notes', alwaysShown: true },
+  { category: 'attachments', label: 'Images and PDFs' },
+  { category: 'loot', label: 'Loot tables' },
 ];
 
-const noteName = (path: string): string => baseName(path).replace(/\.md$/i, '');
 const byName = (a: ContentItem, b: ContentItem): number => a.name.localeCompare(b.name, undefined, { numeric: true });
 
-/** What a collection holds, grouped the way people think of it: scenes, maps, tokens, …, statblocks and notes. */
+/** What a collection holds, grouped the way people think of it: scenes, maps, tokens, …, statblocks, notes and loot tables. */
 export function groupContents(assets: readonly Asset[], files: readonly BundleFile[]): ContentGroup[] {
   const items = new Map<ContentCategory, ContentItem[]>();
   const add = (category: ContentCategory, item: ContentItem): void => {
@@ -67,11 +71,15 @@ export function groupContents(assets: readonly Asset[], files: readonly BundleFi
     add(category, item);
   }
   for (const file of files) {
-    const category = FILE_CATEGORIES[file.role];
-    if (category) add(category, { key: fileKey(file.vaultPath), name: noteName(file.vaultPath) });
+    if (file.role === 'statblock-note') add('statblocks', { key: fileKey(file.vaultPath), name: noteName(file.vaultPath) });
+    if (file.role === 'note-attachment') add('attachments', { key: fileKey(file.vaultPath), name: baseName(file.vaultPath) });
+    if (file.role === 'loot-base') add('loot', { key: fileKey(file.vaultPath), name: baseName(file.vaultPath).replace(/\.base$/i, '') });
   }
+  const notes = noteTree(files, new Map(assets.map((asset) => [asset.id, asset.name])))
+    .map(({ path, ...note }): ContentItem => ({ key: fileKey(path), ...note }));
   return GROUPS.flatMap(({ category, label, alwaysShown }): ContentGroup[] => {
-    const grouped = (items.get(category) ?? []).sort(byName);
+    // Notes keep the order of their tree; everything else is listed by name.
+    const grouped = category === 'notes' ? notes : (items.get(category) ?? []).sort(byName);
     return grouped.length > 0 || alwaysShown ? [{ category, label, items: grouped }] : [];
   });
 }
@@ -83,20 +91,42 @@ export interface SelectedContent {
 
 /**
  * What an export packs once the user left out `excluded` content: the
- * remaining assets, and the files still used by one of them. Statblock artwork
- * goes with the notes that show it; every other file with the assets that own it.
+ * remaining assets, and the files still used by one of them. A file a note
+ * links to goes with any note that still links to it, a loot item with the
+ * bases that hold it, statblock artwork with the notes that show it, and every
+ * other file with the assets that own it.
  */
 export function selectContent(assets: readonly Asset[], files: readonly BundleFile[], excluded: ReadonlySet<string>): SelectedContent {
   const kept = assets.filter((asset) => !excluded.has(assetKey(asset.id)));
   const keptIds = new Set(kept.map((asset) => asset.id));
-  const candidates = files.filter((file) => !excluded.has(fileKey(file.vaultPath))
-    && (!file.owners?.length || file.owners.some((owner) => keptIds.has(owner))));
-  const shownArtwork = new Set(candidates.flatMap((file) => (file.statblockImage ? [file.statblockImage.path] : [])));
+  const allowed = files.filter((file) => !excluded.has(fileKey(file.vaultPath)));
+  const usedByAsset = (file: BundleFile): boolean => (file.owners?.length ? file.owners.some((owner) => keptIds.has(owner)) : !file.linkedFrom?.length);
+  const packed = new Set(allowed.filter(usedByAsset).map((file) => file.vaultPath));
+  const stillLinked = (file: BundleFile): boolean => file.linkedFrom?.some((note) => packed.has(note)) ?? false;
+  // ponytail: repeated passes, one per level of links; walk a queue of children if a vault's notes ever make this slow.
+  let grew = true;
+  while (grew) {
+    grew = false;
+    for (const file of allowed) {
+      if (packed.has(file.vaultPath) || !stillLinked(file)) continue;
+      packed.add(file.vaultPath);
+      grew = true;
+    }
+  }
+  const shownArtwork = new Set(allowed.flatMap((file) => (file.statblockImage && packed.has(file.vaultPath) ? [file.statblockImage.path] : [])));
+  // Artwork follows its notes, not its owners: a statblock note may travel only because a kept note links to it.
+  const travels = (file: BundleFile): boolean => (file.role === 'statblock-image'
+    ? shownArtwork.has(file.vaultPath) || stillLinked(file)
+    : packed.has(file.vaultPath));
   return {
     assets: kept,
-    files: candidates
-      .filter((file) => file.role !== 'statblock-image' || shownArtwork.has(file.vaultPath))
-      .map((file) => (file.owners ? { ...file, owners: file.owners.filter((owner) => keptIds.has(owner)) } : file)),
+    files: allowed
+      .filter(travels)
+      .map((file): BundleFile => ({
+        ...file,
+        ...(file.owners && { owners: file.owners.filter((owner) => keptIds.has(owner)) }),
+        ...(file.linkedFrom && { linkedFrom: file.linkedFrom.filter((note) => packed.has(note)) }),
+      })),
   };
 }
 

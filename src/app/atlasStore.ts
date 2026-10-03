@@ -52,7 +52,7 @@ export interface AtlasState {
   ) => string;
   promoteToCharacter: (
     id: string,
-    extra: Pick<Character, 'name' | 'hp' | 'notePath'>
+    extra: Pick<Character, 'name' | 'notePath'>
   ) => void;
   moveToken: (id: string, x: number, y: number) => void;
   updateToken: (id: string, updates: Partial<Omit<TokenEntity, 'id' | 'kind'>>) => void;

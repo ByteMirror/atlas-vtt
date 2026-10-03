@@ -1,4 +1,5 @@
 import type { SystemPreset } from '../../types/systemPresetTypes';
+import { HP_RESOURCE } from '../../resources/resourceDefinitions';
 import { builtInPresetId, conditionsOf } from './presetHelpers';
 
 /**
@@ -21,6 +22,8 @@ export const CALL_OF_CTHULHU: SystemPreset = {
       diagonalRule: 'euclidean',
       abstractRangeBands: [],
     },
+    // Percentile skill rolls: 01 is a critical success, 100 a fumble.
+    dice: { defaultRoll: '1d100', crit: 'roll-under' },
     conditions: conditionsOf('coc7e', [
       { name: 'Major Wound', color: '#dc2626', icon: 'bleeding-wound' },
       { name: 'Dying', color: '#7f1d1d', icon: 'heartbeat' },
@@ -32,6 +35,6 @@ export const CALL_OF_CTHULHU: SystemPreset = {
       { name: 'Prone', color: '#d97706', icon: 'foot-trip' },
       { name: 'Stunned', color: '#fbbf24', icon: 'knocked-out-stars' },
     ]),
-    defaultWidgets: { hpBar: true },
+    resources: [{ ...HP_RESOURCE }],
   },
 };

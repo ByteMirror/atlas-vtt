@@ -44,6 +44,24 @@ describe('PlayerFrameMirror on a canvas that renders on change', () => {
     expect(events).toEqual(MIRRORED);
   });
 
+  it('keeps the last frame while the presented scene is not loaded, and mirrors again once it is', () => {
+    const { events, frame, dm } = mirroring();
+    const scene = { mapLoaded: false };
+    dm.source.store = { getState: () => scene } as unknown as NonNullable<typeof dm.source.store>;
+
+    dm.change();
+    dm.tick(100);
+    frame(120);
+    dm.tick(121);
+    expect(events).toEqual(['render:dm']);
+
+    events.length = 0;
+    scene.mapLoaded = true;
+    frame(200);
+    dm.tick(201);
+    expect(events).toEqual(MIRRORED);
+  });
+
   it('keeps the DM render going when a capture fails, and reports the failure once', () => {
     const { events, frame, dm, captureFails } = mirroring();
     const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);

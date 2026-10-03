@@ -53,6 +53,39 @@ describe('SystemPresetService', () => {
     expect(service.list().find((p) => p.id === preset.id)?.rules).not.toHaveProperty('defaultTokenVision');
   });
 
+  it('saves and clears the senses when a preset is edited', () => {
+    const service = new SystemPresetService(memorySettings());
+    const senses = structuredClone(rules.senses!);
+    const preset = service.create('Homebrew', rules);
+    expect(service.list().find((p) => p.id === preset.id)?.rules.senses).toEqual(senses);
+    service.update(preset.id, { ...rules, senses: senses.slice(0, 2) });
+    expect(service.list().find((p) => p.id === preset.id)?.rules.senses).toEqual(senses.slice(0, 2));
+    const { senses: _senses, ...withoutSenses } = rules;
+    service.update(preset.id, withoutSenses);
+    expect(service.list().find((p) => p.id === preset.id)?.rules).not.toHaveProperty('senses');
+  });
+
+  it('saves and clears the light presets when a preset is edited', () => {
+    const service = new SystemPresetService(memorySettings());
+    const lights = structuredClone(rules.lightPresets!);
+    const preset = service.create('Homebrew', rules);
+    expect(service.list().find((p) => p.id === preset.id)?.rules.lightPresets).toEqual(lights);
+    service.update(preset.id, { ...rules, lightPresets: lights.slice(0, 2) });
+    expect(service.list().find((p) => p.id === preset.id)?.rules.lightPresets).toEqual(lights.slice(0, 2));
+    const { lightPresets: _lights, ...withoutLights } = rules;
+    service.update(preset.id, withoutLights);
+    expect(service.list().find((p) => p.id === preset.id)?.rules).not.toHaveProperty('lightPresets');
+  });
+
+  it('keeps what a newer version stored in a sense until the preset is edited', () => {
+    const future = { ...rules.senses![0]!, id: 'future', hears: true };
+    const settings = memorySettings({ systemPresets: [{ id: 'p1', name: 'Future', rules: { ...rules, senses: [future] } }] });
+    const service = new SystemPresetService(settings);
+    expect(service.list().find((p) => p.id === 'p1')?.rules.senses?.[0]).not.toHaveProperty('hears');
+    service.rename('p1', 'Renamed');
+    expect(settings.current.systemPresets?.[0]).toMatchObject({ name: 'Renamed', rules: { senses: [{ id: 'future', hears: true }] } });
+  });
+
   it('stores a copy, so later edits to the rules do not leak into the preset', () => {
     const service = new SystemPresetService(memorySettings());
     const draft = structuredClone(rules);

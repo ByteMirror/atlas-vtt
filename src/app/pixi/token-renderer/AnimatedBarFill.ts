@@ -4,7 +4,6 @@ import { resourceBarFill } from '../resourceBarFill';
 import { animateOnTicker } from '../utils/tickerMotion';
 import { EASE_OUT_CONTROL_POINTS } from '../../utils/motion';
 import { lightenColor } from '../../styles/designTokens';
-import { getBarGradient } from './barGradient';
 
 /** Where the fill of a full bar would be drawn, in UI units. */
 export interface BarFillRect {
@@ -111,7 +110,7 @@ export class AnimatedBarFill {
         .fill({ color: lightenColor(this.colorFor(this.target), 0.55), alpha: TRAIL_ALPHA });
     }
     if (shown > 0) {
-      resourceBarFill(this.fill, x, y, width * shown, height).fill(getBarGradient(this.colorFor(shown)));
+      resourceBarFill(this.fill, x, y, width * shown, height).fill({ color: this.colorFor(shown) });
     }
   }
 }

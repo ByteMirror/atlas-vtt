@@ -1,5 +1,6 @@
 import type { App, TFile } from 'obsidian';
 import { AtlasView, ATLAS_VIEW_TYPE } from '../atlas-view';
+import { storeLegacyResources } from '../resources/legacyResourcesMigration';
 import { AssetService } from './AssetService';
 
 /** The game master's open map views; the player view only mirrors them. */
@@ -9,11 +10,28 @@ export function openMapViews(app: App): AtlasView[] {
     .filter((view): view is AtlasView => view instanceof AtlasView && !view.getStore().getState().isPlayerView);
 }
 
+/**
+ * The view whose store is bound to the scene at `path`, loaded or still loading. The store
+ * decides, not the view's tab: a tab may name a scene that failed to open, while the store
+ * is empty or still holds the scene before it.
+ */
+export function viewOnScene(app: App, path: string): AtlasView | undefined {
+  return openMapViews(app).find((view) => view.getStore().getState().mapPath === path);
+}
+
 /** The map files of the collection's scenes. */
-export function collectionMapFiles(app: App, collectionId: string): TFile[] {
-  const assets = AssetService.getInstance(app);
+export function collectionMapFiles(app: App, collectionId: string, assets: AssetService = AssetService.getInstance(app)): TFile[] {
   return app.vault.getFiles()
     .filter((file) => file.extension === 'atlasmap' && assets.getCollectionForMap(file.path) === collectionId);
+}
+
+/**
+ * Stores the resources of the collections saved before resources existed (`storeLegacyResources`),
+ * reading their scenes for the secondary bar. Fails when a collection could not be read.
+ */
+export function storeLegacyCollectionResources(app: App, assets: AssetService = AssetService.getInstance(app)): Promise<void> {
+  return storeLegacyResources(assets, (collectionId) =>
+    Promise.all(collectionMapFiles(app, collectionId, assets).map((file) => app.vault.cachedRead(file))));
 }
 
 interface SceneUpdate {
@@ -29,16 +47,23 @@ interface SceneUpdate {
  * callers can also update what lives beside them (e.g. scene snapshots).
  */
 export async function updateCollectionScenes(app: App, collectionId: string, update: SceneUpdate): Promise<TFile[]> {
-  const views = openMapViews(app);
   const files = collectionMapFiles(app, collectionId);
   for (const file of files) {
     try {
-      const view = views.find((v) => v.file?.path === file.path);
-      if (view) {
+      const rewriteFile = async (): Promise<void> => {
+        if (update.rewrite(await app.vault.read(file)) !== null) {
+          await app.vault.process(file, (latest) => update.rewrite(latest) ?? latest);
+        }
+      };
+      const view = viewOnScene(app, file.path);
+      if (!view) {
+        await rewriteFile();
+      } else if (view.getStore().getState().mapLoaded) {
         update.updateOpen(view);
         await view.saveMap();
-      } else if (update.rewrite(await app.vault.read(file)) !== null) {
-        await app.vault.process(file, (latest) => update.rewrite(latest) ?? latest);
+      } else {
+        // The scene is still loading: its load must not finish on the content from before
+        await view.reloadActiveScene(rewriteFile);
       }
     } catch (error) {
       console.error(`[Atlas] Could not update scene ${file.path}:`, error);

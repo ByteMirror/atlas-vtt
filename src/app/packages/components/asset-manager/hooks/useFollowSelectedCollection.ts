@@ -8,13 +8,13 @@ import type { CollectionOption } from '../types';
  */
 export function useFollowSelectedCollection(
   collections: readonly CollectionOption[],
-  selectedCollection: string | null,
+  selectedCollection: string,
   setSelectedCollection: (collectionId: string) => void,
 ): void {
   const selectedUid = useRef<string | null>(null);
 
   useEffect(() => {
-    if (selectedCollection === null || collections.length === 0) return;
+    if (collections.length === 0) return;
     const selected = collections.find((collection) => collection.id === selectedCollection);
     if (selected) {
       selectedUid.current = selected.uid;

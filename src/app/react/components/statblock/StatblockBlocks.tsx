@@ -16,7 +16,7 @@ import { StatblockMarkdown } from './StatblockText';
 import { EditableValue } from './EditableValue';
 import { useStatblockEdit } from './statblockEditContext';
 import { LabelTooltip } from '../../../packages/components/primitives/tooltip';
-import { isHitPointsKey } from '../../../services/statblockResources';
+import { isHitPointsKey } from '../../../resources/resourceFields';
 
 /** Values that map cleanly onto a single editable frontmatter entry. */
 function isEditableScalar(value: unknown): boolean {

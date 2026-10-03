@@ -6,6 +6,8 @@ import {
   PANEL_ENTER_MS,
   PANEL_EXIT_MS,
   PANEL_EXIT_TO,
+  POPOVER_ENTER_FROM,
+  POPOVER_EXIT_TO,
 } from '../../../utils/motion';
 
 /** Closing mirrors opening, a little quicker and over a shorter distance, so it reads as the same motion in reverse. */
@@ -50,4 +52,16 @@ export const dialogOverlayMotion = {
 /** Variants for a dialog window, honouring the reduced-motion preference. */
 export function useDialogWindowVariants(): Variants {
   return useReducedMotion() ? fadingWindowVariants : dialogWindowVariants;
+}
+
+/** A popover anchored on the map grows out of its anchor, the element's `transform-origin`. */
+const anchoredPopoverVariants = {
+  hidden: { opacity: 0, transform: POPOVER_ENTER_FROM },
+  visible: { opacity: 1, transform: 'scale(1)', transition: dialogWindowVariants.visible.transition },
+  exit: { opacity: 0, transform: POPOVER_EXIT_TO, transition: dialogWindowVariants.exit.transition },
+} satisfies Variants;
+
+/** Variants for a popover that grows out of its anchor, honouring the reduced-motion preference. */
+export function useAnchoredPopoverVariants(): Variants {
+  return useReducedMotion() ? fadingWindowVariants : anchoredPopoverVariants;
 }

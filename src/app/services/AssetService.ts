@@ -1,3 +1,4 @@
+import { parseResourceDefinitions } from '../resources/resourceDefinitions';
 import { wasTokenRegistrationSaved } from './assetRegistrationRecovery';
 import { SettingsService } from './SettingsService';
 import { App, Notice, TFile, TFolder } from 'obsidian';
@@ -439,6 +440,11 @@ export class AssetService {
       if (!collection.settings) {
         collection.settings = { conditions: [] };
         needsSave = true;
+      }
+      // Bundles and hand-edited indexes can carry anything, so stored resources are checked.
+      // Collections without any read as their preset's (`collectionResources`).
+      if (collection.settings.resources !== undefined) {
+        collection.settings.resources = parseResourceDefinitions(collection.settings.resources);
       }
     }
 

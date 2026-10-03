@@ -98,4 +98,13 @@ describe('DragRuler', () => {
     expect(visible.ruler.getPlayerViewLayers()).toEqual([]);
     visible.ruler.end();
   });
+
+  it('hides the ruler from players while they do not see the token it measures', () => {
+    const { ruler, view } = makeRuler();
+    ruler.begin('t1', center(0, 0));
+    expect(ruler.getPlayerViewLayers((id) => id !== 't1')).toEqual(view.layers.map(layer => ({ layer, visible: false })));
+    expect(ruler.getPlayerViewLayers(() => true)).toEqual([]);
+    ruler.end();
+    expect(ruler.getPlayerViewLayers(() => false)).toEqual([]);
+  });
 });

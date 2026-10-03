@@ -17,13 +17,13 @@ vi.mock('../../src/app/pixi/TokenUIRenderer', async () => {
 
 it('renders separate player token overlays using the player settings and restores the DM layers', () => {
   const viewport = new Container();
-  const token = { id: 'hero', kind: 'character', name: 'Hero', hp: 10, stress: 3 };
+  const token = { id: 'hero', kind: 'character', name: 'Hero', resources: { hp: { current: 10, max: 10 } } };
   const store = createStore(() => ({ grid: { size: 70 }, objects: { tokens: { hero: token } } }));
   const manager = new UIManager(viewport as any, store as any, 'test', true);
   const sprite = new Container(); sprite.position.set(100, 200);
   manager.setTokenSpriteProvider(() => sprite);
   manager.createTokenUI('hero', sprite, token as any);
-  const settings = { showTokenHP: true, showTokenStress: false, showTokenNameplates: true };
+  const settings = { showTokenNameplates: true };
   const layers = manager.getPlayerViewLayers(settings);
   const playerLayer = layers.find(entry => entry.visible)!.layer as Container;
   captureWithLayerVisibility(layers, () => {}, () => {
@@ -33,7 +33,7 @@ it('renders separate player token overlays using the player settings and restore
   });
   expect(manager.getUIContainer().visible).toBe(true);
   expect(playerLayer.visible).toBe(false);
-  manager.getPlayerViewLayers({ ...settings, showTokenHP: false });
+  manager.getPlayerViewLayers({ showTokenNameplates: false });
   expect(playerLayer.children).toHaveLength(1);
   manager.destroyTokenUI('hero');
   expect(playerLayer.children).toHaveLength(0);

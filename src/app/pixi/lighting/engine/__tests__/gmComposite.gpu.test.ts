@@ -15,7 +15,7 @@ const camera = { size: SIZE, scale: 0.5, x: -22, y: -22, tint: 0x6699cc };
 const ring: readonly [number, number][] = [[163, 128], [128, 163]];
 
 /** A token far from the light, whose sight (100 px) never reaches it. */
-const farSight: Sight = computeSight([{ tokenId: 't', origin: { x: 850, y: 850 }, range: 100, darkvision: 0 }], []);
+const farSight: Sight = computeSight([{ tokenId: 't', origin: { x: 850, y: 850 }, range: 100, senses: [] }], []);
 
 function scene(sight: Sight): EngineScene {
   return { bounds: { width: 1024, height: 1024 }, albedo: null, walls: [], lights: [light], sight, sightRadius: 20, ambient: 0 };
@@ -76,7 +76,7 @@ describe('GM composite', () => {
 
   it('draws what a token sees exactly as with everything seen', async () => {
     const seen = await renderGm(SEES_ALL);
-    const watched = await renderGm(computeSight([{ tokenId: 't', origin: { x: 300, y: 300 }, range: 400, darkvision: 0 }], []));
+    const watched = await renderGm(computeSight([{ tokenId: 't', origin: { x: 300, y: 300 }, range: 400, senses: [] }], []));
     for (const [x, y] of ring) {
       for (let channel = 0; channel < 3; channel++) expect(Math.abs(watched(x, y)[channel]! - seen(x, y)[channel]!)).toBeLessThanOrEqual(1);
     }

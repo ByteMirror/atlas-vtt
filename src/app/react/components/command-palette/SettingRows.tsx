@@ -1,6 +1,6 @@
 import React from 'react';
-import { Check, X } from 'lucide-react';
 import { Slider } from '../../../packages/components/primitives/slider';
+import { ToggleSwitch } from '../../../packages/components/primitives/Toggle';
 
 interface SettingRowProps {
   label: string;
@@ -32,25 +32,10 @@ interface SettingToggleRowProps {
 
 /** Setting row with the shared `.atlas-toggle` switch. */
 export function SettingToggleRow({ label, hint, value, onToggle }: SettingToggleRowProps): React.ReactElement {
-  const state = value ? 'on' : 'off';
   const labelId = React.useId();
   return (
     <SettingRow label={label} labelId={labelId} hint={hint}>
-      <div
-        className="atlas-toggle"
-        role="switch"
-        aria-checked={value}
-        aria-labelledby={labelId}
-        tabIndex={0}
-        onClick={onToggle}
-        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggle(); } }}
-      >
-        <div className={`atlas-toggle__switch atlas-toggle__switch--${state}`}>
-          <div className={`atlas-toggle__thumb atlas-toggle__thumb--${state}`}>
-            {value ? <Check className="atlas-toggle__icon" /> : <X className="atlas-toggle__icon" />}
-          </div>
-        </div>
-      </div>
+      <ToggleSwitch value={value} onChange={onToggle} labelledBy={labelId} />
     </SettingRow>
   );
 }

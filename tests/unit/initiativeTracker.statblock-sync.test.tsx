@@ -12,14 +12,11 @@ const state = {
         name: 'Bandit Captain',
         initiative: 12,
         initiativeModifier: 2,
-        hp: { current: 8, max: 10 },
-        isDefeated: false,
         isActive: false,
         isNPC: true,
         order: 0,
       },
     ],
-    removedTokenIds: [],
     isActive: false,
     round: 0,
   },
@@ -29,7 +26,6 @@ const state = {
         id: 'token-1',
         kind: 'character',
         name: 'Bandit Captain',
-        hp: { current: 8, max: 10 },
         imagePath: 'tokens/bandit-captain.png',
         statblockPath: 'atlas-vtt/statblocks/Bandit Captain.md',
       },
@@ -58,6 +54,10 @@ vi.mock('../../src/app/react/root/AtlasUIContext', () => ({
 
 vi.mock('../../src/app/react/ViewStoreContext', () => ({
   useAtlasStore: (selector: (storeState: typeof state) => unknown) => selector(state),
+}));
+
+vi.mock('../../src/app/initiative/useMapInitiativeRules', () => ({
+  useMapInitiativeRules: () => ({ mode: 'turn-order', roll: '1d20', firstSide: 'players' }),
 }));
 
 vi.mock('../../src/app/react/components/InitiativeCard', () => ({

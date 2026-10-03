@@ -40,7 +40,7 @@ describe('syncStatblockVitals', () => {
   it('marks HP boxes for damage taken and leaves remaining HP unmarked', () => {
     const root = renderBlocks([{ hp: 8, stress: 3 }]);
 
-    syncStatblockVitals(root, [{ hp: { current: 5, max: 8 } }]);
+    syncStatblockVitals(root, [{ resources: { hp: { current: 5, max: 8 } } }]);
 
     expect(boxes(root, 'hp').map((b) => b.checked)).toEqual([
       true, true, true, false, false, false, false, false,
@@ -50,7 +50,7 @@ describe('syncStatblockVitals', () => {
   it('marks stress boxes for stress spent', () => {
     const root = renderBlocks([{ hp: 8, stress: 3 }]);
 
-    syncStatblockVitals(root, [{ stress: 2, maxStress: 3 }]);
+    syncStatblockVitals(root, [{ resources: { stress: { current: 2, max: 3 } } }]);
 
     expect(boxes(root, 'stress').map((b) => b.checked)).toEqual([true, true, false]);
   });
@@ -58,7 +58,7 @@ describe('syncStatblockVitals', () => {
   it('locks every box against editing', () => {
     const root = renderBlocks([{ hp: 2, stress: 1 }]);
 
-    syncStatblockVitals(root, [{ hp: { current: 2, max: 2 } }]);
+    syncStatblockVitals(root, [{ resources: { hp: { current: 2, max: 2 } } }]);
 
     expect([...boxes(root, 'hp'), ...boxes(root, 'stress')].every((b) => b.disabled)).toBe(true);
   });
@@ -75,7 +75,7 @@ describe('syncStatblockVitals', () => {
   it('resizes the track when the token max differs from the statblock', () => {
     const root = renderBlocks([{ hp: 8, stress: 3 }]);
 
-    syncStatblockVitals(root, [{ hp: { current: 1, max: 3 } }]);
+    syncStatblockVitals(root, [{ resources: { hp: { current: 1, max: 3 } } }]);
 
     expect(boxes(root, 'hp').map((b) => b.checked)).toEqual([true, true, false]);
     // The stress track must survive the HP resize untouched.
@@ -89,8 +89,8 @@ describe('syncStatblockVitals', () => {
     ]);
 
     syncStatblockVitals(root, [
-      { name: 'Burrower A', hp: { current: 4, max: 4 } },
-      { name: 'Burrower B', hp: { current: 1, max: 4 } },
+      { name: 'Burrower A', resources: { hp: { current: 4, max: 4 } } },
+      { name: 'Burrower B', resources: { hp: { current: 1, max: 4 } } },
     ]);
 
     expect(boxes(root, 'hp', 0).map((b) => b.checked)).toEqual([false, false, false, false]);
@@ -99,12 +99,11 @@ describe('syncStatblockVitals', () => {
   });
 
   it('keeps only vitals and identity fields when narrowing a token entity', () => {
-    expect(toTokenVitals({ id: 'tok-1', x: 5, name: 'Goblin', hp: 3 })).toEqual({
+    expect(toTokenVitals({ id: 'tok-1', x: 5, name: 'Goblin', resources: { hp: { current: 3, max: 7 } }, overriddenMax: ['hp'] })).toEqual({
       id: 'tok-1',
       name: 'Goblin',
-      hp: 3,
-      stress: undefined,
-      maxStress: undefined,
+      resources: { hp: { current: 3, max: 7 } },
+      overriddenMax: ['hp'],
     });
   });
 });

@@ -1,8 +1,14 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../src/app/atlas-view', () => ({ ATLAS_VIEW_TYPE: 'atlas-vtt' }));
+const collection = vi.hoisted(() => ({ resources: undefined as unknown }));
+vi.mock('../../src/app/services/AssetService', () => ({ AssetService: { getInstance: () => ({
+  getCollectionForMap: () => 'collection',
+  getCollectionSettings: () => ({ resources: collection.resources }),
+}) } }));
 
 import { rollHitPoints } from '../../src/app/services/statblockHitPoints';
+import { AMMO, HP } from '../mocks/resourceFixtures';
 
 interface Roll {
   formula: string;
@@ -22,6 +28,7 @@ function mapView(totals: number[], tokenIds: string[], isPlayerView = false) {
     }) }) },
     getStore: () => ({ getState: () => ({
       isPlayerView,
+      mapPath: 'maps/cave.atlasmap',
       objects: { tokens: Object.fromEntries(tokenIds.map((id) => [id, { id }])) },
       updateTokens,
     }) }),
@@ -32,26 +39,28 @@ function mapView(totals: number[], tokenIds: string[], isPlayerView = false) {
 const appWith = (...views: unknown[]) => ({ workspace: { getLeavesOfType: () => views.map((view) => ({ view })) } }) as never;
 
 describe('rollHitPoints', () => {
+  beforeEach(() => { collection.resources = [HP]; });
+
   it('rolls once per token and puts each at full health with its own result', () => {
     const { view, rolls, updateTokens } = mapView([9, 4], ['a', 'b']);
     rollHitPoints(appWith(view), '2d6', 'Goblin.md', [
-      { id: 'a', name: 'Goblin', hp: { current: 2, max: 7 } },
-      { id: 'b', name: 'Goblin', hp: 7 },
+      { id: 'a', name: 'Goblin' },
+      { id: 'b', name: 'Goblin' },
     ], 'Hit Points');
 
     expect(rolls.map((roll) => [roll.formula, roll.source.tokenId, roll.source.abilityName]))
       .toEqual([['2d6', 'a', 'Hit Points'], ['2d6', 'b', 'Hit Points']]);
     expect(updateTokens).toHaveBeenCalledOnce();
     expect(updateTokens).toHaveBeenCalledWith([
-      { id: 'a', changes: { hp: { current: 9, max: 9 }, maxHpOverridden: true } },
-      { id: 'b', changes: { hp: { current: 4, max: 4 }, maxHpOverridden: true } },
+      { id: 'a', changes: { resources: { hp: { current: 9, max: 9 } }, overriddenMax: ['hp'] } },
+      { id: 'b', changes: { resources: { hp: { current: 4, max: 4 } }, overriddenMax: ['hp'] } },
     ]);
   });
 
   it('never rolls a creature below 1 hit point', () => {
     const { view, updateTokens } = mapView([-1], ['a']);
     rollHitPoints(appWith(view), '1d4-3', 'Rat.md', [{ id: 'a' }]);
-    expect(updateTokens).toHaveBeenCalledWith([{ id: 'a', changes: { hp: { current: 1, max: 1 }, maxHpOverridden: true } }]);
+    expect(updateTokens).toHaveBeenCalledWith([{ id: 'a', changes: { resources: { hp: { current: 1, max: 1 } }, overriddenMax: ['hp'] } }]);
   });
 
   it('writes to the game master view, never a player view of the same map', () => {
@@ -67,6 +76,21 @@ describe('rollHitPoints', () => {
     rollHitPoints(appWith(view), '2d6', 'Goblin.md', [{ name: 'Goblin' }]);
     rollHitPoints(appWith(view), '2d6', 'Goblin.md', [{ id: 'not-on-this-map' }]);
     expect(rolls).toHaveLength(2);
+    expect(rolls[0]!.source).toEqual({ type: 'statblock', statblockPath: 'Goblin.md' });
+    expect(updateTokens).not.toHaveBeenCalled();
+  });
+
+  it('sets the resource the collection reads from the hit points field, whatever its key', () => {
+    collection.resources = [AMMO, { ...HP, key: 'vitality', name: 'Vitality', field: 'Hit Points' }];
+    const { view, updateTokens } = mapView([6], ['a']);
+    rollHitPoints(appWith(view), '2d6', 'Goblin.md', [{ id: 'a' }]);
+    expect(updateTokens).toHaveBeenCalledWith([{ id: 'a', changes: { resources: { vitality: { current: 6, max: 6 } }, overriddenMax: ['vitality'] } }]);
+  });
+
+  it('is an ordinary roll when the collection tracks no hit points', () => {
+    collection.resources = [AMMO];
+    const { view, rolls, updateTokens } = mapView([6], ['a']);
+    rollHitPoints(appWith(view), '2d6', 'Goblin.md', [{ id: 'a' }]);
     expect(rolls[0]!.source).toEqual({ type: 'statblock', statblockPath: 'Goblin.md' });
     expect(updateTokens).not.toHaveBeenCalled();
   });

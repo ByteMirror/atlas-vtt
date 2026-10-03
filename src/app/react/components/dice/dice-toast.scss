@@ -14,6 +14,7 @@ $toast-reveal-delay: 300ms;
 
 // ── Keyframes ────────────────────────────────
 
+// Cards slide in from the right edge, where the DM's rolls show.
 @keyframes atlas-dice-toast-enter {
   from {
     opacity: 0;
@@ -75,18 +76,6 @@ $toast-reveal-delay: 300ms;
   }
 }
 
-// ── Container ────────────────────────────────
-
-// Portaled to document.body, so the container itself carries .atlas-vtt-plugin.
-&.atlas-dice-toast-container {
-  position: fixed;
-  top: 60px;
-  right: 20px;
-  z-index: 99999;
-  pointer-events: none;
-  @include atlas-flex-col($spacing-s);
-}
-
 // ── Card ─────────────────────────────────────
 
 .atlas-dice-toast {
@@ -140,7 +129,7 @@ $toast-reveal-delay: 300ms;
 }
 
 // Knotwork symbol lives here once, referenced by every corner.
-.atlas-dice-toast-container__defs {
+.atlas-dice-rolls__defs {
   position: absolute;
   width: 0;
   height: 0;

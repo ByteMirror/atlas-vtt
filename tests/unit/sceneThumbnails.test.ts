@@ -3,6 +3,7 @@ import { createStore } from 'zustand/vanilla';
 import { SceneThumbnailUpdater, type SceneThumbnailPorts } from '../../src/app/services/SceneThumbnailUpdater';
 import { MapThumbnailService } from '../../src/app/services/MapThumbnailService';
 import type { ViewAtlasStore } from '../../src/app/storeFactory';
+import type { SceneLighting } from '../../src/app/types/lightingTypes';
 import { createInMemoryApp } from '../mocks/inMemoryVault';
 
 const CAVE = 'atlas-vtt/collections/default/scenes/Cave.atlasmap';
@@ -10,18 +11,20 @@ const CRYPT = 'atlas-vtt/collections/default/scenes/Crypt.atlasmap';
 
 interface ViewState {
   mapPath: string | null;
+  mapLoaded: boolean;
   isMapLoading: boolean;
   isPlayerView: boolean;
   persistenceEnabled: boolean;
   background: string | null;
   grid: { size: number };
   objects: { tokens: Record<string, unknown> };
+  lighting: SceneLighting;
 }
 
 function setup(thumbnails: Record<string, boolean> = {}) {
   const store = createStore<ViewState>(() => ({
-    mapPath: null, isMapLoading: false, isPlayerView: false, persistenceEnabled: true,
-    background: null, grid: { size: 70 }, objects: { tokens: {} },
+    mapPath: null, mapLoaded: false, isMapLoading: false, isPlayerView: false, persistenceEnabled: true,
+    background: null, grid: { size: 70 }, objects: { tokens: {} }, lighting: { enabled: false, ambient: 0.1 },
   }));
   const ports = {
     render: vi.fn(() => new TextEncoder().encode(`pixels of ${store.getState().mapPath}`).buffer),
@@ -34,11 +37,13 @@ function setup(thumbnails: Record<string, boolean> = {}) {
     store.setState({ isMapLoading: true, mapPath });
     store.setState({ background: `${mapPath}.webp`, objects: { tokens: {} } });
     store.setState({ isMapLoading: false });
+    store.setState({ mapLoaded: true });
     await vi.waitFor(() => expect(ports.hasThumbnail).toHaveBeenCalledWith(mapPath));
   };
   const edit = (): void => store.setState({ objects: { tokens: { [crypto.randomUUID()]: {} } } });
   const savedPaths = (): string[] => ports.save.mock.calls.map(([path]) => path);
-  return { store, ports, updater, open, edit, savedPaths };
+  const setLighting = (changes: Partial<SceneLighting>): void => store.setState({ lighting: { ...store.getState().lighting, ...changes } });
+  return { store, ports, updater, open, edit, setLighting, savedPaths };
 }
 
 describe('SceneThumbnailUpdater', () => {
@@ -85,12 +90,38 @@ describe('SceneThumbnailUpdater', () => {
   it('refreshes the thumbnail when the view loads the same scene again, e.g. to restore a snapshot', async () => {
     const { store, ports, savedPaths } = setup({ [CAVE]: true });
     store.setState({ isMapLoading: true, mapPath: CAVE });
-    store.setState({ isMapLoading: false });
+    store.setState({ isMapLoading: false, mapLoaded: true });
     await vi.advanceTimersByTimeAsync(5000);
     expect(ports.render).not.toHaveBeenCalled();
 
     store.setState({ isMapLoading: true });
     store.setState({ isMapLoading: false });
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(savedPaths()).toEqual([CAVE]);
+  });
+
+  it('keeps the thumbnail of a scene whose file is being rewritten, also when it cannot be loaded again', async () => {
+    const { store, ports, updater, open, edit } = setup({ [CAVE]: true });
+    await open(CAVE);
+    edit();
+    // `suspendForRewrite`: the store is out of use, and the load that follows flushes first
+    store.setState({ mapLoaded: false });
+    updater.flush();
+    edit();
+    store.setState({ isMapLoading: true });
+    // The load fails before it switches the store: the scene stays unloaded
+    store.setState({ isMapLoading: false, mapPath: null });
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(ports.render).not.toHaveBeenCalled();
+  });
+
+  it('refreshes the thumbnail once a rewritten scene is loaded again', async () => {
+    const { store, updater, open, edit, savedPaths } = setup({ [CAVE]: true });
+    await open(CAVE);
+    edit();
+    store.setState({ mapLoaded: false });
+    updater.flush();
+    await open(CAVE);
     await vi.advanceTimersByTimeAsync(1000);
     expect(savedPaths()).toEqual([CAVE]);
   });
@@ -113,6 +144,46 @@ describe('SceneThumbnailUpdater', () => {
     store.setState({ isMapLoading: false });
     updater.destroy();
     answer(false);
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(ports.render).not.toHaveBeenCalled();
+  });
+
+  it.each<[string, Partial<SceneLighting>]>([
+    ['switching dynamic lighting on', { enabled: true }],
+    ['a new ambient light level', { ambient: 0.6 }],
+    ['a new ambient light colour', { ambientColor: '#ffd9a0' }],
+    ['switching token vision off', { tokenVision: false }],
+  ])('follows %s, which changes what the GM sees', async (_change, lighting) => {
+    const { ports, open, setLighting, savedPaths } = setup({ [CAVE]: true });
+    await open(CAVE);
+    setLighting(lighting);
+    await vi.advanceTimersByTimeAsync(2999);
+    expect(ports.render).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(savedPaths()).toEqual([CAVE]);
+  });
+
+  it('follows the ambient slider once it rests, with one thumbnail', async () => {
+    const { ports, open, setLighting } = setup({ [CAVE]: true });
+    await open(CAVE);
+    for (const ambient of [0.2, 0.3, 0.4]) {
+      setLighting({ ambient });
+      await vi.advanceTimersByTimeAsync(500);
+    }
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(ports.render).toHaveBeenCalledTimes(1);
+  });
+
+  it.each<[string, Partial<SceneLighting>]>([
+    ['the explored colour', { exploredColor: '#334455' }],
+    ['the unexplored colour', { unexploredColor: '#112233' }],
+    ['explored memory', { exploredMemory: false }],
+    ['the lit threshold', { litThreshold: 0.5 }],
+    ['the same values again', {}],
+  ])('keeps the thumbnail when only %s changes, which the GM does not see', async (_change, lighting) => {
+    const { ports, open, setLighting } = setup({ [CAVE]: true });
+    await open(CAVE);
+    setLighting(lighting);
     await vi.advanceTimersByTimeAsync(5000);
     expect(ports.render).not.toHaveBeenCalled();
   });

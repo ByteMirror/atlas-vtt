@@ -126,7 +126,6 @@ describe('moving assets to another collection', () => {
 
     const state = mapState(vault, newMap);
     expect(state.objects.tokens.t1!.conditions).toEqual(['poisoned']);
-    expect(state.tokenSettings).toMatchObject({ showHPBars: true });
     const snapshot = JSON.parse(vault.vault.files.get(`${TARGET}/scenes/.snapshots/Cave/snap1.json`)!) as { state: { objects: { tokens: Record<string, { conditions: string[] }> } } };
     expect(snapshot.state.objects.tokens.t1!.conditions).toEqual(['poisoned']);
   });

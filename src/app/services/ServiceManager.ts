@@ -58,7 +58,7 @@ export class ServiceManager {
     this.mapService = new MapService(app, this.eventBus, store);
     // Initialize SoundEffectService before ToolController
     this.soundEffectService = new SoundEffectService();
-    this.diceToastObserver = new DiceToastObserver(this.soundEffectService);
+    this.diceToastObserver = new DiceToastObserver(this.soundEffectService, this.settingsService);
 
     this.toolController = new ToolController(this.eventBus, app, store);
 
@@ -184,7 +184,9 @@ export class ServiceManager {
     const viewport = renderer?.getViewportInstance();
     if (!renderer || !pixiApp || !viewport) return null;
 
-    const dataUrl = this.mapThumbnailService.renderThumbnail(pixiApp, viewport, renderer.getBackgroundSprite(), size);
+    const dataUrl = this.mapThumbnailService.renderThumbnail(
+      pixiApp, viewport, renderer.getBackgroundSprite(), size, (frame, render) => renderer.captureSceneFrame(frame, render),
+    );
     return dataUrl ? dataUrlToBytes(dataUrl) : null;
   }
 

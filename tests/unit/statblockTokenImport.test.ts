@@ -46,6 +46,34 @@ describe('statblock token import', () => {
     const service = TokenStatblockLinkService.getInstance(app);
     expect(await service.getTokenLinkedToStatblock(note)).toBeNull();
   });
+
+  it('reads a `token` property as the artwork where `image` names none', () => {
+    const { app, frontmatter } = setup();
+    const service = TokenStatblockLinkService.getInstance(app);
+    expect(service.readStatblockImage(new TFile(note))).toBe(image);
+    frontmatter[note] = { statblock: true, token: 'Artwork/token.webp', 'token-image': 'Artwork/old.webp' };
+    expect(service.readStatblockImage(new TFile(note))).toBe('Artwork/token.webp');
+    frontmatter[note] = { statblock: true, image, token: 'Artwork/token.webp' };
+    expect(service.readStatblockImage(new TFile(note))).toBe(image);
+  });
+
+  it('clears a `token` property on unlink only when it names the unlinked token', async () => {
+    const { app, files, frontmatter, assets } = setup();
+    await assets.initialize();
+    const service = TokenStatblockLinkService.getInstance(app);
+    const unlinkedFrom = async (fields: Record<string, string>): Promise<string> => {
+      const tokenImage = fields.image ?? fields.token!;
+      frontmatter[note] = fields;
+      files.set(note, `---\n${Object.entries(fields).map(([key, value]) => `${key}: ${value}`).join('\n')}\n---\nBody`);
+      await assets.addTokenAsset({ name: 'Goblin', imagePath: tokenImage, statblockPath: note, tags: [], collection: 'Default' });
+      await service.unlinkToken(tokenImage);
+      return files.get(note)!;
+    };
+    expect(await unlinkedFrom({ token: 'atlas-vtt/assets/a.webp' })).not.toContain('token');
+    const kept = await unlinkedFrom({ image: 'atlas-vtt/assets/b.webp', token: image });
+    expect(kept).toContain(`token: ${image}`);
+    expect(kept).not.toContain('image:');
+  });
 });
 
 // The importer exercises real asset persistence; only the Obsidian filesystem is simulated.
@@ -68,6 +96,17 @@ describe('bulk importing recognized statblock notes', () => {
     expect(rows.find(r => r.path === 'Other/Goblin.md')).toBeUndefined();
     expect(rows.find(r => r.path === note)).toMatchObject({ imagePath: image, size: 1.5 });
     expect(rows.find(r => r.path === 'Inline.md')?.size).toBeUndefined();
+  });
+
+  it('finds the artwork in a `token` property, and prefers `image` where a statblock has both', async () => {
+    const { app, files, frontmatter, assets } = setup();
+    files.set('Artwork/token.webp', 'image-bytes');
+    frontmatter[note] = { statblock: true, name: 'Goblin', token: [['Artwork/token.webp']] };
+    files.set('Both.md', 'both');
+    frontmatter['Both.md'] = { statblock: true, name: 'Both', image, token: 'Artwork/token.webp' };
+    const rows = await new StatblockTokenImportService(app, assets).scan();
+    expect(rows.find(r => r.path === note)).toMatchObject({ status: 'ready', imagePath: 'Artwork/token.webp' });
+    expect(rows.find(r => r.path === 'Both.md')).toMatchObject({ status: 'ready', imagePath: image });
   });
 
   it('decodes the link encoding Fantasy Statblocks applies to bestiary images', async () => {

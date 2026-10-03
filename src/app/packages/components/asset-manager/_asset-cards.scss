@@ -188,20 +188,13 @@
   top: $spacing-s;
   right: $spacing-s;
   z-index: 2;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  background: var(--interactive-accent);
-  color: var(--text-on-accent);
-  display: flex;
-  align-items: center;
-  justify-content: center;
   cursor: pointer;
-  box-shadow: 0 1px 3px color-mix(in oklch, var(--mono-0) 40%, transparent);
-  transition: transform $transition-fast $transition-ease;
+  transition: transform $transition-fast $transition-ease, color $transition-fast $transition-ease;
+  // As tall as the spawn badge that takes its place.
+  @include atlas-statblock-badge(22px);
 
   &:hover {
-    background: var(--interactive-accent-hover);
+    color: var(--text-normal);
     transform: scale(1.1);
   }
 

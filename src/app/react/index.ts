@@ -3,6 +3,7 @@ import { Root, createRoot } from 'react-dom/client';
 import React from 'react';
 import { Application } from 'pixi.js';
 import { UIRoot } from './UIRoot';
+import { MAP_UI_ROOT_OPTIONS } from './root/PanelBoundary';
 import { ViewStoreProvider } from './ViewStoreContext';
 import type { ViewAtlasStore } from '../storeFactory';
 import type { AtlasView } from '../atlas-view';
@@ -36,7 +37,7 @@ export function mountUI(
   }
 
   try {
-    const reactRoot = createRoot(container);
+    const reactRoot = createRoot(container, MAP_UI_ROOT_OPTIONS);
     reactRoots.set(container, reactRoot);
     reactRoot.render(element);
   } catch (error) {

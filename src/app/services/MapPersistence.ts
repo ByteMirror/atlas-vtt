@@ -1,17 +1,19 @@
 import type { PersistStorage, StorageValue } from 'zustand/middleware';
-import { App, Notice, TFile } from 'obsidian';
+import type { App } from 'obsidian';
 import type { TokenEntity, TextElement, DrawingStroke, NotePin } from '../types';
 import type { WallSegment } from '../types/wallTypes';
-import type { LightSource } from '../types/lightingTypes';
+import type { LightSource, LightZone } from '../types/lightingTypes';
 import type { WidgetSettings } from '../types/widgetTypes';
 import type { HexNumberFormat } from '../grid/hexNumbering';
 import type AtlasVTTPlugin from '../../../main';
-import { debounce, type DebouncedFunction } from '../../utils/debounce';
 import { migrateWidgetsToCollection, needsWidgetMigration } from '../utils/widgetMigration';
+import { lightZonesFromFile } from '../lighting/lightZones';
 import { normalizeImagePath } from '../utils/pathUtils';
 import { fixMapTokenPaths } from '../utils/fixMapPaths';
 import { getDataFilePath } from '../utils/dataFileMigration';
-import { ensureFolder } from '../plugin/vaultFolders';
+import { sceneFromFile, sceneToFile, tokenFromFile } from '../resources/resourceFileFormat';
+import { preserveDamagedSceneFile, SceneFileError } from './sceneFileProblems';
+import { SceneFileWriter } from './sceneFileWriter';
 
 // Type definitions
 export interface CameraState {
@@ -74,6 +76,8 @@ export interface MapFile {
     drawings: Record<string, DrawingStroke>;
     walls: Record<string, WallSegment>;
     lights: Record<string, LightSource>;
+    /** Absent in files from before light zones, and until a map has one. */
+    lightZones?: Record<string, LightZone>;
   };
   camera: CameraState;
 }
@@ -106,6 +110,10 @@ export interface PersistedMapEnvelope {
   state?: LegacyMapFile & {
     mapPath?: string | null;
     widgetSettings?: Partial<WidgetSettings>;
+    /** Checked by the store's merge; older files carry the two bar switches. */
+    tokenSettings?: Record<string, unknown>;
+    /** Older files hold copied token vitals in each entry. */
+    initiative?: { entries?: Array<Record<string, unknown>> } | null;
     widgetValues?: Record<string, number>;
   };
 }
@@ -137,19 +145,25 @@ export function isPersistedMapEnvelope(value: unknown): value is PersistedMapEnv
   return state === undefined || isLegacyMapFile(state);
 }
 
+/** A scene file's content that can be loaded: its saved state, written by this Atlas or an older one. */
+export type LoadableMapEnvelope = PersistedMapEnvelope & { state: NonNullable<PersistedMapEnvelope['state']> };
+
 /**
- * Keeps a copy of a map data file that cannot be loaded. The store starts empty in
- * that case and its next save replaces the file, which would otherwise destroy
- * whatever the user could still have recovered from it.
+ * Reads the content of a scene file, or throws a `SceneFileError`. A file that exists
+ * must never load as an empty map: saving that map would replace everything it holds.
+ * A newer Atlas' file is refused too, since this one would drop what it does not know.
  */
-async function preserveUnreadableMapData(app: App, file: TFile, reason: string): Promise<void> {
-  const backupPath = `${file.path}.${Date.now()}.bak`;
+export function parseSceneFile(content: string): LoadableMapEnvelope {
+  let raw: unknown;
   try {
-    await app.vault.copy(file, backupPath);
-    new Notice(`Atlas VTT could not read ${file.name} (${reason}). A copy was kept at ${backupPath}.`, 0);
-  } catch (error) {
-    console.error(`[AtlasStorage] Could not back up ${file.path}:`, error);
+    raw = JSON.parse(content);
+  } catch {
+    throw new SceneFileError('invalidJson');
   }
+  if (!isPersistedMapEnvelope(raw) || !raw.state) throw new SceneFileError('structure');
+  const isNewer = [raw.version, raw.state.version].some((version) => version !== undefined && version > ATLAS_VERSION);
+  if (isNewer) throw new SceneFileError('newer');
+  return { ...raw, state: raw.state };
 }
 
 export type AtlasPersistStorage<S> = PersistStorage<S> & { flush: () => Promise<void> };
@@ -162,19 +176,23 @@ export type AtlasPersistStorage<S> = PersistStorage<S> & { flush: () => Promise<
  * inside the debounced save, so frequent store writes (drags, selection)
  * never pay for a full-map JSON.stringify.
  */
-export function createAtlasStorage<T extends { mapPath: string | null }, S = unknown>(
+export function createAtlasStorage<T extends { mapPath: string | null; mapLoaded?: boolean }, S = unknown>(
   app: App, 
   store: { getState: () => T },
   plugin?: AtlasVTTPlugin
 ): AtlasPersistStorage<S> {
-  const pendingWrites = new Map<string, Promise<void>>();
-  // Create a map of debounced save functions per file path
-  const debouncedSavers = new Map<string, DebouncedFunction<[path: string, value: StorageValue<S>]>>();
-  
+  const writer = new SceneFileWriter<StorageValue<S>>(
+    app,
+    (path) => store.getState().mapPath === path,
+    // Only here, once per write: the store hands over its state on every change
+    (value) => JSON.stringify({ ...value, state: sceneToFile(value.state as object) }),
+  );
+
   return {
     /**
      * Reads and parses the map file based on the current mapPath in the store.
-     * Returns null if path is unset, the file is missing, or it is not valid JSON.
+     * Returns null only if the path is unset or has no file yet (a new map). A file
+     * that exists but cannot be loaded throws, so the load fails and nothing is saved over it.
      */
     async getItem(name: string): Promise<StorageValue<S> | null> {
       // 'name' is unused here as we derive the path from the store state
@@ -184,74 +202,68 @@ export function createAtlasStorage<T extends { mapPath: string | null }, S = unk
         return null;
       }
 
-      try {
-        const mapFile = app.vault.getFileByPath(getDataFilePath(mapPath));
-        if (!mapFile) {
-          // Nothing persisted yet, which is expected for a new map
-          return null;
-        }
-        const content = await app.vault.read(mapFile);
-        // Attempt to parse to ensure it's valid JSON before returning
-        try {
-          const raw: unknown = JSON.parse(content);
-          if (!isPersistedMapEnvelope(raw)) {
-            console.error(`[AtlasStorage] Map data in ${mapPath} has an unexpected structure`);
-            await preserveUnreadableMapData(app, mapFile, 'unexpected structure');
-            return null;
-          }
-          let parsed = raw;
-
-          if (plugin && needsWidgetMigration(parsed)) {
-            try {
-              parsed = migrateWidgetsToCollection(parsed);
-              // Save the migrated data back to the file
-              const dataPath = getDataFilePath(mapPath);
-              const fileToModify = app.vault.getAbstractFileByPath(dataPath);
-              if (fileToModify instanceof TFile) {
-                const serializedData = JSON.stringify(parsed);
-                if (serializedData) {
-                  await app.vault.process(fileToModify, () => serializedData);
-                }
-              }
-            } catch (error) {
-              console.error(`[AtlasStorage] Error migrating widgets:`, error);
-            }
-          }
-
-          // v3 → v4 migration: add walls and lights if missing
-          const state = parsed.state;
-          if (state?.objects && !state.objects.walls) {
-            state.objects.walls = {};
-          }
-          if (state?.objects && !state.objects.lights) {
-            state.objects.lights = {};
-          }
-          if (state?.version && state.version < ATLAS_VERSION) {
-            state.version = ATLAS_VERSION;
-          }
-          // The state was upgraded in place above. zustand discards any state whose
-          // envelope version differs from the store's, which would load the map empty.
-          if (parsed.version !== undefined && parsed.version < ATLAS_VERSION) {
-            parsed.version = ATLAS_VERSION;
-          }
-
-          // The file at `mapPath` holds this map; a path it repeats from before the
-          // file was moved or renamed is only outdated. Rejecting the data would
-          // load the map without fog, walls and lights and save that over the file.
-          if (state && state.mapPath !== mapPath) state.mapPath = mapPath;
-
-          // Validated above; `S` is the caller's view of the same persisted envelope.
-          return parsed as StorageValue<S>;
-        } catch (parseError) {
-          console.error(`[AtlasStorage] Failed to parse JSON from ${mapPath}:`, parseError);
-          await preserveUnreadableMapData(app, mapFile, 'invalid JSON');
-          return null; // Don't return corrupted data
-        }
-      } catch (error) {
-        console.warn(`[AtlasStorage] Error reading map file ${mapPath}:`, error);
-        // File might not exist yet, which is okay on first load/new map
+      writer.supersedeWrites(mapPath);
+      const mapFile = app.vault.getFileByPath(getDataFilePath(mapPath));
+      if (!mapFile) {
         return null;
       }
+
+      let content: string;
+      try {
+        content = await app.vault.read(mapFile);
+      } catch (error) {
+        console.error(`[AtlasStorage] Error reading map file ${mapPath}:`, error);
+        throw new SceneFileError('unreadable');
+      }
+
+      let parsed: PersistedMapEnvelope;
+      try {
+        parsed = parseSceneFile(content);
+      } catch (error) {
+        console.error(`[AtlasStorage] Map data in ${mapPath} cannot be loaded:`, error);
+        if (error instanceof SceneFileError) await preserveDamagedSceneFile(app, mapFile, error);
+        throw error;
+      }
+
+      if (plugin && needsWidgetMigration(parsed)) {
+        try {
+          parsed = migrateWidgetsToCollection(parsed);
+          // Save the migrated data back to the file
+          const serializedData = JSON.stringify(parsed);
+          if (serializedData) {
+            await app.vault.process(mapFile, () => serializedData);
+          }
+        } catch (error) {
+          console.error(`[AtlasStorage] Error migrating widgets:`, error);
+        }
+      }
+
+      // v3 → v4 migration: add walls and lights if missing
+      const state = parsed.state;
+      if (state?.objects && !state.objects.walls) {
+        state.objects.walls = {};
+      }
+      if (state?.objects && !state.objects.lights) {
+        state.objects.lights = {};
+      }
+      // Files keep the token fields older versions of Atlas read; in memory tokens hold resources
+      if (state) Object.assign(state, sceneFromFile(state));
+      if (state?.version && state.version < ATLAS_VERSION) {
+        state.version = ATLAS_VERSION;
+      }
+      // The state was upgraded in place above. zustand discards any state whose
+      // envelope version differs from the store's, which would load the map empty.
+      if (parsed.version !== undefined && parsed.version < ATLAS_VERSION) {
+        parsed.version = ATLAS_VERSION;
+      }
+
+      // The file at `mapPath` holds this map; a path it repeats from before the
+      // file was moved or renamed is only outdated. Rejecting the data would
+      // load the map without fog, walls and lights and save that over the file.
+      if (state && state.mapPath !== mapPath) state.mapPath = mapPath;
+
+      // Validated above; `S` is the caller's view of the same persisted envelope.
+      return parsed as StorageValue<S>;
     },
 
     /**
@@ -259,78 +271,24 @@ export function createAtlasStorage<T extends { mapPath: string | null }, S = unk
      */
     async setItem(name: string, value: StorageValue<S>): Promise<void> {
       // 'name' is unused
-      const mapPath = store.getState().mapPath;
+      const { mapPath, mapLoaded } = store.getState();
       if (!mapPath) {
         console.warn('[AtlasStorage] setItem called with no mapPath set.');
         return;
       }
-      
+
+      // A store that is loading its scene, or failed to, does not hold it: saving
+      // that state would replace the scene's file with an empty or foreign map.
+      if (mapLoaded === false) {
+        return;
+      }
+
       // Skip persistence for streamed maps
       if (mapPath.startsWith('streamed_')) {
         return;
       }
 
-      // Get or create a debounced saver for this path
-      if (!debouncedSavers.has(mapPath)) {
-        const saveFunction = async (path: string, value: StorageValue<S>): Promise<void> => {
-          try {
-            const data = JSON.stringify(value);
-
-            // Check if file exists
-            const dataPath = getDataFilePath(path);
-            
-            await ensureFolder(app, dataPath.substring(0, dataPath.lastIndexOf('/')));
-
-            const existingFile = app.vault.getAbstractFileByPath(dataPath);
-            if (existingFile instanceof TFile) {
-              await app.vault.process(existingFile, () => data);
-            } else if (store.getState().mapPath === path) {
-              await app.vault.create(dataPath, data);
-            }
-            // Otherwise the map was renamed while this save waited; the store has
-            // already scheduled its state for the new path, so recreating the old
-            // file would only leave a stale copy under the old name.
-          } catch (error) {
-            console.error(`[AtlasStorage] Error writing map file ${path}:`, error);
-          }
-        };
-        
-        // Create debounced version with 500ms delay
-        debouncedSavers.set(mapPath, debounce((path, snapshot) => {
-          // Preserve snapshot order even when a previous disk write is still running.
-          const previous = pendingWrites.get(path) ?? Promise.resolve();
-          const write = previous.then(() => saveFunction(path, snapshot));
-          pendingWrites.set(path, write);
-          void write.then(() => {
-            if (pendingWrites.get(path) === write) pendingWrites.delete(path);
-          });
-        }, 500));
-      }
-      
-      // Call the debounced save function
-      const debouncedSave = debouncedSavers.get(mapPath)!;
-      debouncedSave(mapPath, value);
-      
-      // Clean up old debounced savers to prevent memory leaks
-      // Keep only the most recent 5 map paths
-      if (debouncedSavers.size > 5) {
-        const pathsToKeep = new Set([mapPath]);
-        const allPaths = Array.from(debouncedSavers.keys());
-        // Keep the 4 most recently added (excluding current)
-        for (let i = allPaths.length - 1; i >= 0 && pathsToKeep.size < 5; i--) {
-          const path = allPaths[i];
-          if (path) {
-            pathsToKeep.add(path);
-          }
-        }
-        // Remove old entries
-        for (const path of allPaths) {
-          if (!pathsToKeep.has(path)) {
-            debouncedSavers.get(path)?.flush();
-            debouncedSavers.delete(path);
-          }
-        }
-      }
+      writer.schedule(mapPath, value);
     },
 
     /**
@@ -344,17 +302,7 @@ export function createAtlasStorage<T extends { mapPath: string | null }, S = unk
     /**
      * Flush any pending debounced saves immediately
      */
-    async flush(): Promise<void> {
-      // Flush ALL pending saves, not just the current map path
-      // This is important when switching maps to ensure old map saves complete
-      for (const debouncedSave of debouncedSavers.values()) {
-        debouncedSave.flush();
-      }
-      // A timer may already have started a save before flush was called.
-      while (pendingWrites.size > 0) {
-        await Promise.all(pendingWrites.values());
-      }
-    },
+    flush: () => writer.flush(),
   };
 }
 
@@ -381,7 +329,7 @@ function migrateTokenPaths(tokens: Record<string, LegacyToken>): Record<string, 
       migratedToken.conditions = statuses;
     }
 
-    migratedTokens[id] = migratedToken;
+    migratedTokens[id] = tokenFromFile(migratedToken);
   }
   
   return migratedTokens;
@@ -457,6 +405,8 @@ export function migrateMapFile(persisted: unknown): MapFile {
     ? migrateTokenPaths(persisted.objects.tokens)
     : {};
 
+  const zones = lightZonesFromFile(persisted.objects?.lightZones);
+
   // Merge persisted over initial, ensuring all fields present
   return {
     ...initial,
@@ -470,8 +420,10 @@ export function migrateMapFile(persisted: unknown): MapFile {
       pins: persisted.objects?.pins || {},
       texts: persisted.objects?.texts || {},
       drawings: persisted.objects?.drawings || {},
-      walls: persisted.objects?.walls || {},
-      lights: persisted.objects?.lights || {},
+      // Kept as the file has them: what cannot be read is passed over at reading (`lightingObjects.ts`), and saved back.
+      walls: isRecord(persisted.objects?.walls) ? persisted.objects.walls : {},
+      lights: isRecord(persisted.objects?.lights) ? persisted.objects.lights : {},
+      ...(zones && { lightZones: zones }),
     },
     grid: persisted.grid ? migrateGrid(persisted.grid) : initial.grid,
     camera: persisted.camera || initial.camera

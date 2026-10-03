@@ -1,9 +1,9 @@
 import { Graphics } from 'pixi.js';
-import { barDimensions } from '../styles/designTokens';
+import type { ResourceSlot } from './token-renderer/resources/ResourceStack';
 
-/** Clickable overlay on a token resource bar that lights up on hover and while its editor is open. */
+/** Clickable overlay on a token resource (bar or wheel) that lights up on hover and while its editor is open. */
 export class ResourceBarHitArea extends Graphics {
-  private barTop = 0;
+  private slot: ResourceSlot | null = null;
   private hovered = false;
   private active = false;
 
@@ -16,9 +16,9 @@ export class ResourceBarHitArea extends Graphics {
     this.on('pointerout', () => this.setHovered(false));
   }
 
-  /** Places the overlay on a bar whose top edge sits at `barTop` in bar-local units. */
-  layout(barTop: number): void {
-    this.barTop = barTop;
+  /** Places the overlay on the resource drawn in `slot`, in the units of the slot's anchor. */
+  layout(slot: ResourceSlot): void {
+    this.slot = slot;
     this.visible = true;
     this.redraw();
   }
@@ -40,15 +40,15 @@ export class ResourceBarHitArea extends Graphics {
   }
 
   private redraw(): void {
-    if (this.destroyed) return;
-    const { width, height } = barDimensions.token;
+    if (this.destroyed || !this.slot) return;
+    const { left, top, width, height } = this.slot;
     const radius = height / 2;
     this.clear();
-    this.roundRect(-width / 2, this.barTop, width, height, radius)
+    this.roundRect(left, top, width, height, radius)
       .fill({ color: 0xffffff, alpha: this.hovered && !this.active ? 0.14 : 0 });
     if (!this.hovered && !this.active) return;
     const inset = 1;
-    this.roundRect(-width / 2 - inset, this.barTop - inset, width + inset * 2, height + inset * 2, radius + inset)
+    this.roundRect(left - inset, top - inset, width + inset * 2, height + inset * 2, radius + inset)
       .stroke({ width: 1, color: this.active ? this.accent : 0xffffff, alpha: this.active ? 1 : 0.7 });
   }
 }

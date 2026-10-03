@@ -22,7 +22,7 @@ export function DropdownModeSelector<T extends string>({
 }: DropdownModeSelectorProps<T>): React.ReactElement {
   return (
     <div className="space-y-2">
-      {label && <span className="text-sm text-[var(--text-normal)]">{label}</span>}
+      {label && <span className="atlas-dropdown-label">{label}</span>}
       <div className="flex gap-1.5">
         {options.map(({ value: optionValue, icon: Icon, label: optionLabel }) => (
           <Button

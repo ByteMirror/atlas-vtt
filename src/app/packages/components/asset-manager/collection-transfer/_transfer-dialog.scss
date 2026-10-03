@@ -260,6 +260,19 @@ $hero-height: 288px;
   font-variant-numeric: tabular-nums;
   line-height: 1;
   white-space: nowrap;
+
+  // Says why a note is listed; it gives way to the note's name when the row is short.
+  &--quiet {
+    display: block;
+    flex: 0 100 auto;
+    min-width: 0;
+    background: var(--background-modifier-hover);
+    color: var(--text-muted);
+    font-weight: $font-weight-normal;
+    line-height: $icon-m;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

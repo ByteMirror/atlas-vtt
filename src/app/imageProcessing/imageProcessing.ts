@@ -41,7 +41,7 @@ const MAX_WORKERS = 6;
  * Decoded pixels all running jobs may hold together. Token art runs in
  * parallel; a huge map (150 megapixels hold 1.2 GB while converting) runs alone.
  */
-const MEMORY_BUDGET_BYTES = 1024 ** 3;
+export const MEMORY_BUDGET_BYTES = 1024 ** 3;
 /** Side assumed for an image that reports no size of its own, such as an SVG without dimensions. */
 const UNSIZED_IMAGE_SIDE = 2048;
 const SVG = 'image/svg+xml';

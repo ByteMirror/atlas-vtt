@@ -34,6 +34,7 @@ export class NotePinTool {
   private storeUnsubscribe: (() => void) | null = null;
   private pinActionHandler: ((e: CustomEvent<PinActionEventDetail>) => void) | null = null;
   private outsideClickHandler: ((e: MouseEvent) => void) | null = null;
+  private outsideClickTimer: number | null = null;
   private readonly preview: NotePinPreview;
 
   constructor(
@@ -232,8 +233,11 @@ export class NotePinTool {
         }
       };
       this.outsideClickHandler = handleOutsideClick;
-      window.setTimeout(() => {
+      // The click that opened the dropdown must not close it. Closing cancels the wait, or the
+      // listener would be added after the dropdown is gone and never removed.
+      this.outsideClickTimer = window.setTimeout(() => {
         document.addEventListener('mousedown', handleOutsideClick, true);
+        this.outsideClickTimer = null;
       }, 100);
 
       } catch (error) {
@@ -249,6 +253,10 @@ export class NotePinTool {
    */
   private closeDropdown(): void {
     if (this.pinDropdown) {
+      if (this.outsideClickTimer !== null) {
+        window.clearTimeout(this.outsideClickTimer);
+        this.outsideClickTimer = null;
+      }
       if (this.outsideClickHandler) {
         document.removeEventListener('mousedown', this.outsideClickHandler, true);
         this.outsideClickHandler = null;

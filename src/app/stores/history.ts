@@ -28,6 +28,11 @@ export interface HistoryState extends TemporalState<HistorySnapshot> {
   endTransaction: () => void;
   /** Close the current transaction (all levels) without recording a step. */
   discardTransaction: () => void;
+  /**
+   * Close the innermost transaction without a step of its own: its gesture was cancelled and
+   * has put back what it changed. A transaction around it goes on.
+   */
+  abandonTransaction: () => void;
   /** Run `fn` inside a transaction. */
   transaction: <T>(fn: () => T) => T;
   /** Run `fn` without recording anything (hydration, remote sync, derived state). */
@@ -45,6 +50,7 @@ function partializeHistory<S extends HistorySnapshot>(state: S): TrackedSlice<S>
     grid: state.grid,
     background: state.background,
     widgetValues: state.widgetValues,
+    exploredEdits: state.exploredEdits,
   };
 }
 
@@ -102,6 +108,12 @@ export function createHistoryOptions<S extends HistorySnapshot>(
         transactionStart = null;
       };
 
+      const abandonTransaction = (): void => {
+        if (transactionDepth === 0) return;
+        transactionDepth -= 1;
+        if (transactionDepth === 0) transactionStart = null;
+      };
+
       // A transaction left open when the history is cleared (a map switch) must not
       // swallow the next scene's edits or later record the previous scene as a step.
       const clear = (): void => {
@@ -127,7 +139,7 @@ export function createHistoryOptions<S extends HistorySnapshot>(
         }
       };
 
-      const history = { ...base, clear, beginTransaction, endTransaction, discardTransaction, transaction, untracked };
+      const history = { ...base, clear, beginTransaction, endTransaction, discardTransaction, abandonTransaction, transaction, untracked };
       return history;
     },
   };
@@ -148,6 +160,10 @@ export function endHistoryTransaction(store: HistoryHost): void {
 
 export function discardHistoryTransaction(store: HistoryHost): void {
   getHistoryStore(store)?.getState().discardTransaction();
+}
+
+export function abandonHistoryTransaction(store: HistoryHost): void {
+  getHistoryStore(store)?.getState().abandonTransaction();
 }
 
 export function runHistoryTransaction<T>(store: HistoryHost, fn: () => T): T {

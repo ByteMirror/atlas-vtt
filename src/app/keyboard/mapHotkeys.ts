@@ -1,5 +1,7 @@
-import { AMBIENT_AUDIO_ENABLED, WALLS_AND_LIGHTING_ENABLED } from '../featureFlags';
+import type { ExperimentalFeatureId } from '../experimental/experimentalFeatures';
+import { AMBIENT_AUDIO_ENABLED } from '../featureFlags';
 import { isActiveAtlasLeaf } from '../utils/activeLeafGuard';
+import { handledByAnotherControl } from './tooltipEscape';
 import type { SettingsService } from '../services/SettingsService';
 
 export const MAP_HOTKEYS = [
@@ -10,7 +12,7 @@ export const MAP_HOTKEYS = [
   { id: 'dashboard', label: 'DM screen', group: 'Map', defaultKey: 'Tab', dmOnly: true },
   { id: 'gmView', label: 'Toggle GM view', group: 'Map', defaultKey: 'd', dmOnly: true },
   { id: 'sceneSwitcher', label: 'Switch between open maps', group: 'Map', defaultKey: 'g', dmOnly: true },
-  { id: 'lightingPeek', label: 'Hold to see what the players see', group: 'Map', defaultKey: 'h', dmOnly: true, enabled: WALLS_AND_LIGHTING_ENABLED },
+  { id: 'lightingPeek', label: 'Hold to see what the players see', group: 'Map', defaultKey: 'h', dmOnly: true, experimental: 'dynamicLighting' },
   { id: 'fitMap', label: 'Fit map to view', group: 'Map', defaultKey: 'Shift+1' },
   { id: 'fitToken', label: 'Zoom to selected token', group: 'Map', defaultKey: 'Shift+2' },
   { id: 'move', label: 'Move / selection tools', group: 'Tools', defaultKey: 'v' },
@@ -20,7 +22,7 @@ export const MAP_HOTKEYS = [
   { id: 'text', label: 'Text tool', group: 'Tools', defaultKey: 't', dmOnly: true },
   { id: 'measure', label: 'Measure tools', group: 'Tools', defaultKey: 'm' },
   { id: 'pin', label: 'Note pin', group: 'Tools', defaultKey: 'p', dmOnly: true },
-  { id: 'wall', label: 'Lighting (walls and lights)', group: 'Tools', defaultKey: 'w', dmOnly: true, enabled: WALLS_AND_LIGHTING_ENABLED },
+  { id: 'wall', label: 'Lighting (walls and lights)', group: 'Tools', defaultKey: 'w', dmOnly: true, experimental: 'dynamicLighting' },
   { id: 'audio', label: 'Ambient audio', group: 'Tools', defaultKey: 's', dmOnly: true, enabled: AMBIENT_AUDIO_ENABLED },
   { id: 'selectAll', label: 'Select all tokens', group: 'Editing', defaultKey: 'Mod+a', dmOnly: true },
   { id: 'copy', label: 'Copy selection', group: 'Editing', defaultKey: 'Mod+c', dmOnly: true, yieldsToTextSelection: true },
@@ -52,7 +54,9 @@ export type MapHotkeyId = MapHotkey['id'];
 export type HeldWidgetHotkeyId = Extract<MapHotkey, { whileWidgetHeld: true }>['id'];
 export type MapHotkeys = Record<MapHotkeyId, string>;
 export const DEFAULT_MAP_HOTKEYS = Object.fromEntries(MAP_HOTKEYS.map(h => [h.id, h.defaultKey])) as MapHotkeys;
-export const availableHotkeys = (player = false) => MAP_HOTKEYS.filter(h => !('enabled' in h && !h.enabled) && !(player && 'dmOnly' in h && h.dmOnly));
+/** The shortcuts on offer: `isOn` leaves out those of experimental features that are switched off. */
+export const availableHotkeys = (player = false, isOn: (feature: ExperimentalFeatureId) => boolean = () => true) => MAP_HOTKEYS.filter(h =>
+  !('enabled' in h && !h.enabled) && !('experimental' in h && !isOn(h.experimental)) && !(player && 'dmOnly' in h && h.dmOnly));
 
 export const hotkeyAction = (id: MapHotkeyId): MapHotkey => MAP_HOTKEYS.find(action => action.id === id)!;
 const runsWhileWidgetHeld = (action: MapHotkey): boolean => 'whileWidgetHeld' in action;
@@ -63,10 +67,12 @@ export function canShareHotkey(a: MapHotkeyId, b: MapHotkeyId): boolean {
   return runsWhileWidgetHeld(first) !== runsWhileWidgetHeld(second) && !selectsWidget(first) && !selectsWidget(second);
 }
 
-/** Printable symbols are layout-aware; shifted digits preserve the familiar Shift+1/2 navigation. */
+/** Printable symbols are layout-aware; shifted digits preserve the familiar Shift+1/2 navigation. A letter of another script (Cyrillic, Greek…) counts as the Latin letter on the same physical key, so shortcuts work on any layout. */
 export function hotkeyFromEvent(event: KeyboardEvent): string | null {
   if (event.isComposing || ['Control', 'Meta', 'Alt', 'Shift', 'Dead', 'Unidentified'].includes(event.key)) return null;
   let key = event.key === ' ' ? 'Space' : event.key.length === 1 ? event.key.toLowerCase() : event.key;
+  const physicalLetter = /^Key([A-Z])$/.exec(event.code)?.[1];
+  if (physicalLetter && /^\p{L}$/u.test(key) && !/^[a-z]$/.test(key)) key = physicalLetter.toLowerCase();
   const shiftedDigit = event.shiftKey && /^Digit\d$/.test(event.code);
   if (shiftedDigit) key = event.code.slice(-1);
   const shift = event.shiftKey && (shiftedDigit || key.length !== 1 || /[a-z]/i.test(key));
@@ -82,7 +88,7 @@ export function formatHotkey(binding: string): string {
   return binding ? binding.replace(/Mod\+/g, 'Ctrl/Cmd + ').replace(/Shift\+/g, 'Shift + ').replace(/Alt\+/g, 'Alt + ').replace(/(^| \+ )([a-z])$/, (_, prefix: string, key: string) => prefix + key.toUpperCase()) : 'Unassigned';
 }
 export function canRunMapHotkeys(event: KeyboardEvent, viewId?: string): boolean {
-  if (event.defaultPrevented || event.isComposing || !isActiveAtlasLeaf(viewId)) return false;
+  if (handledByAnotherControl(event) || event.isComposing || !isActiveAtlasLeaf(viewId)) return false;
   const target = event.target as Element | null;
   if (target?.closest?.('input, textarea, select, [contenteditable]:not([contenteditable="false"]), .cm-editor, [role="textbox"]')) return false;
   if (document.querySelector('.modal-container, .prompt, .suggestion-container, .menu, .atlas-asset-manager-modal, .atlas-command-palette-overlay, .atlas-onboarding-overlay, .atlas-hotkey-help, .atlas-text-dialog-backdrop, .atlas-dm-screen-wrapper, .atlas-grid-alignment-panel, [aria-modal="true"]')) return false;

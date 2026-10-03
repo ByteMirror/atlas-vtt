@@ -1,25 +1,35 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// Scene lighting in the lighting tool's menu: the ambient slider with its colour beside it
+// Scene lighting in the lighting tool's menu: the switch, the time of day and
+// the ambient slider with its colour beside it
 // ═══════════════════════════════════════════════════════════════════════════
 // Imported inside the `.atlas-vtt-plugin` scope of styles/main.scss.
 
 @use '../../../../../styles/tokens' as *;
 @use '../../../../../styles/mixins' as *;
 
-.atlas-scene-lighting-ambient {
+// Controls of different kinds, spaced like the menu's padding rather than like its rows.
+.atlas-dropdown-section.atlas-scene-lighting,
+.atlas-dropdown-section.atlas-explored-brush {
+  gap: $spacing-s;
+}
+
+.atlas-scene-lighting__ambient {
   display: flex;
   align-items: flex-end;
-  gap: $spacing-m;
+  gap: $spacing-s;
 
   > :first-child {
     flex: 1;
     min-width: 0;
   }
-}
 
-// Level with the slider's track: the slider row keeps 0.75rem below it.
-.atlas-scene-lighting-ambient__swatch {
-  @include atlas-colour-input(24px);
-  flex-shrink: 0;
-  margin-bottom: $spacing-s;
+  // The swatch ends the row, so the value beside it needs no inset of its own.
+  .atlas-dropdown-slider-row__value {
+    padding-inline-end: 0;
+  }
+
+  // Level with the slider's track: the slider row keeps 0.75rem below it.
+  .atlas-swatch {
+    margin-bottom: $spacing-s;
+  }
 }

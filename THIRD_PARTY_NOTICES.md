@@ -3,9 +3,15 @@
 ## Assets
 
 - Widget icons, map pin icons, the token icon, the end-combat icon and the loot coin icon come from [game-icons.net](https://game-icons.net) by Lorc, Delapouite, Skoll, sbed, Carl Olsen and Caro Asercion, licensed under [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/). The black background was removed and the glyphs recoloured.
+- The light markers' glyphs are the game-icons.net icons candle-light, lantern-flame, fairy-wand and light-bulb by Lorc, licensed under [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/). The black background was removed and the glyphs recoloured.
+- The door badges' glyphs are the game-icons.net icons closed-doors and open-gate by Delapouite, licensed under [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/). The black background was removed and the glyphs recoloured.
+- The dice tray's dice are the game-icons.net icons d4, d10 and d12 by Skoll and dice-six-faces-six, dice-eight-faces-eight and dice-twenty-faces-twenty by Delapouite, licensed under [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/), redrawn as pencil sketches.
 - The starter class tokens (Cleric, Fighter, Paladin, Ranger, Rogue, Warlock, Wizard, and Knight, Assassin and Occultist from the Guard, Bandit and Cultist icons) are icons by [Sketch Studio](https://www.fiverr.com/sketchstudioart), commissioned by Maatlock of [maatlockstavern.com](https://maatlockstavern.com), licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). They were redrawn as pencil sketches and placed on a parchment background.
 - Dice result sounds are built from the "Impact Sounds" and "Casino Audio" packs by [Kenney](https://kenney.nl), released under [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) and converted from OGG to MP3.
 - The dice toast knotwork corners are cropped from "Celtic knot border" by pitr on [ClipSafari](https://www.clipsafari.com/clips/o213700-celtic-knot-border), released under [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/).
+- The numerals of the 3D dice panel are set in "Fantaisie Artistique" (1998) by George Williams, a free font listed under the [SIL Open Font License 1.1](https://openfontlicense.org) on [FontSpace](https://www.fontspace.com/george-williams/fantaisie-artistique). The font is bundled in `styles.css`.
+- The sci-fi dice numerals are set in [Oxanium](https://github.com/sevmeyer/oxanium) by Severin Meyer, Copyright 2019 The Oxanium Project Authors, licensed under the [SIL Open Font License 1.1](https://openfontlicense.org). The font is bundled in `styles.css`.
+- The 3D dice face artwork (numeral sheet and card stock) is an original work by the Atlas VTT author and is covered by this repository's [GNU Affero General Public License v3.0](LICENSE).
 - Interface icons are [Lucide](https://lucide.dev) (ISC), provided by Obsidian and the bundled lucide-react package.
 - The token ring and the timer sound are original works by the Atlas VTT author and are covered by this repository's [GNU Affero General Public License v3.0](LICENSE).
 
@@ -1304,7 +1310,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-### immer@10.1.1
+### immer@11.1.18
 
 Licence: MIT
 
@@ -2623,6 +2629,34 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+```
+
+### three@0.185.1
+
+Licence: MIT
+
+```
+The MIT License
+
+Copyright © 2010-2026 three.js authors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
 ```
 
 ### tiny-lru@11.4.7

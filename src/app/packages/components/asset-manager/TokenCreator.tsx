@@ -18,6 +18,7 @@ import { useAssetTags } from './token-creator/useAssetTags';
 import { useTokenPreviews } from './token-creator/useTokenPreviews';
 import { useFrameProgress } from '../primitives/useFrameProgress';
 import { modeNoun } from './token-creator/types';
+import { uvttFilesAmong, type ImportMaps } from './hooks/useUvttImport';
 import type { CreatorMode, EditTokenInput } from './token-creator/types';
 
 interface TokenCreatorProps {
@@ -27,13 +28,15 @@ interface TokenCreatorProps {
   selectedCollection?: string;
   editToken?: EditTokenInput | null;
   initialSource?: 'images' | 'statblocks';
+  /** Given to the map creator: takes the Universal VTT files among the added files, which become scenes at once. */
+  onImportMaps?: ImportMaps;
 }
 
 function hasFiles(e: React.DragEvent): boolean {
   return Array.from(e.dataTransfer.types).includes('Files');
 }
 
-export function TokenCreator({ isOpen, onClose, mode = 'token', selectedCollection = AssetService.defaultCollectionId(), editToken, initialSource = 'images' }: TokenCreatorProps): React.JSX.Element | null {
+export function TokenCreator({ isOpen, onClose, mode = 'token', selectedCollection = AssetService.defaultCollectionId(), editToken, initialSource = 'images', onImportMaps }: TokenCreatorProps): React.JSX.Element | null {
   const { app } = useAtlasUI();
   const { assetService, collections } = useAssetCatalog(app, isOpen);
   const previews = useTokenPreviews(mode);
@@ -59,6 +62,9 @@ export function TokenCreator({ isOpen, onClose, mode = 'token', selectedCollecti
   const titleId = useId();
   const windowRef = useRef<HTMLDivElement>(null);
   const windowVariants = useDialogWindowVariants();
+
+  const previewCountRef = useRef(0);
+  previewCountRef.current = previews.previews.length;
 
   const { reset } = previews;
   const editTokenRef = useRef(editToken);
@@ -94,8 +100,12 @@ export function TokenCreator({ isOpen, onClose, mode = 'token', selectedCollecti
       previews.addImages([{ file, tags, showRing, size }]);
       return;
     }
-    previews.addFiles(files);
-  }, [editToken, previews]);
+    const maps = onImportMaps ? uvttFilesAmong(files) : [];
+    const images = files.filter(file => !maps.includes(file));
+    // The imported scene opens and the creator closes, unless images wait here to be created by then
+    if (maps.length > 0) void onImportMaps?.(maps, collection, () => previewCountRef.current > 0);
+    if (images.length > 0) previews.addFiles(images);
+  }, [editToken, previews, onImportMaps, collection]);
 
   const canSubmit = previews.previews.length > 0 && !isSubmitting && !saveBlocked && !isCreatingTag && assetService !== null;
 
@@ -201,6 +211,7 @@ export function TokenCreator({ isOpen, onClose, mode = 'token', selectedCollecti
           isDragging={isDragging}
           previews={previews}
           onFiles={handleFiles}
+          acceptsMapFiles={Boolean(onImportMaps)}
           collection={collection}
           collections={collections}
           onCollectionChange={setCollection}

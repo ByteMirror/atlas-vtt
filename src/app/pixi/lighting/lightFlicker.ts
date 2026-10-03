@@ -3,7 +3,7 @@ import type { LightAnimation } from '../../types/lightingTypes';
 /** How a light deviates from its settings at one moment. */
 export interface FlickerSample {
   intensity: number;
-  /** Multiplies the light's radii. */
+  /** Multiplies the light's bright radius; its dim radius, where the rules end it, stays. */
   radiusScale: number;
 }
 
@@ -37,7 +37,8 @@ interface WalkState {
  * (the AR(1) flicker Foundry VTT uses), stepped at a fixed rate and interpolated in
  * between, so they stay smooth at any frame rate; pulse and magic lights breathe.
  * State is per instance and per light id; `forget` drops a removed light. Moving the flame
- * would shift its cached visibility past walls, so flicker changes brightness and size only.
+ * would shift its cached visibility past walls, so flicker changes brightness and the size of
+ * the bright range only.
  */
 export class LightFlicker {
   private readonly walks = new Map<string, WalkState>();

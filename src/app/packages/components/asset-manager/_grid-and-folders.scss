@@ -1,5 +1,6 @@
 @use '../../../../../styles/tokens' as *;
 @use '../../../../../styles/mixins' as *;
+@use '../../../../../styles/skeleton' as *;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Asset Manager – Asset grid, folder rows, drag & drop
@@ -11,6 +12,19 @@
   position: relative;
   width: 100%;
   column-gap: $spacing-s;
+}
+
+// Placeholders for the rows that are not mounted (`gridSkeleton.ts`): a tint
+// masked with a card's shape, repeated per cell. Static, so scrolling past it
+// only moves a layer.
+.atlas-asset-grid-rest {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  pointer-events: none;
+  -webkit-mask-repeat: repeat;
+  mask-repeat: repeat;
+  @include atlas-skeleton-shape;
 }
 
 // Cards leaving the grid drop below this while they fade out.

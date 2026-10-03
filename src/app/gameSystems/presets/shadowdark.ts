@@ -1,5 +1,8 @@
 import type { SystemPreset } from '../../types/systemPresetTypes';
+import { SHADOWDARK_LIGHTS } from '../lightPresets/shadowdark';
 import type { TimerWidget } from '../../types/widgetTypes';
+import { HP_RESOURCE } from '../../resources/resourceDefinitions';
+import { SHADOWDARK_SENSES } from '../senses/shadowdark';
 import { builtInPresetId, conditionsOf } from './presetHelpers';
 
 /** Torches (and lanterns and the Light spell) burn for one hour of real time. */
@@ -43,19 +46,22 @@ export const SHADOWDARK: SystemPreset = {
         { name: 'Far', maxSquares: 13 },
       ],
     },
+    dice: { defaultRoll: '1d20', crit: 'natural' },
     conditions: conditionsOf('shadowdark', [
       { name: 'Dying', color: '#991b1b', icon: 'skull', valued: true },
       { name: 'Unconscious', color: '#1e3a8a', icon: 'sleepy' },
-      { name: 'Blinded', color: '#475569', icon: 'blindfold' },
+      { name: 'Blinded', color: '#475569', icon: 'blindfold', effect: 'blinded' },
       { name: 'Deafened', color: '#0891b2', icon: 'hearing-disabled' },
       { name: 'Paralyzed', color: '#38bdf8', icon: 'frozen-body' },
       { name: 'Immobilized', color: '#0d9488', icon: 'spider-web' },
-      { name: 'Invisible', color: '#c7d2fe', icon: 'invisible' },
+      { name: 'Invisible', color: '#c7d2fe', icon: 'invisible', effect: 'invisible' },
       { name: 'Hidden', color: '#64748b', icon: 'hidden' },
       { name: 'Surprised', color: '#f59e0b', icon: 'surprised' },
       { name: 'Focus', color: '#7c3aed', icon: 'meditation' },
     ]),
+    senses: SHADOWDARK_SENSES,
+    lightPresets: SHADOWDARK_LIGHTS,
     widgets: [SHADOWDARK_TORCH],
-    defaultWidgets: { hpBar: true },
+    resources: [{ ...HP_RESOURCE }],
   },
 };

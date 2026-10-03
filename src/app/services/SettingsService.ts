@@ -1,3 +1,4 @@
+import type { LegacyPlayerBars } from '../resources/playerVisibilityMigration';
 import { App, Platform, normalizePath } from 'obsidian';
 import { availableHotkeys, canShareHotkey, type MapHotkeyId, type MapHotkeys } from '../keyboard/mapHotkeys';
 import { hotkeyOrigin, readHotkeyOverrides, resolveHotkeys, withHotkey, type HotkeyOrigin, type HotkeyOverrides } from '../keyboard/hotkeyOverrides';
@@ -7,6 +8,16 @@ import {
   resolveLaserPointerSettings,
   type LaserPointerSettings,
 } from '../tools/laserPointerSettings';
+import { isDiceDisplay, type DiceDisplay } from '../dice3d/diceDisplay';
+import type { ExperimentalFeatureId } from '../experimental/experimentalFeatures';
+import {
+  DEFAULT_DICE_LOOK,
+  isDiceColour,
+  isDiceFont,
+  type DiceColour,
+  type DiceFont,
+  type DiceLook,
+} from '../dice3d/diceLook';
 
 /**
  * How wheel events drive the map viewport.
@@ -33,13 +44,19 @@ export interface AtlasSettings {
   starterTokensAdded: boolean;
   navigation: NavigationSettings;
   laserPointer: LaserPointerSettings;
+  /** How rolls show: a result card, or 3D dice at double or normal speed. Read with `getDiceDisplay`. */
+  diceDisplay: DiceDisplay;
+  /** Colour of the dice: card stock, dark or the accent colour. Read with `getDiceLook`. */
+  diceColour: DiceColour;
+  /** Face of the dice numerals and roll totals. Read with `getDiceLook`. */
+  diceFont: DiceFont;
   /** Game system presets the user saved, as stored; `SystemPresetService` validates them. */
   systemPresets: unknown[];
+  /** Experimental features the GM switched on. Read with `isExperimentalOn`. */
+  experimental: Partial<Record<ExperimentalFeatureId, boolean>>;
   localPlayerView: {
     // UI element visibility toggles
     showToolbar: boolean;
-    showTokenHP: boolean;
-    showTokenStress: boolean;
     showTokenNameplates: boolean;
     showNotePreviews: boolean;
     showGrid: boolean;
@@ -61,12 +78,14 @@ const DEFAULT_SETTINGS: AtlasSettings = {
     inputMode: Platform.isMacOS ? 'trackpad' : 'mouse',
   },
   laserPointer: DEFAULT_LASER_POINTER_SETTINGS,
+  diceDisplay: 'full',
+  diceColour: DEFAULT_DICE_LOOK.colour,
+  diceFont: DEFAULT_DICE_LOOK.font,
   systemPresets: [],
+  experimental: {},
   localPlayerView: {
     // UI element visibility defaults
     showToolbar: false, // Hide toolbar by default in player view
-    showTokenHP: false, // Hide HP bars
-    showTokenStress: false, // Hide stress bars
     showTokenNameplates: false, // Hide nameplates
     showNotePreviews: false, // Hide note previews
     showGrid: true, // Show grid by default
@@ -179,6 +198,7 @@ export class SettingsService {
   private applyStoredSettings(stored: Partial<AtlasSettings>): void {
     this.settings = this.deepMerge(DEFAULT_SETTINGS, stored);
     this.settings.hotkeys = readHotkeyOverrides(stored.hotkeys);
+    if (!this.isRecord(stored.experimental)) this.settings.experimental = {};
     // Rewrite files from versions that saved every binding, so they keep only the user's.
     if (JSON.stringify(stored.hotkeys ?? {}) !== JSON.stringify(this.settings.hotkeys)) this.scheduleSave();
   }
@@ -246,6 +266,7 @@ export class SettingsService {
 
   setHotkey(id: MapHotkeyId, key: string): void {
     const bindings = this.getHotkeys();
+    // The shortcuts of an experimental feature keep their keys while it is off.
     const conflict = key && availableHotkeys().find(action => action.id !== id && bindings[action.id] === key && !canShareHotkey(action.id, id));
     if (conflict) throw new Error(`Already assigned to ${conflict.label}. Clear that shortcut first.`);
     this.settings.hotkeys = withHotkey(this.settings.hotkeys, id, key);
@@ -301,7 +322,64 @@ export class SettingsService {
     this.commit();
   }
 
+  /** The stored choice, or normal dice when the file holds something else. */
+  getDiceDisplay(): DiceDisplay {
+    return isDiceDisplay(this.settings.diceDisplay) ? this.settings.diceDisplay : 'full';
+  }
+
+  setDiceDisplay(display: DiceDisplay): void {
+    if (this.settings.diceDisplay === display) return;
+    this.settings.diceDisplay = display;
+    this.commit();
+  }
+
+  /** Whether the GM switched an experimental feature on: off unless the file says `true`. */
+  isExperimentalOn(id: ExperimentalFeatureId): boolean {
+    return this.settings.experimental[id] === true;
+  }
+
+  setExperimental(id: ExperimentalFeatureId, on: boolean): void {
+    if (this.isExperimentalOn(id) === on) return;
+    this.settings.experimental = { ...this.settings.experimental, [id]: on };
+    this.commit();
+  }
+
+  /** The stored look, with the defaults for anything the file holds that Atlas does not know. */
+  getDiceLook(): DiceLook {
+    return {
+      colour: isDiceColour(this.settings.diceColour) ? this.settings.diceColour : DEFAULT_DICE_LOOK.colour,
+      font: isDiceFont(this.settings.diceFont) ? this.settings.diceFont : DEFAULT_DICE_LOOK.font,
+    };
+  }
+
+  setDiceLook(look: Partial<DiceLook>): void {
+    const next = { ...this.getDiceLook(), ...look };
+    if (next.colour === this.settings.diceColour && next.font === this.settings.diceFont) return;
+    this.settings.diceColour = next.colour;
+    this.settings.diceFont = next.font;
+    this.commit();
+  }
+
   // Local Player View settings
+  /**
+   * The player-window switches for HP and the secondary bar that older versions
+   * stored, or null when there are none or they were carried over. Each resource now
+   * says itself whether players see it. The switches stay in the file: an older Atlas
+   * on the same vault still reads them.
+   */
+  legacyPlayerBars(): LegacyPlayerBars | null {
+    const stored: Record<string, unknown> = this.settings.localPlayerView;
+    if (stored.tokenBarsCarriedOver === true) return null;
+    if (!('showTokenHP' in stored) && !('showTokenStress' in stored)) return null;
+    return { hp: stored.showTokenHP === true, stress: stored.showTokenStress === true };
+  }
+
+  clearLegacyPlayerBars(): void {
+    const stored: Record<string, unknown> = this.settings.localPlayerView;
+    stored.tokenBarsCarriedOver = true;
+    this.scheduleSave();
+  }
+
   getLocalPlayerViewSettings(): AtlasSettings['localPlayerView'] {
     return { ...this.settings.localPlayerView };
   }

@@ -5,6 +5,7 @@ import type { DiceRollResult } from '../../../tools/DiceTool';
 import { TokenPortrait } from '../../../packages/components/shared/TokenPortrait';
 import { useDiceAvatar } from '../dice/useDiceAvatar';
 import { LabelTooltip } from '../../../packages/components/primitives/tooltip';
+import { dieLabel } from '../../../tools/diceLabels';
 
 interface DiceRollEntryProps {
   result: DiceRollResult;
@@ -33,10 +34,8 @@ export function DiceRollEntry({ result, isNew, onRepeat }: DiceRollEntryProps): 
     return () => window.clearInterval(interval);
   }, [result.timestamp]);
 
-  const isCritSuccess =
-    result.rolls.some(r => r.die === 'd20' && r.value === 20);
-  const isCritFail =
-    result.rolls.some(r => r.die === 'd20' && r.value === 1) && result.total === 1;
+  const isCritSuccess = result.crit === 'high';
+  const isCritFail = result.crit === 'low';
 
   const source = result.source;
   const sourceTokenName = source?.tokenName ?? 'Unknown';
@@ -119,7 +118,7 @@ export function DiceRollEntry({ result, isNew, onRepeat }: DiceRollEntryProps): 
                   roll.value === 1 && 'dice-log-entry__badge--min',
                 )}
               >
-                {roll.die}: {roll.value}
+                {dieLabel(result.rolls, i)}
               </span>
             ))}
           </div>

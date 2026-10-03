@@ -11,6 +11,27 @@ import { statblockPreviewImages } from '../token-creator/statblockPreviewImages'
 import type { PreviewImage } from '../token-creator/types';
 import type { StatblockImportCandidate } from '../../../../services/statblockImportCandidates';
 import { StatblockList } from './StatblockList';
+import { Skeleton, SkeletonGroup, skeletonTextWidth } from '../../primitives/Skeleton';
+
+const SCAN_SKELETON_ROWS = 6;
+
+/** The list a scan will fill, as placeholder rows; the progress line above it says what is happening. */
+function ScanSkeleton(): React.JSX.Element {
+  return (
+    <SkeletonGroup className="atlas-statblock-import__list">
+      {Array.from({ length: SCAN_SKELETON_ROWS }, (_, index) => (
+        <div key={index} className="atlas-statblock-import__pending-row">
+          <Skeleton className="atlas-statblock-import__pending-check" />
+          <Skeleton className="atlas-statblock-import__pending-portrait" />
+          <span className="atlas-statblock-import__identity">
+            <strong><Skeleton shape="text" width={skeletonTextWidth(index, 40)} /></strong>
+            <span><Skeleton shape="text" width={skeletonTextWidth(index + 2, 60)} /></span>
+          </span>
+        </div>
+      ))}
+    </SkeletonGroup>
+  );
+}
 
 interface Props {
   app: App;
@@ -82,9 +103,12 @@ export function StatblockImportContent({ app, queuedPaths, onAdd, onClose, contr
         <p className="atlas-statblock-import__intro">Choose a system or layout, then add creatures to your import. Edit their tags, crop and rings in the preview cards.</p>
         {error && <p role="alert" className="atlas-statblock-import__error">{error}</p>}
         {loading ? (
-          <div className="atlas-statblock-import__scanning">
-            <ProgressStatus task={{ label: 'Scanning notes', done: scanned?.done ?? 0, total: scanned?.total ?? 0 }} />
-          </div>
+          <>
+            <div className="atlas-statblock-import__scanning">
+              <ProgressStatus task={{ label: 'Scanning notes', done: scanned?.done ?? 0, total: scanned?.total ?? 0 }} />
+            </div>
+            <ScanSkeleton />
+          </>
         ) : (
           <>
             <div className="atlas-statblock-import__summary" role="status">

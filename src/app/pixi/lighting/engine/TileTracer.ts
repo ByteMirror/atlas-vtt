@@ -1,9 +1,8 @@
 import { Mesh, UniformGroup, type Geometry, type Renderer, type RenderTexture, type Shader } from 'pixi.js';
 import type { Rect } from '../../../lighting/segments';
 import { CapsuleField } from './CapsuleField';
+import { ENGINE_SHADERS } from './engineShaders';
 import { createPlaceholder, createQuad, createShader, createTarget, destroyQuad, quadGeometry, renderInto, type Quad } from './gpu';
-import { tileFragment, tileVertex } from './tileShader';
-import { tileSmoothFragment } from './tileSmoothShader';
 
 /**
  * Traces one light's visibility tile (`r8unorm`, one texel per field texel) through the wall
@@ -29,6 +28,7 @@ export class TileTracer {
   private readonly placeholder: RenderTexture = createPlaceholder();
   /** Bound when a light has no one-way walls, so the program always has both fields. */
   private readonly noOneWay: CapsuleField;
+  private noOneWayBuilt = false;
   /**
    * The raw traces' targets, used in turn so a trace never waits for the previous tile's
    * smoothing to finish reading; freed by `release`, grown to the largest tile each held.
@@ -38,10 +38,9 @@ export class TileTracer {
 
   constructor(private readonly renderer: Renderer, private readonly field: CapsuleField) {
     this.noOneWay = new CapsuleField(renderer, [0, 0, 1, 1], 1, 0, 'uOneWay');
-    this.noOneWay.build([]);
     const resources = { tileUniforms: this.uniforms, ...field.resources(), ...this.noOneWay.resources() };
-    this.shader = createShader(tileVertex, tileFragment, 'atlas-visibility-tile', resources);
-    this.smoothShader = createShader(tileVertex, tileSmoothFragment, 'atlas-visibility-tile-smooth', { ...resources, uRaw: this.placeholder.source });
+    this.shader = createShader(ENGINE_SHADERS.tile, resources);
+    this.smoothShader = createShader(ENGINE_SHADERS.tileSmooth, { ...resources, uRaw: this.placeholder.source });
     this.mesh = new Mesh({ geometry: this.geometry, shader: this.shader });
     this.smoothMesh = new Mesh({ geometry: this.geometry, shader: this.smoothShader });
   }
@@ -49,6 +48,11 @@ export class TileTracer {
   /** `rect` must be snapped to the field's texel grid; `oneWay` holds this light's one-way walls. */
   trace(at: readonly [number, number], flame: number, rect: Rect, oneWay: CapsuleField | null): RenderTexture {
     const { texel } = this.field;
+    // Built here, not in the constructor, which draws nothing (see `LightingWorld`).
+    if (!this.noOneWayBuilt) {
+      this.noOneWay.build([]);
+      this.noOneWayBuilt = true;
+    }
     const tile = createTarget(rect[2] / texel, rect[3] / texel, 'r8unorm', 'nearest');
     const { pixelWidth: width, pixelHeight: height } = tile.source;
     this.turn = 1 - this.turn;

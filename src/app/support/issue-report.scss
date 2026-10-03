@@ -3,30 +3,11 @@
 
 .atlas-vtt-plugin.atlas-issue-report-modal {
   width: min(640px, 90vw);
-  // The whole form stays on screen: the dialog may use almost the full window
-  // height, and when even that is too short the text boxes give up height
-  // and scroll internally instead of the dialog.
+  // The dialog may use almost the full window height. In a shorter window
+  // (such as Obsidian's settings window) the fields keep their size and the
+  // dialog scrolls: rows squeezed below their content let the text boxes
+  // spill over the rows beneath them.
   max-height: calc(100vh - #{$spacing-2xl});
-
-  > .modal-content {
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-  }
-
-  .setting-item:has(textarea) {
-    min-height: 0;
-
-    .setting-item-control {
-      flex: 1 1 auto;
-      min-height: 0;
-    }
-
-    textarea {
-      flex: 1 1 auto;
-      min-height: 3lh;
-    }
-  }
 
   .atlas-issue-report-intro {
     margin: 0 0 $spacing-l;

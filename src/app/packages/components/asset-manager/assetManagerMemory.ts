@@ -12,7 +12,7 @@ export interface AssetManagerPlace {
    * over a map of another collection, the manager starts in that collection.
    */
   mapCollection: string | null;
-  collection: string | null;
+  collection: string;
   tab: Tab;
   folderId: string | null;
   search: string;
@@ -38,7 +38,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 function readPlace(value: unknown): AssetManagerPlace | null {
   if (!isRecord(value)) return null;
   const { mapCollection, collection, tab, folderId, search, tagIds, sortBy, sortOrder, collapsedSections } = value;
-  if (!isNullableString(mapCollection) || !isNullableString(collection) || !isNullableString(folderId)) return null;
+  if (!isNullableString(mapCollection) || !isString(collection) || !isNullableString(folderId)) return null;
   if (!isTab(tab) || !isString(search)) return null;
   if (!Array.isArray(tagIds) || !tagIds.every(isString)) return null;
   if (!isSortOption(sortBy)) return null;
@@ -122,11 +122,13 @@ export interface RestoreContext {
   requestedTab: Tab | undefined;
   /** Collection of the map it opens over; null for the manager without a map. */
   mapCollection: string | null;
-  folderExists: (folderId: string, collection: string | null, tab: Tab) => boolean;
+  /** Where the manager opens without a map and without a remembered place. */
+  defaultCollection: string;
+  folderExists: (folderId: string, collection: string, tab: Tab) => boolean;
 }
 
-const FRESH_PLACE: RestoredPlace = {
-  collection: 'default', tab: 'tokens', folderId: null, search: '', tagIds: [],
+const FRESH_PLACE: Omit<RestoredPlace, 'collection'> = {
+  tab: 'tokens', folderId: null, search: '', tagIds: [],
   sortBy: 'name', sortOrder: 'asc', collapsedSections: { folders: false, assets: false },
 };
 
@@ -136,12 +138,12 @@ const FRESH_PLACE: RestoredPlace = {
  * that tab's root). A folder that no longer exists falls back to the root.
  */
 export function placeToRestore(saved: AssetManagerPlace | null, context: RestoreContext): RestoredPlace {
-  const mapCollection = context.mapCollection ?? 'default';
+  const mapCollection = context.mapCollection ?? context.defaultCollection;
   if (!saved) {
     return { ...FRESH_PLACE, collection: mapCollection, tab: context.requestedTab ?? FRESH_PLACE.tab };
   }
   const sameMap = context.mapCollection === null || saved.mapCollection === context.mapCollection;
-  const collection = sameMap ? saved.collection ?? mapCollection : mapCollection;
+  const collection = sameMap ? saved.collection : mapCollection;
   const tab = context.requestedTab ?? saved.tab;
   const samePlace = collection === saved.collection && tab === saved.tab;
   const folderId = samePlace && saved.folderId && context.folderExists(saved.folderId, collection, tab) ? saved.folderId : null;

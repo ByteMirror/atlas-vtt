@@ -1,7 +1,11 @@
+import { mapResources } from '../resources/collectionResources';
+import { isHitPointsKey } from '../resources/resourceFields';
+import { resourceUpdate } from '../resources/resourceValues';
 import type { App } from 'obsidian';
 import { ATLAS_VIEW_TYPE } from '../atlas-view';
 import type { TokenUpdates, ViewAtlasStore } from '../storeFactory';
 import { rollStatblockDice } from './statblockDiceLinks';
+import { AssetService } from './AssetService';
 import type { TokenVitals } from './statblockVitalsSync';
 
 type PlacedToken = TokenVitals & { id: string };
@@ -20,7 +24,8 @@ function storeHoldingTokens(app: App, ids: readonly string[]): ViewAtlasStore | 
  * Rolls a statblock's hit dice once per token and puts each token at full
  * health with its own result. A rolled maximum is a deliberate choice, so it is
  * marked as overridden and survives later edits to the statblock. Without
- * placed tokens this is an ordinary roll.
+ * placed tokens, or in a collection that tracks no hit points, this is an
+ * ordinary roll.
  */
 export function rollHitPoints(
   app: App,
@@ -31,7 +36,10 @@ export function rollHitPoints(
 ): void {
   const placed = tokens.filter((token): token is PlacedToken => Boolean(token.id));
   const store = placed.length ? storeHoldingTokens(app, placed.map((token) => token.id)) : null;
-  if (!store) {
+  // The resource the collection fills from the statblock's hit points, whatever it is called.
+  const key = store && mapResources(AssetService.getInstance(app), store.getState().mapPath)
+    .find((definition) => isHitPointsKey(definition.field))?.key;
+  if (!store || !key) {
     rollStatblockDice(app, formula, { statblockPath, abilityName });
     return;
   }
@@ -47,7 +55,8 @@ export function rollHitPoints(
     });
     if (!roll) continue;
     const hp = Math.max(1, roll.total);
-    entries.push({ id: token.id, changes: { hp: { current: hp, max: hp }, maxHpOverridden: true } });
+    const held = store.getState().objects.tokens[token.id] ?? {};
+    entries.push({ id: token.id, changes: resourceUpdate(held, key, { current: hp, max: hp }, true) });
   }
   if (entries.length) store.getState().updateTokens(entries);
 }

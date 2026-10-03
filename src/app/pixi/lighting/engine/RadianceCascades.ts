@@ -2,7 +2,7 @@ import { Mesh, TextureSource, UniformGroup, type Geometry, type Renderer, type R
 import { BOUNCE } from '../../../lighting/lightingConstants';
 import type { MapBounds } from '../../../vision/visibility';
 import type { CapsuleField } from './CapsuleField';
-import { cascadeFragment, cascadeVertex, emissionFragment, resolveFragment } from './cascadeShaders';
+import { ENGINE_SHADERS, type EngineShaderSource } from './engineShaders';
 import { createPlaceholder, createQuad, createShader, createTarget, destroyQuad, quadGeometry, renderInto, type Quad } from './gpu';
 import type { LightMap } from './LightMap';
 
@@ -11,6 +11,16 @@ type Pass = Mesh<Geometry, Shader>;
 /** Where cascade `i`'s intervals start; each is four times longer than the last. */
 function intervalStart(i: number): number {
   return (BOUNCE.interval * (4 ** i - 1)) / 3;
+}
+
+/**
+ * The mip level of `map` at which one texel spans an emission texel: the level implicit
+ * filtering would pick, named so that the read needs no screen-space gradient (Direct3D
+ * restricts those inside branches and loops). An image without mipmaps ignores it.
+ */
+function emissionLod(map: Texture, bounds: MapBounds): number {
+  const { pixelWidth, pixelHeight } = map.source;
+  return Math.max(0, Math.log2(Math.max(pixelWidth / bounds.width, pixelHeight / bounds.height) * BOUNCE.emitTexel));
 }
 
 /**
@@ -34,7 +44,7 @@ export class RadianceCascades {
   private readonly cascade: Pass;
   private readonly resolve: Pass;
 
-  constructor(private readonly renderer: Renderer, bounds: MapBounds, field: CapsuleField) {
+  constructor(private readonly renderer: Renderer, private readonly bounds: MapBounds, field: CapsuleField) {
     this.emit = createTarget(bounds.width / BOUNCE.emitTexel, bounds.height / BOUNCE.emitTexel, 'rgba16float');
     this.counts = Array.from({ length: BOUNCE.cascades }, (_, i) => {
       const spacing = BOUNCE.probe * 2 ** i;
@@ -48,6 +58,7 @@ export class RadianceCascades {
       uLightWorld: { value: this.lightWorld, type: 'vec2<f32>' },
       uMapSize: { value: new Float32Array([bounds.width, bounds.height]), type: 'vec2<f32>' },
       uHasAlbedo: { value: 0, type: 'f32' },
+      uAlbedoLod: { value: 0, type: 'f32' },
     });
     this.cascadeUniforms = new UniformGroup({
       uEmitWorld: { value: new Float32Array(emitWorld), type: 'vec2<f32>' },
@@ -65,9 +76,9 @@ export class RadianceCascades {
       uWallGain: { value: BOUNCE.wallGain, type: 'f32' },
     });
     const placeholder = this.placeholder.source;
-    this.emission = this.pass(emissionFragment, 'atlas-bounce-emission', { emissionUniforms: this.emissionUniforms, uLightMap: placeholder, uAlbedo: placeholder });
-    this.cascade = this.pass(cascadeFragment, 'atlas-bounce-cascade', { cascadeUniforms: this.cascadeUniforms, uEmit: this.emit.source, uUpper: this.fluence.source, ...this.idleFieldResources(field) });
-    this.resolve = this.pass(resolveFragment, 'atlas-bounce-resolve', { uC0: this.cascades[0]!.source });
+    this.emission = this.pass(ENGINE_SHADERS.bounceEmission, { emissionUniforms: this.emissionUniforms, uLightMap: placeholder, uAlbedo: placeholder });
+    this.cascade = this.pass(ENGINE_SHADERS.bounceCascade, { cascadeUniforms: this.cascadeUniforms, uEmit: this.emit.source, uUpper: this.fluence.source, ...this.idleFieldResources(field) });
+    this.resolve = this.pass(ENGINE_SHADERS.bounceResolve, { uC0: this.cascades[0]!.source });
   }
 
   /**
@@ -80,6 +91,7 @@ export class RadianceCascades {
     const emission = this.emission.shader!;
     this.lightWorld.set(lightMap.world);
     this.emissionUniforms.uniforms.uHasAlbedo = map ? 1 : 0;
+    this.emissionUniforms.uniforms.uAlbedoLod = map ? emissionLod(map, this.bounds) : 0;
     emission.resources.uLightMap = lightMap.texture.source;
     if (map) emission.resources.uAlbedo = map.source;
     renderInto(this.renderer, this.emission, this.emit, [0, 0, 0, 0]);
@@ -122,7 +134,7 @@ export class RadianceCascades {
     return Object.fromEntries(Object.entries(field.resources()).map(([name, resource]) => [name, resource instanceof TextureSource ? this.placeholder.source : resource]));
   }
 
-  private pass(fragment: string, name: string, resources: Record<string, UniformGroup | TextureSource>): Pass {
-    return new Mesh({ geometry: this.geometry, shader: createShader(cascadeVertex, fragment, name, resources) });
+  private pass(source: EngineShaderSource, resources: Record<string, UniformGroup | TextureSource>): Pass {
+    return new Mesh({ geometry: this.geometry, shader: createShader(source, resources) });
   }
 }

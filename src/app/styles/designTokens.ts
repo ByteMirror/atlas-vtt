@@ -104,11 +104,6 @@ export const colors = {
     critical: 0xef4444,   // Red - < 30%
     background: 0x1a1a1a,
   },
-  // Stress bar colors
-  stress: {
-    fill: 0xa855f7,       // Purple
-    background: 0x1a1a1a,
-  },
   // Status colors
   status: {
     success: 0x10b981,    // Emerald
@@ -150,15 +145,6 @@ export const barDimensions = {
 } as const;;
 
 // ── Helper Functions ─────────────────────────────────────────────────────────
-
-/**
- * Get health bar color based on percentage
- */
-export function getHealthColor(percentage: number): number {
-  if (percentage >= 70) return colors.health.healthy;
-  if (percentage >= 30) return colors.health.injured;
-  return colors.health.critical;
-}
 
 /**
  * Convert hex string to number for PIXI

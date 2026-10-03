@@ -1,6 +1,12 @@
+import { mapResources } from '../resources/collectionResources';
+import type { ResourceDefinition, ResourceDefsProvider } from '../resources/resourceTypes';
+import { fillMissingResources, syncedResources } from '../resources/statblockResourceSync';
+import { runUntracked } from '../stores/history';
 import { fitTokenArtwork, syncTokenArtwork } from './token-renderer/tokenArtwork';
 import type { AtlasSettings } from '../services/SettingsService';
-import { hiddenTokenLayers, type LayerVisibility } from './playerSafeFrame';
+import { HIDDEN_TOKEN_ALPHA, gmTokenLayers, type HideableLayer, type LayerVisibility } from './playerSafeFrame';
+import type { TokenPerception } from './lighting/playerLightingLayers';
+import { PlayerSightTokens, seenTokens } from './token-renderer/PlayerSightTokens';
 import { Sprite, Container, Graphics, Application, FederatedPointerEvent } from "pixi.js";
 import { Viewport } from "pixi-viewport";
 import { App as ObsidianApp, TFile, parseYaml } from 'obsidian';
@@ -36,9 +42,18 @@ import type { TokenGroupContainer } from './token-renderer/types';
 import type { ConditionDefinition } from '../types/collectionSettingsTypes';
 import { setCanvasCursor } from './utils/canvasCursor';
 import { markHandled, resetHandled } from './utils/handledEvents';
+import { watchClick } from './utils/clickRelease';
 import type { HexLinkPointerHandlers } from './hexLinks/HexLinkInteraction';
+import type { LightPointerHandlers } from './lighting/LightInteraction';
 import { runInBackground } from '../utils/backgroundTask';
 import { isModHeld } from '../keyboard/modKey';
+
+/** What the lighting controller answers about a right-click on a door's badge. */
+export interface DoorMenuHandlers {
+  /** The door whose badge is at the world point, while badges show. */
+  hitTest: (worldX: number, worldY: number) => string | null;
+  open: (doorId: string, screenX: number, screenY: number) => void;
+}
 
 export class TokenRenderer {
   private obsApp: ObsidianApp;
@@ -54,6 +69,8 @@ export class TokenRenderer {
   private eventBus: EventEmitter;
   private statblockDialogService: StatblockDialogService;
   private assetService: AssetService;
+  /** The resources of the map's collection; set once the asset service is wired. */
+  private resourceDefsProvider: ResourceDefsProvider = () => [];
   private assetValidationService?: AssetValidationService;
   private tokenStatblockLinkService: TokenStatblockLinkService;
   private spriteFactory: SpriteFactory;
@@ -107,14 +124,23 @@ export class TokenRenderer {
   private pinClickHandler?: (pinId: string, e: FederatedPointerEvent) => void;
   private pinHoverHandler?: (type: 'over' | 'out', pinId: string, e?: FederatedPointerEvent) => void;
   private hexLinkHandlers?: HexLinkPointerHandlers;
+  /** Ends the watch on a right press that opens a hex or fog menu on release. */
+  private stopMenuPress?: () => void;
   private doorClickHandler?: (worldX: number, worldY: number) => boolean;
+  /** A right-click on a door's badge, with any tool but the lighting tool, whose own menu has the door's entries. */
+  private doorMenuHandlers?: DoorMenuHandlers;
+  /** The tokens as the players' sight shows them: which are left out, and the outlines of sensed ones. */
+  private readonly playerSight = new PlayerSightTokens({ tokens: () => this.store.getState().objects.tokens, sprites: () => this.tokenSprites, held: () => this.heldTokenIds });
+  private lightHandlers?: LightPointerHandlers;
+  /** Tokens the pointer holds or drags; they stay on the canvas until released, whatever the players see. */
+  private heldTokenIds: ReadonlySet<string> = new Set();
   private lastHoveredPinId: string | null = null;
 
   // Wall provider pattern — wired by PixiRendererOrchestrator
   private wallPointerDownHandler?: (worldX: number, worldY: number, e: FederatedPointerEvent) => boolean;
   private wallPointerMoveHandler?: (worldX: number, worldY: number, e: FederatedPointerEvent) => void;
   private wallPointerUpHandler?: () => void;
-  private wallDoubleClickHandler?: (worldX: number, worldY: number) => void;
+  private wallDoubleClickHandler?: () => void;
   private wallContextMenuHandler?: (worldX: number, worldY: number, screenX: number, screenY: number) => void;
   private wallCursorProvider?: (worldX: number, worldY: number) => string;
 
@@ -140,7 +166,8 @@ export class TokenRenderer {
     this.viewId = viewId || `tokenrenderer-${Date.now()}-${Math.random()}`;
     this.statblockDialogService = new StatblockDialogService(obsApp);
     this.assetService = AssetService.getInstance(obsApp);
-    this.assetService.initialize().catch(err => {
+    // Tokens drawn before the index is loaded read their collection's rules as unknown
+    this.assetService.initialize().then(() => this.refreshCollectionRules(), (err: unknown) => {
       console.error('[TokenRenderer] Failed to initialize AssetService:', err);
     });
     this.tokenStatblockLinkService = TokenStatblockLinkService.getInstance(obsApp);
@@ -186,7 +213,12 @@ export class TokenRenderer {
     this.interactionController.setHandlePositionUpdater(() => 
       this.uiManager.updateHandlePositions()
     );
-    this.interactionController.setTokensHeldCallback((tokenIds) => this.uiManager.setTokensHeld(tokenIds));
+    this.interactionController.setTokensHeldCallback((tokenIds) => {
+      this.uiManager.setTokensHeld(tokenIds);
+      this.heldTokenIds = new Set(tokenIds);
+      // A token released out of the players' sight now follows it.
+      this.refreshPlayerSight();
+    });
     this.interactionController.setSelectionUpdateCallback(() => {
       if (typeof this.selectionOverlayUpdater === 'function') {
         this.selectionOverlayUpdater();
@@ -203,6 +235,9 @@ export class TokenRenderer {
     };
     this.interactionController.conditionDefsProvider = conditionDefsProvider;
     this.uiManager.conditionDefsProvider = conditionDefsProvider;
+    this.resourceDefsProvider = (): readonly ResourceDefinition[] => mapResources(this.assetService, this.store.getState().mapPath);
+    this.interactionController.resourceDefsProvider = this.resourceDefsProvider;
+    this.uiManager.resourceDefsProvider = this.resourceDefsProvider;
 
     // Initialize sync service
     this.syncService = new SyncService(this.store, this.gridSystem, this.eventBus);
@@ -232,6 +267,7 @@ export class TokenRenderer {
     this.tokenContainer.interactiveChildren = true;
     this.tokenContainer.zIndex = 0;
     this.viewport.addChild(this.tokenContainer);
+    this.viewport.addChild(this.playerSight.outlineLayer);
 
     this.dragRuler = new DragRuler(
       new DragRulerView(this.viewport, this.tokenContainer),
@@ -327,6 +363,7 @@ export class TokenRenderer {
       this.evictUnusedArt();
       runInBackground(this.syncTokens(currentTokens, {}), 'Token sync after map change');
       this.onWhenAllTokensLoaded(() => this.updateAllTokenSizes());
+      this.fillMissingResources();
     };
     
     this.eventBus.on('map-loaded', handleMapLoaded);
@@ -413,7 +450,7 @@ export class TokenRenderer {
     // Condition badges follow edits to the map's collection conditions
     const handleCollectionSettingsChange = this.obsApp.workspace.on('atlas-vtt:collection-settings-changed', (collectionId) => {
       const mapPath = this.store.getState().mapPath;
-      if (mapPath && this.assetService.getCollectionForMap(mapPath) === collectionId) this.uiManager.refreshConditions();
+      if (mapPath && this.assetService.getCollectionForMap(mapPath) === collectionId) this.refreshCollectionRules();
     });
 
     // Tokens show the new content of an edited image file, e.g. a re-cropped token
@@ -427,7 +464,8 @@ export class TokenRenderer {
       if (!metadata?.frontmatter) return;
       
       // Check if it's a character/statblock file (has HP or is marked as a character)
-      const isCharacter = metadata.frontmatter.hp !== undefined || 
+      const isCharacter = metadata.frontmatter.hp !== undefined ||
+                         metadata.frontmatter.statblock !== undefined ||
                          metadata.frontmatter.isCharacter === true ||
                          metadata.frontmatter.type === 'character';
       
@@ -472,22 +510,12 @@ export class TokenRenderer {
         for (const [tokenId, token] of Object.entries(tokens)) {
           if (token.kind !== 'character' || token.statblockPath !== statblockPath) continue;
 
-          // Refresh statblock-derived data but keep live values such as current HP and stress
+          // Refresh statblock-derived data but keep live values such as the current HP
           const updates: TokenUpdates = { name: vitals.name || token.name };
 
-          if (vitals.hp && !token.maxHpOverridden) {
-            const currentHp = typeof token.hp === 'object' ? token.hp.current : undefined;
-            updates.hp = {
-              current: currentHp ?? vitals.hp.current ?? vitals.hp.max ?? 0,
-              max: vitals.hp.max || vitals.hp.current || 0
-            };
-          }
-
-          if (vitals.maxStress !== undefined && !token.maxStressOverridden) {
-            updates.maxStress = vitals.maxStress;
-            if (token.stress === undefined) {
-              updates.stress = 0;
-            }
+          const resources = syncedResources(token, metadata.frontmatter, this.resourceDefsProvider());
+          if (JSON.stringify(resources) !== JSON.stringify(token.resources ?? {})) {
+            updates.resources = resources;
           }
 
           if (vitals.difficulty !== undefined) {
@@ -608,16 +636,9 @@ export class TokenRenderer {
   }
 
   private updateTokenRing(tokenId: string, tokenGroup: TokenGroupContainer, size: number, ringColor?: string): void {
-    const tokenSettings = this.store.getState().tokenSettings || {
-      showNameplates: false,
-      showHPBars: true,
-      showStressBars: false,
-      tokenRingSize: 1
-    };
-
     const current = this.store.getState().objects.tokens[tokenId];
     if (current) tokenGroup.tokenData = current;
-    const sizeWithMultiplier = size * tokenSettings.tokenRingSize;
+    const sizeWithMultiplier = size * (this.store.getState().tokenSettings?.tokenRingSize ?? 1);
     const resolvedRingColor = ringColor || '#ffffff';
 
     // Route all ring redraws through SpriteFactory to keep visuals consistent
@@ -680,23 +701,36 @@ export class TokenRenderer {
     return this.isLocalPlayerMode || isPlayerView || !isGMView;
   }
 
+  /** Whether the canvas leaves `token` out: a hidden one in the players' perspective, and one the players' sight leaves out. */
+  private hidesToken(token: TokenEntity, perception = this.playerSight.perception()): boolean {
+    return ((token.isHidden ?? false) && this.isInPlayerMode()) || this.playerSight.hides(token.id, perception);
+  }
+
+  /** A token the canvas no longer shows cannot stay selected: its handles would float over nothing. */
+  private deselect(tokenId: string): void {
+    const { selectedIds, setSelection } = this.store.getState();
+    if (selectedIds.includes(tokenId)) setSelection(selectedIds.filter((id) => id !== tokenId));
+  }
+
   private applyTokenVisibilityPolicy(
     token: TokenEntity,
     tokenGroup: Container,
-    prevToken?: TokenEntity
+    prevToken?: TokenEntity,
+    perception = this.playerSight.perception(),
   ): void {
     const isHidden = token.isHidden ?? false;
 
-    if (isHidden && this.isInPlayerMode()) {
+    if (this.hidesToken(token, perception)) {
       tokenGroup.visible = false;
       tokenGroup.alpha = 1.0;
       this.uiManager.setTokenUIVisibility(token.id, false);
+      this.deselect(token.id);
       return;
     }
 
     tokenGroup.visible = true;
     this.uiManager.setTokenUIVisibility(token.id, true);
-    tokenGroup.alpha = isHidden ? 0.5 : 1.0;
+    tokenGroup.alpha = isHidden ? HIDDEN_TOKEN_ALPHA : 1.0;
 
     this.hiddenTokenIcon.update(tokenGroup, isHidden);
 
@@ -707,9 +741,10 @@ export class TokenRenderer {
 
   /** Greys out a token at 0 HP and marks it with a skull; killing and healing a loaded token animate. */
   private applyDownedState(token: TokenEntity, tokenGroup: TokenGroupContainer, prevToken?: TokenEntity): void {
-    const downed = isTokenDowned(token);
+    const definitions = this.resourceDefsProvider();
+    const downed = isTokenDowned(token, definitions);
     const canvas = this.pixiApp?.canvas;
-    const animate = prevToken !== undefined && isTokenDowned(prevToken) !== downed && !!canvas && !prefersReducedMotion(canvas);
+    const animate = prevToken !== undefined && isTokenDowned(prevToken, definitions) !== downed && !!canvas && !prefersReducedMotion(canvas);
     this.downedTokenOverlay.update(tokenGroup, downed, animate);
   }
 
@@ -720,12 +755,40 @@ export class TokenRenderer {
    */
   private refreshTokenVisibility(): void {
     const tokens = this.store.getState().objects.tokens;
+    const perception = this.playerSight.perception();
     for (const [id, tokenGroup] of Object.entries(this.tokenSprites)) {
       const token = tokens[id];
       if (token && tokenGroup) {
-        this.applyTokenVisibilityPolicy(token, tokenGroup);
+        this.applyTokenVisibilityPolicy(token, tokenGroup, undefined, perception);
       }
     }
+  }
+
+  /** How the players perceive each token while this canvas shows their view of a lit scene (`PlayerSightTokens.setProvider`). */
+  public setPlayerSightProvider(provider: () => TokenPerception | undefined): void {
+    this.playerSight.setProvider(provider);
+  }
+
+  /** The tokens the canvas shows: those a selection may take. */
+  public visibleTokenIds(): string[] {
+    return Object.entries(this.tokenSprites).filter(([, tokenGroup]) => tokenGroup?.visible).map(([id]) => id);
+  }
+
+  /** The players' sight changed, or whether the canvas shows it: tokens entering or leaving it show or hide. */
+  public refreshPlayerSight(): void {
+    const tokens = this.store.getState().objects.tokens;
+    const perception = this.playerSight.perception();
+    for (const [id, tokenGroup] of Object.entries(this.tokenSprites)) {
+      const token = tokens[id];
+      if (!token || !tokenGroup || tokenGroup.visible !== this.hidesToken(token, perception)) continue;
+      this.applyTokenVisibilityPolicy(token, tokenGroup, token, perception);
+    }
+    this.playerSight.syncOutlines(perception);
+  }
+
+  /** The layer of the sensed tokens' outlines, for the list of what the players' view shows. */
+  public getSensedOutlineLayer(): HideableLayer {
+    return this.playerSight.outlineLayer;
   }
 
   private syncTokens = async (
@@ -919,7 +982,7 @@ export class TokenRenderer {
                   ? this.obsApp.metadataCache.getFileCache(statblockFile)?.frontmatter
                   : undefined;
                 if (frontmatter) {
-                  character = { ...character, ...buildStatblockLinkUpdates(frontmatter, token.name) };
+                  character = { ...character, ...buildStatblockLinkUpdates(frontmatter, token.name, this.resourceDefsProvider(), token.resources) };
                 }
               } catch (error) {
                 console.error(`[TokenRenderer] Failed to load statblock data for token ${token.id}:`, error);
@@ -1083,13 +1146,11 @@ export class TokenRenderer {
     if ((token.conditions ?? []).join() !== (prevToken.conditions ?? []).join()) return true;
     if (token.conditionValues !== prevToken.conditionValues) return true;
 
-    // Character data: name, HP and stress (compared by value) and statblock link
+    // Character data: name, resources (compared by value) and statblock link
     const character = token.kind === 'character' ? token : undefined;
     const prevCharacter = prevToken.kind === 'character' ? prevToken : undefined;
     if (character?.name !== prevCharacter?.name) return true;
-    if (JSON.stringify(character?.hp) !== JSON.stringify(prevCharacter?.hp)) return true;
-    if (JSON.stringify(character?.stress) !== JSON.stringify(prevCharacter?.stress)) return true;
-    if (character?.maxStress !== prevCharacter?.maxStress) return true;
+    if (token.resources !== prevToken.resources && JSON.stringify(token.resources) !== JSON.stringify(prevToken.resources)) return true;
     if (character?.statblockPath !== prevCharacter?.statblockPath) return true;
 
     // Texture source changes
@@ -1166,6 +1227,7 @@ export class TokenRenderer {
     // Unsubscribe from store
     this._unsubscribeFromStore?.();
     this._unsubscribeFromViewport?.();
+    this.stopMenuPress?.();
     
     // Clean up sync service
     this.syncService.destroyAll();
@@ -1200,6 +1262,7 @@ export class TokenRenderer {
     // Destroy interaction controller
     this.interactionController.destroyAll();
     this.dragRuler.destroy();
+    this.playerSight.destroy();
     
     // Clean up theme observer
     if (this.themeObserver) {
@@ -1264,6 +1327,28 @@ export class TokenRenderer {
     }
   }
 
+  /** Redraws what tokens show of their collection's rules (conditions, resources) and starts the resources they lack. */
+  private refreshCollectionRules(): void {
+    if (this.isDestroyed) return;
+    this.uiManager.refreshConditions();
+    this.uiManager.refreshResources();
+    this.fillMissingResources();
+  }
+
+  /** Linked tokens start the collection's resources they do not hold yet, e.g. one defined after they were placed. */
+  private fillMissingResources(): void {
+    if (this.store.getState().isPlayerView) return;
+    runInBackground(fillMissingResources(
+      {
+        tokens: () => this.store.getState().objects.tokens,
+        // Not an edit of the game master's: it must not become an undo step.
+        apply: (entries) => runUntracked(this.store, () => this.store.getState().updateTokens(entries)),
+      },
+      this.resourceDefsProvider(),
+      (path) => this.tokenStatblockLinkService.readStatblockRecord(path),
+    ), 'Starting missing token resources');
+  }
+
   /**
    * Updates multiple tokens with data from a statblock
    */
@@ -1283,9 +1368,9 @@ export class TokenRenderer {
         const currentName = token.kind === 'character' ? token.name : undefined;
         this.store.getState().updateToken(tokenId, {
           statblockPath,
-          maxHpOverridden: undefined,
-          maxStressOverridden: undefined,
-          ...buildStatblockLinkUpdates(frontmatter, currentName)
+          // Maxima set by hand belonged to the previous statblock.
+          overriddenMax: undefined,
+          ...buildStatblockLinkUpdates(frontmatter, currentName, this.resourceDefsProvider(), token.resources)
         });
       }
     } catch (error) {
@@ -1367,13 +1452,20 @@ export class TokenRenderer {
     }
   }
 
-  /** Player overlays prepared for the next mirrored frame; `isSeen` hides tokens out of the players' sight. */
-  public getPlayerViewLayers(settings: AtlasSettings['localPlayerView'], isSeen?: (tokenId: string) => boolean): LayerVisibility[] {
-    return [
-      ...hiddenTokenLayers(this.store.getState().objects.tokens, this.tokenSprites, isSeen),
-      ...this.uiManager.getPlayerViewLayers(settings, isSeen),
-      ...this.dragRuler.getPlayerViewLayers(),
-    ];
+  /** Player overlays prepared for the next mirrored frame; `perception` leaves out what the players do not see and outlines what they only sense. */
+  public getPlayerViewLayers(settings: AtlasSettings['localPlayerView'], perception?: TokenPerception): LayerVisibility[] {
+    const isSeen = seenTokens(perception);
+    return [...this.playerSight.frameLayers(perception), ...this.uiManager.getPlayerViewLayers(settings, isSeen), ...this.dragRuler.getPlayerViewLayers(isSeen)];
+  }
+
+  /** How far a selected token's resources reach beyond its bottom, right and top edges, in world units. */
+  public barsReach(tokenId: string): number {
+    return this.uiManager.barsReach(tokenId);
+  }
+
+  /** Tokens and their bars and nameplates as the GM view shows them, whatever view the canvas is in: for a picture of the scene. */
+  public getGmViewLayers(): LayerVisibility[] {
+    return [...gmTokenLayers(this.store.getState().objects.tokens, this.tokenSprites), ...this.uiManager.getGmViewLayers(), ...this.playerSight.gmLayers()];
   }
 
   /** Get all token sprites for external systems like SelectionManager. */
@@ -1427,8 +1519,17 @@ export class TokenRenderer {
   }
 
   /** Door badges: the GM opens and closes doors with a click from any tool but the wall tool, which edits them. */
+  /** Placed lights: their markers and range rings take the pointer with any tool, after pins and door badges. */
+  public setLightHandlers(handlers: LightPointerHandlers): void {
+    this.lightHandlers = handlers;
+  }
+
   public setDoorClickHandler(handler: (worldX: number, worldY: number) => boolean): void {
     this.doorClickHandler = handler;
+  }
+
+  public setDoorMenuHandlers(handlers: DoorMenuHandlers): void {
+    this.doorMenuHandlers = handlers;
   }
 
   public setWallPointerDownHandler(fn: (worldX: number, worldY: number, e: FederatedPointerEvent) => boolean): void {
@@ -1443,7 +1544,7 @@ export class TokenRenderer {
     this.wallPointerUpHandler = fn;
   }
 
-  public setWallDoubleClickHandler(fn: (worldX: number, worldY: number) => void): void {
+  public setWallDoubleClickHandler(fn: () => void): void {
     this.wallDoubleClickHandler = fn;
   }
 
@@ -1453,6 +1554,21 @@ export class TokenRenderer {
 
   public setWallCursorProvider(fn: (worldX: number, worldY: number) => string): void {
     this.wallCursorProvider = fn;
+  }
+
+  /** The view's lighting is gone: nothing takes the pointer for lights, walls and doors any more, and no sight hides tokens. */
+  public clearLighting(): void {
+    delete this.lightHandlers;
+    delete this.doorClickHandler;
+    delete this.doorMenuHandlers;
+    delete this.wallPointerDownHandler;
+    delete this.wallPointerMoveHandler;
+    delete this.wallPointerUpHandler;
+    delete this.wallDoubleClickHandler;
+    delete this.wallContextMenuHandler;
+    delete this.wallCursorProvider;
+    this.playerSight.setProvider(() => undefined);
+    this.refreshPlayerSight();
   }
 
   public setAudioPointerDownHandler(fn: (worldX: number, worldY: number, e: FederatedPointerEvent) => boolean): void {
@@ -1465,10 +1581,13 @@ export class TokenRenderer {
 
   // ─── Viewport-level event dispatch ──────────────────────────────────
 
-  /** Circle-collision hit test against all visible token sprites. */
+  /** Circle-collision hit test against all visible token sprites; in a pile the token drawn on top wins. */
   public hitTestTokens(worldX: number, worldY: number): string | null {
     const tokens = this.store.getState().objects.tokens;
     const gridSize = this.gridSystem.getOptions().size;
+    const drawOrder = this.tokenContainer.children;
+    let topId: string | null = null;
+    let topIndex = -1;
 
     for (const [id, tokenGroup] of Object.entries(this.tokenSprites)) {
       if (!tokenGroup || !tokenGroup.visible) continue;
@@ -1482,11 +1601,15 @@ export class TokenRenderer {
 
       const dx = worldX - tokenGroup.position.x;
       const dy = worldY - tokenGroup.position.y;
-      if (dx * dx + dy * dy <= radius * radius) {
-        return id;
+      if (dx * dx + dy * dy > radius * radius) continue;
+
+      const index = drawOrder.indexOf(tokenGroup);
+      if (index >= topIndex) {
+        topId = id;
+        topIndex = index;
       }
     }
-    return null;
+    return topId;
   }
 
   /** Returns true if (worldX, worldY) is within the bounding box of the given selected tokens. */
@@ -1570,6 +1693,11 @@ export class TokenRenderer {
     }
   }
 
+  private openMenuOnRelease(down: FederatedPointerEvent, open: (up: FederatedPointerEvent) => void): void {
+    this.stopMenuPress?.();
+    this.stopMenuPress = watchClick(this.viewport, down, open);
+  }
+
   private onViewportPointerDown = (e: FederatedPointerEvent): void => {
     // PIXI v8 reuses FederatedPointerEvent objects — clear custom flags from previous events
     resetHandled(e);
@@ -1579,10 +1707,17 @@ export class TokenRenderer {
 
     // ── Right-click: check walls, fog, and pins ─────────────────────────
     if (e.button === 2) {
-      // Wall context menu (when wall tool is active)
+      // Wall context menu (when wall tool is active). It also opens beside the walls, for the selection,
+      // so like the area menus below it waits for a release in place and a right-drag pans.
       if (activeTool === 'wall' && this.wallContextMenuHandler) {
-        this.wallContextMenuHandler(worldPos.x, worldPos.y, e.clientX, e.clientY);
-        markHandled(e);
+        this.openMenuOnRelease(e, (up) => this.wallContextMenuHandler?.(worldPos.x, worldPos.y, up.clientX, up.clientY));
+        return;
+      }
+
+      // A door's badge lies above pins and tokens: its menu opens on a release in place.
+      const doorId = this.doorMenuHandlers?.hitTest(worldPos.x, worldPos.y);
+      if (doorId) {
+        this.openMenuOnRelease(e, (up) => this.doorMenuHandlers?.open(doorId, up.clientX, up.clientY));
         return;
       }
 
@@ -1595,23 +1730,22 @@ export class TokenRenderer {
           return;
         }
       }
-      if (
-        (activeTool === 'select' || activeTool === 'move') &&
-        this.hexLinkHandlers &&
-        !this.hitTestTokens(worldPos.x, worldPos.y)
-      ) {
+      // A token takes the right-click from a linked hex or fog beneath it, as it takes the left-click
+      const tokenTools = activeTool === 'select' || activeTool === 'move';
+      const onToken = tokenTools && this.hitTestTokens(worldPos.x, worldPos.y) !== null;
+      // Linked hexes and fog cover whole stretches of the map: their press stays unhandled, so a
+      // right-drag still pans, and the menu opens when the button is released in place
+      if (tokenTools && !onToken && this.hexLinkHandlers) {
         const hexLinkId = this.hexLinkHandlers.hitTest(worldPos.x, worldPos.y);
         if (hexLinkId) {
-          markHandled(e);
-          this.hexLinkHandlers.openContextMenu(hexLinkId, e);
+          this.openMenuOnRelease(e, (up) => this.hexLinkHandlers?.openContextMenu(hexLinkId, up));
           return;
         }
       }
-      if (this.fogHitTestProvider && this.fogClickHandler) {
+      if (!onToken && this.fogHitTestProvider && this.fogClickHandler) {
         const fogId = this.fogHitTestProvider(worldPos.x, worldPos.y);
         if (fogId) {
-          markHandled(e);
-          this.fogClickHandler(fogId, e);
+          this.openMenuOnRelease(e, (up) => this.fogClickHandler?.(fogId, up));
           return;
         }
       }
@@ -1629,6 +1763,12 @@ export class TokenRenderer {
 
     // ── Door badges: open and close doors from any tool ────────────────
     if (e.button === 0 && activeTool !== 'wall' && this.doorClickHandler?.(worldPos.x, worldPos.y)) {
+      markHandled(e);
+      return;
+    }
+
+    // ── Light markers and range rings: a light's popover and its drags, from any tool ──
+    if (e.button === 0 && this.lightHandlers?.pointerDown(worldPos.x, worldPos.y, e)) {
       markHandled(e);
       return;
     }
@@ -1735,6 +1875,7 @@ export class TokenRenderer {
       this.lastHoveredPinId = null;
     }
     this.hexLinkHandlers?.hover(null);
+    this.lightHandlers?.leave();
     this.interactionController.handleViewportTokenHover(null);
     this.uiManager.setHoverState(null);
   };
@@ -1777,12 +1918,23 @@ export class TokenRenderer {
       this.lastHoveredPinId = null;
     }
 
+    // Light markers and range rings: hover and cursor from any tool
+    const lightCursor = this.lightHandlers?.cursorAt(worldPos.x, worldPos.y) ?? null;
+
     // Wall tool: pointer move for vertex dragging, freeform drawing, and hover cursors
     if (activeTool === 'wall' && this.wallPointerMoveHandler) {
       this.wallPointerMoveHandler(worldPos.x, worldPos.y, e);
 
       const wallCursor = this.wallCursorProvider?.(worldPos.x, worldPos.y) ?? 'crosshair';
-      this.applyCursor(wallCursor);
+      this.applyCursor(lightCursor ?? wallCursor);
+      return;
+    }
+
+    if (lightCursor) {
+      this.interactionController.handleViewportTokenHover(null);
+      this.uiManager.setHoverState(null);
+      this.hexLinkHandlers?.hover(null, e);
+      this.applyCursor(lightCursor);
       return;
     }
 
@@ -1826,11 +1978,8 @@ export class TokenRenderer {
     }
   };
 
-  private onCanvasDoubleClick = (ev: MouseEvent): void => {
-    if (this.store.getState().activeTool === 'wall') {
-      const worldPos = this.viewport.toWorld(ev.offsetX, ev.offsetY);
-      this.wallDoubleClickHandler?.(worldPos.x, worldPos.y);
-    }
+  private onCanvasDoubleClick = (): void => {
+    if (this.store.getState().activeTool === 'wall') this.wallDoubleClickHandler?.();
   };
 
   /**

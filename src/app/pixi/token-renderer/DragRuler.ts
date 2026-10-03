@@ -53,10 +53,11 @@ export class DragRuler {
     this.view.clear();
   }
 
-  /** Players never see the ruler of a token hidden from them. */
-  getPlayerViewLayers(): LayerVisibility[] {
+  /** Players never see the ruler of a token hidden from them, or of one they do not see (`isSeen`, with dynamic lighting). */
+  getPlayerViewLayers(isSeen: (tokenId: string) => boolean = () => true): LayerVisibility[] {
     const token = this.tokenId ? this.store.getState().objects.tokens[this.tokenId] : undefined;
-    return token?.isHidden ? this.view.layers.map(layer => ({ layer, visible: false })) : [];
+    const shown = !token || (!token.isHidden && isSeen(token.id));
+    return shown ? [] : this.view.layers.map(layer => ({ layer, visible: false }));
   }
 
   destroy(): void {

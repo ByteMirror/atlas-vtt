@@ -1,28 +1,34 @@
 import type { StoreApi } from 'zustand';
 import type { ViewAtlasState } from '../../../storeFactory';
 import type { ContextMenuEntry } from './AtlasContextMenu';
-import { LIGHT_PRESETS, LIGHT_PRESET_IDS, presetOf, type LightPresetId } from '../../../lighting/lightPresets';
-import { carriedLight } from '../../../lighting/tokenLighting';
+import { emissionOf, lightPresetOf } from '../../../lighting/lightPresetChoice';
+import type { LightPresetDefinition } from '../../../types/lightPresetTypes';
 
 /**
  * Vision and carried light for `tokenId` and the rest of `targets` (the selection it belongs to),
- * each change one undo step. The clicked token decides what the menu shows as current.
+ * each change one undo step. The clicked token decides what the menu shows as current; the
+ * lights offered are `presets`, those of the map's collection.
  */
-export function tokenLightingEntries(store: StoreApi<ViewAtlasState>, tokenId: string, targets: readonly string[]): ContextMenuEntry[] {
+export function tokenLightingEntries(
+  store: StoreApi<ViewAtlasState>,
+  tokenId: string,
+  targets: readonly string[],
+  presets: readonly LightPresetDefinition[],
+): ContextMenuEntry[] {
   const tokens = store.getState().objects.tokens;
   const token = tokens[tokenId];
   if (!token) return [];
   const sees = token.vision?.enabled ?? false;
-  const current = token.light ? presetOf(token.light) ?? 'custom' : null;
+  // A custom light ticks nothing: it is neither none nor one of the presets.
+  const current = token.light ? lightPresetOf(token.light, presets) ?? 'custom' : null;
 
-  const carry = (preset: LightPresetId | null): void => {
-    store.getState().updateTokens(targets.map((id) => ({ id, changes: { light: carriedLight(preset) } })));
-  };
-  const option = (label: string, preset: LightPresetId | null): ContextMenuEntry => ({
+  const option = (label: string, preset: LightPresetDefinition | null): ContextMenuEntry => ({
     type: 'item',
     label,
     checked: current === preset,
-    onClick: () => carry(preset),
+    onClick: () => store.getState().updateTokens(
+      targets.map((id) => ({ id, changes: { light: preset ? emissionOf(preset) : undefined } })),
+    ),
   });
 
   return [
@@ -39,7 +45,7 @@ export function tokenLightingEntries(store: StoreApi<ViewAtlasState>, tokenId: s
       type: 'submenu',
       label: 'Carry light',
       icon: 'flame',
-      children: [option('None', null), ...LIGHT_PRESET_IDS.map((id) => option(LIGHT_PRESETS[id].label, id))],
+      children: [option('None', null), ...presets.map((preset) => option(preset.name, preset))],
     },
   ];
 }

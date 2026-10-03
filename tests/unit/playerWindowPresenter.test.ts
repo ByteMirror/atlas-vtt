@@ -57,17 +57,19 @@ import { restorePlayerWindow, presentTabInPlayerWindow } from '../../src/app/ser
 
 import { AtlasView } from '../../src/app/atlas-view';
 
+interface SceneState { isMapLoading: boolean; mapLoaded: boolean; mapPath: string | null }
+
 interface FakeView {
   view: any;
   canvas: HTMLCanvasElement;
   withPlayerSafeFrame: ReturnType<typeof vi.fn>;
-  atlasStore: ReturnType<typeof createStore<{ isMapLoading: boolean }>>;
+  atlasStore: ReturnType<typeof createStore<SceneState>>;
 }
 
 /** A view whose map canvas belongs to `app`, by default one that renders on every tick. */
 function createFakeView(app?: Application): FakeView {
   const tabMetaStore = createTabMetaStore();
-  const atlasStore = createStore<{ isMapLoading: boolean }>(() => ({ isMapLoading: false }));
+  const atlasStore = createStore<SceneState>(() => ({ isMapLoading: false, mapLoaded: true, mapPath: null }));
   const canvas = document.createElement('canvas');
   const withPlayerSafeFrame = vi.fn((capture: () => void) => capture());
   const renderer = { getAppInstance: () => (app ? Object.assign(app, { canvas }) : { canvas }), withPlayerSafeFrame };
@@ -89,6 +91,14 @@ const frameSourceFor = (canvas: HTMLCanvasElement): PlayerFrameSource =>
   expect.objectContaining({ canvas, withPlayerSafeFrame: expect.any(Function) });
 
 const flush = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 10));
+
+/**
+ * The frame is released two animation frames after the load finishes, and Windows' 15.6ms timer
+ * granularity makes that longer than any fixed wait worth writing. Waits for the call itself.
+ * A check that nothing was released keeps `flush`: a poll cannot show that nothing happened.
+ */
+const waitForRelease = (canvas: HTMLCanvasElement): Promise<void> =>
+  vi.waitFor(() => expect(serviceMock.releaseHeldFrame).toHaveBeenCalledWith(frameSourceFor(canvas)));
 
 describe('PlayerWindowPresenter', () => {
   beforeEach(() => {
@@ -151,30 +161,82 @@ describe('PlayerWindowPresenter', () => {
     scheduler.destroy();
   });
 
-  test('holds the frame while the DM browses another tab and releases it on return', async () => {
-    const { view, canvas, atlasStore } = createFakeView();
+  test('does not present a tab whose scene failed to load', async () => {
+    const { view, atlasStore } = createFakeView();
     const tavern = view.tabMetaStore.getState().addTab('maps/tavern.md', 'Tavern');
-    const dungeon = view.tabMetaStore.getState().addTab('maps/dungeon.md', 'Dungeon');
-    serviceMock.isWindowOpen.mockReturnValue(true);
+    atlasStore.setState({ mapLoaded: false });
 
     await presentTabInPlayerWindow({} as any, view, tavern);
-    expect(serviceMock.presentCanvas).toHaveBeenCalledWith(frameSourceFor(canvas), tavern);
 
-    view.tabMetaStore.getState().setActiveTab(dungeon);
-    expect(serviceMock.holdCurrentFrame).toHaveBeenCalledTimes(1);
+    expect(serviceMock.openPlayerWindow).not.toHaveBeenCalled();
+    expect(serviceMock.presentCanvas).not.toHaveBeenCalled();
+    expect(playerWindowStore.getState().presentedTabId).toBeNull();
+  });
 
-    atlasStore.setState({ isMapLoading: true });
-    view.tabMetaStore.getState().setActiveTab(tavern);
-    await flush();
-    expect(serviceMock.releaseHeldFrame).not.toHaveBeenCalled();
+  describe('returning to the presented tab', () => {
+    const TAVERN = 'maps/tavern.md';
+    const DUNGEON = 'maps/dungeon.md';
 
-    // The frame is released two animation frames after the load finishes, and
-    // Windows' 15.6ms timer granularity makes that longer than any fixed wait
-    // worth writing. Wait for the call itself instead.
-    atlasStore.setState({ isMapLoading: false });
-    await vi.waitFor(() =>
-      expect(serviceMock.releaseHeldFrame).toHaveBeenCalledWith(frameSourceFor(canvas)),
-    );
+    /** Tavern is presented, then the DM opens Dungeon: players keep Tavern's last frame. */
+    async function presentTavernThenBrowse(): Promise<FakeView & { tavern: string; dungeon: string }> {
+      const fake = createFakeView();
+      const tavern = fake.view.tabMetaStore.getState().addTab(TAVERN, 'Tavern');
+      const dungeon = fake.view.tabMetaStore.getState().addTab(DUNGEON, 'Dungeon');
+      fake.atlasStore.setState({ mapPath: TAVERN });
+      serviceMock.isWindowOpen.mockReturnValue(true);
+      await presentTabInPlayerWindow({} as any, fake.view, tavern);
+      expect(serviceMock.presentCanvas).toHaveBeenCalledWith(frameSourceFor(fake.canvas), tavern);
+
+      fake.view.tabMetaStore.getState().setActiveTab(dungeon);
+      expect(serviceMock.holdCurrentFrame).toHaveBeenCalledTimes(1);
+      fake.atlasStore.setState({ mapLoaded: false, isMapLoading: true, mapPath: DUNGEON });
+      fake.atlasStore.setState({ mapLoaded: true, isMapLoading: false });
+      return { ...fake, tavern, dungeon };
+    }
+
+    test.each([
+      ['the scene is marked loaded', [{ isMapLoading: false }, { mapLoaded: true }]],
+      ['the loading overlay goes', [{ mapLoaded: true }, { isMapLoading: false }]],
+    ])('shows players the live scene again once it has loaded, whether last %s', async (_label, lastSteps) => {
+      const { view, canvas, atlasStore, tavern } = await presentTavernThenBrowse();
+
+      // The tab becomes active before the load starts, so the store still shows Dungeon as loaded
+      view.tabMetaStore.getState().setActiveTab(tavern);
+      await flush();
+      expect(serviceMock.releaseHeldFrame).not.toHaveBeenCalled();
+
+      atlasStore.setState({ mapLoaded: false, isMapLoading: true, mapPath: TAVERN });
+      await flush();
+      expect(serviceMock.releaseHeldFrame).not.toHaveBeenCalled();
+      for (const step of lastSteps) atlasStore.setState(step);
+      await waitForRelease(canvas);
+
+      expect(serviceMock.releaseHeldFrame).toHaveBeenCalledTimes(1);
+    });
+
+    test('keeps the held frame when the scene fails to load, and releases it when a retry succeeds', async () => {
+      const { view, canvas, atlasStore, tavern } = await presentTavernThenBrowse();
+      view.tabMetaStore.getState().setActiveTab(tavern);
+      atlasStore.setState({ mapLoaded: false, isMapLoading: true, mapPath: TAVERN });
+      atlasStore.setState({ isMapLoading: false, mapPath: null });
+      await flush();
+      expect(serviceMock.releaseHeldFrame).not.toHaveBeenCalled();
+
+      // The retry loads the same tab again: no tab change tells the presenter about it
+      atlasStore.setState({ isMapLoading: true, mapPath: TAVERN });
+      atlasStore.setState({ isMapLoading: false, mapLoaded: true });
+      await waitForRelease(canvas);
+    });
+
+    test('keeps the held frame while another scene loads into the view', async () => {
+      const { atlasStore } = await presentTavernThenBrowse();
+
+      atlasStore.setState({ mapLoaded: false, isMapLoading: true, mapPath: 'maps/crypt.md' });
+      atlasStore.setState({ mapLoaded: true, isMapLoading: false });
+      await flush();
+
+      expect(serviceMock.releaseHeldFrame).not.toHaveBeenCalled();
+    });
   });
 
   test('restores the presented scene into the existing popout and returns the DM to their tab', async () => {

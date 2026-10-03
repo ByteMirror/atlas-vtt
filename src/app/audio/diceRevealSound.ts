@@ -1,4 +1,5 @@
 import type { DiceCrit } from '../tools/diceCrit';
+import { dataUrlToArrayBuffer } from './dataUrl';
 import throw1 from '../sounds/dice-sfx/dice-throw-1.mp3?inline';
 import throw2 from '../sounds/dice-sfx/dice-throw-2.mp3?inline';
 import throw3 from '../sounds/dice-sfx/dice-throw-3.mp3?inline';
@@ -55,11 +56,6 @@ let context: AudioContext | null = null;
 let master: GainNode | null = null;
 let decoding: Promise<void> | null = null;
 const buffers = new Map<string, AudioBuffer>();
-
-function dataUrlToArrayBuffer(dataUrl: string): ArrayBuffer {
-  const binary = atob(dataUrl.slice(dataUrl.indexOf(',') + 1));
-  return Uint8Array.from(binary, (char) => char.charCodeAt(0)).buffer;
-}
 
 function decodeSamples(ctx: AudioContext): Promise<void> {
   decoding ??= Promise.all(

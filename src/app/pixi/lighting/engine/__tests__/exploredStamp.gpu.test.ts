@@ -155,6 +155,47 @@ describe('explored stamps', () => {
     for (let x = 0; x < SIZE; x++) for (let y = 0; y < SIZE; y++) if (x + y >= 42) expect(at(x, y)).toBe(0);
   });
 
+  it('leaves out the areas of magical darkness, but for what a sense that sees in it perceives there', async () => {
+    const darkness = rect(20, 20, 44, 44);
+    const everything: ExploredShapes = { polygons: [EVERYTHING], clip: null };
+    const none = await stamped([{ ...everything, except: { areas: [darkness], unless: [] } }]);
+    expect(none(10, 10)).toBe(255);
+    expect(none(32, 32)).toBe(0);
+    expect(none(50, 32)).toBe(255);
+    // A sense that sees in magical darkness perceives the left half of it.
+    const pierced = await stamped([{ ...everything, except: { areas: [darkness], unless: [rect(0, 0, 32, SIZE)] } }]);
+    expect(pierced(26, 32)).toBe(255);
+    expect(pierced(38, 32)).toBe(0);
+    // With a clip: what the stamp records stays inside it, and the darkness the sense sees is recorded as far as the sense reaches.
+    const clipped = await stamped([{ polygons: [EVERYTHING], clip: [rect(0, 0, 28, SIZE)], except: { areas: [darkness], unless: [rect(0, 0, 32, SIZE)] } }]);
+    expect(clipped(24, 32)).toBe(255);
+    expect(clipped(30, 32)).toBe(255);
+    expect(clipped(38, 32)).toBe(0);
+    expect(clipped(50, 10)).toBe(0);
+  });
+
+  it('records the ambient light of a scene with zones where it is lit: the scene without its dark zones, a lit zone in a dark one, and the lights and darkvision in either', async () => {
+    const sight = rect(0, 0, 60, SIZE);
+    const cave = rect(20, 0, 40, 30);
+    // A lit scene with a dark zone: the sight is recorded but for the cave; a torch in the cave is.
+    const day = await stamped([{ polygons: [rect(24, 4, 32, 12)], clip: [sight], ambient: { base: true, zones: [{ polygon: cave, lit: false }] } }]);
+    expect(day(10, 10)).toBe(255);
+    expect(day(36, 20)).toBe(0);
+    expect(day(28, 8)).toBe(255);
+    expect(day(50, 40)).toBe(255);
+    // Nothing past the sight, lit or not.
+    expect(day(62, 10)).toBe(0);
+    // A dark scene with a lit zone, and a second, dark one over a part of it.
+    const night = await stamped([{ polygons: [], clip: [sight], ambient: { base: false, zones: [{ polygon: cave, lit: true }, { polygon: rect(20, 0, 40, 10), lit: false }] } }]);
+    expect(night(10, 10)).toBe(0);
+    expect(night(30, 20)).toBe(255);
+    expect(night(30, 5)).toBe(0);
+    // Magical darkness takes its area out of a lit zone too.
+    const dark = await stamped([{ polygons: [], clip: [sight], ambient: { base: false, zones: [{ polygon: cave, lit: true }] }, except: { areas: [rect(20, 14, 40, 22)], unless: [] } }]);
+    expect(dark(30, 18)).toBe(0);
+    expect(dark(30, 26)).toBe(255);
+  });
+
   it('keeps the larger of overlapping stamps texel by texel', async () => {
     const first = await stamped([stamp(TRIANGLE)]);
     const second = await stamped([stamp(OTHER)]);

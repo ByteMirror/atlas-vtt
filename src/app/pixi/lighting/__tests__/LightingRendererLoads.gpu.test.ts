@@ -61,7 +61,7 @@ describe('LightingRenderer explored memory loads', () => {
 
   it('holds saves from the moment the context is lost, until the reload is done', async () => {
     harness = await createHarness({ patch: tokens(visionToken(100)) });
-    const { renderer, state, change, setExploredMask, settle } = harness;
+    const { renderer, state, change, setExploredMask, redAt, settle, tick } = harness;
     await settle();
 
     await resetContext(renderer, () => {
@@ -69,8 +69,13 @@ describe('LightingRenderer explored memory loads', () => {
       vi.advanceTimersByTime(SAVE_DELAY);
       expect(setExploredMask).not.toHaveBeenCalled();
     });
-    await settle();
     vi.advanceTimersByTime(SAVE_DELAY);
     expect(setExploredMask).not.toHaveBeenCalled();
+    // The next frame starts the reload; what the moved token sees is recorded, but not saved before the mask is back.
+    tick();
+    vi.advanceTimersByTime(SAVE_DELAY);
+    expect(setExploredMask).not.toHaveBeenCalled();
+    await settle();
+    expect(redAt(100, 100)).toBe(255);
   });
 });

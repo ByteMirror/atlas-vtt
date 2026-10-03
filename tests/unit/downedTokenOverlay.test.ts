@@ -5,6 +5,7 @@ import { DownedTokenOverlay } from '../../src/app/pixi/token-renderer/DownedToke
 import { isTokenDowned } from '../../src/app/pixi/token-renderer/isTokenDowned';
 import type { TokenGroupContainer } from '../../src/app/pixi/token-renderer/types';
 import type { Character, TokenEntity } from '../../src/app/types';
+import { HP } from '../mocks/resourceFixtures';
 
 // jsdom has no 2D canvas, so the emblem cannot be drawn here.
 vi.mock('../../src/app/pixi/token-renderer/downedEmblemTexture', () => ({
@@ -23,22 +24,22 @@ const marker = (group: Container): Container | null => group.getChildByLabel('do
 const greyFilters = (group: Container, label: string): unknown[] =>
   [group.getChildByLabel(label)?.filters ?? []].flat().filter((filter) => filter instanceof ColorMatrixFilter);
 
-function character(hp: Character['hp']): TokenEntity {
-  return { id: 't1', kind: 'character', x: 0, y: 0, imagePath: 'a.png', hp } as TokenEntity;
+function character(hp: { current: number; max: number }): TokenEntity {
+  return { id: 't1', kind: 'character', x: 0, y: 0, imagePath: 'a.png', resources: { hp } } satisfies Character;
 }
 
 describe('isTokenDowned', () => {
-  it('is true only for creatures at 0 hit points or below', () => {
-    expect(isTokenDowned(character({ current: 0, max: 12 }))).toBe(true);
-    expect(isTokenDowned(character({ current: -3, max: 12 }))).toBe(true);
-    expect(isTokenDowned(character(0))).toBe(true);
-    expect(isTokenDowned(character({ current: 1, max: 12 }))).toBe(false);
-    expect(isTokenDowned(character(5))).toBe(false);
+  it('is true only for creatures whose defeating resource is spent', () => {
+    expect(isTokenDowned(character({ current: 0, max: 12 }), [HP])).toBe(true);
+    expect(isTokenDowned(character({ current: -3, max: 12 }), [HP])).toBe(true);
+    expect(isTokenDowned(character({ current: 1, max: 12 }), [HP])).toBe(false);
+    // Spent, but nothing says it defeats the token
+    expect(isTokenDowned(character({ current: 0, max: 12 }), [{ ...HP, defeatedWhenSpent: false }])).toBe(false);
   });
 
   it('ignores tokens without hit points', () => {
-    expect(isTokenDowned(character({ current: 0, max: 0 }))).toBe(false);
-    expect(isTokenDowned({ id: 'm', kind: 'token', x: 0, y: 0, imagePath: 'a.png' } as TokenEntity)).toBe(false);
+    expect(isTokenDowned(character({ current: 0, max: 0 }), [HP])).toBe(false);
+    expect(isTokenDowned({ id: 'm', kind: 'token', x: 0, y: 0, imagePath: 'a.png' } as TokenEntity, [HP])).toBe(false);
   });
 });
 

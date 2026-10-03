@@ -8,17 +8,18 @@ import { TokenUIRenderer } from '../../src/app/pixi/TokenUIRenderer';
 import { TokenStatblockLinkService } from '../../src/app/services/TokenStatblockLinkService';
 import { isNameplateVisible } from '../../src/app/pixi/token-renderer/nameplateVisibility';
 import { buildStatblockLinkUpdates, STATBLOCK_UNLINK_UPDATES } from '../../src/app/pixi/token-renderer/statblockFrontmatter';
+import { HP_RESOURCE } from '../../src/app/resources/resourceDefinitions';
 
 afterEach(() => vi.restoreAllMocks());
 
-const hero = { kind: 'character', x: 0, y: 0, imagePath: 'hero.png', name: 'Hero', hp: { current: 8, max: 10 } } as const;
+const hero = { kind: 'character', x: 0, y: 0, imagePath: 'hero.png', name: 'Hero', resources: { hp: { current: 8, max: 10 } } } as const;
 
 function createMapStore(path: string) {
   const { app, files } = createInMemoryApp();
   app.vault.getFileByPath = app.vault.getAbstractFileByPath;
   app.vault.getFolderByPath = app.vault.getAbstractFileByPath;
   const store = createViewAtlasStore(app, 'nameplate-test');
-  store.getState().setMapPath(path);
+  store.setState({ mapPath: path, mapLoaded: true });
   return { app, files, store };
 }
 
@@ -36,7 +37,7 @@ describe('per-token nameplate preference', () => {
     const hidden = store.getState().addToken({ ...hero, showNameplate: false } as never);
 
     store.getState().updateToken(shown, STATBLOCK_UNLINK_UPDATES);
-    store.getState().updateToken(hidden, buildStatblockLinkUpdates({ name: 'Goblin', hp: 7 }, 'Hero'));
+    store.getState().updateToken(hidden, buildStatblockLinkUpdates({ name: 'Goblin', hp: 7 }, 'Hero', [HP_RESOURCE], undefined));
 
     expect(store.getState().objects.tokens[shown]?.showNameplate).toBe(true);
     expect(store.getState().objects.tokens[hidden]?.showNameplate).toBe(false);

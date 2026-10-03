@@ -1,5 +1,5 @@
 import { COLLECTIONS_DIR, ATLAS_VTT_DIR, GLOBAL_ASSETS_DIR } from '../AssetService';
-import { REUSABLE_FILE_ROLES, type BundleFile } from './bundleFormat';
+import { REUSABLE_FILE_ROLES, type BundleFile, type BundleFileRole } from './bundleFormat';
 import { sceneThumbnailPath } from './collectionReferences';
 import { baseName, parentPath } from '../../utils/pathUtils';
 import { snapshotFolderFor } from '../../snapshots/snapshotPaths';
@@ -26,10 +26,49 @@ export function remapPaths<T>(value: T, map: PathMap): T {
   return mapStrings(value, (text) => map.get(text) ?? remapLink(text, map));
 }
 
-/** Where a file without a place of its own in the target collection is copied to, by what it is. */
+/**
+ * The folders that went along with the files of `map`, read off the files' own
+ * moves: `Items/Armor` → `…/loot/Items/Armor` when `Items/Armor/Shield.md` went
+ * there, and likewise each folder above it that kept its name, up to the first
+ * one that did not (a collection's folder under its new name). A folder whose
+ * files went to different places is left out.
+ */
+export function movedFolders(map: PathMap): Map<string, string> {
+  const folders = new Map<string, string | null>();
+  const note = (source: string, target: string): void => {
+    folders.set(source, folders.has(source) && folders.get(source) !== target ? null : target);
+  };
+  for (const [source, target] of map) {
+    let from = parentPath(source);
+    let to = parentPath(target);
+    let followed = false;
+    while (from && to && from !== to && baseName(from) === baseName(to)) {
+      note(from, to);
+      from = parentPath(from);
+      to = parentPath(to);
+      followed = true;
+    }
+    if (followed && from && to && from !== to) note(from, to);
+  }
+  return new Map([...folders].flatMap(([source, target]) => (target === null ? [] : [[source, target]])));
+}
+
+const LOOT_ROLES: ReadonlySet<BundleFileRole> = new Set<BundleFileRole>(['loot-base', 'loot-item']);
+const NOTE_ROLES: ReadonlySet<BundleFileRole> = new Set<BundleFileRole>(['linked-note', 'note-attachment']);
+
+/**
+ * Where a file without a place of its own in the target collection is copied
+ * to, by what it is. Loot and notes keep the folders they had, below `loot`
+ * and `notes`: a base finds its items by their folders, and Obsidian finds a
+ * link's target by its name or by the end of its path, so the links between
+ * notes resolve without rewriting any note.
+ */
 function copyFolder(file: BundleFile, collectionId: string): string {
-  const folder = REUSABLE_FILE_ROLES.has(file.role) ? 'statblocks' : file.vaultPath.endsWith('.md') ? 'notes' : 'files';
-  return `${COLLECTIONS_DIR}/${collectionId}/${folder}`;
+  const collection = `${COLLECTIONS_DIR}/${collectionId}`;
+  if (REUSABLE_FILE_ROLES.has(file.role)) return `${collection}/statblocks`;
+  if (LOOT_ROLES.has(file.role)) return [collection, 'loot', parentPath(file.vaultPath)].filter(Boolean).join('/');
+  if (NOTE_ROLES.has(file.role)) return [collection, 'notes', parentPath(file.vaultPath)].filter(Boolean).join('/');
+  return `${collection}/files`;
 }
 
 /** The file's own name in `folder`, or `goblin-2.png`, `goblin-3.png`, … while that name is taken. */

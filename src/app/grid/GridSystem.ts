@@ -65,7 +65,8 @@ export class GridSystem {
   private readonly onViewportZoomed = (): void => {
     this.hexNumberLabels?.setView(this.numberView());
   };
-  private bgSprite: Sprite;
+  /** The map the grid overlays; null between two maps, when there is nothing to draw on. */
+  private bgSprite: Sprite | null;
   private viewport: Viewport;
   private app: Application;
   private options: GridOptions;
@@ -138,16 +139,17 @@ export class GridSystem {
   private createExplicitGrid(): void {
     const { size, offsetX = 0, offsetY = 0, color, alpha, lineWidth, lineType = 'solid', isAligning } = this.options;
 
-    if (!this.bgSprite) {
-      console.error('[GridSystem] Background sprite is null, cannot create grid');
+    const bgSprite = this.background;
+    if (!bgSprite) {
+      // `updateBackgroundSprite` builds the grid once the next map is there
       this._isCreating = false;
       return;
     }
 
-    if (!this.bgSprite.width || !this.bgSprite.height || this.bgSprite.width <= 0 || this.bgSprite.height <= 0) {
+    if (!bgSprite.width || !bgSprite.height || bgSprite.width <= 0 || bgSprite.height <= 0) {
       console.warn('[GridSystem] Background sprite not ready yet (invalid dimensions), scheduling retry', {
-        width: this.bgSprite.width,
-        height: this.bgSprite.height
+        width: bgSprite.width,
+        height: bgSprite.height
       });
       this._isCreating = false;
       window.setTimeout(() => {
@@ -158,8 +160,8 @@ export class GridSystem {
       return;
     }
 
-    const bgX = this.bgSprite.x || 0;
-    const bgY = this.bgSprite.y || 0;
+    const bgX = bgSprite.x || 0;
+    const bgY = bgSprite.y || 0;
     const hexLayout = this.getHexLayout();
 
     // One cell of padding around the map; the mask clips the overflow.
@@ -167,12 +169,12 @@ export class GridSystem {
     const bounds: GridBounds = {
       minX: bgX - padding,
       minY: bgY - padding,
-      maxX: bgX + this.bgSprite.width + padding,
-      maxY: bgY + this.bgSprite.height + padding,
+      maxX: bgX + bgSprite.width + padding,
+      maxY: bgY + bgSprite.height + padding,
     };
 
     // `??`, not `||`: black is 0x000000 and must not fall through to the automatic colour
-    const gridColor = isAligning ? ALIGNMENT_GRID_COLOR : (color ?? this.getAutoColor());
+    const gridColor = isAligning ? ALIGNMENT_GRID_COLOR : (color ?? this.getAutoColor(bgSprite));
     const gridAlpha = isAligning ? Math.min(alpha! * 1.5, 1) : alpha!;
 
     const lines = new Graphics();
@@ -202,7 +204,7 @@ export class GridSystem {
 
     const hexNumbers = this.options.hexNumbers;
     if (hexLayout && hexNumbers) {
-      const mapRect = { x: bgX, y: bgY, width: this.bgSprite.width, height: this.bgSprite.height };
+      const mapRect = { x: bgX, y: bgY, width: bgSprite.width, height: bgSprite.height };
       this.hexNumberLabels = new HexNumberLabels(
         numberHexes(hexLayout, mapRect, hexNumbers.format),
         hexLayout,
@@ -215,7 +217,7 @@ export class GridSystem {
 
     // Clip the grid to the map bounds
     const maskGraphics = new Graphics();
-    maskGraphics.rect(0, 0, this.bgSprite.width, this.bgSprite.height);
+    maskGraphics.rect(0, 0, bgSprite.width, bgSprite.height);
     maskGraphics.fill(0xffffff);
     maskGraphics.position.set(bgX, bgY);
     grid.mask = maskGraphics;
@@ -234,7 +236,7 @@ export class GridSystem {
     const existingGrids = this.viewport.children.filter(child => gridSpriteIds.has(child));
     existingGrids.forEach(g => this.viewport.removeChild(g));
 
-    const bgIndex = this.viewport.children.indexOf(this.bgSprite);
+    const bgIndex = this.viewport.children.indexOf(bgSprite);
     this.viewport.addChildAt(grid, bgIndex >= 0 ? bgIndex + 1 : 0);
     gridSpriteIds.set(grid, Date.now());
 
@@ -251,9 +253,14 @@ export class GridSystem {
   }
 
   /** Black or white, whichever contrasts with the map image; cached because it reads the texture's pixels. */
-  private getAutoColor(): number {
-    this.autoColor ??= contrastColorForSprite(this.bgSprite);
+  private getAutoColor(bgSprite: Sprite): number {
+    this.autoColor ??= contrastColorForSprite(bgSprite);
     return this.autoColor ?? 0xffffff;
+  }
+
+  /** The map to draw on; a sprite that was destroyed elsewhere counts as none. */
+  private get background(): Sprite | null {
+    return this.bgSprite && !this.bgSprite.destroyed ? this.bgSprite : null;
   }
 
   /** Clean up grid-only resources */
@@ -396,6 +403,13 @@ export class GridSystem {
     window.setTimeout(checkSpriteReady, 50);
   }
 
+  /** The map was taken away: the grid goes with it until `updateBackgroundSprite` brings the next one. */
+  public clearBackgroundSprite(): void {
+    this.bgSprite = null;
+    this.autoColor = null;
+    this.destroyGridResources();
+  }
+
   /** Provide a render layer so the grid sprite can automatically be attached */
   public setRenderLayer(layer: RenderLayer | null): void {
     this.layer = layer;
@@ -486,11 +500,12 @@ export class GridSystem {
   /** Set map scale for grid alignment mode */
   public setMapScale(scale: number): void {
     this.options.mapScale = scale;
-    if (this.bgSprite) {
-      if (this.bgSprite.texture && this.bgSprite.texture.source) {
-        this.bgSprite.texture.source.scaleMode = 'linear';
+    const bgSprite = this.background;
+    if (bgSprite) {
+      if (bgSprite.texture && bgSprite.texture.source) {
+        bgSprite.texture.source.scaleMode = 'linear';
       }
-      this.bgSprite.scale.set(scale);
+      bgSprite.scale.set(scale);
       this.createGrid();
     }
   }

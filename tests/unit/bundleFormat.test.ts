@@ -52,6 +52,7 @@ describe('manifest checks', () => {
     ['a statblock artwork key other than image fields', { files: [{ vaultPath: 'Bestiary/G.md', role: 'statblock-note', statblockImage: { key: 'x|y', path: 'a.png' } }] }],
     ['an unknown file role', { files: [{ vaultPath: 'atlas-vtt/a', role: 'script' }] }],
     ['a malformed checksum', { files: [{ vaultPath: 'atlas-vtt/a', role: 'asset-file', sha256: 'abc' }] }],
+    ['linking notes that are not paths', { files: [{ vaultPath: 'Lore/Sun.md', role: 'linked-note', linkedFrom: [7] }] }],
     ['an unknown release kind', { release: { kind: 'patch' } }],
   ])('rejects %s', (_name, overrides) => {
     expect(manifestProblem(manifest(overrides))).toMatch(/damaged/);

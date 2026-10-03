@@ -12,7 +12,7 @@ afterEach(() => { PlayerWindowService.getInstance()?.destroy(false); vi.useRealT
 
 function createView(): LocalPlayerView {
   const leaf = new WorkspaceLeaf();
-  leaf.app = { workspace: { requestSaveLayout: vi.fn(), onLayoutReady: vi.fn() } };
+  leaf.app = { workspace: { requestSaveLayout: vi.fn(), onLayoutReady: vi.fn(), on: vi.fn(() => ({})), offref: vi.fn() } };
   return new LocalPlayerView(leaf);
 }
 

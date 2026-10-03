@@ -45,6 +45,8 @@ export interface FuzzRoom {
   walls: WallSegment[];
   roomWallCount: number;
   outline: P[];
+  /** The point the outline is star-shaped around: every corner is in its plain view. */
+  centre: P;
   /** One light, two in every third room. */
   lights: P[];
   handDrawn: boolean;
@@ -104,7 +106,7 @@ export function fuzzRooms(seed: number, count: number, gap: boolean | number = f
         if (direction) walls[i] = { ...w, direction };
       }
     }
-    rooms.push({ walls, roomWallCount: k, outline, lights, handDrawn });
+    rooms.push({ walls, roomWallCount: k, outline, centre: c, lights, handDrawn });
   }
   return rooms;
 }

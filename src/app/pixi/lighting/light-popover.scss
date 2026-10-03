@@ -1,0 +1,261 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// Light popover — the settings of a placed light, beside its marker on the map (GM only)
+// ═══════════════════════════════════════════════════════════════════════════
+// Imported inside the `.atlas-vtt-plugin` scope of styles/main.scss.
+
+@use '../../../../styles/tokens' as *;
+@use '../../../../styles/mixins' as *;
+
+// One spacing throughout: the popover's padding, and the gap between everything in it.
+$gap: $spacing-s;
+
+.atlas-light-popover {
+  @include atlas-elevated-surface;
+  @include atlas-panel-radius($radius-2xl);
+  // Placed with `translate` by useLightPopoverPosition, which also sets the light as its
+  // transform origin, so the scale it opens and closes with grows out of the marker.
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 45;
+  @include atlas-flex-col($gap);
+  width: 272px;
+  padding: $gap;
+  pointer-events: auto;
+  color: var(--text-normal);
+  font-size: $font-ui-small;
+  // It takes the focus itself when it opens; the ring belongs to its controls.
+  outline: none;
+
+  // Clicks pass through it while it leaves, as they would once it is gone.
+  &[inert] {
+    pointer-events: none;
+  }
+}
+
+// Eight swatches share the row, whatever height a button has by default; in the popover and
+// where Edit Token shows the same fields.
+.atlas-light-popover,
+.atlas-edit-token__light {
+  .atlas-swatch {
+    height: auto;
+    min-width: 0;
+  }
+}
+
+.atlas-light-popover__section {
+  @include atlas-flex-col($gap);
+  padding-top: $gap;
+  border-top: $border-width-s solid var(--background-modifier-border);
+}
+
+// ── Kinds ────────────────────────────────────────────────────────────────────
+.atlas-light-popover__kinds {
+  display: flex;
+  gap: $spacing-xs;
+}
+
+// A chip per kind, rounded like every control $gap inside the popover's border. The chosen one
+// is the light's selected marker in small: the theme's badge with the glyph in the light's
+// colour, ringed in the accent like every chosen control.
+// Chips share the row up to a width of their own, from the left: one or two of them do not
+// stretch across a wide column (Edit Token).
+.atlas-light-kind {
+  flex: 1;
+  max-width: $button-height-l * 1.5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: $button-height-l;
+  padding: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  @include atlas-panel-inset-radius($gap);
+  transition: background-color $transition-fast $transition-ease, color $transition-fast $transition-ease,
+    box-shadow $transition-normal $transition-ease, scale $transition-press $transition-ease-out;
+
+  &:hover {
+    background: var(--background-modifier-hover);
+    box-shadow: none;
+    color: var(--text-normal);
+  }
+
+  &:active {
+    scale: 0.96;
+  }
+
+  &[aria-pressed='true'] {
+    background: var(--atlas-light-badge);
+    color: var(--atlas-light-tint);
+    box-shadow: inset 0 0 0 1.5px var(--interactive-accent);
+  }
+
+  @include atlas-focus-ring;
+}
+
+.atlas-light-glyph {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+// The last chip of a collection with more lights than fit: it opens the others as a menu. It
+// shows three dots until one of them is the light's, then that light's glyph.
+.atlas-light-kind--more {
+  gap: 2px;
+}
+
+.atlas-light-kind__dots {
+  width: $icon-m;
+  height: $icon-m;
+}
+
+.atlas-light-kind__chevron {
+  width: $icon-xs;
+  height: $icon-xs;
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+
+// The menu's rows start with the lights' glyphs, at the size of a menu icon.
+.atlas-light-more .atlas-light-glyph {
+  width: $icon-s;
+  height: $icon-s;
+  color: var(--text-muted);
+}
+
+// ── Colour ───────────────────────────────────────────────────────────────────
+// The last cell of the swatch grid opens the system picker: a spectrum until a colour of the
+// user's own is chosen, then that colour.
+.atlas-swatch--custom {
+  position: relative;
+  overflow: hidden;
+  background: conic-gradient(from 90deg, #ff6b5e, #ffd28a, #7ee0a8, #8fb8ff, #c79bff, #ff6b5e);
+
+  // The picker's input covers the cell unseen: it takes the click, the focus and the tooltip.
+  input {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    border: none;
+    opacity: 0;
+    cursor: pointer;
+  }
+
+  &:focus-within {
+    outline: 2px solid var(--interactive-accent);
+    outline-offset: 2px;
+  }
+}
+
+// ── Ranges, intensity, softness, flicker ─────────────────────────────────────
+// The slider's thumbs stand above its track: a full gap keeps them off the fields.
+.atlas-light-popover__field {
+  @include atlas-flex-col($gap);
+}
+
+.atlas-light-popover__ranges {
+  @include atlas-flex-row($gap);
+}
+
+.atlas-light-popover__range {
+  @include atlas-flex-row($spacing-xs);
+  flex: 1;
+  min-width: 0;
+
+  > span {
+    @include atlas-field-label;
+  }
+
+  > input {
+    @include atlas-text-input;
+    flex: 1;
+    min-width: 0;
+    width: 0;
+    height: $input-height-s;
+    padding: 0 $spacing-xs;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+.atlas-light-popover__unit {
+  color: var(--text-muted);
+}
+
+// The beam and, for a placed light, the way it faces: one row, shared in halves.
+.atlas-light-popover__beam {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: $gap;
+}
+
+// A light zone's popover: its name is text, not a number, and the four times of day share the
+// popover's width by what each needs, with the track and its options concentric in the popover.
+.atlas-light-popover--zone {
+  .atlas-light-popover__range > input {
+    padding: 0 $spacing-s;
+    text-align: start;
+  }
+
+  .atlas-segmented {
+    @include atlas-panel-inset-radius($gap);
+  }
+
+  .atlas-segmented__option {
+    @include atlas-panel-inset-radius($gap + $spacing-xs);
+  }
+}
+
+// A light zone's ambient light: the slider with the colour of the light beside it.
+.atlas-light-popover__ambient {
+  @include atlas-flex-row($gap);
+  align-items: flex-end;
+
+  .atlas-light-panel__slider {
+    flex: 1;
+    min-width: 0;
+  }
+}
+
+.atlas-light-popover__flicker {
+  @include atlas-flex-row($gap);
+
+  > span {
+    @include atlas-field-label;
+    flex: 1;
+  }
+
+  .atlas-select {
+    width: 128px;
+  }
+}
+
+// ── Actions ──────────────────────────────────────────────────────────────────
+// Quiet until hovered; they sit in the popover's bottom corners.
+.atlas-light-popover__actions {
+  flex-direction: row;
+  justify-content: space-between;
+
+  .btn {
+    @include atlas-panel-inset-radius($gap);
+    padding: 0 $spacing-m;
+    color: var(--text-muted);
+
+    &:hover {
+      color: var(--text-normal);
+    }
+  }
+
+  .atlas-light-popover__delete:hover {
+    background: color-mix(in oklch, var(--background-modifier-error) 15%, transparent);
+    color: var(--text-error);
+  }
+}

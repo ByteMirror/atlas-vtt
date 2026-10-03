@@ -13,10 +13,17 @@ afterEach(() => { act(() => PlayerWindowService.getInstance()?.destroy()); vi.re
 
 function setup(): { settings: SettingsService; store: StoreApi<ViewAtlasState>; doc: Document } {
   vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
-  const { app } = createInMemoryApp();
+  const { app } = createInMemoryApp({ files: { 'tokens/wolf.webp': '' } });
   const settings = new SettingsService(app);
+  // The result cards; the 3D panel has its own case below.
+  settings.setDiceDisplay('card');
   const store = createStore(() => ({
-    objects: { tokens: { goblin: { id: 'goblin', kind: 'token', x: 0, y: 0, imagePath: '', isHidden: true } } },
+    objects: {
+      tokens: {
+        goblin: { id: 'goblin', kind: 'token', x: 0, y: 0, imagePath: '', isHidden: true },
+        wolf: { id: 'wolf', kind: 'token', x: 0, y: 0, imagePath: 'tokens/wolf.webp', ringColor: '#aa0000' },
+      },
+    },
   })) as unknown as StoreApi<ViewAtlasState>;
   const service = new PlayerWindowService(app, store, settings);
   const doc = attachFakePlayerWindow(service, { canvas: createEl('canvas'), withPlayerSafeFrame: vi.fn(), store });
@@ -59,5 +66,31 @@ describe('player window dice rolls', () => {
     store.setState({ objects: { tokens: { goblin: { ...store.getState().objects.tokens.goblin!, isHidden: false } } } } as Partial<ViewAtlasState>);
     roll(source);
     expect(doc.body.textContent).toContain('Goblin Boss');
+  });
+
+  // The portrait is the token as it stands on the presented map: its artwork
+  // and its ring, as in the DM's window, not whatever its statblock pictures.
+  it('shows a token with the artwork and ring it has on the map', () => {
+    const { settings, doc } = setup();
+    act(() => settings.setLocalPlayerViewSettings({ showDiceRolls: true }));
+
+    roll({ type: 'statblock', tokenId: 'wolf', tokenName: 'Wolf', abilityName: 'Bite' });
+    const portrait = doc.querySelector('.atlas-token-portrait');
+    expect(portrait?.querySelector('img')?.getAttribute('src')).toContain('tokens/wolf.webp');
+    expect(portrait?.querySelector<HTMLElement>('.atlas-token-ring')?.style.getPropertyValue('--atlas-token-ring-color')).toBe('#aa0000');
+  });
+
+  it('throws 3D dice without naming a hidden token', () => {
+    const { settings, doc } = setup();
+    act(() => {
+      settings.setDiceDisplay('full');
+      settings.setLocalPlayerViewSettings({ showDiceRolls: true });
+    });
+
+    roll({ type: 'statblock', tokenId: 'goblin', tokenName: 'Goblin Boss', abilityName: 'Scimitar' });
+    const panel = doc.querySelector('.atlas-dice-roll');
+    expect(panel?.textContent).toContain('Scimitar');
+    expect(panel?.textContent).not.toContain('Goblin Boss');
+    expect(doc.querySelector('.atlas-dice-toast')).toBeNull();
   });
 });

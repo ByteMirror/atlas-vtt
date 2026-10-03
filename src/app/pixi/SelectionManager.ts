@@ -11,6 +11,8 @@ import type { LayerVisibility } from './playerSafeFrame';
 export class SelectionManager {
   private viewport: Viewport;
   private tokenRendererProvider: () => ({ [id: string]: Container });
+  /** How far a selected token's bars reach below it, in world units; the frame encloses them. */
+  public barsReachProvider: (tokenId: string) => number = () => 0;
   private fogSpriteProvider: () => ({ [id: string]: Container });
   private hitTestTokensProvider?: (worldX: number, worldY: number) => string | null;
 
@@ -230,9 +232,9 @@ export class SelectionManager {
         this.lassoPoints.push({ x: firstPoint.x, y: firstPoint.y });
       }
 
-      // Check which tokens are inside the lasso polygon
+      // Check which tokens are inside the lasso polygon; a token the canvas hides (session view) is not selectable
       for (const [id, tokenGroup] of Object.entries(tokenSprites)) {
-        if (tokenGroup) {
+        if (tokenGroup?.visible) {
           const tokenX = tokenGroup.position.x;
           const tokenY = tokenGroup.position.y;
 
@@ -269,7 +271,7 @@ export class SelectionManager {
       );
 
       for (const [id, tokenGroup] of Object.entries(tokenSprites)) {
-        if (tokenGroup) {
+        if (tokenGroup?.visible) {
           const halfSize = 35;
           const tokenBounds = {
             x: tokenGroup.position.x - halfSize,
@@ -376,7 +378,7 @@ export class SelectionManager {
 
     for (const id of selectedIds) {
       const tokenGroup = tokenSprites[id];
-      if (tokenGroup) {
+      if (tokenGroup?.visible) {
         // Get the actual sprite from the tokenGroup (should be the first child)
         const sprite = tokenGroup.children[0];
         if (sprite && sprite.width && sprite.height) {
@@ -387,31 +389,8 @@ export class SelectionManager {
           const spriteLeft = tokenGroup.position.x - halfWidth;
           const spriteTop = tokenGroup.position.y - halfHeight;
           const spriteRight = tokenGroup.position.x + halfWidth;
-          let spriteBottom = tokenGroup.position.y + halfHeight;
-          
-          // Check if token has HP/stress bars and extend selection to include them
-          const token = this.store.getState().objects.tokens[id];
-          if (token) {
-            const hasStatblock = token.kind === 'character' && !!token.statblockPath;
-            const hasHP = token.kind === 'character' && hasStatblock && token.hp !== undefined;
-            const hasStress = token.kind === 'character' && hasStatblock && token.stress !== undefined;
-            
-            if (hasHP || hasStress) {
-              // UI elements are positioned below token
-              const tokenSize = sprite.width; // Assuming square tokens
-              const uiOffset = tokenSize / 2 + 4; // From TokenUIRenderer
-              const barHeight = 6;
-              const gap = 2;
-              
-              let barsHeight = 0;
-              if (hasHP) barsHeight += barHeight;
-              if (hasHP && hasStress) barsHeight += gap;
-              if (hasStress) barsHeight += barHeight;
-              
-              // Extend bottom to include bars
-              spriteBottom = tokenGroup.position.y + uiOffset + barsHeight;
-            }
-          }
+          // The selection reaches around the bars below the token; its wheels stand outside
+          const spriteBottom = tokenGroup.position.y + halfHeight + this.barsReachProvider(id);
           
           minX = Math.min(minX, spriteLeft);
           minY = Math.min(minY, spriteTop);

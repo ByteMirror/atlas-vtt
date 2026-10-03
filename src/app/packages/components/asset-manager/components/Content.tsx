@@ -3,6 +3,7 @@ import { AnimatePresence, MotionConfig, motion } from 'framer-motion';
 import { tabs, type Tab } from '../types';
 import { TooltipProvider } from '../../primitives/tooltip';
 import { ContentPane, type ContentPaneProps } from './ContentPane';
+import { ContentSkeleton } from './ContentSkeleton';
 import { paneVariants } from './gridMotion';
 
 export interface ContentProps extends ContentPaneProps {
@@ -12,6 +13,12 @@ export interface ContentProps extends ContentPaneProps {
   folderDepth: number;
   /** Search, tag filter and sort of the list; changing it swaps the pane in place. */
   refinement: string;
+  /** The assets of this place are not loaded yet: the pane shows no content of its own. */
+  loading: boolean;
+  /** Whether a pane that is loading shows its skeleton already (`useLoadingReveal`); until then it is empty. */
+  showSkeleton: boolean;
+  /** How many assets the tab holds, for the skeleton; null while that is not known. */
+  assetCount: number | null;
 }
 
 interface PanePlace {
@@ -43,9 +50,13 @@ function usePanePlace(tab: Tab, folderId: string | null, depth: number, refineme
 /**
  * The asset manager's content area. Opening a folder, going back or switching
  * tabs slides the new pane in from the side it lies on; searching, filtering by
- * tags or sorting crossfades to a new pane of the same folder.
+ * tags or sorting crossfades to a new pane of the same folder. A place that is
+ * loading shows its skeleton in the pane its content will have, so the cards
+ * take the place of their placeholders without a transition between them.
  */
-export function Content({ selectedFolderId, folderDepth, refinement, ...paneProps }: ContentProps): React.JSX.Element {
+export function Content({
+  selectedFolderId, folderDepth, refinement, loading, showSkeleton, assetCount, ...paneProps
+}: ContentProps): React.JSX.Element {
   const place = usePanePlace(paneProps.activeTab, selectedFolderId, folderDepth, refinement);
 
   return (
@@ -61,7 +72,10 @@ export function Content({ selectedFolderId, folderDepth, refinement, ...paneProp
             animate="center"
             exit="exit"
           >
-            <ContentPane {...paneProps} />
+            {!loading && <ContentPane {...paneProps} />}
+            {loading && showSkeleton && (
+              <ContentSkeleton tab={paneProps.activeTab} folderCount={paneProps.folders.length} assetCount={assetCount} />
+            )}
           </motion.div>
         </AnimatePresence>
       </TooltipProvider>

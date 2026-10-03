@@ -220,6 +220,27 @@ describe('export options', () => {
     expect((screen.getByRole('button', { name: 'Export v3' }) as HTMLButtonElement).disabled).toBe(true);
   });
 
+  it('lists notes below the note that led to them, says why each is there, and leaves out what only an unticked note links to', () => {
+    const files: ExportPreview['files'] = [
+      { vaultPath: 'Lore/Cave.md', role: 'linked-note', owners: ['cave'] },
+      { vaultPath: 'Lore/Pelor.md', role: 'linked-note', linkedFrom: ['Lore/Cave.md'] },
+      { vaultPath: 'Lore/Sun.md', role: 'linked-note', linkedFrom: ['Lore/Pelor.md'] },
+      { vaultPath: 'Lore/sun.png', role: 'note-attachment', linkedFrom: ['Lore/Sun.md'] },
+    ];
+    const { container } = render(<ExportCollectionDialog media={media} preview={preview({ files })} onExport={vi.fn(async () => null)} onCancel={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: /Notes/ }));
+    const rows = (): string[] => [...container.querySelectorAll('.atlas-transfer-item')].map((row) => row.textContent ?? '');
+    expect(rows()).toEqual(['CaveOpened in Cave2 linked notes', 'PelorLinked from Cave1 linked note', 'SunLinked from Pelor']);
+    expect(screen.getByText('6 items · 4 files · 0 Bytes')).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Images and PDFs/ }).textContent).toContain('1');
+
+    fireEvent.click(screen.getByRole('checkbox', { name: /^Pelor/ }));
+    expect(screen.getByRole('button', { name: /Notes/ }).textContent).toContain('1 of 3');
+    expect(rows()[2]).toBe('SunOnly used by content you left out');
+    expect(screen.getByRole('button', { name: /Images and PDFs/ }).textContent).toContain('0 of 1');
+    expect(screen.getByText('3 items · 1 file · 0 Bytes')).toBeTruthy();
+  });
+
   it('names nothing through aria-label or title, and shows no banner without a cover', () => {
     const { container } = render(<ExportCollectionDialog media={media} preview={preview({ publisher: 'other' })} onExport={vi.fn(async () => null)} onCancel={vi.fn()} />);
     expect(container.querySelectorAll('[aria-label], [title]')).toHaveLength(0);
@@ -250,7 +271,7 @@ describe('export options', () => {
     expect(hero()).toBeUndefined();
   });
 
-  it('shows tokens as cards the way they spawn, and opens a token\'s statblock after resting on it', async () => {
+  it('shows tokens as cards the way they spawn, and opens a token\'s statblock while Ctrl/Cmd is held over it, as the asset manager does', async () => {
     vi.useFakeTimers();
     const goblin = { ...token, thumbnailPath: 'atlas-vtt/assets/thumbnails/goblin.webp', showRing: false, statblockPath: 'Bestiary/Goblin.md' } as Asset;
     const orc = { ...token, id: 'orc', name: 'Orc', imagePath: 'atlas-vtt/assets/orc.webp' } as Asset;
@@ -266,12 +287,19 @@ describe('export options', () => {
     expect(cards[0]!.querySelector('.atlas-transfer-token__statblock')).toBeTruthy();
     expect(cards[1]!.querySelector('.atlas-transfer-token__statblock')).toBeNull();
 
-    fireEvent.pointerEnter(cards[0]!);
-    await act(async () => { await vi.advanceTimersByTimeAsync(100); });
-    expect(document.querySelector('.statblock-hover-preview--over-modal')).toBeNull();
-    await act(async () => { await vi.advanceTimersByTimeAsync(400); });
+    const settle = async (): Promise<void> => { await act(async () => { await vi.advanceTimersByTimeAsync(500); }); };
+    fireEvent.mouseMove(cards[0]!);
+    await settle();
+    expect(document.querySelector('.atlas-statblock-preview-window')).toBeNull();
+
+    fireEvent.keyDown(window, { key: 'Control', ctrlKey: true });
+    await settle();
     expect(noteText).toHaveBeenCalledWith('Bestiary/Goblin.md');
-    expect(document.querySelector('.statblock-hover-preview--over-modal')).toBeTruthy();
+    expect(document.querySelector('.atlas-statblock-preview-window--over-modal')).toBeTruthy();
+
+    fireEvent.keyUp(window, { key: 'Control' });
+    await settle();
+    expect(document.querySelector('.atlas-statblock-preview-window')).toBeNull();
 
     fireEvent.click(within(cards[1] as HTMLElement).getByRole('checkbox'));
     expect(cards[1]!.getAttribute('data-state')).toBe('excluded');

@@ -1,7 +1,9 @@
-import { App as ObsidianApp } from 'obsidian';
+import { mapResources } from '../../../../resources/collectionResources';
+import type { ResourceDefinition } from '../../../../resources/resourceTypes';
+import { Notice, App as ObsidianApp } from 'obsidian';
 import type { TokenAsset, AnyAsset, EncounterAsset } from '../types';
 import { loadStatblockOverrides, type StatblockOverrides } from './statblockLoader';
-import type { AssetService } from '../../../../services/AssetService';
+import { AssetService } from '../../../../services/AssetService';
 import {
   FALLBACK_PITCH,
   cellPitch,
@@ -11,9 +13,13 @@ import {
   type FormationSlot,
 } from '../../../../encounters/encounterFormation';
 import type { AtlasView } from '../../../../atlas-view';
-import type { TokenInput, ViewAtlasState } from '../../../../storeFactory';
+import type { TokenInput } from '../../../../storeFactory';
+import { loadAtlasView } from '../../../../plugin/atlasLeaves';
+import { tokenFromFile } from '../../../../resources/resourceFileFormat';
 import { mapVisionDefaults } from '../../../../gameSystems/visionDefaults';
+import { systemPresetsOf } from '../../../../services/mapCollectionRules';
 import type { TokenVision, TokenVisionDefaults } from '../../../../types/lightingTypes';
+import { placementVision } from '../../../../creatures/placementVision';
 
 // ─── Viewport helpers ───────────────────────────────────────────────
 
@@ -35,13 +41,13 @@ interface GridSystemLike {
 
 export interface SpawnContext {
   app: ObsidianApp;
+  /** The view the asset manager belongs to; null for the global asset manager. */
   view: AtlasView | null;
-  addTokens: ViewAtlasState['addTokens'];
-  setSelection: (ids: string[]) => void;
   assetService: AssetService | null;
 }
 
 interface SpawnTarget {
+  view: AtlasView;
   viewport: ViewportLike;
   gridSystem: GridSystemLike | null;
   /** Grid geometry for formation placement; null when the grid is off or unusable. */
@@ -50,15 +56,28 @@ interface SpawnTarget {
   pitch: number;
 }
 
-function getSpawnTarget(view: AtlasView | null): SpawnTarget | null {
-  const serviceManager = view?.serviceManager;
-  const rendererService = serviceManager?.getRendererService();
-  const viewport = rendererService?.getViewport() as ViewportLike | undefined;
-  const gridSystem = (rendererService?.getGridSystem() as GridSystemLike | undefined) ?? null;
-
-  if (!viewport) return null;
+/**
+ * The scene spawned tokens go to: the asset manager's own view or, for the global
+ * asset manager, the open Atlas view, looked up now since the scene may have changed
+ * since the manager opened. Null, after telling the user, while no scene is ready.
+ */
+async function getSpawnTarget(ctx: SpawnContext): Promise<SpawnTarget | null> {
+  const view = ctx.view ?? await loadAtlasView(ctx.app);
+  if (!view) {
+    new Notice('No scene is open. Open a scene to add tokens to it.');
+    return null;
+  }
+  if (view !== ctx.view) void ctx.app.workspace.revealLeaf(view.leaf);
+  const rendererService = view.serviceManager.getRendererService();
+  const viewport = rendererService.getViewport() as ViewportLike | null;
+  const { mapPath, isMapLoading } = view.getStore().getState();
+  if (!viewport || !mapPath || isMapLoading) {
+    new Notice('The scene is still loading. Add the tokens once it is open.');
+    return null;
+  }
+  const gridSystem = rendererService.getGridSystem() as GridSystemLike | null;
   const grid = formationGridFromOptions(gridSystem?.getOptions());
-  return { viewport, gridSystem, grid, pitch: grid ? cellPitch(grid) : FALLBACK_PITCH };
+  return { view, viewport, gridSystem, grid, pitch: grid ? cellPitch(grid) : FALLBACK_PITCH };
 }
 
 function getViewportCenter(viewport: ViewportLike): { x: number; y: number } {
@@ -110,17 +129,13 @@ function encounterSlots(encounter: EncounterAsset): FormationSlot[] | null {
 
 // ─── Build token data ───────────────────────────────────────────────
 
-interface TokenSpawnData extends Omit<StatblockOverrides, 'hp'> {
+interface TokenSpawnData extends StatblockOverrides {
   x: number;
   y: number;
   imagePath: string;
   kind: 'character';
   name: string;
-  hp?: number | { current: number; max: number };
   statblockPath?: string;
-  stress?: number;
-  maxStress?: number;
-  difficulty?: string;
   size?: number;
   showRing?: boolean;
   vision?: TokenVision;
@@ -164,16 +179,19 @@ async function resolveTokenSource(ctx: SpawnContext, ref: TokenSourceRef): Promi
   };
 }
 
-/** What new tokens start with on the map of `ctx`, from its collection. */
-function spawnVisionDefaults(ctx: SpawnContext): TokenVisionDefaults | undefined {
-  return ctx.assetService ? mapVisionDefaults(ctx.assetService, ctx.view?.getStore().getState().mapPath) : undefined;
+/** What new tokens start with in the scene they are spawned into, from its collection. */
+function spawnVisionDefaults(ctx: SpawnContext, target: SpawnTarget): TokenVisionDefaults | undefined {
+  return ctx.assetService
+    ? mapVisionDefaults(ctx.assetService, target.view.getStore().getState().mapPath, systemPresetsOf(ctx.app))
+    : undefined;
 }
 
-/** Builds a token from its asset; `visionDefaults` (the placing collection's) start vision off. */
+/** Builds a token from its asset; `visionDefaults` (the placing collection's) start vision off (`placementVision`). */
 async function buildTokenData(
   app: ObsidianApp,
   pos: { x: number; y: number },
   { imagePath, name, statblockPath, size, showRing }: TokenSource,
+  definitions: readonly ResourceDefinition[],
   visionDefaults: TokenVisionDefaults | undefined,
 ): Promise<TokenSpawnData> {
   const data: TokenSpawnData = {
@@ -189,13 +207,20 @@ async function buildTokenData(
 
   if (statblockPath) {
     data.statblockPath = statblockPath;
-    const overrides = await loadStatblockOverrides(app, statblockPath);
+    const overrides = await loadStatblockOverrides(app, statblockPath, definitions);
     Object.assign(data, overrides);
   }
 
-  if (visionDefaults) data.vision = { enabled: false, ...visionDefaults };
+  const vision = placementVision(visionDefaults, Boolean(statblockPath));
+  if (vision) data.vision = vision;
 
   return data;
+}
+
+/** The resources of the collection the target map belongs to. */
+function targetResources(ctx: SpawnContext, target: SpawnTarget): ResourceDefinition[] {
+  const assets = ctx.assetService ?? AssetService.getInstance(ctx.app);
+  return mapResources(assets, target.view.getStore().getState().mapPath);
 }
 
 function imageExists(app: ObsidianApp, imagePath: string): boolean {
@@ -204,10 +229,11 @@ function imageExists(app: ObsidianApp, imagePath: string): boolean {
   return false;
 }
 
-/** Adds the tokens in one store write (a single undo step) and selects them. */
-function addSpawnedTokens(ctx: SpawnContext, tokens: TokenInput[]): string[] {
-  const ids = ctx.addTokens(tokens);
-  if (ids.length > 0) ctx.setSelection(ids);
+/** Adds the tokens to the target's scene in one store write (a single undo step) and selects them. */
+function addSpawnedTokens(target: SpawnTarget, tokens: TokenInput[]): string[] {
+  const { addTokens, setSelection } = target.view.getStore().getState();
+  const ids = addTokens(tokens);
+  if (ids.length > 0) setSelection(ids);
   return ids;
 }
 
@@ -221,11 +247,8 @@ export async function spawnTokenAsset(
   asset: TokenAsset,
   count: number
 ): Promise<string[]> {
-  const target = getSpawnTarget(ctx.view);
-  if (!target) {
-    console.error('[tokenSpawnService] No renderer or viewport available');
-    return [];
-  }
+  const target = await getSpawnTarget(ctx);
+  if (!target) return [];
   const { viewport, grid, pitch } = target;
   const gridSystem = grid ? target.gridSystem : null;
   const center = getViewportCenter(viewport);
@@ -233,26 +256,23 @@ export async function spawnTokenAsset(
   if (!source) return [];
 
   // The statblock is read once; every copy shares that data at its own position.
-  const template = await buildTokenData(ctx.app, center, source, spawnVisionDefaults(ctx));
+  const template = await buildTokenData(ctx.app, center, source, targetResources(ctx, target), spawnVisionDefaults(ctx, target));
   const tokens = Array.from({ length: count }, (_, i): TokenInput => ({
     ...structuredClone(template),
     ...gridPosition(i, count, center.x, center.y, pitch, gridSystem),
   }));
-  return addSpawnedTokens(ctx, tokens);
+  return addSpawnedTokens(target, tokens);
 }
 
 /**
- * Spawn all tokens from an encounter asset.
+ * Spawn all tokens from an encounter asset and report how many made it onto the map.
  */
 export async function spawnEncounterTokens(
   ctx: SpawnContext,
   encounter: EncounterAsset
 ): Promise<string[]> {
-  const target = getSpawnTarget(ctx.view);
-  if (!target) {
-    console.error('[tokenSpawnService] No renderer or viewport available');
-    return [];
-  }
+  const target = await getSpawnTarget(ctx);
+  if (!target) return [];
   const { viewport, grid, pitch } = target;
   const gridSystem = grid ? target.gridSystem : null;
   const center = getViewportCenter(viewport);
@@ -263,7 +283,8 @@ export async function spawnEncounterTokens(
     ? placeFormation(slots, encounter.formation, center, grid)
     : null;
 
-  const visionDefaults = spawnVisionDefaults(ctx);
+  const definitions = targetResources(ctx, target);
+  const visionDefaults = spawnVisionDefaults(ctx, target);
   const tokens: TokenInput[] = [];
   for (let i = 0; i < tokensToSpawn.length; i++) {
     const token = tokensToSpawn[i];
@@ -287,21 +308,25 @@ export async function spawnEncounterTokens(
       pos = gridPosition(i, tokensToSpawn.length, center.x, center.y, pitch, gridSystem);
     }
 
-    // A saved state snapshot is restored verbatim. Encounters built from token
+    // A saved state snapshot is restored as saved (in today's token format). Encounters built from token
     // assets rebuild from the asset, so they follow its current image, size and ring.
     if (token.state) {
       if (imageExists(ctx.app, token.imagePath)) {
-        tokens.push({ ...token.state, imagePath: token.imagePath, x: pos.x, y: pos.y });
+        tokens.push({ ...tokenFromFile(token.state), imagePath: token.imagePath, x: pos.x, y: pos.y });
       }
       continue;
     }
     const source = await resolveTokenSource(ctx, token);
     if (source && imageExists(ctx.app, source.imagePath)) {
-      tokens.push(await buildTokenData(ctx.app, pos, source, visionDefaults));
+      tokens.push(await buildTokenData(ctx.app, pos, source, definitions, visionDefaults));
     }
   }
 
-  return addSpawnedTokens(ctx, tokens);
+  const ids = addSpawnedTokens(target, tokens);
+  new Notice(ids.length < tokensToSpawn.length
+    ? `Spawned ${ids.length} of ${tokensToSpawn.length} tokens from "${encounter.name}" (some had missing images)`
+    : `Spawned ${ids.length} tokens from "${encounter.name}"`);
+  return ids;
 }
 
 /**
@@ -311,17 +336,15 @@ export async function spawnSelectedTokens(
   ctx: SpawnContext,
   selectedAssets: AnyAsset[]
 ): Promise<string[]> {
-  const target = getSpawnTarget(ctx.view);
-  if (!target) {
-    console.error('[tokenSpawnService] No renderer or viewport available');
-    return [];
-  }
+  const target = await getSpawnTarget(ctx);
+  if (!target) return [];
   const { viewport, grid, pitch } = target;
   const gridSystem = grid ? target.gridSystem : null;
   const center = getViewportCenter(viewport);
   const tokensToSpawn = selectedAssets.filter(a => a.type === 'tokens');
 
-  const visionDefaults = spawnVisionDefaults(ctx);
+  const definitions = targetResources(ctx, target);
+  const visionDefaults = spawnVisionDefaults(ctx, target);
   const tokens: TokenInput[] = [];
   for (let i = 0; i < tokensToSpawn.length; i++) {
     const tokenAsset = tokensToSpawn[i];
@@ -330,8 +353,8 @@ export async function spawnSelectedTokens(
     const source = await resolveTokenSource(ctx, tokenAsset);
     if (!source) continue;
     const pos = gridPosition(i, tokensToSpawn.length, center.x, center.y, pitch, gridSystem);
-    tokens.push(await buildTokenData(ctx.app, pos, source, visionDefaults));
+    tokens.push(await buildTokenData(ctx.app, pos, source, definitions, visionDefaults));
   }
 
-  return addSpawnedTokens(ctx, tokens);
+  return addSpawnedTokens(target, tokens);
 }

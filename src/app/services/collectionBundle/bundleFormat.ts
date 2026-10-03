@@ -1,9 +1,10 @@
 import type { Asset, CollectionMetadata } from '../AssetService';
 import { isRecord } from '../assetMetadataGuards';
 import { SNAPSHOTS_DIR } from '../../snapshots/snapshotPaths';
+import { STATBLOCK_IMAGE_KEYS, type StatblockImageKey } from '../statblockImageKeys';
 
 /** Bumped when the zip layout or manifest shape changes. */
-export const BUNDLE_FORMAT = 4;
+export const BUNDLE_FORMAT = 6;
 /** Oldest format this version still imports. */
 const OLDEST_BUNDLE_FORMAT = 2;
 export const BUNDLE_MANIFEST = 'manifest.json';
@@ -12,19 +13,19 @@ export const BUNDLE_FILES_DIR = 'files';
 
 /**
  * `asset-file` is the file that backs an asset record: token image, map JSON, scene, encounter or player JSON.
- * `linked-note` is a note a scene's pins or characters open; `cover` is the collection's cover image (format 4).
+ * `linked-note` is a note a scene's pins or characters open, or one such a note links to, however far along;
+ * `note-attachment` is an image or PDF one of those notes shows (format 5); `cover` is the collection's cover image (format 4).
+ * `loot-base` is a `.base` file the collection's settings pick as a loot source and `loot-item` a file the base
+ * holds (format 6).
  */
 const BUNDLE_FILE_ROLES = [
   'asset-file', 'thumbnail', 'scene-map', 'scene-thumbnail', 'scene-snapshot', 'scene-snapshot-thumbnail', 'background', 'token-image', 'statblock-note', 'statblock-image',
-  'linked-note', 'cover',
+  'linked-note', 'note-attachment', 'cover', 'loot-base', 'loot-item',
 ] as const;
 export type BundleFileRole = typeof BUNDLE_FILE_ROLES[number];
 
 /** Statblock notes and their artwork: files an importing vault may already have, and then reuses in place. */
 export const REUSABLE_FILE_ROLES: ReadonlySet<BundleFileRole> = new Set<BundleFileRole>(['statblock-note', 'statblock-image']);
-
-/** The frontmatter field of a statblock note that points at its artwork. */
-export type StatblockImageKey = 'image' | 'token-image';
 
 export interface BundleFile {
   vaultPath: string;
@@ -35,6 +36,8 @@ export interface BundleFile {
   sha256?: string;
   /** Ids of the bundle's assets that use this file (format 3). */
   owners?: string[];
+  /** Paths of the bundled files this one travels with: the notes that link to it (format 5), a loot item's bases (format 6). It is packed while one of them or an owner is. */
+  linkedFrom?: string[];
 }
 
 /** How the bundle came to be. Only the collection's publisher makes releases; others share the version they have. */
@@ -86,7 +89,9 @@ export function isSafeBundlePath(path: string, role?: BundleFileRole): boolean {
 }
 
 const isStatblockImage = (value: unknown): boolean =>
-  isRecord(value) && (value.key === 'image' || value.key === 'token-image') && typeof value.path === 'string';
+  isRecord(value) && STATBLOCK_IMAGE_KEYS.some((key) => key === value.key) && typeof value.path === 'string';
+
+const isStrings = (value: unknown): boolean => Array.isArray(value) && value.every((entry) => typeof entry === 'string');
 
 const isBundleFile = (value: unknown): value is BundleFile =>
   isRecord(value)
@@ -94,7 +99,8 @@ const isBundleFile = (value: unknown): value is BundleFile =>
   && typeof value.role === 'string'
   && (BUNDLE_FILE_ROLES as readonly string[]).includes(value.role)
   && (value.sha256 === undefined || (typeof value.sha256 === 'string' && /^[0-9a-f]{64}$/.test(value.sha256)))
-  && (value.owners === undefined || (Array.isArray(value.owners) && value.owners.every((owner) => typeof owner === 'string')))
+  && (value.owners === undefined || isStrings(value.owners))
+  && (value.linkedFrom === undefined || isStrings(value.linkedFrom))
   && (value.statblockImage === undefined || isStatblockImage(value.statblockImage));
 
 const isBundleRelease = (value: unknown): value is BundleRelease =>

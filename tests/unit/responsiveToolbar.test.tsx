@@ -140,4 +140,30 @@ describe('ResponsiveToolbar', () => {
     expect(visibleIds(view.container)).toEqual(['move', 'fog', 'draw', 'measure', 'palette']);
     expect(screen.queryByRole('button', { name: 'More tools' })).toBeNull();
   });
+
+  it('measures hidden controls again once the bar is styled', () => {
+    // Before the plugin's stylesheet applies, every control is a block as wide as the view.
+    let controlWidth = 800;
+    Object.defineProperty(HTMLElement.prototype, 'offsetWidth', {
+      configurable: true,
+      get(this: HTMLElement) {
+        if (this.matches('[data-toolbar-item]')) return controlWidth;
+        return this.matches('.atlas-toolbar-overflow, .atlas-toolbar-end') ? CONTROL_WIDTH : 0;
+      },
+    });
+    const items = ITEMS();
+    const view = renderToolbar(items, 400);
+    expect(visibleIds(view.container)).toEqual([]);
+
+    controlWidth = CONTROL_WIDTH;
+    (view.container.querySelector('.atlas-vtt-toolbar') as HTMLElement).style.padding = '4px';
+    view.rerender(
+      <TooltipProvider>
+        <ToolbarSpaceContext.Provider value={400}>
+          <ResponsiveToolbar items={items} />
+        </ToolbarSpaceContext.Provider>
+      </TooltipProvider>,
+    );
+    expect(visibleIds(view.container)).toEqual(['move', 'fog', 'draw', 'measure', 'palette']);
+  });
 });

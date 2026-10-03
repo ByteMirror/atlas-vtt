@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import {
   X, Plus, ChevronLeft, ChevronRight, FolderPlus, RefreshCw, PanelLeft,
   Map as MapIcon, FolderOpen,
@@ -11,6 +11,7 @@ import type { SelectionState } from '../hooks/useSelectionHandlers';
 import { HeaderMenu } from './HeaderMenu';
 import { HeaderSearch } from './HeaderSearch';
 import type { FilterSearch } from '../hooks/useFilterSearch';
+import { useHeaderCompaction } from '../hooks/useHeaderCompaction';
 import { SortControls } from './SortControls';
 import { TabSwitcher } from './TabSwitcher';
 import { TokenIcon } from '../../../../react/components/TokenIcon';
@@ -23,7 +24,7 @@ export interface HeaderProps {
   query: FilterSearch;
   activeTab: Tab;
   onTabChange: (tab: Tab) => void;
-  assetCounts: Record<Tab, number>;
+  assetCounts: Record<Tab, number> | null;
   onCreateTokens?: () => void;
   onCreateMap?: () => void;
   onCreateCollection?: () => void;
@@ -41,8 +42,9 @@ export interface HeaderProps {
 
 /**
  * One-row toolbar: navigation and selection on the left, asset type in the
- * centre, search / sort / folder / create on the right. As the header narrows,
- * the tabs, the sort and the search fold into menus and buttons (see `_header.scss`).
+ * centre, search / sort / folder / create on the right. When its controls do
+ * not fit, the tabs, the search and the sort fold into menus and buttons
+ * (`useHeaderCompaction`), so they never overlap.
  */
 export function Header({
   app,
@@ -62,10 +64,12 @@ export function Header({
   sel,
 }: HeaderProps): React.JSX.Element {
   const selectionCount = sel.selectedAssetIds.length + sel.selectedFolderIds.length;
+  const toolbarRef = useRef<HTMLDivElement>(null);
+  useHeaderCompaction(toolbarRef);
 
   return (
     <header className="atlas-asset-manager-header">
-      <div className="atlas-am-toolbar">
+      <div className="atlas-am-toolbar" ref={toolbarRef}>
         <div className="atlas-am-toolbar-left">
           <LabelTooltip label={sidebarToggleLabel}>
             <Button

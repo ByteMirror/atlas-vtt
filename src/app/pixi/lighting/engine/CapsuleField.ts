@@ -1,35 +1,8 @@
 import { Buffer, BufferUsage, Container, Geometry, Mesh, UniformGroup, type Renderer, type RenderTexture, type Shader, type TextureSource } from 'pixi.js';
 import { FIELD_MAX, fieldMargin } from '../../../lighting/lightingConstants';
 import type { Rect, Seg } from '../../../lighting/segments';
-import { GLSL_VERSION } from './glsl';
+import { ENGINE_SHADERS } from './engineShaders';
 import { createQuad, createShader, createTarget, destroyQuad, quadGeometry, renderInto, type Quad } from './gpu';
-
-const vertex = `${GLSL_VERSION}
-in vec2 aPosition;
-in vec4 aSegment;
-uniform vec4 uBuildRect;
-uniform float uMax;
-out vec2 vWorld;
-flat out vec4 vSegment;
-void main() {
-  vec2 lo = min(aSegment.xy, aSegment.zw) - uMax;
-  vec2 hi = max(aSegment.xy, aSegment.zw) + uMax;
-  vWorld = mix(lo, hi, aPosition);
-  vSegment = aSegment;
-  gl_Position = vec4((vWorld - uBuildRect.xy) / uBuildRect.zw * 2.0 - 1.0, 0.0, 1.0);
-}`;
-
-const fragment = `${GLSL_VERSION}
-in vec2 vWorld;
-flat in vec4 vSegment;
-uniform float uMax;
-out vec4 finalColor;
-void main() {
-  vec2 ab = vSegment.zw - vSegment.xy;
-  vec2 ap = vWorld - vSegment.xy;
-  float t = clamp(dot(ap, ab) / max(dot(ab, ab), 1e-6), 0.0, 1.0);
-  finalColor = vec4(min(length(ap - ab * t), uMax), 0.0, 0.0, 1.0);
-}`;
 
 /**
  * Distance to the nearest wall centre line over a world rectangle (`r16float`), exact at
@@ -51,6 +24,7 @@ export class CapsuleField {
   private readonly empty = new Container();
   private readonly initialGeometry: Geometry;
   private built: { geometry: Geometry; segments: Buffer } | null = null;
+  private readonly aliases = new Map<string, UniformGroup>();
 
   constructor(private readonly renderer: Renderer, rect: Rect, readonly texel: number, wallRadius: number, readonly name = 'uField') {
     this.texture = createTarget(rect[2] / texel, rect[3] / texel, 'r16float');
@@ -60,7 +34,7 @@ export class CapsuleField {
       [`${name}Rect`]: { value: new Float32Array(covered), type: 'vec4<f32>' },
       [`${name}Params`]: { value: new Float32Array([fieldMargin(texel), wallRadius]), type: 'vec2<f32>' },
     });
-    this.shader = createShader(vertex, fragment, 'atlas-capsule-field', { fieldBuild: this.buildUniforms });
+    this.shader = createShader(ENGINE_SHADERS.capsuleField, { fieldBuild: this.buildUniforms });
     this.initialGeometry = quadGeometry(this.quad);
     this.mesh = new Mesh({ geometry: this.initialGeometry, shader: this.shader });
     this.mesh.blendMode = 'min';
@@ -97,6 +71,21 @@ export class CapsuleField {
 
   resources(): Record<string, UniformGroup | TextureSource> {
     return { [this.name]: this.texture.source, [`${this.name}Uniforms`]: this.uniforms };
+  }
+
+  /** This field for a shader that reads it under another name (`fieldGlsl(name)`): a program that reads two fields binds each under its own. */
+  resourcesAs(name: string): Record<string, UniformGroup | TextureSource> {
+    if (name === this.name) return this.resources();
+    let uniforms = this.aliases.get(name);
+    if (!uniforms) {
+      const own = this.uniforms.uniforms as Record<string, Float32Array>;
+      uniforms = new UniformGroup({
+        [`${name}Rect`]: { value: new Float32Array(own[`${this.name}Rect`]!), type: 'vec4<f32>' },
+        [`${name}Params`]: { value: new Float32Array(own[`${this.name}Params`]!), type: 'vec2<f32>' },
+      });
+      this.aliases.set(name, uniforms);
+    }
+    return { [name]: this.texture.source, [`${name}Uniforms`]: uniforms };
   }
 
   destroy(): void {

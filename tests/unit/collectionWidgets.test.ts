@@ -84,7 +84,7 @@ describe('scene files', () => {
     app.vault.getFolderByPath = app.vault.getAbstractFileByPath;
     const path = 'atlas-vtt/collections/campaign/scenes/cave.atlasmap';
     const store = createViewAtlasStore(app, 'scene-file-test');
-    store.getState().setMapPath(path);
+    store.setState({ mapPath: path, mapLoaded: true });
     store.getState().addWidget(fear);
     store.getState().addWidget(torches);
     store.getState().setWidgetValue('fear', 4);

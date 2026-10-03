@@ -3,7 +3,7 @@ import type { Rect } from './segments';
 
 function sameWall(a: WallSegment, b: WallSegment): boolean {
   return a.p1.x === b.p1.x && a.p1.y === b.p1.y && a.p2.x === b.p2.x && a.p2.y === b.p2.y
-    && a.type === b.type && (a.closed ?? true) === (b.closed ?? true) && a.direction === b.direction;
+    && a.type === b.type && (a.closed ?? true) === (b.closed ?? true) && a.direction === b.direction && a.blocks === b.blocks && !!a.limited === !!b.limited;
 }
 
 function boxOf(wall: WallSegment, pad: number): Rect {

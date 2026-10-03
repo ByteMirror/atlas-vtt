@@ -8,6 +8,7 @@ import { FogTool, FogSettings } from '../tools/FogTool';
 import { NotePinTool } from '../tools/NotePinTool';
 import { DiceTool } from '../tools/DiceTool';
 import { AudioTool } from '../tools/AudioTool';
+import { mapDiceRules } from './mapDiceRules';
 import type { App } from 'obsidian';
 
 export class ToolController {
@@ -30,7 +31,7 @@ export class ToolController {
     this.measureTool = new MeasureTool(eventBus);
     this.fogTool = new FogTool(eventBus);
     this.notePinTool = new NotePinTool(eventBus, app, store);
-    this.diceTool = new DiceTool(eventBus);
+    this.diceTool = new DiceTool(eventBus, () => mapDiceRules(app, store.getState().mapPath));
     this.audioTool = new AudioTool(eventBus);
   }
   

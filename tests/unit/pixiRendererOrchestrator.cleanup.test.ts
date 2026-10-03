@@ -51,6 +51,19 @@ describe('renderer lifecycle across map switches', () => {
     }
   });
 
+  it('leaves the right-drag pan running in every tool', async () => {
+    const { renderer, store, viewport } = createHarness(new EventEmitter());
+    await renderer.init(document.createElement('div'));
+    try {
+      for (const tool of ['fog', 'eraser', 'wall', 'text', 'note-pin', 'audio', 'select', 'draw-line', 'move']) {
+        store.setState({ activeTool: tool });
+      }
+      expect(viewport.plugins.pause).not.toHaveBeenCalledWith('drag');
+    } finally {
+      renderer.destroy();
+    }
+  });
+
   it('removes its own event listeners while preserving other event bus subscribers', async () => {
     const eventBus = new EventEmitter();
     const externalListener = vi.fn();

@@ -4,8 +4,10 @@ import { zipPathFor } from './bundleFormat';
 import { rewriteContent } from './bundleContent';
 import { reportFileStep, type BundleProgressListener } from './bundleProgress';
 import { bundleCover, bundleFileReader, openBundle, type BundleFileReader, type OpenedBundle } from './bundleReader';
+import { settingsFromBundle } from './bundleSettings';
 import { assetFingerprint, fieldFingerprint } from './fingerprints';
-import { gatherImportInputs, installedAsset, ownAsset, planTargets, referencedStrings, vaultFileHash, type ImportTargets } from './importInputs';
+import { gatherImportInputs, installedAsset, installedSettings, ownAsset, planTargets, referencedStrings, vaultFileHash, type ImportTargets } from './importInputs';
+import { storeLegacyCollectionResources } from '../collectionScenes';
 import { ImportJournal, saveOpenMaps } from './importJournal';
 import { planImport, resolvePlan, type ImportAction, type ImportPlan, type PlannedItem, type Resolution } from './importPlan';
 import { buildReview, type ImportReview } from './importReview';
@@ -206,6 +208,12 @@ async function applyImport(
   } catch (error) {
     console.error('[collectionImport] Could not record the install:', error);
   }
+  try {
+    // A bundle of an older Atlas names no resources: store them now, with its scenes, before anything else saves the settings
+    await storeLegacyCollectionResources(app, assets);
+  } catch (error) {
+    console.error('[collectionImport] Could not store the collection\'s resources:', error);
+  }
   // A collection is named like its folder: a new name from the review or an update moves the folder, install record included.
   const installed = await assets.matchCollectionFolder(targets.collectionId) ?? collection;
   onProgress({ message: 'Done', fraction: 1 });
@@ -224,7 +232,7 @@ async function applyImport(
 
 /** The collection record after the import: release identity from the bundle, each field from whichever side won. */
 async function mergedCollection(assets: AssetService, { bundle, existing, targets }: ImportContext, actions: ReadonlyMap<string, ImportAction>, name: string): Promise<CollectionMetadata> {
-  const theirs = bundle.manifest.collection;
+  const theirs: CollectionMetadata = { ...bundle.manifest.collection, settings: installedSettings(bundle.manifest.collection, targets) };
   const now = Date.now();
   const merged: CollectionMetadata = {
     ...(existing ?? theirs),
@@ -254,6 +262,7 @@ async function mergedCollection(assets: AssetService, { bundle, existing, target
   for (const field of COLLECTION_FIELDS) {
     if (actions.get(`field:${field}`) !== 'write') continue;
     if (theirs[field] === undefined) delete merged[field];
+    else if (field === 'settings') merged.settings = settingsFromBundle(theirs.settings, existing.settings);
     else Object.assign(merged, { [field]: theirs[field] });
   }
   // The update's name may belong to another collection here; the copy then keeps its own.

@@ -36,8 +36,8 @@ describe('AssetThumbnailService', () => {
 
     const [update] = await updates;
     expect(update?.id).toBe(goblin.id);
-    expect(update?.thumbnailPath.startsWith(`${THUMBNAIL_DIR}/goblin-`)).toBe(true);
-    expect(files.get(update!.thumbnailPath)).toBe(`thumb:${THUMBNAIL_SIZE}`);
+    expect(update?.thumbnailPath?.startsWith(`${THUMBNAIL_DIR}/goblin-`)).toBe(true);
+    expect(files.get(update?.thumbnailPath ?? '')).toBe(`thumb:${THUMBNAIL_SIZE}`);
     const stored = await assets.getAssetById(goblin.id);
     expect(stored?.type === 'token' && stored.thumbnailPath).toBe(update?.thumbnailPath);
     expect(render).toHaveBeenCalledTimes(1);
@@ -65,9 +65,88 @@ describe('AssetThumbnailService', () => {
 
     service.ensureThumbnails([missing, goblin]);
 
-    expect((await updates).map((update) => update.id)).toEqual([goblin.id]);
+    // The image that could not be read is announced without a thumbnail, so its card stops waiting.
+    const announced = await updates;
+    expect(announced.find((update) => update.id === missing.id)?.thumbnailPath).toBeNull();
+    expect(announced.find((update) => update.id === goblin.id)?.thumbnailPath).toMatch(/goblin-/);
     const stored = await assets.getAssetById(missing.id);
     expect(stored?.type === 'token' && stored.thumbnailPath).toBeUndefined();
+    expect(service.stateOf(missing)).toEqual({ pending: false });
+  });
+
+  it('reports a thumbnail as pending while it is made and hands it out before it is recorded', async () => {
+    const { app, assets, goblin } = await setup();
+    let finish = (): void => undefined;
+    const render = vi.fn(() => new Promise<ArrayBuffer>((resolve) => {
+      finish = (): void => resolve(new TextEncoder().encode('thumb').buffer as ArrayBuffer);
+    }));
+    const service = new AssetThumbnailService(app, assets, render);
+    expect(service.stateOf(goblin)).toEqual({ pending: false });
+
+    service.ensureThumbnails([goblin]);
+    expect(service.stateOf(goblin)).toEqual({ pending: true });
+
+    const updates = nextUpdates(service);
+    await vi.waitFor(() => expect(render).toHaveBeenCalled());
+    finish();
+    const [update] = await updates;
+
+    // `goblin` is the record as it was before the thumbnail: the service knows the file it wrote.
+    expect(service.stateOf(goblin)).toEqual({ path: update?.thumbnailPath, pending: false });
+  });
+
+  it('tells its listeners of finished thumbnails while others are still being made, and saves the index once', async () => {
+    const { app, files, assets, goblin } = await setup();
+    files.set('atlas-vtt/assets/wolf.png', 'PNGDATA');
+    files.set('atlas-vtt/assets/bat.png', 'PNGDATA');
+    const wolf = await assets.addTokenAsset({ name: 'Wolf', imagePath: 'atlas-vtt/assets/wolf.png', tags: [], collection: 'default' });
+    const bat = await assets.addTokenAsset({ name: 'Bat', imagePath: 'atlas-vtt/assets/bat.png', tags: [], collection: 'default' });
+    const pending: Array<() => void> = [];
+    const render = vi.fn(() => new Promise<ArrayBuffer>((resolve) => {
+      pending.push(() => resolve(new TextEncoder().encode('thumb').buffer as ArrayBuffer));
+    }));
+    const service = new AssetThumbnailService(app, assets, render);
+    const batches: string[][] = [];
+    service.onUpdated((updates) => batches.push(updates.map((update) => update.id)));
+    const save = vi.spyOn(assets, 'rewriteAssets');
+
+    service.ensureThumbnails([goblin, wolf, bat]);
+    await vi.waitFor(() => expect(pending).toHaveLength(2));
+    pending[0]?.();
+    await vi.waitFor(() => expect(batches).toEqual([[goblin.id]]));
+    expect(save).not.toHaveBeenCalled();
+
+    pending[1]?.();
+    await vi.waitFor(() => expect(pending).toHaveLength(3));
+    pending[2]?.();
+    await vi.waitFor(() => expect(batches.flat().sort()).toEqual([goblin.id, wolf.id, bat.id].sort()));
+    expect(save).toHaveBeenCalledTimes(1);
+  });
+
+  it('makes the thumbnails of the assets on screen first', async () => {
+    const { app, files, assets, goblin } = await setup();
+    const names = ['wolf', 'bat', 'rat', 'owl'];
+    const others = [];
+    for (const name of names) {
+      files.set(`atlas-vtt/assets/${name}.png`, 'PNGDATA');
+      others.push(await assets.addTokenAsset({ name, imagePath: `atlas-vtt/assets/${name}.png`, tags: [], collection: 'default' }));
+    }
+    const render = vi.fn(async () => new TextEncoder().encode('thumb').buffer as ArrayBuffer);
+    const service = new AssetThumbnailService(app, assets, render);
+    const done = new Promise<void>((resolve) => {
+      let seen = 0;
+      service.onUpdated((updates) => { seen += updates.length; if (seen === 5) resolve(); });
+    });
+    const read = vi.spyOn(app.vault, 'readBinary');
+
+    service.ensureThumbnails([goblin, ...others]);
+    // Two are already being made; the owl waits at the end of the queue.
+    service.prioritize([others[3]!.id]);
+    await done;
+
+    expect(read.mock.calls.map(([file]) => (file as { path: string }).path)).toEqual([
+      GOBLIN_IMAGE, 'atlas-vtt/assets/wolf.png', 'atlas-vtt/assets/owl.png', 'atlas-vtt/assets/bat.png', 'atlas-vtt/assets/rat.png',
+    ]);
   });
 
   it('records a thumbnail on map assets so map cards never decode the full map', async () => {

@@ -4,19 +4,27 @@
  * that cannot be used is left out instead of breaking the list.
  */
 
-import { isValidRangeBandThreshold } from '../grid/measurementFormat';
-import type {
-  CollectionGridDefaults,
-  ConditionDefinition,
-  DiagonalRule,
-  GridUnitType,
-  MeasurementMode,
-  RangeBand,
+import { HP_RESOURCE, parseResourceDefinitions, withLegacyBars } from '../resources/resourceDefinitions';
+import { isValidConeAngle, isValidRangeBandThreshold } from '../grid/measurementFormat';
+import {
+  CONDITION_EFFECTS,
+  type CollectionGridDefaults,
+  type ConditionDefinition,
+  type DiagonalRule,
+  type GridUnitType,
+  type MeasurementMode,
+  type RangeBand,
 } from '../types/collectionSettingsTypes';
+import type { DiceRules } from '../types/diceRulesTypes';
 import { BUILT_IN_ID_PREFIX, type SystemPreset } from '../types/systemPresetTypes';
 import { WIDGET_ICON_PATHS, resolveWidgetIcon, type WidgetIcon } from '../types/widgetIcons';
 import type { AnyWidget } from '../types/widgetTypes';
 import { isValidClockSegments } from '../utils/clockWidget';
+import { CRIT_RULES, isValidDefaultRoll, parseExplodeRule } from './diceRules';
+import { parseInitiativeRules } from './initiativeRules';
+import { parseLightPresets } from './lightPresetValidation';
+import { GENERIC_SENSES } from './senses/generic';
+import { parseSenseDefinitions } from './senseValidation';
 import { parseVisionDefaults } from './visionDefaults';
 import { isHexColor } from '../utils/hexColor';
 
@@ -45,7 +53,7 @@ function parseBand(raw: unknown): RangeBand | null {
 
 function parseGridDefaults(raw: unknown): CollectionGridDefaults | null {
   if (!isRecord(raw)) return null;
-  const { unitType, unitDistance, measurementMode, diagonalRule, abstractRangeBands } = raw;
+  const { unitType, unitDistance, measurementMode, diagonalRule, coneAngle, abstractRangeBands } = raw;
   if (!isOneOf(UNIT_TYPES, unitType) || !isOneOf(MEASUREMENT_MODES, measurementMode)) return null;
   if (typeof unitDistance !== 'number' || !(unitDistance > 0)) return null;
   const bands = Array.isArray(abstractRangeBands) ? abstractRangeBands.map(parseBand) : [];
@@ -55,6 +63,7 @@ function parseGridDefaults(raw: unknown): CollectionGridDefaults | null {
     unitDistance,
     measurementMode,
     diagonalRule: isOneOf(DIAGONAL_RULES, diagonalRule) ? diagonalRule : 'equidistant',
+    ...(isValidConeAngle(coneAngle) && { coneAngle }),
     abstractRangeBands: bands as RangeBand[],
   };
 }
@@ -63,7 +72,14 @@ function parseCondition(raw: unknown): ConditionDefinition | null {
   if (!isRecord(raw) || !isNonEmptyString(raw.id) || typeof raw.name !== 'string') return null;
   if (!isHexColor(raw.color)) return null;
   const icon = typeof raw.icon === 'string' && raw.icon in WIDGET_ICON_PATHS ? (raw.icon as WidgetIcon) : undefined;
-  return { id: raw.id, name: raw.name, color: raw.color, ...(icon && { icon }), ...(raw.valued === true && { valued: true }) };
+  return {
+    id: raw.id,
+    name: raw.name,
+    color: raw.color,
+    ...(icon && { icon }),
+    ...(raw.valued === true && { valued: true }),
+    ...((isOneOf(CONDITION_EFFECTS, raw.effect) || raw.effect === 'none') && { effect: raw.effect }),
+  };
 }
 
 function isNumber(value: unknown): value is number {
@@ -103,6 +119,13 @@ function parseWidget(raw: unknown): AnyWidget | null {
   };
 }
 
+function parseDiceRules(raw: unknown): DiceRules | null {
+  if (!isRecord(raw) || typeof raw.defaultRoll !== 'string' || !isValidDefaultRoll(raw.defaultRoll)) return null;
+  if (!isOneOf(CRIT_RULES, raw.crit)) return null;
+  const explode = parseExplodeRule(raw.explode);
+  return { defaultRoll: raw.defaultRoll.trim(), crit: raw.crit, ...(explode && { explode }) };
+}
+
 /** The keys of `raw` that are `true`; anything else is left out. */
 function parseEnabledFlags(raw: unknown): Record<string, boolean> {
   if (!isRecord(raw)) return {};
@@ -120,7 +143,16 @@ export function parseUserPreset(raw: unknown): SystemPreset | null {
     ? raw.rules.widgets.map(parseWidget).filter((w): w is AnyWidget => w !== null)
     : [];
   const defaultWidgets = parseEnabledFlags(raw.rules.defaultWidgets);
-  const defaultTokenVision = parseVisionDefaults(raw.rules.defaultTokenVision);
+  const dice = parseDiceRules(raw.rules.dice);
+  const initiative = parseInitiativeRules(raw.rules.initiative);
+  // A preset saved before resources existed tracks the bars its default widgets switched on.
+  const resources = Array.isArray(raw.rules.resources)
+    ? parseResourceDefinitions(raw.rules.resources)
+    : withLegacyBars([{ ...HP_RESOURCE }], defaultWidgets);
+  const senses = parseSenseDefinitions(raw.rules.senses);
+  const lightPresets = parseLightPresets(raw.rules.lightPresets);
+  // A collection set from the preset has these senses, so only they can be a default.
+  const defaultTokenVision = parseVisionDefaults(raw.rules.defaultTokenVision, senses ?? GENERIC_SENSES);
   return {
     id: raw.id,
     name: raw.name.trim(),
@@ -130,7 +162,12 @@ export function parseUserPreset(raw: unknown): SystemPreset | null {
       conditions,
       ...(widgets.length > 0 && { widgets }),
       ...(Object.keys(defaultWidgets).length > 0 && { defaultWidgets }),
+      ...(dice && { dice }),
+      ...(initiative && { initiative }),
+      ...(resources.length > 0 && { resources }),
       ...(defaultTokenVision && { defaultTokenVision }),
+      ...(senses && { senses }),
+      ...(lightPresets?.length && { lightPresets }),
     },
   };
 }

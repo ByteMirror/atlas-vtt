@@ -50,21 +50,21 @@ export function readUnorm(renderer: WebGLRenderer, target: RenderTexture): Float
 export type PixelReader = (sx: number, sy: number) => readonly [number, number, number];
 
 /**
- * Renders a 1024 px map (white, or `tint`) with the engine's lighting layer on top through a
- * camera at `scale`, offset (x, y), into a square target of `size` px.
+ * Renders a map of `map` px (1024; white, or `tint`) with the engine's lighting layer on top
+ * through a camera at `scale`, offset (x, y), into a square target of `size` px.
  */
 export function renderThroughEngine(
   engine: LightingEngine,
   renderer: WebGLRenderer,
-  camera: { size: number; scale: number; x: number; y: number; tint?: number },
+  camera: { size: number; scale: number; x: number; y: number; tint?: number; map?: number },
 ): PixelReader {
-  const { size, scale, x, y, tint = 0xffffff } = camera;
+  const { size, scale, x, y, tint = 0xffffff, map = 1024 } = camera;
   const stage = new Container();
-  const map = new Sprite(Texture.WHITE);
-  map.setSize(1024, 1024);
-  map.tint = tint;
+  const floor = new Sprite(Texture.WHITE);
+  floor.setSize(map, map);
+  floor.tint = tint;
   const world = new Container();
-  world.addChild(map, engine.layer);
+  world.addChild(floor, engine.layer);
   world.scale.set(scale);
   world.position.set(x, y);
   stage.addChild(world);

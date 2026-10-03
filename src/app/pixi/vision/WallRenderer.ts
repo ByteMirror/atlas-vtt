@@ -1,32 +1,33 @@
 // src/app/pixi/vision/WallRenderer.ts
 
+import { wallList } from '../../vision/wallList';
 import { Graphics, Container } from 'pixi.js';
 import type { Viewport } from 'pixi-viewport';
 import type { StoreApi } from 'zustand';
 import type { ViewAtlasState } from '../../storeFactory';
 import type { WallSegment } from '../../types/wallTypes';
-import type { LightSource } from '../../types/lightingTypes';
 import { cssColorToHexNumber } from '../utils/colorUtils';
 import { destroyTree } from '../utils/destroyTree';
+import { KindWallLayer, type KindWall } from './KindWallLayer';
+import { drawDashedLine, hasKindLook } from './wallKindLook';
 
 const VERTEX_HANDLE_RADIUS = 4;
-const LIGHT_ICON_RADIUS = 14;
 const HIT_TOLERANCE = 6;
 
 /**
- * Renders GM-only wall editor visuals: wall lines, door icons,
- * light source icons, vertex handles, and selection highlights.
- * Only visible when wall tool is active or GM is peeking.
+ * Renders GM-only wall editor visuals: wall lines, door icons, vertex handles and
+ * selection highlights. Lights have their own markers (`LightMarkers`).
+ * Only visible while the lighting tool is active in the GM's view.
  */
 export class WallRenderer {
   private container: Container;
   private wallGraphics: Graphics;
+  /** The walls with a look of their own (`wallKindLook`), laid out in screen pixels. */
+  private readonly kinds: KindWallLayer;
   private handleGraphics: Graphics;
-  private lightGraphics: Graphics;
   private previewGraphics: Graphics;
   private store: StoreApi<ViewAtlasState>;
   private selectedWallIds: Set<string> = new Set();
-  private selectedLightIds: Set<string> = new Set();
   private accentColor = 0x7f6df2;
   private _unsubscribe?: () => void;
 
@@ -41,7 +42,7 @@ export class WallRenderer {
   private freeformPath: Array<{ x: number; y: number }> = [];
 
   constructor(
-    viewport: Viewport,
+    private readonly viewport: Viewport,
     store: StoreApi<ViewAtlasState>,
   ) {
     this.store = store;
@@ -54,11 +55,11 @@ export class WallRenderer {
 
     this.wallGraphics = new Graphics();
     this.handleGraphics = new Graphics();
-    this.lightGraphics = new Graphics();
     this.previewGraphics = new Graphics();
 
     this.container.addChild(this.wallGraphics);
-    this.container.addChild(this.lightGraphics);
+    this.kinds = new KindWallLayer(viewport);
+    this.container.addChild(this.kinds.graphics);
     this.container.addChild(this.handleGraphics);
     this.container.addChild(this.previewGraphics);
 
@@ -70,23 +71,21 @@ export class WallRenderer {
     });
   }
 
+  /** The walls that block one thing or are limited, in the colours of now. */
+  private kindWalls(state: ViewAtlasState): KindWall[] {
+    return wallList(state.objects.walls).filter(hasKindLook).map((wall) => {
+      const open = (wall.type === 'door' || wall.type === 'secret-door') && !(wall.closed ?? true);
+      return { wall, color: this.selectedWallIds.has(wall.id) ? this.accentColor : open ? 0x44dd44 : this.getWallColor(wall), alpha: open ? 0.6 : 1, hollow: wall.type === 'secret-door' };
+    });
+  }
+
   forceRedraw(): void {
     const state = this.store.getState();
     this.redraw(state);
   }
 
-  setVisible(visible: boolean): void {
-    this.container.visible = visible;
-    if (visible) this.forceRedraw();
-  }
-
   setSelectedWalls(ids: string[]): void {
     this.selectedWallIds = new Set(ids);
-    this.forceRedraw();
-  }
-
-  setSelectedLights(ids: string[]): void {
-    this.selectedLightIds = new Set(ids);
     this.forceRedraw();
   }
 
@@ -231,7 +230,7 @@ export class WallRenderer {
     g.fill({ color, alpha: 0.9 });
 
     // Preview line: dashed to show it's not placed yet
-    this.drawDashedLine(
+    drawDashedLine(
       g,
       this.previewAnchor.x, this.previewAnchor.y,
       this.previewCursor.x, this.previewCursor.y,
@@ -249,18 +248,10 @@ export class WallRenderer {
     );
     this.wallGraphics.clear();
     this.handleGraphics.clear();
-    this.lightGraphics.clear();
-
-    const walls = state.objects.walls;
-    const lights = state.objects.lights;
-
-    for (const wall of Object.values(walls)) {
+    for (const wall of wallList(state.objects.walls)) {
       this.drawWall(wall);
     }
-
-    for (const light of Object.values(lights)) {
-      this.drawLight(light);
-    }
+    this.kinds.set(this.kindWalls(state));
   }
 
   private drawWall(wall: WallSegment): void {
@@ -272,7 +263,11 @@ export class WallRenderer {
     const g = this.wallGraphics;
     const isOpen = (wall.type === 'door' || wall.type === 'secret-door') && !(wall.closed ?? true);
 
-    switch (wall.type) {
+    switch (hasKindLook(wall) ? 'kind' : wall.type) {
+      // Drawn by `drawKindWalls`, in screen pixels.
+      case 'kind':
+        break;
+
       case 'solid':
         g.moveTo(wall.p1.x, wall.p1.y);
         g.lineTo(wall.p2.x, wall.p2.y);
@@ -290,7 +285,7 @@ export class WallRenderer {
       case 'secret-door': {
         // Dashed line only — door icons are drawn by the lighting layer
         const dashColor = isOpen ? 0x44dd44 : color;
-        this.drawDashedLine(g, wall.p1.x, wall.p1.y, wall.p2.x, wall.p2.y,
+        drawDashedLine(g, wall.p1.x, wall.p1.y, wall.p2.x, wall.p2.y,
           dashColor, isOpen ? 1.5 : 2.5, 8, 5);
         break;
       }
@@ -318,61 +313,12 @@ export class WallRenderer {
     h.stroke({ width: 1, color: baseColor });
   }
 
-  private drawLight(light: LightSource): void {
-    const isSelected = this.selectedLightIds.has(light.id);
-    const color = isSelected ? 0x7f6df2 : 0xffcc33;
-
-    const g = this.lightGraphics;
-
-    // Outer glow ring
-    g.circle(light.x, light.y, LIGHT_ICON_RADIUS + 6);
-    g.fill({ color: 0xffaa00, alpha: 0.15 });
-
-    // Main icon: filled warm yellow circle with white border
-    g.circle(light.x, light.y, LIGHT_ICON_RADIUS);
-    g.fill({ color, alpha: 0.9 });
-    g.stroke({ width: 2, color: 0xffffff, alpha: 0.8 });
-
-    // Inner dot for visual weight
-    g.circle(light.x, light.y, 4);
-    g.fill({ color: 0xffffff, alpha: 0.6 });
-  }
-
   private getWallColor(wall: WallSegment): number {
     switch (wall.type) {
       case 'solid': return 0xaaaaaa;
       case 'door': return 0x44aaff;
       case 'secret-door': return 0xff8844;
       default: return 0xaaaaaa;
-    }
-  }
-
-  private drawDashedLine(
-    g: Graphics,
-    x1: number, y1: number,
-    x2: number, y2: number,
-    color: number, width: number,
-    dashLength: number, gapLength: number,
-  ): void {
-    const dx = x2 - x1;
-    const dy = y2 - y1;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    if (dist === 0) return;
-    const nx = dx / dist;
-    const ny = dy / dist;
-
-    let pos = 0;
-    let drawing = true;
-    while (pos < dist) {
-      const segLen = drawing ? dashLength : gapLength;
-      const end = Math.min(pos + segLen, dist);
-      if (drawing) {
-        g.moveTo(x1 + nx * pos, y1 + ny * pos);
-        g.lineTo(x1 + nx * end, y1 + ny * end);
-        g.stroke({ width, color });
-      }
-      pos = end;
-      drawing = !drawing;
     }
   }
 
@@ -434,23 +380,9 @@ export class WallRenderer {
 
   /** Hit-test walls at a world coordinate. Returns wall id or null. */
   hitTestWalls(worldX: number, worldY: number): string | null {
-    const walls = this.store.getState().objects.walls;
-    for (const wall of Object.values(walls)) {
+    for (const wall of wallList(this.store.getState().objects.walls)) {
       if (this.pointToSegmentDist(worldX, worldY, wall.p1.x, wall.p1.y, wall.p2.x, wall.p2.y) < HIT_TOLERANCE) {
         return wall.id;
-      }
-    }
-    return null;
-  }
-
-  /** Hit-test light sources at a world coordinate. Returns light id or null. */
-  hitTestLights(worldX: number, worldY: number): string | null {
-    const lights = this.store.getState().objects.lights;
-    for (const light of Object.values(lights)) {
-      const dx = worldX - light.x;
-      const dy = worldY - light.y;
-      if (dx * dx + dy * dy < LIGHT_ICON_RADIUS * LIGHT_ICON_RADIUS * 4) {
-        return light.id;
       }
     }
     return null;
@@ -462,7 +394,7 @@ export class WallRenderer {
     const threshold = VERTEX_HANDLE_RADIUS * 3;
     const thresholdSq = threshold * threshold;
 
-    for (const wall of Object.values(walls)) {
+    for (const wall of wallList(walls)) {
       const d1 = (worldX - wall.p1.x) ** 2 + (worldY - wall.p1.y) ** 2;
       if (d1 < thresholdSq) return { wallId: wall.id, vertex: 'p1' };
 
@@ -494,9 +426,9 @@ export class WallRenderer {
 
   destroy(): void {
     this._unsubscribe?.();
+    this.kinds.destroy();
     this.wallGraphics.destroy();
     this.handleGraphics.destroy();
-    this.lightGraphics.destroy();
     this.previewGraphics.destroy();
     destroyTree(this.container);
   }

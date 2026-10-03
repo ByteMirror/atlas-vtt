@@ -8,6 +8,7 @@ import { isPinLabelKind, nextPinLabel } from '../tools/pinLabels';
 import { collectMapObjects, countMapObjects, type CopyableCollections, type MapObjectContent } from '../clipboard/mapObjectContent';
 import { duplicateStep, placeMapObjects } from '../clipboard/mapObjectPlacement';
 import { computeNextInstanceNumber } from './tokenInstanceNumbers';
+import { raiseTokens } from './tokenStacking';
 
 export interface MapObjectsSlice {
   /** Adds the objects under fresh ids, selects them and returns the new ids. */
@@ -39,6 +40,8 @@ function addCopies(draft: MapObjectsStoreState, content: MapObjectContent): stri
     objects.tokens[id] = { ...token, id, instanceNumber: computeNextInstanceNumber(objects.tokens, token.imagePath) };
     ids.push(id);
   }
+  // Copies keep the order their originals lie in, above everything on the map.
+  raiseTokens(objects.tokens, ids);
   for (const drawing of content.drawings) {
     const id = createObjectId('drawing');
     objects.drawings[id] = { ...drawing, id, timestamp: Date.now() };

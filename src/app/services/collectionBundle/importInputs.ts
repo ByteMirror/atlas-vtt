@@ -4,6 +4,7 @@ import { isSafeBundlePath, zipPathFor, type BundleFile } from './bundleFormat';
 import { linkedFilePath } from '../sceneLinks';
 import type { OpenedBundle } from './bundleReader';
 import { mayRewrite, rewriteContent } from './bundleContent';
+import { withLootBases } from './bundleSettings';
 import { assetFingerprint, fieldFingerprint } from './fingerprints';
 import { sha256 } from './hashing';
 import { COLLECTION_FIELDS, type InstallRecord } from './installRecord';
@@ -170,7 +171,19 @@ export async function planTargets(
   return targets;
 }
 
-const fileUnit = (file: BundleFile): string => (file.owners?.length === 1 ? `asset:${file.owners[0]}` : `file:${file.vaultPath}`);
+/**
+ * The unit a file is decided with: the one asset that owns it, or the one base a loot item belongs to.
+ * A note another note links to is decided on its own, so a conflict names the note it is about.
+ */
+function fileUnit(file: BundleFile): string {
+  if (file.owners?.length === 1) return `asset:${file.owners[0]}`;
+  return `file:${file.role === 'loot-item' && file.linkedFrom?.length === 1 ? file.linkedFrom[0] : file.vaultPath}`;
+}
+
+/** The bundle's settings as the import stores them: its loot bases at the paths they get in this vault. */
+export function installedSettings(collection: CollectionMetadata, targets: ImportTargets): CollectionMetadata['settings'] {
+  return withLootBases(collection.settings, (path) => targets.paths.get(path) ?? path);
+}
 
 /** Gathers base, mine and theirs for every file, asset record and collection field. */
 export async function gatherImportInputs(
@@ -243,7 +256,8 @@ export async function gatherImportInputs(
     const theirs = await fieldFingerprint(manifest.collection, field);
     items.push({
       key: `field:${field}`, kind: 'field', unit: `field:${field}`,
-      theirs, base: record?.fields[field] ?? null, mine: existing ? await fieldFingerprint(existing, field) : null, theirsInstalled: theirs,
+      theirs, base: record?.fields[field] ?? null, mine: existing ? await fieldFingerprint(existing, field) : null,
+      theirsInstalled: field === 'settings' ? await fieldFingerprint({ ...manifest.collection, settings: installedSettings(manifest.collection, targets) }, field) : theirs,
     });
   }
   return { items, unitAssets };

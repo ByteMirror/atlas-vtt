@@ -44,18 +44,26 @@
   box-shadow: $shadow-elevated;
   @include atlas-keep-in-view;
 
-  // Every item runs concentric with the menu's corners, so all items match.
-  .btn {
+  // The menu's text edge: where the content of its rows begins and ends. Row labels, switch
+  // labels, slider names and values and section labels all start on it; tracks and grids span
+  // the menu's width.
+  --atlas-menu-text-inset: #{$spacing-m};
+
+  // Every row runs concentric with the menu's corners, so all rows match. A segmented control
+  // is one such row: its track takes the rows' radius, and its options, $spacing-xs inside the
+  // track, run concentric with it. `:where` leaves the rows' rule as specific as it was.
+  .btn:where(:not(.atlas-segmented__option)),
+  .atlas-segmented {
     @include atlas-panel-inset-radius($spacing-s);
   }
 
-  // A toggle closing the menu sits in its bottom-right corner, like a button would.
-  > .atlas-dropdown-section:last-child .atlas-dropdown-toggle-row:last-child {
-    padding-bottom: 0;
+  .atlas-segmented__option {
+    @include atlas-panel-inset-radius($spacing-s + $spacing-xs);
+  }
 
-    .atlas-toggle__switch {
-      @include atlas-panel-inset-radius($spacing-s, bottom-right);
-    }
+  // A toggle closing the menu sits in its bottom-right corner, like a button would.
+  > .atlas-dropdown-section:last-child .atlas-dropdown-toggle-row:last-child .atlas-toggle {
+    @include atlas-panel-inset-radius($spacing-s, bottom-right);
   }
 }
 
@@ -137,28 +145,62 @@
   flex-shrink: 0;
 }
 
-/* Toggle row — ensures proper spacing between label and toggle */
-.atlas-dropdown-toggle-row.atlas-dropdown-menu-item {
-  display: flex !important;
-  grid-template-columns: none !important;
+/* Toggle row: its label, and the switch at the right-hand edge of the menu's rows */
+.atlas-dropdown-toggle-row {
+  display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: $spacing-l;
-  // The toggle lines up with the right edge of the menu's items.
-  padding: $spacing-s 0 $spacing-s $spacing-m;
-  min-height: $button-height-m;
-  box-sizing: border-box;
+  gap: $spacing-m;
+  padding-left: var(--atlas-menu-text-inset, 0px);
 
-  // Ensure text doesn't overflow into toggle area
-  > span {
-    flex: 1;
-    min-width: 0;
-    padding-right: $spacing-m;
-  }
-
-  // Toggle should not shrink
   .atlas-toggle {
     flex-shrink: 0;
+  }
+}
+
+.atlas-dropdown-toggle-row__label {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  font-size: $font-ui-small;
+  color: var(--text-normal);
+}
+
+/* A label of a section or control, on the menu's text edge */
+.atlas-dropdown-label {
+  padding-inline: var(--atlas-menu-text-inset, 0px);
+  font-size: $font-ui-small;
+  color: var(--text-normal);
+}
+
+/* Slider row: name and value on the text edge, the track across the menu */
+.atlas-dropdown-slider-row {
+  @include atlas-flex-col($spacing-s);
+  padding-bottom: $spacing-m;
+}
+
+.atlas-dropdown-slider-row__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+
+  .atlas-dropdown-label {
+    padding-inline-end: 0;
+  }
+}
+
+.atlas-dropdown-slider-row__value {
+  padding-inline-end: var(--atlas-menu-text-inset, 0px);
+  font-size: $font-ui-smaller;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+// A disabled slider dims its own thumb; its name, value and track go with it.
+.atlas-dropdown-slider-row--disabled {
+  .atlas-dropdown-slider-row__head,
+  .slider-track {
+    opacity: 0.5;
   }
 }
 
@@ -248,11 +290,13 @@
 }
 
 .atlas-dropdown-swatches__label {
+  padding-inline: var(--atlas-menu-text-inset, 0px);
   font-size: $font-ui-small;
   color: var(--text-normal);
 }
 
 .atlas-dropdown-swatches__hint {
+  padding-inline: var(--atlas-menu-text-inset, 0px);
   font-size: $font-ui-smaller;
   color: var(--text-muted);
 }
@@ -292,6 +336,34 @@
   &--active {
     box-shadow: 0 0 0 2px var(--text-normal);
   }
+
+  &:disabled {
+    pointer-events: none;
+    opacity: 0.5;
+  }
+}
+
+// A swatch that opens the system's colour picker: a native colour input drawn as a swatch,
+// with its colour filling it.
+.atlas-swatch--picker {
+  appearance: none;
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  background: none;
+  overflow: hidden;
+
+  &::-webkit-color-swatch-wrapper {
+    padding: 0;
+  }
+
+  &::-webkit-color-swatch {
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  @include atlas-focus-ring;
 }
 
 .atlas-swatch-check {

@@ -20,6 +20,12 @@ export const PANEL_ENTER_FROM = 'translateY(8px) scale(0.97)';
 export const PANEL_EXIT_TO = 'translateY(4px) scale(0.98)';
 export const PANEL_ENTER_MS = 220;
 export const PANEL_EXIT_MS = 180;
+/**
+ * A popover anchored to something on the map grows out of it and shrinks back into it: the
+ * same timing as a panel, scaled about the anchor (its `transform-origin`).
+ */
+export const POPOVER_ENTER_FROM = 'scale(0.9)';
+export const POPOVER_EXIT_TO = 'scale(0.95)';
 /** The dimmed backdrop behind a dialog fades in a little ahead of its window. */
 export const BACKDROP_ENTER_MS = 200;
 

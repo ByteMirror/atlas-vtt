@@ -6,6 +6,7 @@ import { PixiRendererOrchestrator } from './PixiRendererOrchestrator';
 import type { GridOptions } from './grid/GridSystem';
 import { parseGridColor } from './grid/gridContrastColor';
 import { hexNumberStyleOfGrid } from './grid/hexNumbering';
+import { backgroundTextureCache } from './pixi/backgroundTextureCache';
 
 export interface DisplayedMap {
   mapData: MapFile;
@@ -15,15 +16,21 @@ export interface DisplayedMap {
 
 /**
  * Load the given map file, create background sprite, initialise grid and
- * return the parsed mapData.
+ * return the parsed mapData. Returns null without touching the renderer when
+ * `isSuperseded` reports that a newer load took over while the file was read.
  */
 async function loadAndDisplay(
   app: App,
   renderer: PixiRendererOrchestrator,
   filePath: string,
   restoreCamera: boolean = true,
-): Promise<DisplayedMap> {
+  isSuperseded: () => boolean = () => false,
+): Promise<DisplayedMap | null> {
   const { mapData, texture, backgroundUrl } = await MapLoader.load(app, filePath);
+  if (isSuperseded()) {
+    if (backgroundUrl) backgroundTextureCache.release(backgroundUrl);
+    return null;
+  }
 
   // Set background texture (will be placeholder if no real background)
   const sprite = Sprite.from(texture);

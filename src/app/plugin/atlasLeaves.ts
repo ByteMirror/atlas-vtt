@@ -11,6 +11,14 @@ export function getLoadedAtlasView(app: App): AtlasView | null {
   return view instanceof AtlasView ? view : null;
 }
 
+/** The Atlas view, first loading its leaf if Obsidian deferred it (background tabs after a restart). */
+export async function loadAtlasView(app: App): Promise<AtlasView | null> {
+  const leaf = getExistingAtlasLeaf(app);
+  if (!leaf) return null;
+  await leaf.loadIfDeferred();
+  return leaf.view instanceof AtlasView ? leaf.view : null;
+}
+
 /**
  * Opens a map in the Atlas view. Only one Atlas leaf exists at a time, so an
  * already open view receives the map as a scene tab instead of a new leaf.

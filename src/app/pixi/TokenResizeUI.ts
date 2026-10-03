@@ -3,7 +3,7 @@ import { Viewport } from 'pixi-viewport';
 import type { ViewAtlasState } from '../storeFactory';
 import type { StoreApi } from 'zustand';
 import { getTokenRingCenterRadius } from './token-renderer/tokenRingMetrics';
-import { computeTokenPixelSize, computeTokenStrokeWidth, tokenUIScale } from './token-renderer/tokenSizing';
+import { computeTokenPixelSize, computeTokenStrokeWidth, RESIZE_HANDLE_SIZE, tokenUIScale } from './token-renderer/tokenSizing';
 import { toError } from '../utils/errors';
 import type { TokenHandleContainer } from './token-renderer/types';
 import { findTokenGroup } from './token-renderer/findTokenGroup';
@@ -15,7 +15,7 @@ export class TokenResizeUI {
   private resizeHandles: Map<string, { left: TokenHandleContainer; right: TokenHandleContainer }> = new Map();
   
   // Handle appearance - matching status badge style
-  private readonly HANDLE_SIZE = 20; // Same as status badges
+  private readonly HANDLE_SIZE = RESIZE_HANDLE_SIZE; // Same as status badges
   private readonly HANDLE_DISTANCE = 0; // Place on token edge like status badges
   
   // Resize state

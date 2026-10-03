@@ -4,18 +4,15 @@ import { TFile, App } from 'obsidian';
 import FantasyStatblock from './FantasyStatblock';
 import type { TokenVitals } from '../../services/statblockVitalsSync';
 import { isModKey } from '../../keyboard/modKey';
+import { previewEdgeGaps, type PreviewEdgeGaps } from './statblock/previewEdgeGap';
 import './statblock-hover-preview.scss';
 
 export interface StatblockHoverPreviewProps {
   /** Vault path of the linked statblock note */
   notePath: string | null;
-  /** The note's text when it is not in the vault, e.g. inside a collection being imported. */
-  noteContent?: string | undefined;
-  /** Extra class, e.g. to lift the preview above a modal. */
-  className?: string | undefined;
   /** Enables click-to-roll on dice notation inside the statblock */
   app?: App | null | undefined;
-  /** Token/entry whose HP and stress the statblock should mirror */
+  /** Token whose resources the statblock should mirror */
   vitals?: TokenVitals | null;
   /** Whether the preview is visible */
   isVisible: boolean;
@@ -61,25 +58,26 @@ function calculatePreviewPosition(
   position: { x: number; y: number } | null,
   contentHeight: number,
   contentWidth: number,
-  preferredSide: 'left' | 'right' = 'left'
+  preferredSide: 'left' | 'right' = 'left',
+  gaps: PreviewEdgeGaps = { block: VIEWPORT_PADDING, inline: VIEWPORT_PADDING },
 ): React.CSSProperties {
   const viewportHeight = window.innerHeight;
   const viewportWidth = window.innerWidth;
 
   /** Vertical placement is the same whichever side the preview ends up on. */
   const verticalFor = (centerY: number): React.CSSProperties => {
-    const maxTop = viewportHeight - contentHeight - VIEWPORT_PADDING;
-    const top = Math.max(VIEWPORT_PADDING, Math.min(centerY - contentHeight / 2, maxTop));
-    return { top, maxHeight: viewportHeight - top - VIEWPORT_PADDING };
+    const maxTop = viewportHeight - contentHeight - gaps.block;
+    const top = Math.max(gaps.block, Math.min(centerY - contentHeight / 2, maxTop));
+    return { top, maxHeight: viewportHeight - top - gaps.block };
   };
 
   // If we have an anchor rect (e.g., initiative card), position relative to it
   if (anchorRect) {
     const vertical = verticalFor(anchorRect.top + anchorRect.height / 2);
 
-    const fitsLeft = anchorRect.left - ANCHOR_GAP - contentWidth >= VIEWPORT_PADDING;
+    const fitsLeft = anchorRect.left - ANCHOR_GAP - contentWidth >= gaps.inline;
     const fitsRight =
-      anchorRect.right + ANCHOR_GAP + contentWidth <= viewportWidth - VIEWPORT_PADDING;
+      anchorRect.right + ANCHOR_GAP + contentWidth <= viewportWidth - gaps.inline;
     const useLeft = preferredSide === 'left' ? fitsLeft || !fitsRight : !fitsRight && fitsLeft;
 
     if (!useLeft) {
@@ -88,7 +86,7 @@ function calculatePreviewPosition(
 
     // Clamp so the preview cannot be pushed off the left edge when neither
     // side has room for it.
-    const maxRight = viewportWidth - contentWidth - VIEWPORT_PADDING;
+    const maxRight = viewportWidth - contentWidth - gaps.inline;
     return {
       right: Math.min(viewportWidth - anchorRect.left + ANCHOR_GAP, Math.max(0, maxRight)),
       ...vertical,
@@ -100,10 +98,10 @@ function calculatePreviewPosition(
     const vertical = verticalFor(position.y);
 
     let left = position.x + 15;
-    if (left + contentWidth > viewportWidth - VIEWPORT_PADDING) {
+    if (left + contentWidth > viewportWidth - gaps.inline) {
       left = position.x - contentWidth - 15;
     }
-    left = Math.max(VIEWPORT_PADDING, Math.min(left, viewportWidth - contentWidth - VIEWPORT_PADDING));
+    left = Math.max(gaps.inline, Math.min(left, viewportWidth - contentWidth - gaps.inline));
 
     return { left, ...vertical };
   }
@@ -117,8 +115,6 @@ function calculatePreviewPosition(
  */
 export function StatblockHoverPreview({
   notePath,
-  noteContent,
-  className: extraClassName,
   app,
   vitals,
   isVisible,
@@ -172,19 +168,20 @@ export function StatblockHoverPreview({
     // Fall back to rough defaults until the statblock has actually rendered.
     const height = measured.height > 0 ? measured.height : 400;
     const width = measured.width > 0 ? measured.width : 450;
-    return calculatePreviewPosition(anchorRect, position, height, width, preferredSide);
+    const gaps = previewEdgeGaps(containerRef.current?.ownerDocument ?? document, VIEWPORT_PADDING);
+    return calculatePreviewPosition(anchorRect, position, height, width, preferredSide, gaps);
   }, [anchorRect, position, preferredSide, isVisible, isClosing, measured]);
 
   if ((!isVisible && !isClosing) || !notePath) {
     return null;
   }
 
-  const className = `statblock-hover-preview ${isClosing ? 'statblock-hover-preview--closing' : ''} ${extraClassName ?? ''}`;
+  const className = `statblock-hover-preview ${isClosing ? 'statblock-hover-preview--closing' : ''}`;
 
   return createPortal(
     <div ref={containerRef} className={className} style={positionStyles}>
       {app && (
-        <FantasyStatblock notePath={notePath} noteContent={noteContent} app={app} tokens={vitals ? [vitals] : []} />
+        <FantasyStatblock notePath={notePath} app={app} tokens={vitals ? [vitals] : []} />
       )}
     </div>,
     document.body

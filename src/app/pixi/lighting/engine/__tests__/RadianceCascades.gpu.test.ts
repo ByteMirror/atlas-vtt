@@ -22,6 +22,22 @@ function flatTexture(rgba: readonly [number, number, number, number]): Texture {
   return new Texture({ source: new BufferImageSource({ resource: pixels, width: 4, height: 4 }) });
 }
 
+/**
+ * A mipmapped map image, one texel per world pixel, white where both coordinates are 1 or 2
+ * modulo 4 and black elsewhere: a quarter white, yet every emission texel's centre lies between
+ * four white texels.
+ */
+function dottedTexture(): Texture {
+  const pixels = new Uint8Array(bounds.width * bounds.height * 4);
+  for (let y = 0; y < bounds.height; y++) {
+    for (let x = 0; x < bounds.width; x++) {
+      const white = (x % 4 === 1 || x % 4 === 2) && (y % 4 === 1 || y % 4 === 2);
+      pixels.set(white ? [255, 255, 255, 255] : [0, 0, 0, 255], (y * bounds.width + x) * 4);
+    }
+  }
+  return new Texture({ source: new BufferImageSource({ resource: pixels, width: bounds.width, height: bounds.height, autoGenerateMipmaps: true }) });
+}
+
 describe('RadianceCascades', () => {
   const cleanup: (() => void)[] = [];
   afterEach(() => {
@@ -45,7 +61,7 @@ describe('RadianceCascades', () => {
     field.build(splitBlocking(walls).twoWay);
     tiles.sync([{ key: 'l', x: 200, y: 256, bright: 120, dim: 240, flame: 20, color: [1, 1, 1], intensity: 1, animation: 'none' }], walls, 'all');
     const tile = tiles.tiles().get('l')!;
-    map.draw([{ tile, bright: 120, reach: 240 * 1.12, color: [1, 1, 1], intensity: 1 }]);
+    map.draw([{ tile, bright: 120, dim: 240, reach: 240 * 1.12, color: [1, 1, 1], intensity: 1 }]);
     cascades.build(map, albedo, field);
     const probes = readFloats(renderer, cascades.fluence);
     const width = cascades.fluence.source.pixelWidth;
@@ -75,6 +91,21 @@ describe('RadianceCascades', () => {
     }
     // White reflects twice what mid grey does.
     expect(opaque.probe(420, 256) / none.probe(420, 256)).toBeCloseTo(2, 1);
+  });
+
+  it('bounces the average colour under each emission texel of a mipmapped map image', async () => {
+    expect(BOUNCE.emitTexel).toBe(4);
+    const dotted = dottedTexture();
+    const average = flatTexture([64, 64, 64, 255]);
+    cleanup.push(() => {
+      dotted.destroy(true);
+      average.destroy(true);
+    });
+    const mipmapped = await bounce(dotted);
+    const flat = await bounce(average);
+    // Read at the image's full resolution, the dots would bounce as pure white: about 20 times as much.
+    expect(mipmapped.probe(420, 256) / flat.probe(420, 256)).toBeCloseTo(1, 1);
+    expect(mipmapped.probe(120, 100) / flat.probe(120, 100)).toBeCloseTo(1, 1);
   });
 
   it('bounces a map image destroyed before the build as mid grey', async () => {

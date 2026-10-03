@@ -1,0 +1,122 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// Senses editor — a token's senses in Edit Token, and a collection's default ones
+// ═══════════════════════════════════════════════════════════════════════════
+// Imported inside the `.atlas-vtt-plugin` scope of styles/main.scss.
+
+@use '../../../../../styles/tokens' as *;
+@use '../../../../../styles/mixins' as *;
+
+// One spacing in the list: its padding, and the gap between its rows and within them.
+$gap: $spacing-s;
+
+.atlas-senses {
+  @include atlas-flex-col($spacing-xs);
+}
+
+.atlas-senses__label {
+  @include atlas-field-label;
+}
+
+.atlas-senses__list {
+  @include atlas-inset-surface;
+  @include atlas-flex-col($gap);
+  margin: 0;
+  padding: $gap;
+  list-style: none;
+}
+
+.atlas-senses__empty {
+  margin: 0;
+  font-size: $font-ui-smaller;
+  color: var(--text-muted);
+}
+
+// The row is as tall as a range field, with or without one, so the names keep one rhythm.
+.atlas-sense-row {
+  @include atlas-flex-row($gap);
+  min-height: $input-height-s;
+  font-size: $font-ui-small;
+  color: var(--text-normal);
+}
+
+.atlas-sense-row__name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  flex: 1;
+  min-width: 0;
+  column-gap: $gap;
+}
+
+.atlas-sense-row__tag {
+  font-size: $font-ui-smaller;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+.atlas-sense-row__range {
+  @include atlas-flex-row($spacing-xs);
+  flex-shrink: 0;
+
+  > input {
+    @include atlas-text-input;
+    width: 72px;
+    height: $input-height-s;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+.atlas-sense-row__unit,
+.atlas-sense-row__reach {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.atlas-sense-row__remove.btn--icon {
+  width: $button-height-s;
+  height: $button-height-s;
+  flex-shrink: 0;
+  color: var(--text-muted);
+
+  svg {
+    width: $icon-xs;
+    height: $icon-xs;
+  }
+}
+
+// ── Add, edit, follow ────────────────────────────────────────────────────────
+.atlas-senses__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $gap;
+}
+
+// The senses to add, each with what it does: Atlas' dropdown menu, opened above the button.
+.atlas-senses-menu {
+  width: min(360px, calc(100vw - #{$spacing-l * 2}));
+}
+
+// A menu row of two lines: the sense's name, and what it does.
+.atlas-senses-menu .atlas-sense-offer {
+  display: block;
+  padding: $spacing-xs $spacing-s;
+  white-space: normal;
+}
+
+.atlas-sense-offer__name,
+.atlas-sense-offer__text {
+  display: block;
+}
+
+.atlas-sense-offer__name {
+  font-size: $font-ui-small;
+  font-weight: $font-weight-medium;
+  color: var(--text-normal);
+}
+
+.atlas-sense-offer__text {
+  font-size: $font-ui-smaller;
+  line-height: var(--line-height-tight);
+  color: var(--text-muted);
+}

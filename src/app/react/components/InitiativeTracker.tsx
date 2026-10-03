@@ -1,136 +1,33 @@
-import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useMemo, useEffect, useId, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { openContextMenuGlobal, type ContextMenuEntry } from '../root/ContextMenuContext';
+import { openContextMenuGlobal } from '../root/ContextMenuContext';
 import {
   Dices,
   Swords,
+  Trash2,
   ChevronUp,
   ChevronDown,
 } from 'lucide-react';
 import { useAtlasStore } from '../ViewStoreContext';
 import { useAtlasUI } from '../root/AtlasUIContext';
-import { isActiveAtlasLeaf } from '../../utils/activeLeafGuard';
+import { SIDE_LABELS, listedBySides, sideOf, sidesInOrder } from '../../initiative/sides';
+import { useInitiativeTokenSync } from '../../initiative/useInitiativeTokenSync';
+import { useMapInitiativeRules } from '../../initiative/useMapInitiativeRules';
+import { LabelTooltip } from '../../packages/components/primitives/tooltip';
+import { scrollWithin } from '../../utils/scrollWithin';
+import { EditInitiativePopup } from './EditInitiativePopup';
 import { InitiativeCard } from './InitiativeCard';
+import { initiativeCardMenu } from './initiativeCardMenu';
 import { EndCombatIcon } from './EndCombatIcon';
 import { StatblockHoverPreview, useStatblockHoverPreview } from './StatblockHoverPreview';
 import type { InitiativeEntry } from '../../types/initiativeTypes';
-import type { Character } from '../../types';
-import type { ViewAtlasState } from '../../storeFactory';
 import './initiative-tracker.scss';
 
 /**
- * Compact popup for editing initiative value
- * Positioned like statblock preview, anchored to the card
- */
-interface EditInitiativePopupProps {
-  entry: InitiativeEntry;
-  anchorRect: DOMRect;
-  value: string;
-  onChange: (value: string) => void;
-  onConfirm: () => void;
-  onCancel: () => void;
-}
-
-function EditInitiativePopup({
-  entry,
-  anchorRect,
-  value,
-  onChange,
-  onConfirm,
-  onCancel,
-}: EditInitiativePopupProps): React.ReactElement {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const popupRef = useRef<HTMLDivElement>(null);
-  const padding = 16;
-
-  // Focus input on mount
-  useEffect(() => {
-    window.setTimeout(() => {
-      inputRef.current?.focus();
-      inputRef.current?.select();
-    }, 50);
-  }, []);
-
-  // Handle keyboard
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent): void => {
-      if (!isActiveAtlasLeaf()) return;
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        onConfirm();
-      } else if (e.key === 'Escape') {
-        e.preventDefault();
-        onCancel();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onConfirm, onCancel]);
-
-  // Calculate position (to the left of anchor, centered vertically)
-  const viewportWidth = window.innerWidth;
-  const viewportHeight = window.innerHeight;
-  const anchorCenterY = anchorRect.top + anchorRect.height / 2;
-  const popupHeight = 44; // Approximate height of the compact popup
-
-  let top = anchorCenterY - popupHeight / 2;
-  top = Math.max(padding, Math.min(viewportHeight - popupHeight - padding, top));
-
-  const right = viewportWidth - anchorRect.left + padding;
-
-  return (
-    <>
-      {/* Backdrop to close on click outside */}
-      <div
-        className="atlas-initiative-edit-backdrop"
-        onClick={onCancel}
-      />
-      <div
-        ref={popupRef}
-        className="atlas-initiative-edit-popup"
-        style={{
-          position: 'fixed',
-          top,
-          right,
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <input
-          ref={inputRef}
-          type="number"
-          className="atlas-initiative-edit-popup__input"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder="0"
-        />
-        <span className="atlas-initiative-edit-popup__hint">Enter to save · Esc to cancel</span>
-      </div>
-    </>
-  );
-}
-
-type NewInitiativeEntry = Parameters<ViewAtlasState['addToInitiative']>[0];
-type Vitals = { current: number; max: number };
-
-/** Characters store HP either as a single number or as current/max. */
-function readHp(character: Character): Vitals | null {
-  if (!character.hp) return null;
-  return typeof character.hp === 'object'
-    ? { current: character.hp.current, max: character.hp.max }
-    : { current: character.hp, max: character.hp };
-}
-
-function readStress(character: Character): Vitals | undefined {
-  if (character.stress === undefined) return undefined;
-  return typeof character.stress === 'object'
-    ? { current: character.stress.current, max: character.stress.max }
-    : { current: character.stress, max: character.maxStress ?? 10 };
-}
-
-/**
  * Initiative Tracker Panel
- * Modern minimal design with floating cards - auto-syncs with map tokens
+ * Modern minimal design with floating cards. The GM chooses the combatants from the token menu;
+ * the players' list (`PlayerInitiativePanel`) shows the same ones, without those whose token is hidden.
+ * The collection's initiative rules decide whether they act in turn order or by sides.
  */
 export const InitiativeTracker: React.FC = () => {
   const { app } = useAtlasUI();
@@ -139,9 +36,11 @@ export const InitiativeTracker: React.FC = () => {
   const isOpen = useAtlasStore((s) => s.initiativeTrackerOpen);
   const initiative = useAtlasStore((s) => s.initiative);
   const tokens = useAtlasStore((s) => s.objects?.tokens) || {};
+  const rules = useMapInitiativeRules();
+  const bySides = listedBySides(initiative, rules);
+  const firstSide = initiative.sides?.first ?? rules.firstSide;
 
   // Store actions
-  const addToInitiative = useAtlasStore((s) => s.addToInitiative);
   const removeFromInitiative = useAtlasStore((s) => s.removeFromInitiative);
   const rollAllInitiative = useAtlasStore((s) => s.rollAllInitiative);
   const rollEntryInitiative = useAtlasStore((s) => s.rollEntryInitiative);
@@ -153,6 +52,9 @@ export const InitiativeTracker: React.FC = () => {
   const startCombat = useAtlasStore((s) => s.startCombat);
   const endCombat = useAtlasStore((s) => s.endCombat);
   const updateInitiativeEntry = useAtlasStore((s) => s.updateInitiativeEntry);
+  const updateTokens = useAtlasStore((s) => s.updateTokens);
+  const setInitiativeSitsOut = useAtlasStore((s) => s.setInitiativeSitsOut);
+  const resetInitiative = useAtlasStore((s) => s.resetInitiative);
 
   // Local state
   const [dragFromIndex, setDragFromIndex] = useState<number | null>(null);
@@ -161,6 +63,20 @@ export const InitiativeTracker: React.FC = () => {
   const [editingEntry, setEditingEntry] = useState<InitiativeEntry | null>(null);
   const [editAnchorRect, setEditAnchorRect] = useState<DOMRect | null>(null);
   const [editValue, setEditValue] = useState<string>('');
+
+  const sideLabelId = useId();
+
+  // The turn stays in view in a list longer than the panel: the combatant's card, or the top of its side
+  const contentRef = useRef<HTMLDivElement>(null);
+  const turnOf = initiative.sides?.active ?? initiative.entries.find((entry) => entry.isActive)?.id;
+  useEffect(() => {
+    const content = contentRef.current;
+    if (!initiative.isActive || !content) return;
+    const side = content.querySelector('.atlas-initiative-side--active');
+    const card = content.querySelector('.atlas-initiative-card--active');
+    if (side) scrollWithin(content, side, 'start');
+    else if (card) scrollWithin(content, card, 'nearest');
+  }, [initiative.isActive, turnOf, initiative.round]);
 
   // Refs for turn navigation buttons
   const prevBtnRef = useRef<HTMLButtonElement>(null);
@@ -181,96 +97,7 @@ export const InitiativeTracker: React.FC = () => {
     return () => window.removeEventListener('atlas-initiative-hotkey', handleHotkey as EventListener);
   }, []);
 
-  // Auto-sync: Add all map tokens to initiative automatically
-  useEffect(() => {
-    const tokenIds = Object.keys(tokens);
-    const existingTokenIds = new Set(initiative.entries.map(e => e.tokenId));
-    const removedSet = new Set(initiative.removedTokenIds ?? []);
-
-    tokenIds.forEach((tokenId) => {
-      if (existingTokenIds.has(tokenId)) return;
-      // Skip tokens explicitly removed by the user
-      if (removedSet.has(tokenId)) return;
-
-      const token = tokens[tokenId];
-      if (!token) return;
-
-      const character = token.kind === 'character' ? token : null;
-      const hp = (character && readHp(character)) ?? { current: 10, max: 10 };
-      const stress = character ? readStress(character) : undefined;
-
-      const entry: NewInitiativeEntry = {
-        tokenId,
-        name: character ? character.name : 'Token',
-        initiative: 0,
-        initiativeModifier: 0,
-        hp,
-        imagePath: token.imagePath,
-        isDefeated: hp.current <= 0,
-        isNPC: !character?.playerLinked,
-        ...(stress ? { stress } : {}),
-        ...(character?.statblockPath ? { statblockPath: character.statblockPath } : {}),
-      };
-
-      addToInitiative(entry);
-    });
-
-    // Also remove entries for tokens that no longer exist
-    initiative.entries.forEach((entry) => {
-      if (!tokens[entry.tokenId]) {
-        removeFromInitiative(entry.id);
-      }
-    });
-  // Deliberately not keyed on `initiative`: re-sync only when map tokens change, not on entry edits.
-  }, [tokens, addToInitiative, removeFromInitiative]);
-
-  // Sync HP/stress changes from tokens to initiative entries
-  useEffect(() => {
-    initiative.entries.forEach((entry) => {
-      const token = tokens[entry.tokenId];
-      if (!token) return;
-
-      const updates: Partial<InitiativeEntry> = {};
-
-      if (entry.imagePath !== token.imagePath) {
-        updates.imagePath = token.imagePath;
-      }
-
-      if (token.kind === 'character') {
-        if (entry.name !== token.name) {
-          updates.name = token.name;
-        }
-
-        const tokenHp = readHp(token);
-        if (tokenHp && (entry.hp.current !== tokenHp.current || entry.hp.max !== tokenHp.max)) {
-          updates.hp = tokenHp;
-          updates.isDefeated = tokenHp.current <= 0;
-        }
-
-        const stressUpdate = readStress(token);
-        const existingStress = entry.stress;
-        const stressChanged = stressUpdate
-          ? !existingStress
-            || existingStress.current !== stressUpdate.current
-            || existingStress.max !== stressUpdate.max
-          : existingStress !== undefined;
-
-        if (stressChanged) {
-          updates.stress = stressUpdate;
-        }
-
-        const tokenStatblockPath = token.statblockPath?.trim() ? token.statblockPath : undefined;
-
-        if (entry.statblockPath !== tokenStatblockPath) {
-          updates.statblockPath = tokenStatblockPath;
-        }
-      }
-
-      if (Object.keys(updates).length > 0) {
-        updateInitiativeEntry(entry.id, updates);
-      }
-    });
-  }, [tokens, initiative.entries, updateInitiativeEntry]);
+  useInitiativeTokenSync(tokens, initiative.entries);
 
   // Sorted entries by order
   const sortedEntries = useMemo(() => {
@@ -297,24 +124,23 @@ export const InitiativeTracker: React.FC = () => {
   // Context menu handler
   const handleContextMenu = useCallback(
     (e: React.MouseEvent, entry: InitiativeEntry, cardElement: HTMLElement): void => {
-      const entries: ContextMenuEntry[] = [
-        { type: 'item', label: 'Roll Initiative', icon: 'dice', onClick: () => rollEntryInitiative(entry.id) },
-        { type: 'item', label: 'Move to Front', icon: 'arrow-up-to-line', onClick: () => moveToFront(entry.id) },
-        { type: 'item', label: 'Move to Back', icon: 'arrow-down-to-line', onClick: () => moveToBack(entry.id) },
-        {
-          type: 'item', label: 'Edit Initiative', icon: 'pencil',
-          onClick: () => {
-            setEditingEntry(entry);
-            setEditAnchorRect(cardElement.getBoundingClientRect());
-            setEditValue(String(entry.initiative));
-          },
+      const entries = initiativeCardMenu(entry, tokens[entry.tokenId], { bySides, fightRuns: initiative.isActive }, {
+        roll: () => rollEntryInitiative(entry.id, rules.roll),
+        moveToFront: () => moveToFront(entry.id),
+        moveToBack: () => moveToBack(entry.id),
+        edit: () => {
+          setEditingEntry(entry);
+          setEditAnchorRect(cardElement.getBoundingClientRect());
+          setEditValue(String(entry.initiative));
         },
-        { type: 'item', label: 'Remove from Initiative', icon: 'trash-2', destructive: true, onClick: () => removeFromInitiative(entry.id) },
-      ];
+        updateToken: (changes) => updateTokens([{ id: entry.tokenId, changes }]),
+        setSitsOut: (sitsOut) => setInitiativeSitsOut(entry.id, sitsOut),
+        remove: () => removeFromInitiative(entry.id),
+      });
 
       openContextMenuGlobal(entries, { x: e.clientX, y: e.clientY });
     },
-    [rollEntryInitiative, moveToFront, moveToBack, updateInitiativeEntry, removeFromInitiative]
+    [tokens, bySides, initiative.isActive, rules.roll, rollEntryInitiative, moveToFront, moveToBack, removeFromInitiative, updateTokens, setInitiativeSitsOut]
   );
 
   // Hover handler for statblock preview (CMD+hover)
@@ -335,53 +161,89 @@ export const InitiativeTracker: React.FC = () => {
   // Don't render if closed
   if (!isOpen) return null;
 
+  // `index` is the card's place among all combatants, which is what a drag reorders
+  const card = (entry: InitiativeEntry, index: number): React.ReactElement => (
+    <InitiativeCard
+      key={entry.id}
+      entry={entry}
+      index={index}
+      bySides={bySides}
+      isHoveredForPreview={previewState.hoveredEntry?.id === entry.id}
+      onDragStart={handleDragStart}
+      onDragOver={handleDragOver}
+      onDragEnd={handleDragEnd}
+      onContextMenu={handleContextMenu}
+      onHover={handleEntryHover}
+    />
+  );
+
   return (
     <div className="atlas-initiative-tracker">
-      {/* Controls row: Roll + Combat + Close */}
+      {/* Controls row: Roll + Combat + Clear */}
       <div className="atlas-initiative-tracker__controls">
-        {/* Roll All button */}
-        <button
-          className="clickable-icon atlas-initiative-tracker__btn"
-          onClick={rollAllInitiative}
-          disabled={sortedEntries.length === 0}
-        >
-          <Dices />
-        </button>
+        {/* Nothing is rolled where the sides take turns */}
+        {!bySides && (
+          <LabelTooltip label="Roll initiative">
+            <button
+              className="clickable-icon atlas-initiative-tracker__btn"
+              onClick={() => rollAllInitiative(rules.roll)}
+              disabled={sortedEntries.length === 0}
+            >
+              <Dices />
+            </button>
+          </LabelTooltip>
+        )}
 
-        {/* Start/End Combat button */}
         {!initiative.isActive ? (
+          <LabelTooltip label="Start combat">
+            <button
+              className="clickable-icon atlas-initiative-tracker__btn"
+              onClick={() => startCombat(rules)}
+              disabled={sortedEntries.length === 0}
+            >
+              <Swords />
+            </button>
+          </LabelTooltip>
+        ) : (
+          <LabelTooltip label="End combat">
+            <button
+              className="clickable-icon atlas-initiative-tracker__btn atlas-initiative-tracker__btn--end"
+              onClick={endCombat}
+            >
+              <EndCombatIcon />
+            </button>
+          </LabelTooltip>
+        )}
+
+        <LabelTooltip label="Clear initiative">
           <button
             className="clickable-icon atlas-initiative-tracker__btn"
-            onClick={startCombat}
+            onClick={resetInitiative}
             disabled={sortedEntries.length === 0}
           >
-            <Swords />
+            <Trash2 />
           </button>
-        ) : (
-          <button
-            className="clickable-icon atlas-initiative-tracker__btn atlas-initiative-tracker__btn--end"
-            onClick={endCombat}
-          >
-            <EndCombatIcon />
-          </button>
-        )}
+        </LabelTooltip>
       </div>
 
-      {/* Content - Cards for each token */}
-      <div className="atlas-initiative-tracker__content">
-        {sortedEntries.map((entry, index) => (
-          <InitiativeCard
-            key={entry.id}
-            entry={entry}
-            index={index}
-            isHoveredForPreview={previewState.hoveredEntry?.id === entry.id}
-            onDragStart={handleDragStart}
-            onDragOver={handleDragOver}
-            onDragEnd={handleDragEnd}
-            onContextMenu={handleContextMenu}
-            onHover={handleEntryHover}
-          />
-        ))}
+      {/* Content - Cards for each combatant */}
+      <div ref={contentRef} className="atlas-initiative-tracker__content">
+        {sortedEntries.length === 0 && (
+          <p className="atlas-initiative-tracker__empty">Right-click a token to add it</p>
+        )}
+        {sortedEntries.length > 0 && (bySides
+          ? sidesInOrder(firstSide).map((side) => (
+            <section
+              key={side}
+              className={`atlas-initiative-side ${initiative.sides?.active === side ? 'atlas-initiative-side--active' : ''}`}
+              aria-labelledby={`${sideLabelId}-${side}`}
+              aria-current={initiative.sides?.active === side || undefined}
+            >
+              <h4 id={`${sideLabelId}-${side}`} className="atlas-initiative-side__label">{SIDE_LABELS[side]}</h4>
+              {sortedEntries.map((entry, index) => sideOf(tokens[entry.tokenId]) === side && card(entry, index))}
+            </section>
+          ))
+          : sortedEntries.map(card))}
       </div>
 
       {/* Statblock Preview - using shared component */}
@@ -395,6 +257,7 @@ export const InitiativeTracker: React.FC = () => {
             ...previewState.hoveredEntry,
             // Rolls from the preview act on the token, not on the initiative entry.
             id: previewState.hoveredEntry.tokenId,
+            resources: tokens[previewState.hoveredEntry.tokenId]?.resources,
             ringColor: tokens[previewState.hoveredEntry.tokenId]?.ringColor,
             showRing: tokens[previewState.hoveredEntry.tokenId]?.showRing,
           }

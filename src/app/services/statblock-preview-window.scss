@@ -1,6 +1,8 @@
 @use '../react/components/statblock/statblock-preview-surface' as *;
+@use '../../../styles/tokens' as *;
 
-// Imperative CMD+hover preview window for map tokens (StatblockPreviewWindow.ts).
+// Imperative CMD+hover preview window for tokens on the map, in the asset
+// manager and in the collection export and import dialogs (StatblockPreviewWindow.ts).
 .atlas-statblock-preview-window {
   @include atlas-statblock-preview-surface;
   z-index: 100;
@@ -9,6 +11,11 @@
   // an unclamped position.
   &--measuring {
     visibility: hidden;
+  }
+
+  // Opened from the asset manager or one of its dialogs, which cover the map and its previews.
+  &--over-modal {
+    z-index: $z-atlas-modal + 1;
   }
 
   &--closing {

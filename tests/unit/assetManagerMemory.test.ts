@@ -32,6 +32,7 @@ const place: AssetManagerPlace = {
 const context = (overrides: Partial<RestoreContext> = {}): RestoreContext => ({
   requestedTab: undefined,
   mapCollection: 'witherwild',
+  defaultCollection: 'default',
   folderExists: () => true,
   ...overrides,
 });
@@ -52,6 +53,13 @@ describe('AssetManagerMemory', () => {
   it('ignores stored data it does not understand', () => {
     expect(AssetManagerMemory.forApp(vaultStorage('garbage')).getPlace()).toBeNull();
     expect(AssetManagerMemory.forApp(vaultStorage({ place: { ...place, tab: 'spells' } })).getPlace()).toBeNull();
+  });
+
+  it('forgets a place left on All Collections, which older versions offered', () => {
+    expect(AssetManagerMemory.forApp(vaultStorage({ place: { ...place, collection: null } })).getPlace()).toBeNull();
+  });
+
+  it('reads only the scroll positions that are positions', () => {
     const memory = AssetManagerMemory.forApp(vaultStorage({ place: null, scroll: { a: 'far', b: -3, c: 120 } }));
     expect([memory.scrollTopOf('a'), memory.scrollTopOf('b'), memory.scrollTopOf('c')]).toEqual([0, 0, 120]);
   });
@@ -95,6 +103,6 @@ describe('placeToRestore', () => {
 
   it('opens the map\'s collection on tokens the first time', () => {
     expect(placeToRestore(null, context())).toMatchObject({ collection: 'witherwild', tab: 'tokens', folderId: null, search: '' });
-    expect(placeToRestore(null, context({ mapCollection: null }))).toMatchObject({ collection: 'default' });
+    expect(placeToRestore(null, context({ mapCollection: null, defaultCollection: 'Homebrew' }))).toMatchObject({ collection: 'Homebrew' });
   });
 });

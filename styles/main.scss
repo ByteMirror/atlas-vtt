@@ -21,6 +21,25 @@
   initial-value: transparent;
 }
 
+// The display face of the 3D dice panel's numbers (dice-roll.scss). At-rules
+// stay at the root, like @property above.
+@font-face {
+  font-family: 'Atlas Fantaisie Artistique';
+  src: url('../src/app/assets/fonts/fantaisie-artistique.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+// The sci-fi face of the dice, chosen in Dice settings; a variable font from 200 to 800.
+@font-face {
+  font-family: 'Atlas Oxanium';
+  src: url('../src/app/assets/fonts/oxanium.ttf') format('truetype');
+  font-weight: 200 800;
+  font-style: normal;
+  font-display: swap;
+}
+
 // Root namespace for all Atlas VTT styles
 .atlas-vtt-plugin {
   // Export design tokens as CSS custom properties
@@ -63,6 +82,7 @@
   @import '../src/app/packages/components/primitives/close-button.scss';
   @import '../src/app/react/components/dice/dice-dropdown.scss';
   @import '../src/app/react/components/dice/dice-toast.scss';
+  @import '../src/app/react/components/dice3d/dice-roll.scss';
   @import '../src/app/react/components/character-select-mode.scss';
   @import '../src/app/packages/token.scss';
     @import '../src/app/react/components/view-actions-menu.scss';
@@ -74,6 +94,7 @@
   @import '../src/app/react/components/dice-log/dice-roll-log.scss';
   @import '../src/app/react/components/loot/loot-roller.scss';
   @import '../src/app/pixi/lighting/light-panel.scss';
+  @import '../src/app/pixi/lighting/light-popover.scss';
   @import '../src/app/react/components/loot/loot-source-tree.scss';
   @import '../src/app/react/components/loot/loot-roll-bar.scss';
   @import '../src/app/react/components/loot/loot-lists.scss';
@@ -84,6 +105,10 @@
   @import '../src/app/react/components/collection-settings-modal.scss';
   @import '../src/app/react/components/collection-settings/system-tab.scss';
   @import '../src/app/react/components/collection-settings/creature-filters-tab.scss';
+  @import '../src/app/react/components/collection-settings/conditions-tab.scss';
+  @import '../src/app/react/components/collection-settings/vision-tab.scss';
+  @import '../src/app/react/components/senses/senses-editor.scss';
+  @import '../src/app/react/components/collection-settings/resources-tab.scss';
   @import '../src/app/services/note-preview-window.scss';
   @import '../src/app/services/embedded-leaf.scss';
   @import '../src/app/react/components/atlas-toast.scss';
@@ -128,23 +153,40 @@
 
   // Scene tabs and widgets share one row so they can never overlap:
   // the tab strip shrinks and scrolls, the widget bar keeps its width.
+  //
+  // The row is no layer of its own (absolute and without a z-index, where a
+  // fixed element always is one): its bars stand at 100, below the map's
+  // overlays, while the dice rolls hanging from its right end stand above them.
   .atlas-top-bar-row {
-    position: fixed;
+    position: absolute;
     top: $spacing-s;
     left: $spacing-s;
     right: $spacing-s;
     display: flex;
     align-items: flex-start;
     gap: $spacing-s;
-    z-index: 100;
     pointer-events: none;
 
-    // The row positions the widget bar here; its fixed placement in
-    // widget-bar.scss is for the player window.
-    > .atlas-widget-bar {
-      position: static;
+    > :not(.atlas-top-bar-end) {
+      z-index: 100;
+    }
+
+    // The right end holds the widget bar and, below it, the DM's dice rolls
+    // (dice-roll.scss). Without widgets it is empty and the rolls start at the
+    // top, as far from the top edge as from the right.
+    > .atlas-top-bar-end {
+      position: relative;
       flex: none;
       margin-left: auto;
+
+      // The row positions the widget bar here; its fixed placement in
+      // widget-bar.scss is for the player window.
+      > .atlas-widget-bar {
+        position: relative;
+        top: auto;
+        right: auto;
+        z-index: 100;
+      }
     }
   }
 
@@ -214,10 +256,9 @@
         var(--atlas-bar-end-radius, #{$radius-l}) var(--atlas-bar-start-radius, #{$radius-l});
     }
 
-    .atlas-toolbar-end > .atlas-toggle > .atlas-toggle__switch {
-      @include atlas-corner-shape;
-      border-radius: var(--atlas-bar-start-radius, 10px) var(--atlas-bar-end-radius, 10px)
-        var(--atlas-bar-end-radius, 10px) var(--atlas-bar-start-radius, 10px);
+    .atlas-toolbar-end > .atlas-toggle {
+      border-radius: var(--atlas-bar-start-radius, #{$radius-xl}) var(--atlas-bar-end-radius, #{$radius-xl})
+        var(--atlas-bar-end-radius, #{$radius-xl}) var(--atlas-bar-start-radius, #{$radius-xl});
     }
   }
 
@@ -287,8 +328,12 @@
     }
   }
 
-  /* Make all buttons in toolbar transparent by default */
-  .atlas-vtt-toolbar button.btn,
+  // Buttons in the toolbar's menus that keep their own look: the dice tray's Roll and Clear,
+  // and the options of a segmented control, which is filled where it is chosen.
+  $own-look: '.atlas-dice-tray *, .atlas-segmented__option';
+
+  /* Make all buttons in toolbar transparent by default, except those with their own look. */
+  .atlas-vtt-toolbar button.btn:not(#{$own-look}),
   .atlas-vtt-toolbar button.btn--toolbar {
     background: transparent !important;
     border: none !important;
@@ -303,20 +348,22 @@
     }
   }
 
-  // Pointer focus stays quiet; keyboard focus gets the shared ring
-  .atlas-vtt-toolbar button.btn:focus,
-  .atlas-vtt-toolbar button.btn--toolbar:focus {
+  // Pointer focus stays quiet; keyboard focus gets the shared ring. The quiet rule leaves
+  // :focus-visible alone: as `:focus:not(…)` it outranked the ring's rule below.
+  .atlas-vtt-toolbar button.btn:focus:not(:focus-visible):not(#{$own-look}),
+  .atlas-vtt-toolbar button.btn--toolbar:focus:not(:focus-visible) {
     outline: none !important;
     box-shadow: none !important;
   }
 
-  .atlas-vtt-toolbar button.btn:focus-visible,
+  // A segmented option keeps the button's own ring, as in a dialog (`:where`: no added weight).
+  .atlas-vtt-toolbar button.btn:focus-visible:where(:not(.atlas-segmented__option)),
   .atlas-vtt-toolbar button.btn--toolbar:focus-visible {
     outline: 2px solid var(--interactive-accent) !important;
     outline-offset: -2px;
   }
 
-  .atlas-vtt-toolbar button.btn:hover,
+  .atlas-vtt-toolbar button.btn:hover:not(#{$own-look}),
   .atlas-vtt-toolbar button.btn--toolbar:hover {
     background: var(--background-modifier-hover) !important;
     color: var(--text-normal) !important;
@@ -372,21 +419,17 @@
     padding: 0;
     gap: 0;
 
-    // Remove individual button backgrounds and radii
-    button.btn {
+    // The two halves of the split button have no background or radius of their own. Only they:
+    // the options menu hangs inside the group, and its buttons are the menu's to shape
+    // (dropdown-menu.scss). `:where` keeps the reset below `.btn.is-active` above.
+    > :where(.atlas-tool-button) button.btn,
+    > :where(.atlas-dropdown-menu) > button.btn {
       border-radius: 0 !important;
       background: transparent !important;
     }
 
-    // Restore default styles for buttons inside dropdown menus
+    // States of the menu's buttons that the toolbar's button rules above would flatten
     .atlas-dropdown-content button.btn {
-      border-radius: atlas-panel-inset-radius-value($spacing-s) !important;
-      background: transparent !important;
-
-      &:hover {
-        background: var(--background-modifier-hover) !important;
-      }
-
       &.atlas-dropdown-mode-btn--active {
         background: transparent !important;
         color: var(--interactive-accent) !important;
@@ -402,15 +445,14 @@
       }
     }
 
-    // Round only the outer edges of the first button
-    > div:first-child button.btn {
+    // Round only the outer edges of the tool button
+    > .atlas-tool-button:first-child button.btn {
       border-top-left-radius: var(--atlas-bar-start-radius, #{$radius-l}) !important;
       border-bottom-left-radius: var(--atlas-bar-start-radius, #{$radius-l}) !important;
     }
 
-    // Round only the outer edges of the last element's button
-    > :last-child button.btn,
-    > :last-child.atlas-dropdown-menu button.btn {
+    // …and of the chevron that ends the group
+    > .atlas-dropdown-menu:last-child > button.btn {
       border-top-right-radius: var(--atlas-bar-end-radius, #{$radius-l}) !important;
       border-bottom-right-radius: var(--atlas-bar-end-radius, #{$radius-l}) !important;
     }

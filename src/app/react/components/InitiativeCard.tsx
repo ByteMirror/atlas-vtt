@@ -1,15 +1,23 @@
+import { useMapResources } from '../../resources/useMapResources';
+import { isDefeated } from '../../resources/resourceValues';
+import { resourceColor } from '../../resources/resourceColors';
+import { visibleResources } from '../../resources/visibleResources';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { GripVertical, Skull, User, Bot } from 'lucide-react';
+import { EyeOff, GripVertical, Skull, User, Bot } from 'lucide-react';
 import type { InitiativeEntry } from '../../types/initiativeTypes';
 import { useAtlasUI } from '../root/AtlasUIContext';
 import { useAtlasStore } from '../ViewStoreContext';
 import { zoomToTokenWithHighlight } from '../../pixi/utils/tokenHighlight';
 import { isModHeld, isModKey } from '../../keyboard/modKey';
+import { LabelTooltip } from '../../packages/components/primitives/tooltip';
+import { TokenPortrait } from '../../packages/components/shared/TokenPortrait';
 
 interface InitiativeCardProps {
   entry: InitiativeEntry;
   index: number;
   isHoveredForPreview: boolean;
+  /** The fight runs by sides: a combatant has no number there and never the turn by itself. */
+  bySides?: boolean;
   onDragStart: (index: number) => void;
   onDragOver: (index: number) => void;
   onDragEnd: () => void;
@@ -19,12 +27,13 @@ interface InitiativeCardProps {
 
 /**
  * Individual initiative tracker card
- * Displays token avatar, name, initiative value, HP bar, and optional stress bar
+ * Displays the token as the map shows it (its ring, or unframed), its initiative value and the bars of its resources
  */
 export const InitiativeCard: React.FC<InitiativeCardProps> = ({
   entry,
   index,
   isHoveredForPreview,
+  bySides = false,
   onDragStart,
   onDragOver,
   onDragEnd,
@@ -50,17 +59,13 @@ export const InitiativeCard: React.FC<InitiativeCardProps> = ({
     return sameImageCount >= 2 ? token.instanceNumber : null;
   }, [tokens, entry.tokenId, tokenSettings?.showInstanceBadges]);
 
-  // Calculate HP percentage and color
-  const hpPercentage = entry.hp.max > 0
-    ? Math.max(0, Math.min(100, (entry.hp.current / entry.hp.max) * 100))
-    : 0;
-
-  // Match thresholds from hp-bar.tsx: >=70% ok, 30-69% warn, <30% crit
-  const getHPColorClass = (): string => {
-    if (hpPercentage >= 70) return 'atlas-initiative-card__hp-fill--healthy';
-    if (hpPercentage >= 30) return 'atlas-initiative-card__hp-fill--injured';
-    return 'atlas-initiative-card__hp-fill--critical';
-  };
+  // Read live from the token: the resources that defeat it (hit points), and whether one of them has
+  const definitions = useMapResources();
+  const token = tokens[entry.tokenId];
+  const bars = token ? visibleResources(token, definitions, 'dm').filter(({ definition }) => definition.defeatedWhenSpent) : [];
+  const defeated = token !== undefined && isDefeated(token, definitions);
+  // A hidden token's entry is left out of the players' list (`PlayerInitiativePanel`)
+  const hiddenFromPlayers = token?.isHidden === true;
 
   // Get image URL from vault path
   const getImageUrl = useCallback((imagePath: string): string => {
@@ -195,8 +200,10 @@ export const InitiativeCard: React.FC<InitiativeCardProps> = ({
   // Build class names
   const cardClasses = [
     'atlas-initiative-card',
-    entry.isActive && 'atlas-initiative-card--active',
-    entry.isDefeated && 'atlas-initiative-card--defeated',
+    entry.isActive && !bySides && 'atlas-initiative-card--active',
+    defeated && 'atlas-initiative-card--defeated',
+    hiddenFromPlayers && 'atlas-initiative-card--hidden',
+    entry.sitsOut && 'atlas-initiative-card--sitting-out',
     isHoveredForPreview && 'atlas-initiative-card--preview-hover',
     dropPosition === 'above' && 'atlas-initiative-card--drop-above',
     dropPosition === 'below' && 'atlas-initiative-card--drop-below',
@@ -226,44 +233,66 @@ export const InitiativeCard: React.FC<InitiativeCardProps> = ({
 
       {/* Avatar with optional instance badge */}
       <div className="atlas-initiative-card__avatar-wrapper">
-        <div className="atlas-initiative-card__avatar">
-          {entry.imagePath ? (
-            <img
-              src={getImageUrl(entry.imagePath)}
-              alt={entry.name}
-              onError={(e) => {
-                e.currentTarget.hide();
-              }}
-            />
-          ) : (
-            entry.isNPC ? <Bot /> : <User />
-          )}
+        {entry.imagePath ? (
+          <TokenPortrait
+            className="atlas-initiative-card__portrait"
+            src={getImageUrl(entry.imagePath)}
+            alt={entry.name}
+            showRing={token?.showRing !== false}
+            ringColor={token?.ringColor}
+          />
+        ) : (
+          <div className="atlas-initiative-card__avatar">
+            {entry.isNPC ? <Bot /> : <User />}
+          </div>
+        )}
 
-          {/* Defeated overlay */}
-          {entry.isDefeated && (
-            <div className="atlas-initiative-card__defeated-overlay">
-              <Skull />
-            </div>
-          )}
-        </div>
+        {/* Defeated overlay */}
+        {defeated && (
+          <div className="atlas-initiative-card__defeated-overlay">
+            <Skull />
+          </div>
+        )}
 
         {instanceBadge != null && (
           <span className="atlas-initiative-card__instance-badge">{instanceBadge}</span>
         )}
+
+        {hiddenFromPlayers && (
+          <LabelTooltip label="Hidden from players" side="left">
+            <span className="atlas-initiative-card__hidden-badge"><EyeOff /></span>
+          </LabelTooltip>
+        )}
       </div>
 
       {/* Initiative number */}
-      <span className="atlas-initiative-card__initiative">
-        {entry.initiative}
-      </span>
+      {!bySides && (
+        <span className="atlas-initiative-card__initiative">
+          {entry.initiative}
+        </span>
+      )}
 
-      {/* HP Bar */}
-      <div className="atlas-initiative-card__hp-bar">
-        <div
-          className={`atlas-initiative-card__hp-fill ${getHPColorClass()}`}
-          style={{ width: `${hpPercentage}%` }}
-        />
-      </div>
+      {/* Resource bars */}
+      {bars.length > 0 && (
+        <div className="atlas-initiative-card__resources">
+          {bars.map(({ definition, value }) => (
+            <div
+              key={definition.key}
+              className="atlas-initiative-card__hp-bar"
+              role="meter"
+              aria-label={definition.name}
+              aria-valuemin={0}
+              aria-valuenow={value.current}
+              aria-valuemax={value.max}
+            >
+              <div
+                className="atlas-initiative-card__hp-fill"
+                style={{ width: `${Math.max(0, Math.min(100, (value.current / value.max) * 100))}%`, '--atlas-resource-color': resourceColor(definition, value) } as React.CSSProperties}
+              />
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 };

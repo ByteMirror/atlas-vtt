@@ -25,7 +25,8 @@ export function useDiceAvatar(source: DiceRollResult['source']): DiceAvatar | nu
   const { app } = useAtlasUI();
   const tokenId = source?.tokenId;
   // One selector per field: selecting the token itself would re-render on every move.
-  // The player window has no view store, so its avatars come from the statblock or the roll.
+  // The player window reads the presented scene's store, lent to it. Without a store, and for
+  // a token the store does not hold, avatars come from the statblock or the roll.
   const currentImagePath = useOptionalAtlasStore(
     (state): string | undefined => (tokenId ? state.objects?.tokens?.[tokenId]?.imagePath : undefined),
     undefined,

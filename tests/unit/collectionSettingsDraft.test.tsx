@@ -1,6 +1,7 @@
 import { act, renderHook } from '@testing-library/react';
 import { expect, it } from 'vitest';
 import { BUILT_IN_SYSTEM_PRESETS } from '../../src/app/gameSystems/builtInPresets';
+import { draftResourceKey } from '../../src/app/resources/resourceDefinitions';
 import { useCollectionSettingsDraft } from '../../src/app/react/components/collection-settings/useCollectionSettingsDraft';
 import type { AssetService } from '../../src/app/services/AssetService';
 import type { CollectionSettings } from '../../src/app/types/collectionSettingsTypes';
@@ -27,7 +28,7 @@ it('switching systems replaces every condition, even one with the same name', ()
 it('clearing the system leaves the vanilla settings', () => {
   const { result } = draftFor({ ...structuredClone(shadowdark.rules), defaultWidgets: { timer: true }, systemPresetId: shadowdark.id });
   act(() => result.current.clearSystem());
-  expect(result.current.toSettings()).toMatchObject({ conditions: [], defaultWidgets: {}, systemPresetId: undefined });
+  expect(result.current.toSettings()).toMatchObject({ conditions: [], defaultWidgets: { hpBar: true, stressBar: false }, systemPresetId: undefined });
 });
 
 it('loads and saves the collection’s own creature filters and the switched-off ones, whatever the system', () => {
@@ -37,6 +38,26 @@ it('loads and saves the collection’s own creature filters and the switched-off
   act(() => result.current.applyPreset(dnd5e));
   act(() => result.current.setHiddenCreatureFilters(['source', 'rarity']));
   expect(result.current.toSettings()).toMatchObject({ customCreatureFilters: custom, hiddenCreatureFilters: ['source', 'rarity'] });
+});
+
+it('carries the collection’s resources: the preset’s on a switch, HP alone without a system, edits on save', () => {
+  const cairn = BUILT_IN_SYSTEM_PRESETS.find((preset) => preset.name === 'Cairn')!;
+  // A collection saved before resources existed reads as its preset's
+  const { result } = draftFor({ conditions: [], systemPresetId: shadowdark.id });
+  expect(result.current.resources.map((r) => r.key)).toEqual(['hp']);
+
+  act(() => result.current.applyPreset(cairn));
+  expect(result.current.toSettings().resources?.map((r) => r.key)).toEqual(['hp', 'str']);
+
+  act(() => result.current.setResources([{ ...result.current.resources[0]!, name: ' Hit Protection ', field: ' hp ' }]));
+  expect(result.current.toSettings().resources).toMatchObject([{ key: 'hp', name: 'Hit Protection', field: 'hp' }]);
+
+  // A resource added in the dialog is keyed by the name it has when saved
+  act(() => result.current.setResources([...result.current.resources, { ...result.current.resources[0]!, key: draftResourceKey(), name: 'Ammo', field: 'ammo' }]));
+  expect(result.current.toSettings().resources?.map((r) => r.key)).toEqual(['hp', 'ammo']);
+
+  act(() => result.current.clearSystem());
+  expect(result.current.toSettings().resources?.map((r) => r.key)).toEqual(['hp']);
 });
 
 describe('default token vision', () => {
@@ -70,4 +91,111 @@ describe('default token vision', () => {
     act(() => result.current.clearSystem());
     expect(result.current.toSettings().defaultTokenVision).toBeUndefined();
   });
+});
+
+it('keeps the bar switches of a collection whose resources stay, and switches a new bar on', () => {
+  const hp = { ...dnd5e.rules.resources![0]! };
+  const { result } = draftFor({ conditions: [], defaultWidgets: { hpBar: false }, resources: [hp] });
+  expect(result.current.toSettings().defaultWidgets).toEqual({ hpBar: false });
+
+  act(() => result.current.setResources([hp, { ...hp, key: draftResourceKey(), name: 'Stress', field: 'stress', direction: 'fills', defeatedWhenSpent: false }]));
+  expect(result.current.toSettings().defaultWidgets).toEqual({ hpBar: false, stressBar: true });
+});
+
+it('keeps what players see of a resource when its system is applied again', () => {
+  const { result } = draftFor({ ...structuredClone(dnd5e.rules), systemPresetId: dnd5e.id, resources: [{ ...dnd5e.rules.resources![0]!, visibleToPlayers: true }] });
+  act(() => result.current.applyPreset(dnd5e));
+  expect(result.current.toSettings().resources?.map((r) => [r.key, r.visibleToPlayers])).toEqual([['hp', true]]);
+});
+
+describe('senses', () => {
+  const witchSight = {
+    id: 'home-1', name: 'Witch sight', description: 'Sees in the dark within its range.', lineOfSight: true,
+    sees: { bright: 'normal', dim: 'normal', dark: 'as-dim', magicalDark: 'none' }, look: 'colour', reveals: 'all', precise: true,
+    seesInvisible: false, worksWhileBlinded: false, range: 'required',
+  } as const;
+
+  it('loads the collection’s own senses, without what cannot be used, and saves them', () => {
+    const { result } = draftFor({ ...structuredClone(dnd5e.rules), senses: [witchSight, { name: 'No id' }] as never, systemPresetId: dnd5e.id });
+    expect(result.current.senses).toEqual([witchSight]);
+    expect(result.current.toSettings().senses).toEqual([witchSight]);
+  });
+
+  it('has none of its own in a collection saved before senses existed, and saves none, so it keeps following its preset', () => {
+    const { senses: _senses, ...before } = structuredClone(dnd5e.rules);
+    const { result } = draftFor({ ...before, systemPresetId: dnd5e.id });
+    expect(result.current.senses).toBeUndefined();
+    expect(result.current.toSettings()).toHaveProperty('senses', undefined);
+  });
+
+  it('drops its own senses when a preset is applied, so the collection reads the preset\'s', () => {
+    const { result } = draftFor({ ...structuredClone(shadowdark.rules), senses: [witchSight], systemPresetId: shadowdark.id });
+    expect(result.current.toSettings().senses).toEqual([witchSight]);
+    act(() => result.current.applyPreset(dnd5e));
+    expect(result.current.toSettings()).toHaveProperty('senses', undefined);
+  });
+
+  it('are cleared with the game system', () => {
+    const { result } = draftFor({ ...structuredClone(dnd5e.rules), systemPresetId: dnd5e.id });
+    act(() => result.current.clearSystem());
+    expect(result.current.toSettings()).toHaveProperty('senses', undefined);
+  });
+
+  it('saves the senses once they are edited, and none again when the edit is taken back', () => {
+    const { senses: _senses, ...before } = structuredClone(dnd5e.rules);
+    const { result } = draftFor({ ...before, systemPresetId: dnd5e.id });
+    act(() => result.current.setSenses([...dnd5e.rules.senses!, witchSight]));
+    expect(result.current.toSettings().senses).toEqual([...dnd5e.rules.senses!, witchSight]);
+    act(() => result.current.setSenses(undefined));
+    expect(result.current.toSettings()).toHaveProperty('senses', undefined);
+  });
+});
+
+describe('light presets', () => {
+  const glowMoss = { id: 'home-1', name: 'Glow moss', bright: 5, dim: 15, color: '#7ee0a8', animation: 'none', kind: 'magical' } as const;
+  const { lightPresets: _lights, ...withoutLights } = structuredClone(dnd5e.rules);
+
+  it('loads the collection\'s own, without what cannot be used, and saves them again', () => {
+    const { result } = draftFor({ ...withoutLights, lightPresets: [glowMoss, { name: 'No id' }] as never, systemPresetId: dnd5e.id });
+    expect(result.current.lightPresets).toEqual([glowMoss]);
+    expect(result.current.toSettings().lightPresets).toEqual([glowMoss]);
+  });
+
+  it('has none of its own in a collection that follows its preset, and saves none', () => {
+    const { result } = draftFor({ ...withoutLights, systemPresetId: dnd5e.id });
+    expect(result.current.lightPresets).toBeUndefined();
+    expect(result.current.toSettings()).toHaveProperty('lightPresets', undefined);
+  });
+
+  it('are replaced by an applied preset\'s, which the collection then reads from the preset', () => {
+    const { result } = draftFor({ ...withoutLights, lightPresets: [glowMoss], systemPresetId: shadowdark.id });
+    act(() => result.current.applyPreset(dnd5e));
+    expect(result.current.toSettings()).toHaveProperty('lightPresets', undefined);
+  });
+
+  it('are cleared with the game system', () => {
+    const { result } = draftFor({ ...withoutLights, lightPresets: [glowMoss], systemPresetId: dnd5e.id });
+    act(() => result.current.clearSystem());
+    expect(result.current.toSettings()).toHaveProperty('lightPresets', undefined);
+  });
+});
+
+it('follows the game system\'s initiative rules until the collection has its own, and drops them with the system', () => {
+  const cairn = BUILT_IN_SYSTEM_PRESETS.find((preset) => preset.name === 'Cairn')!;
+  const own = { mode: 'turn-order' as const, roll: ' 2d6 ', firstSide: 'players' as const };
+  // Stored rules that are none read as unset
+  const { result } = draftFor({ conditions: [], systemPresetId: cairn.id, initiative: { mode: 'teams' } as never });
+  expect(result.current.initiative).toBeUndefined();
+  expect(result.current.toSettings()).toHaveProperty('initiative', undefined);
+
+  act(() => result.current.setInitiative(own));
+  expect(result.current.toSettings().initiative).toEqual({ ...own, roll: '2d6' });
+
+  // Another system brings its own rules, so the collection's go
+  act(() => result.current.applyPreset(dnd5e));
+  expect(result.current.toSettings()).toHaveProperty('initiative', undefined);
+
+  act(() => result.current.setInitiative(own));
+  act(() => result.current.clearSystem());
+  expect(result.current.toSettings()).toHaveProperty('initiative', undefined);
 });

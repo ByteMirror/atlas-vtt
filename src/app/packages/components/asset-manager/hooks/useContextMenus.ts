@@ -1,4 +1,3 @@
-import { AssetService } from '../../../../services/AssetService';
 import React from 'react';
 import { openContextMenuGlobal } from '../../../../react/root/ContextMenuContext';
 import { buildAssetContextMenuEntries } from '../contextMenus/assetContextMenu';
@@ -19,8 +18,8 @@ interface ContextMenuDeps {
   crud: AssetCrudActions;
   tags: TagsAndCollectionsState;
   statblock: StatblockLinkState;
-  /** Id of the collection shown; null shows the default one. */
-  selectedCollection: string | null;
+  /** Id of the collection shown. */
+  selectedCollection: string;
   onClose: () => void;
 }
 
@@ -42,10 +41,11 @@ export function useContextMenus({
       : [asset];
 
     const entries = buildAssetContextMenuEntries(asset, selectedAssets, {
-      app: data.app, view: data.view, addTokens: data.addTokens, setSelection: data.setSelection,
+      app: data.app, view: data.view,
       assetService: data.assetService, onClose,
       setEditingToken: crud.setEditingToken, setIsTokenCreatorOpen: crud.setIsTokenCreatorOpen,
       setIsMoveModalOpen: crud.setIsMoveModalOpen,
+      openCreateScene: crud.openCreateSceneModalFromMap,
       setInputModalState: crud.setInputModalState,
       setAssets: data.setAssets, setSelectedAssetIds: sel.setSelectedAssetIds,
       loadAssetsForActiveTab: data.loadAssetsForActiveTab,
@@ -61,7 +61,7 @@ export function useContextMenus({
       },
       selectedAssetIds: sel.selectedAssetIds,
       assets: data.assets, folders: data.folders, availableTags: data.availableTags,
-      transferTargets: transferTargets(data.collections, selectedCollection || AssetService.defaultCollectionId()),
+      transferTargets: transferTargets(data.collections, selectedCollection),
     });
     openContextMenuGlobal(entries, { x: event.clientX, y: event.clientY });
   };

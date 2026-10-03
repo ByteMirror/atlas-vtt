@@ -1,4 +1,5 @@
-import { Buffer, BufferUsage, Geometry, RenderTexture, Shader, type Container, type Renderer, type TextureSource, type TEXTURE_FORMATS, type UniformGroup } from 'pixi.js';
+import { Buffer, BufferUsage, Geometry, GlProgram, RenderTexture, Shader, type Container, type Renderer, type TextureSource, type TEXTURE_FORMATS, type UniformGroup, type WebGLRenderer } from 'pixi.js';
+import type { EngineShaderSource } from './engineShaders';
 
 export const HIGHP = 'highp';
 
@@ -42,8 +43,31 @@ export function createPlaceholder(): RenderTexture {
   return createTarget(1, 1, 'r8unorm', 'nearest');
 }
 
-export function createShader(vertex: string, fragment: string, name: string, resources: Record<string, UniformGroup | TextureSource>): Shader {
-  return Shader.from({ gl: { vertex, fragment, name, preferredFragmentPrecision: HIGHP }, resources });
+/** The program PIXI compiles for an engine shader: every lighting texture is read at full precision. */
+export function engineProgram({ vertex, fragment, name }: EngineShaderSource): GlProgram {
+  return GlProgram.from({ vertex, fragment, name, preferredFragmentPrecision: HIGHP });
+}
+
+export function createShader(source: EngineShaderSource, resources: Record<string, UniformGroup | TextureSource>): Shader {
+  return new Shader({ glProgram: engineProgram(source), resources });
+}
+
+/** The engine's WebGL context, or null on a renderer without one. */
+export function glOf(renderer: Renderer): WebGLRenderer['gl'] | null {
+  return renderer.name === 'webgl' ? (renderer as WebGLRenderer).gl : null;
+}
+
+/** While its context is lost a renderer draws nothing, and PIXI throws when asked for a new program. */
+export function contextLost(renderer: Renderer): boolean {
+  return glOf(renderer)?.isContextLost() ?? false;
+}
+
+/**
+ * Returns once the graphics process has executed every command sent so far: a round trip,
+ * for the one moment that must know a frame was drawn, not merely queued.
+ */
+export function awaitGpu(renderer: Renderer): void {
+  glOf(renderer)?.finish();
 }
 
 /** Renders `container` into `target` outside the stage's render, like `ExploredTexture` does. */

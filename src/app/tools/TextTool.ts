@@ -14,6 +14,7 @@ import type { GridSystem } from '../grid/GridSystem';
 import { EventEmitter } from 'events';
 import type { TextElement } from '../types';
 import { promptForText } from '../ui/textInputDialog';
+import { isHandledTap } from '../pixi/utils/handledEvents';
 
 export class TextTool {
   private viewport: Viewport;
@@ -178,6 +179,10 @@ export class TextTool {
   }
 
   private handleMapClick(e: FederatedPointerEvent): void {
+    // Only the primary button places text; a right-drag pans the map and ends in a tap too.
+    if (e.button !== 0) return;
+    // A click a pin, door badge or light marker took places no text.
+    if (isHandledTap(e)) return;
     // Free placement — see handleMapMove.
     const worldPos = this.viewport.toWorld(e.global);
     void this.showTextCreationDialog(worldPos.x, worldPos.y);

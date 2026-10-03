@@ -31,8 +31,6 @@ function createEntry(): InitiativeEntry {
     name: 'Bandit Captain',
     initiative: 12,
     initiativeModifier: 2,
-    hp: { current: 8, max: 10 },
-    isDefeated: false,
     isActive: false,
     isNPC: true,
     order: 0,

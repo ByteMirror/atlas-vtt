@@ -1,4 +1,6 @@
 import type { SystemPreset } from '../../types/systemPresetTypes';
+import { HP_RESOURCE } from '../../resources/resourceDefinitions';
+import { CYBERPUNK_RED_SENSES } from '../senses/cyberpunkRed';
 import { builtInPresetId, conditionsOf } from './presetHelpers';
 
 /**
@@ -20,6 +22,10 @@ export const CYBERPUNK_RED: SystemPreset = {
       diagonalRule: 'equidistant',
       abstractRangeBands: [],
     },
+    // A 10 rolls one more d10 and adds it, a 1 rolls one more and subtracts it; neither goes on.
+    dice: { defaultRoll: '1d10', crit: 'natural', explode: { dice: 'default', repeats: false, highFaces: 1, lowFaces: 1 } },
+    // Initiative is REF + 1d10, highest first.
+    initiative: { mode: 'turn-order', roll: '1d10', firstSide: 'players' },
     conditions: conditionsOf('cyberpunkred', [
       { name: 'Seriously Wounded', color: '#dc2626', icon: 'bleeding-wound' },
       { name: 'Mortally Wounded', color: '#7f1d1d', icon: 'heartbeat' },
@@ -31,6 +37,7 @@ export const CYBERPUNK_RED: SystemPreset = {
       { name: 'Damaged Eye', color: '#475569', icon: 'bleeding-eye' },
       { name: 'Damaged Ear', color: '#0891b2', icon: 'hearing-disabled' },
     ]),
-    defaultWidgets: { hpBar: true },
+    resources: [{ ...HP_RESOURCE }],
+    senses: CYBERPUNK_RED_SENSES,
   },
 };

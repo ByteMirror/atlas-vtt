@@ -1,5 +1,4 @@
 import type { LightEmission } from '../types/lightingTypes';
-import { LIGHT_PRESETS, type LightPresetId } from './lightPresets';
 
 export type EmissionNumberField = 'bright' | 'dim' | 'intensity' | 'sourceRadius';
 
@@ -11,20 +10,31 @@ const RANGES: Record<EmissionNumberField, [number, number]> = {
 };
 
 /**
- * The emission with one number field set from what the user typed. Text that is not a
- * number keeps the emission as it was; bright and dim push each other so dim ≥ bright.
+ * The emission with one number field set, clamped to its range; bright and dim end at `maxRange`
+ * (`maxLightRange`) and push each other so dim ≥ bright.
  */
-export function editEmission(emission: LightEmission, field: EmissionNumberField, input: string): LightEmission {
-  const parsed = input.trim() === '' ? NaN : Number(input);
-  if (!Number.isFinite(parsed)) return emission;
+export function withEmissionValue(emission: LightEmission, field: EmissionNumberField, value: number, maxRange = Infinity): LightEmission {
   const [min, max] = RANGES[field];
-  const value = Math.min(max, Math.max(min, parsed));
-  const next = { ...emission, [field]: value };
-  if (field === 'bright' && next.dim < value) next.dim = value;
-  if (field === 'dim' && next.bright > value) next.bright = value;
+  const clamped = Math.min(max, field === 'bright' || field === 'dim' ? maxRange : max, Math.max(min, value));
+  if (clamped === (emission[field] ?? null)) return emission;
+  const next = { ...emission, [field]: clamped };
+  if (field === 'bright' && next.dim < clamped) next.dim = clamped;
+  if (field === 'dim' && next.bright > clamped) next.bright = clamped;
   return next;
 }
 
-export function emissionOfPreset(id: LightPresetId): LightEmission {
-  return { ...LIGHT_PRESETS[id].emission };
+/** What was typed, as a number. A comma is the decimal sign where `locale` (the user's, by default) writes one. */
+function typedNumber(input: string, locale?: string): number {
+  const text = input.trim();
+  if (text === '') return NaN;
+  return Number((1.5).toLocaleString(locale).includes(',') ? text.replace(',', '.') : text);
+}
+
+/**
+ * The emission with one number field set from what the user typed. Text that is not a
+ * number keeps the emission as it was.
+ */
+export function editEmission(emission: LightEmission, field: EmissionNumberField, input: string, maxRange?: number, locale?: string): LightEmission {
+  const parsed = typedNumber(input, locale);
+  return Number.isFinite(parsed) ? withEmissionValue(emission, field, parsed, maxRange) : emission;
 }

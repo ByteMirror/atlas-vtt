@@ -6,6 +6,7 @@ import { LightingEngine } from '../LightingEngine';
 import type { LightingMode } from '../compositeFilter';
 import type { EngineLight, EngineScene } from '../types';
 import { createTestRenderer, renderThroughEngine, type PixelReader } from './gpuTestUtils';
+import { darkvision } from '../../../../vision/__tests__/senseSources';
 
 const SIZE = 256;
 const MAP = 1024;
@@ -18,20 +19,30 @@ const lights: EngineLight[] = [
 ];
 const walls: WallSegment[] = [{ id: 'w', kind: 'wall', type: 'solid', p1: { x: 640, y: 150 }, p2: { x: 640, y: 450 } }];
 /** A token right of the wall that sees 250 px, darkvision 120 px. */
-const sight = computeSight([{ tokenId: 't', origin: { x: 780, y: 300 }, range: 250, darkvision: 120 }], walls);
+const sight = computeSight([{ tokenId: 't', origin: { x: 780, y: 300 }, range: 250, senses: [darkvision(120)] }], walls);
 
 type MemoryOptions = Pick<EngineScene, 'exploredMemory' | 'exploredColor' | 'unexploredColor'>;
 
-function scene(options: MemoryOptions): EngineScene {
+function scene(options: MemoryOptions & Partial<EngineScene>): EngineScene {
   return { bounds: { width: MAP, height: MAP }, albedo: null, walls, lights, sight, sightRadius: 20, ambient: 0.05, ambientColor: '#ffd9b3', ...options };
 }
 
 /**
- * Hashes of this scene rendered by the composite before the scene options existed (commit
- * 55c33d23), on the maintainer's machine (Apple silicon, Chromium through ANGLE on Metal). Another
- * GPU or driver may round a channel differently: recapture them there by checking out 55c33d23.
+ * Hashes of this scene with no scene option set, on the maintainer's machine (Apple silicon,
+ * Chromium through ANGLE on Metal). They pin the whole look: first taken from the composite
+ * before the scene options existed (commit 55c33d23), and recorded anew each time the light
+ * falloff changed (the dim range lit out to its edge, then held on dark maps). Another GPU or
+ * driver may round a channel differently: record them there from what the first test below
+ * reports.
  */
-const BEFORE_OPTIONS = { player: 'dc1edff0', gm: 'd9d825b9' } as const;
+const RECORDED = { player: 'e6fb64f5', gm: 'fb04ade6' } as const;
+/**
+ * The same scene without its lights, under an ambient light of 0.2: sight, darkvision, explored
+ * memory and the GM's ghosted map. Recorded on beta before the light falloff changed (commit
+ * f1ae04bd, same machine): what no light touches must stay as it was.
+ */
+const UNLIT: Partial<EngineScene> = { lights: [], ambient: 0.2 };
+const UNLIT_RECORDED = { player: 'bb6aae6c', gm: 'c1acb236' } as const;
 const DEFAULTS: MemoryOptions = { exploredMemory: true, exploredColor: '#ffffff', unexploredColor: '#000000' };
 
 /** Screen points: remembered but unseen (world 100, 100), never seen (900, 900), seen by the token (780, 300). */
@@ -71,7 +82,7 @@ describe('explored memory in the composite', () => {
     return texture;
   }
 
-  async function render(mode: LightingMode, options: MemoryOptions = {}): Promise<PixelReader> {
+  async function render(mode: LightingMode, options: MemoryOptions & Partial<EngineScene> = {}): Promise<PixelReader> {
     const renderer = await createTestRenderer(SIZE);
     cleanup.push(() => renderer.destroy());
     const explored = exploredLeftHalf(renderer);
@@ -86,9 +97,14 @@ describe('explored memory in the composite', () => {
     return renderThroughEngine(engine, renderer, camera);
   }
 
-  it('draws both views exactly as before the scene options when none are set', async () => {
-    expect(hashOf(await render('player'))).toBe(BEFORE_OPTIONS.player);
-    expect(hashOf(await render('gm'))).toBe(BEFORE_OPTIONS.gm);
+  it('draws both views exactly as recorded when no scene option is set', async () => {
+    expect(hashOf(await render('player'))).toBe(RECORDED.player);
+    expect(hashOf(await render('gm'))).toBe(RECORDED.gm);
+  });
+
+  it('draws a scene without lights exactly as before the light falloff changed', async () => {
+    expect(hashOf(await render('player', UNLIT))).toBe(UNLIT_RECORDED.player);
+    expect(hashOf(await render('gm', UNLIT))).toBe(UNLIT_RECORDED.gm);
   });
 
   it('draws the default options exactly as with none set', async () => {
@@ -126,6 +142,6 @@ describe('explored memory in the composite', () => {
   it('leaves what tokens see and the GM view as they were', async () => {
     const custom: MemoryOptions = { exploredMemory: false, exploredColor: '#ff0000', unexploredColor: '#336699' };
     expect((await render('player', custom))(...SEEN)).toEqual((await render('player'))(...SEEN));
-    expect(hashOf(await render('gm', custom))).toBe(BEFORE_OPTIONS.gm);
+    expect(hashOf(await render('gm', custom))).toBe(RECORDED.gm);
   });
 });

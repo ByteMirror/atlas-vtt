@@ -3,6 +3,7 @@ import type { StoreApi } from 'zustand';
 import type { ViewAtlasState } from '../storeFactory';
 import type { TokenEntity, TokenStateSnapshot } from '../types';
 import type { GridSystem } from '../grid/GridSystem';
+import { tokenToFile } from '../resources/resourceFileFormat';
 import { AssetService } from '../services/AssetService';
 import { captureFormation, formationGridFromOptions } from './encounterFormation';
 import { saveEncounter, type EncounterTokenDraft } from './encounterSaveService';
@@ -14,9 +15,10 @@ function orderByCentroidDistance(tokens: TokenEntity[]): TokenEntity[] {
   return [...tokens].sort((a, b) => Math.hypot(a.x - cx, a.y - cy) - Math.hypot(b.x - cx, b.y - cy));
 }
 
+/** The token's state as the encounter's file holds it. */
 function snapshotTokenState(token: TokenEntity): TokenStateSnapshot {
   const { id: _id, x: _x, y: _y, instanceNumber: _instanceNumber, ...state } = token;
-  return state;
+  return tokenToFile(state) as TokenStateSnapshot;
 }
 
 /**

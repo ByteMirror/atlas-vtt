@@ -94,3 +94,12 @@ it('scrolls the active tab into view, at once on mount and smoothly on later swi
   expect(scrollIntoView).toHaveBeenLastCalledWith(expect.objectContaining({ inline: 'nearest', behavior: 'smooth' }));
   expect(scrollIntoView.mock.contexts.at(-1)).toBe(screen.getByRole('tab', { name: /Cave Entrance/ }));
 });
+
+it('keeps the player view and close buttons at opposite ends of a tab, with the name between them', () => {
+  setup();
+  const tab = screen.getAllByRole('tab')[0]!;
+  const [show, close] = tab.querySelectorAll('.atlas-scene-tab__action');
+  const name = tab.querySelector('.atlas-scene-tab__name')!;
+  expect(show!.compareDocumentPosition(name) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(name.compareDocumentPosition(close!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+});

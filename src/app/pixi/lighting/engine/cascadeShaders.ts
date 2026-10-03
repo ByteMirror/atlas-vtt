@@ -6,6 +6,7 @@ export const cascadeVertex = FULLSCREEN_VERTEX;
  * Lit floor: the light map times the map's colour (linear), over the emission grid. Where the
  * map is transparent (maps without an image, transparent PNG areas) or missing, the floor
  * bounces as mid grey; PIXI textures are premultiplied, so colour is unpremultiplied first.
+ * Smaller map images have mipmaps: `uAlbedoLod` is the level whose texel spans an emission texel.
  */
 export const emissionFragment = `${GLSL_VERSION}
 in vec2 vUv;
@@ -15,16 +16,17 @@ uniform vec2 uEmitWorld;
 uniform vec2 uLightWorld;
 uniform vec2 uMapSize;
 uniform float uHasAlbedo;
+uniform float uAlbedoLod;
 out vec4 finalColor;
 ${SRGB_GLSL}
 void main() {
   vec2 world = vUv * uEmitWorld;
   vec3 albedo = vec3(0.5);
   if (uHasAlbedo > 0.5) {
-    vec4 map = texture(uAlbedo, clamp(world / uMapSize, 0.0, 1.0));
+    vec4 map = textureLod(uAlbedo, clamp(world / uMapSize, 0.0, 1.0), uAlbedoLod);
     albedo = mix(vec3(0.5), toLinear(min(map.rgb / max(map.a, 1e-4), 1.0)), map.a);
   }
-  finalColor = vec4(texture(uLightMap, world / uLightWorld).rgb * albedo, 1.0);
+  finalColor = vec4(textureLod(uLightMap, world / uLightWorld, 0.0).rgb * albedo, 1.0);
 }`;
 
 /**
@@ -55,7 +57,7 @@ float clearance(vec2 w) { return uFieldClearance(w); }
 
 // Emission is read only where the clearance keeps every bilinear texel on this side of a wall.
 const float SAFE = 6.0;
-vec3 emitAt(vec2 w) { return texture(uEmit, w / uEmitWorld).rgb; }
+vec3 emitAt(vec2 w) { return textureLod(uEmit, w / uEmitWorld, 0.0).rgb; }
 
 // Light reaching a from b: floor glow on the way, a lit wall where the path stops.
 // rgb = radiance, a = transmittance (0 once the path hits a wall).

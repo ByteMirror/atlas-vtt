@@ -1,0 +1,109 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// Collection settings, Vision tab — the senses of the game system
+// ═══════════════════════════════════════════════════════════════════════════
+// Imported inside the `.atlas-vtt-plugin` scope of styles/main.scss.
+
+@use '../../../../../styles/tokens' as *;
+@use '../../../../../styles/mixins' as *;
+
+// The second part of the tab, set off from what new tokens start with.
+.atlas-csm-senses {
+  @include atlas-flex-col($spacing-s);
+  padding-top: $spacing-l;
+  border-top: $border-width-s solid var(--background-modifier-border);
+}
+
+.atlas-csm-senses__title {
+  margin: 0;
+  font-size: $font-ui-small;
+  font-weight: $font-weight-semibold;
+  color: var(--text-normal);
+}
+
+// One list: each sense's name, and beside it what the sense does.
+$name-width: 128px;
+
+.atlas-csm-sense-list {
+  @include atlas-inset-surface;
+  @include atlas-flex-col($spacing-s);
+  margin: 0;
+  padding: $spacing-s;
+  list-style: none;
+}
+
+.atlas-csm-sense {
+  display: grid;
+  grid-template-columns: $name-width minmax(0, 1fr) auto;
+  column-gap: $spacing-s;
+  align-items: baseline;
+}
+
+.atlas-csm-sense__name {
+  font-size: $font-ui-small;
+  font-weight: $font-weight-medium;
+  color: var(--text-normal);
+  overflow-wrap: anywhere;
+}
+
+.atlas-csm-sense__text {
+  font-size: $font-ui-smaller;
+  line-height: var(--line-height-tight);
+  color: var(--text-muted);
+}
+
+// What keeps the sense from being saved, in place of what it does.
+.atlas-csm-sense__text--problem {
+  color: var(--text-error);
+}
+
+// A sense of the collection's own has its buttons at the end of its row.
+.atlas-csm-sense__actions {
+  display: flex;
+  align-self: start;
+  gap: $spacing-xs;
+
+  .btn--icon {
+    width: $button-height-s;
+    height: $button-height-s;
+  }
+}
+
+// Written with the button's own class, so the open state outranks the ghost button's hover.
+.atlas-csm-sense__edit.btn {
+  color: var(--text-muted);
+
+  &[aria-expanded='true'] {
+    color: var(--text-accent);
+    background: color-mix(in srgb, var(--interactive-accent) 16%, transparent);
+  }
+}
+
+// ── Fields of a sense of the collection's own ────────────────────────────────
+.atlas-csm-sense-editor {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: $spacing-s;
+  margin-top: $spacing-s;
+  padding: $spacing-s;
+  border: $border-width-s solid var(--background-modifier-border);
+  border-radius: $radius-m;
+  background: var(--background-primary);
+  // Scrolled into view when it opens: clear of the list's padding and the tab's edge.
+  scroll-margin-block: $spacing-l;
+
+  // As tall as the selects beside them.
+  .atlas-csm-input {
+    height: var(--input-height);
+  }
+}
+
+.atlas-csm-sense-editor__wide {
+  grid-column: 1 / -1;
+}
+
+.atlas-csm-sense-editor__switch {
+  @include atlas-flex-row($spacing-s);
+  justify-content: space-between;
+  min-height: var(--input-height);
+}

@@ -1,3 +1,5 @@
+import { savedResources } from '../../../react/components/collection-settings/useCollectionSettingsDraft';
+import { HP_RESOURCE } from '../../../resources/resourceDefinitions';
 import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowLeft, FolderPlus } from 'lucide-react';
@@ -14,6 +16,7 @@ import { LabelTooltip } from '../primitives/tooltip';
 import { showAtlasToast } from '../../../react/components/AtlasToast';
 import { dialogOverlayMotion, useDialogWindowVariants } from '../primitives/dialogMotion';
 import { useDialogEscape } from '../primitives/useDialogEscape';
+import { DEFAULT_INITIATIVE_RULES, isValidInitiativeRules, savedInitiativeRules } from '../../../gameSystems/initiativeRules';
 import { CustomSystemStep, type CustomSystemRules } from './create-collection/CustomSystemStep';
 import { SystemChoiceList, type SystemChoice } from './create-collection/SystemChoiceList';
 
@@ -28,7 +31,7 @@ interface CreateCollectionModalProps {
 type Step = 'details' | 'custom';
 
 function blankRules(): CustomSystemRules {
-  return { gridDefaults: structuredClone(DEFAULT_GRID_DEFAULTS), conditions: [], defaultWidgets: { hpBar: true } };
+  return { gridDefaults: structuredClone(DEFAULT_GRID_DEFAULTS), conditions: [], defaultWidgets: {}, initiative: { ...DEFAULT_INITIATIVE_RULES }, resources: [{ ...HP_RESOURCE }] };
 }
 
 /**
@@ -60,7 +63,9 @@ export function CreateCollectionModal({ existingNames, onClose, onCreated }: Cre
       ? `A collection named "${trimmedName}" already exists`
       : null);
   const presetNameError = service?.nameError(presetName) ?? null;
-  const rulesValid = areRangeBandsValid(rules.gridDefaults.abstractRangeBands);
+  const rulesValid = areRangeBandsValid(rules.gridDefaults.abstractRangeBands)
+    && isValidInitiativeRules(rules.initiative)
+    && rules.resources.every((resource) => resource.name.trim() !== '' && resource.field.trim() !== '');
 
   const create = async (): Promise<void> => {
     if (!app || !service || isCreating) return;
@@ -68,7 +73,7 @@ export function CreateCollectionModal({ existingNames, onClose, onCreated }: Cre
     try {
       let preset: SystemPreset | undefined;
       if (choice.kind === 'preset') preset = presets.find((candidate) => candidate.id === choice.presetId);
-      if (choice.kind === 'custom') preset = service.create(presetName, rules);
+      if (choice.kind === 'custom') preset = service.create(presetName, { ...rules, initiative: savedInitiativeRules(rules.initiative), resources: savedResources(rules.resources) });
       const collection = await createCollectionWithSystem(app, trimmedName, preset, service.list());
       onCreated(collection.id);
       onClose();

@@ -50,7 +50,8 @@ function sameItems(a: readonly LootItem[], b: readonly LootItem[]): boolean {
   return a.length === b.length && JSON.stringify(a) === JSON.stringify(b);
 }
 
-function readBase(text: string, path: string): unknown {
+/** The parsed base file, or null when it is no valid YAML. */
+export function readBase(text: string, path: string): unknown {
   try {
     return parseYaml(text);
   } catch (error) {

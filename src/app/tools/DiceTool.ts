@@ -1,16 +1,18 @@
 import { EventEmitter } from 'events';
+import { DEFAULT_DICE_RULES } from '../gameSystems/diceRules';
+import type { DiceRules } from '../types/diceRulesTypes';
+import { getDiceCrit, type DiceCrit } from './diceCrit';
+import { hasDiceTerm, rollFormula, type RolledDie } from './diceFormula';
 
 export interface DiceRollResult {
   id: string;
   timestamp: number;
   formula: string;
-  rolls: Array<{
-    die: string; // e.g., "d20", "d6"
-    value: number;
-    max: number;
-  }>;
+  rolls: RolledDie[];
   modifiers: number;
   total: number;
+  /** Decided by the collection's critical rule when rolled; missing on rolls logged before rules existed. */
+  crit?: DiceCrit;
   player?: string;
   source?: {
     type: 'toolbar' | 'statblock';
@@ -33,9 +35,11 @@ export interface DiceToolState {
 export class DiceTool {
   public state: DiceToolState;
   private eventBus: EventEmitter;
-  
-  constructor(eventBus: EventEmitter) {
+  private readonly getDiceRules: () => DiceRules;
+
+  constructor(eventBus: EventEmitter, getDiceRules: () => DiceRules = () => DEFAULT_DICE_RULES) {
     this.eventBus = eventBus;
+    this.getDiceRules = getDiceRules;
     this.state = {
       isTrayOpen: false,
       rollHistory: [],
@@ -68,51 +72,20 @@ export class DiceTool {
     return result;
   }
 
+  /** Rolls the formula; one without dice (`+3`) is added to the collection's default roll. */
   private parseAndRoll(formula: string): DiceRollResult {
-    const id = `roll_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
-    const timestamp = Date.now();
-    const rolls: DiceRollResult['rolls'] = [];
-    let modifiers = 0;
-    
-    // Parse dice formula (e.g., "2d6+3", "1d20-2", "3d8")
-    const diceRegex = /(\d+)?d(\d+)/gi;
-    const modifierRegex = /([+-]\s*\d+)/g;
-    
-    // Extract and roll dice
-    let match;
-    while ((match = diceRegex.exec(formula)) !== null) {
-      const count = parseInt(match[1] || '1');
-      const sides = parseInt(match[2] || '6');
-      
-      for (let i = 0; i < count; i++) {
-        const value = Math.floor(Math.random() * sides) + 1;
-        rolls.push({
-          die: `d${sides}`,
-          value,
-          max: sides
-        });
-      }
-    }
-    
-    // Extract modifiers
-    const modifierMatches = formula.match(modifierRegex);
-    if (modifierMatches) {
-      modifierMatches.forEach(mod => {
-        modifiers += parseInt(mod.replace(/\s/g, ''));
-      });
-    }
-    
-    // Calculate total
-    const diceTotal = rolls.reduce((sum, roll) => sum + roll.value, 0);
-    const total = diceTotal + modifiers;
-    
+    const rules = this.getDiceRules();
+    const complete = hasDiceTerm(formula) ? formula : withDefaultRoll(formula, rules.defaultRoll);
+    const { rolls, modifiers, total } = rollFormula(complete, Math.random, rules);
+
     return {
-      id,
-      timestamp,
-      formula,
+      id: `roll_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
+      timestamp: Date.now(),
+      formula: complete,
       rolls,
       modifiers,
       total,
+      crit: getDiceCrit(rolls, rules),
       player: 'Player' // TODO: Get actual player name from session
     };
   }
@@ -145,4 +118,10 @@ export class DiceTool {
   public getState(): DiceToolState {
     return { ...this.state };
   }
+}
+
+/** `+3` with `1d20` gives `1d20+3`; a bare number counts as a bonus. */
+function withDefaultRoll(modifier: string, defaultRoll: string): string {
+  const bonus = modifier.replace(/\s+/g, '');
+  return bonus === '' || /^[+-]/.test(bonus) ? `${defaultRoll}${bonus}` : `${defaultRoll}+${bonus}`;
 }

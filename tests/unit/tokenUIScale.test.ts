@@ -11,9 +11,10 @@ import { createViewAtlasStore, type ViewAtlasState } from '../../src/app/storeFa
 import type { Character } from '../../src/app/types';
 import { createInMemoryApp } from '../mocks/inMemoryVault';
 import { MOTION_SLOW_MS } from '../../src/app/utils/motion';
+import { HP } from '../mocks/resourceFixtures';
 
 const hero: Character = { id: 'hero', kind: 'character', name: '', imagePath: 'hero.png', x: 0, y: 0, size: 1, rotation: 0,
-  hp: { current: 5, max: 10 } };
+  resources: { hp: { current: 5, max: 10 } } };
 
 const medium = computeTokenPixelSize(70, 1);
 const gargantuan = computeTokenPixelSize(70, 2.5);
@@ -57,6 +58,7 @@ describe('token UI scale', () => {
     tokenLayer.addChild(tokenGroup);
     viewport.addChild(tokenLayer);
     const uiManager = new UIManager(viewport as unknown as Viewport, store, 'token-ui-scale');
+    uiManager.resourceDefsProvider = () => [HP];
     uiManager.setTokenSpriteProvider(() => tokenGroup as unknown as TokenGroupContainer);
     uiManager.createTokenUI('hero', tokenGroup as unknown as TokenGroupContainer, token);
     const belowToken = uiManager.getTokenUIs().hero!.getContainer().children[0] as Container;
@@ -64,7 +66,8 @@ describe('token UI scale', () => {
     return {
       store, viewport, uiManager, tokenGroup, barWorldWidth,
       barScreenWidth: () => barWorldWidth() * viewport.scale.x,
-      controlsScale: () => uiManager.getControlsUI()!.getContainer().scale.x,
+      // The controls scale in their anchor on the token's bottom edge, the container's first child
+      controlsScale: () => uiManager.getControlsUI()!.getContainer().children[0]!.scale.x,
     };
   }
 
@@ -182,7 +185,7 @@ describe('token UI scale', () => {
       uiManager.syncUIScale('hero', medium);
       window.dispatchEvent(new CustomEvent('atlas-token-resize-ended', { detail: { tokenIds: ['hero'] } }));
       expect(controls.getContainer().visible).toBe(true);
-      expect(controls.getContainer().position.y).toBe(100 + medium / 2);
+      expect(controls.getContainer().position.y + controls.getContainer().children[0]!.position.y).toBe(100 + medium / 2);
       expect(controlsScale()).toBeCloseTo(barWorldWidth() / 64, 6);
     } finally { uiManager.destroyAll(); }
   });

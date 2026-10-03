@@ -7,6 +7,7 @@ import { EASE_OUT_CONTROL_POINTS } from '../../../../../utils/motion';
 import { Button } from '../../../primitives/button';
 import { CloseButton } from '../../../primitives/CloseButton';
 import { SegmentedControl } from '../../../primitives/SegmentedControl';
+import { Skeleton, SkeletonGroup } from '../../../primitives/Skeleton';
 import { useDialogEscape } from '../../../primitives/useDialogEscape';
 import type { CreatureFilterPanel } from '../../hooks/useCreatureFilters';
 import { FilterSection } from './FilterSection';
@@ -32,6 +33,28 @@ function hiddenText({ withoutStatblock, withoutField }: HiddenSummary): string |
     ...withoutField.map(({ label, count }) => `${count} without ${label.toLowerCase()}`),
   ];
   return parts.length > 0 ? `Hidden: ${parts.join(', ')}` : null;
+}
+
+/** The two placeholder filters: the widths of their title and of their chips, in px. */
+const SKELETON_FILTERS = [
+  { title: 96, chips: [64, 88, 52, 76, 60] },
+  { title: 56, chips: [72, 48, 84] },
+] as const;
+
+/** Stands in for the filters while the statblocks they come from are read. */
+function FilterSkeleton(): React.JSX.Element {
+  return (
+    <SkeletonGroup label="Reading statblocks…" className="atlas-filter-skeleton">
+      {SKELETON_FILTERS.map((filter) => (
+        <div key={filter.title} className="atlas-filter-section">
+          <div className="atlas-filter-section__header"><Skeleton shape="text" width={filter.title} /></div>
+          <div className="atlas-filter-chips">
+            {filter.chips.map((width) => <Skeleton key={width} shape="pill" className="atlas-filter-chip-skeleton" width={width} />)}
+          </div>
+        </div>
+      ))}
+    </SkeletonGroup>
+  );
 }
 
 interface AdvancedFilterPanelProps {
@@ -116,11 +139,11 @@ export function AdvancedFilterPanel({ panel, onClose, onReset, anchorRef }: Adva
           </FilterSection>
         )}
 
-        {!hasStatblockFields && (
+        {!hasStatblockFields && (panel.pending ? <FilterSkeleton /> : (
           <p className="atlas-filter-panel__empty">
-            {panel.pending ? 'Reading statblocks…' : 'Link statblocks to these characters to filter them by challenge rating, type and more.'}
+            Link statblocks to these characters to filter them by challenge rating, type and more.
           </p>
-        )}
+        ))}
       </div>
 
       <div className="atlas-filter-panel__footer">

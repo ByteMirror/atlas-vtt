@@ -28,7 +28,7 @@ export interface CollectionTransferActions {
 interface Deps {
   app: ObsidianApp;
   assetService: AssetService | null;
-  selectedCollection: string | null;
+  selectedCollection: string;
   /** Called with the id of the collection an import or fork created or updated. */
   onImported: (collectionId: string) => Promise<void>;
 }
@@ -85,7 +85,7 @@ export function useCollectionTransfer({ app, assetService, selectedCollection, o
   };
 
   const handleExportCollection = async (): Promise<void> => {
-    if (!assetService || !selectedCollection || transfer) return;
+    if (!assetService || transfer) return;
     setTransfer({ step: 'working', title: EXPORTING, progress: { message: 'Checking the collection…', fraction: 0 } });
     try {
       setTransfer({ step: 'export-options', preview: await prepareCollectionExport(app, assetService, selectedCollection) });

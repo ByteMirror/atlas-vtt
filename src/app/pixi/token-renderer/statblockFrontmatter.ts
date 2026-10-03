@@ -3,14 +3,13 @@
  * Frontmatter is user-authored YAML, so every value is validated here once.
  */
 
+import type { ResourceDefinition, ResourceHolder } from '../../resources/resourceTypes';
+import { startingResources } from '../../resources/statblockResourceValues';
 import type { FrontMatterCache } from 'obsidian';
 import type { Character } from '../../types';
 
 export interface StatblockVitals {
-  /** Raw `hp` values; a plain number in the frontmatter fills both. */
-  hp?: { current?: number; max?: number };
   name?: string;
-  maxStress?: number;
   difficulty?: string;
 }
 
@@ -19,49 +18,24 @@ export interface StatblockVitals {
  * preferences such as `showNameplate` belong to the user and are not touched.
  */
 export type StatblockLinkUpdates =
-  Partial<Pick<Character, 'name' | 'hp' | 'stress' | 'maxStress' | 'difficulty'>>;
+  Partial<Pick<Character, 'name' | 'difficulty' | 'resources'>>;
 
 /** Clears every statblock-derived field when a token is unlinked; user preferences stay. */
 export const STATBLOCK_UNLINK_UPDATES = {
   statblockPath: undefined,
   name: undefined,
   statblockName: undefined,
-  hp: undefined,
-  stress: undefined,
-  maxStress: undefined,
-  maxHpOverridden: undefined,
-  maxStressOverridden: undefined,
+  resources: undefined,
+  overriddenMax: undefined,
   difficulty: undefined,
 } as const;
-
-function finiteNumber(value: unknown): number | undefined {
-  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
-}
 
 export function readStatblockVitals(frontmatter: FrontMatterCache): StatblockVitals {
   const source: Record<string, unknown> = frontmatter;
   const vitals: StatblockVitals = {};
 
-  const hp = source.hp;
-  if (typeof hp === 'number') {
-    vitals.hp = { current: hp, max: hp };
-  } else if (typeof hp === 'object' && hp !== null) {
-    const record: Record<string, unknown> = { ...hp };
-    const current = finiteNumber(record.current);
-    const max = finiteNumber(record.max);
-    vitals.hp = {
-      ...(current !== undefined && { current }),
-      ...(max !== undefined && { max }),
-    };
-  }
-
   if (typeof source.name === 'string' && source.name) {
     vitals.name = source.name;
-  }
-
-  const maxStress = finiteNumber(source.stress);
-  if (maxStress !== undefined) {
-    vitals.maxStress = maxStress;
   }
 
   if (typeof source.difficulty === 'string') {
@@ -73,29 +47,22 @@ export function readStatblockVitals(frontmatter: FrontMatterCache): StatblockVit
   return vitals;
 }
 
-/** A freshly linked token starts at full health and zero stress. */
+/**
+ * A freshly linked token starts every resource its statblock supplies. What it holds of
+ * the others (`held`: hand-set hit points, the DM screen's quantities) stays.
+ */
 export function buildStatblockLinkUpdates(
   frontmatter: FrontMatterCache,
-  currentName: string | undefined
+  currentName: string | undefined,
+  definitions: readonly ResourceDefinition[],
+  held: ResourceHolder['resources'],
 ): StatblockLinkUpdates {
   const vitals = readStatblockVitals(frontmatter);
-  const updates: StatblockLinkUpdates = {};
-
-  if (vitals.hp) {
-    updates.hp = {
-      current: vitals.hp.current || vitals.hp.max || 0,
-      max: vitals.hp.max || vitals.hp.current || 0,
-    };
-  }
+  const updates: StatblockLinkUpdates = { resources: { ...held, ...startingResources(frontmatter, definitions) } };
 
   const name = vitals.name || currentName;
   if (name !== undefined) {
     updates.name = name;
-  }
-
-  if (vitals.maxStress !== undefined) {
-    updates.stress = 0;
-    updates.maxStress = vitals.maxStress;
   }
 
   if (vitals.difficulty !== undefined) {

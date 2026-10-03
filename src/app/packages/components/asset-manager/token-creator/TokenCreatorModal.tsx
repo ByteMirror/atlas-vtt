@@ -1,6 +1,7 @@
 import React from 'react';
 import { Modal, Scope, type App } from 'obsidian';
 import { createRoot, type Root } from 'react-dom/client';
+import { handledByAnotherControl } from '../../../../keyboard/tooltipEscape';
 import { AtlasUIContext } from '../../../../react/root/AtlasUIContext';
 import { TokenCreator } from '../TokenCreator';
 
@@ -12,7 +13,7 @@ export class TokenCreatorModal extends Modal {
     // Handle Escape before the native modal scope so nested menus can dismiss first.
     this.scope = new Scope(this.scope);
     this.scope.register([], 'Escape', event => {
-      if (this.modalEl.querySelector('[role="menu"]') || event.defaultPrevented) return;
+      if (this.modalEl.querySelector('[role="menu"]') || handledByAnotherControl(event)) return;
       event.preventDefault();
       this.close();
     });

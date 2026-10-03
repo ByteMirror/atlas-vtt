@@ -3,6 +3,7 @@ import type { RangeBand } from '../../src/app/types/collectionSettingsTypes';
 import {
   areRangeBandsValid,
   formatDistance,
+  formatReach,
   isValidRangeBandThreshold,
   rangeBandName,
   resolveMeasurementSettings,
@@ -46,7 +47,7 @@ describe('rangeBandName', () => {
 });
 
 describe('formatDistance', () => {
-  const metric: MeasurementSettings = { mode: 'metric', unitType: 'feet', unitDistance: 5, diagonalRule: 'equidistant', rangeBands: [] };
+  const metric: MeasurementSettings = { mode: 'metric', unitType: 'feet', unitDistance: 5, diagonalRule: 'equidistant', rangeBands: [], coneAngle: 90 };
 
   it('multiplies cells by the unit distance and rounds', () => {
     expect(formatDistance(6, metric)).toBe('30ft');
@@ -72,7 +73,7 @@ describe('resolveMeasurementSettings', () => {
       { unitType: 'meters', unitDistance: 2, measurementMode: 'metric', diagonalRule: 'alternating' },
       { ...grid, unitType: 'feet', unitDistance: 5, measurementType: 'abstract' },
     );
-    expect(settings).toEqual({ mode: 'metric', unitType: 'meters', unitDistance: 2, diagonalRule: 'alternating', rangeBands: [] });
+    expect(settings).toEqual({ mode: 'metric', unitType: 'meters', unitDistance: 2, diagonalRule: 'alternating', rangeBands: [], coneAngle: 90 });
   });
 
   it('defaults collections without a diagonal rule to every diagonal counting 1', () => {
@@ -81,7 +82,7 @@ describe('resolveMeasurementSettings', () => {
 
   it('falls back to the map grid, measuring in range bands unless it asks for units', () => {
     expect(resolveMeasurementSettings(undefined, { ...grid, measurementType: 'units', unitType: 'meters', unitDistance: 3 }))
-      .toEqual({ mode: 'metric', unitType: 'meters', unitDistance: 3, diagonalRule: 'equidistant', rangeBands: [] });
+      .toEqual({ mode: 'metric', unitType: 'meters', unitDistance: 3, diagonalRule: 'equidistant', rangeBands: [], coneAngle: 90 });
     expect(resolveMeasurementSettings(undefined, grid).mode).toBe('abstract');
     expect(resolveMeasurementSettings(undefined, null)).toMatchObject({ unitType: 'feet', unitDistance: 5 });
   });
@@ -110,5 +111,22 @@ describe('unitLabelFor', () => {
   it('labels feet, yards and metres, nothing for generic units, and feet for maps without a unit', () => {
     expect(['feet', 'yards', 'meters', 'units', 'custom', undefined].map((unit) => unitLabelFor(unit as never)))
       .toEqual(['ft', 'yd', 'm', '', '', 'ft']);
+  });
+});
+
+describe('formatReach', () => {
+  const metric = (unitDistance: number, unitType: 'feet' | 'meters'): MeasurementSettings => ({ mode: 'metric', unitType, unitDistance, diagonalRule: 'equidistant', rangeBands: [], coneAngle: 90 });
+
+  it('words a set distance with one decimal where it has one', () => {
+    expect(formatReach(12, metric(5, 'feet'))).toBe('60ft');
+    expect(formatReach(5, metric(1.5, 'meters'))).toBe('7.5m');
+    expect(formatReach(3, metric(1.5, 'meters'))).toBe('4.5m');
+    expect(formatReach(12.04, metric(5, 'feet'))).toBe('60.2ft');
+  });
+
+  it('names the range band, or counts squares where the collection has none', () => {
+    const bands = { mode: 'abstract', unitType: 'feet', unitDistance: 5, diagonalRule: 'equidistant', rangeBands: [{ name: 'Close', maxSquares: 2 }, { name: 'Far', maxSquares: 10 }] } as MeasurementSettings;
+    expect(formatReach(6, bands)).toBe('Far');
+    expect(formatReach(1.5, { ...bands, rangeBands: [] })).toBe('1.5 sq');
   });
 });

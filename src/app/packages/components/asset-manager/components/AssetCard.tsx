@@ -1,10 +1,13 @@
-import React, { memo, useId } from 'react';
-import { Map as MapIcon, Link } from 'lucide-react';
+import React, { memo, useEffect, useId } from 'react';
+import { Map as MapIcon, ScrollText } from 'lucide-react';
 import type { AnyAsset } from '../types';
 import type { AssetCardHandlers } from '../hooks/useAssetCardHandlers';
 import { TokenPortrait } from '../../shared/TokenPortrait';
 import { LabelTooltip, Tooltip, TooltipContent, TooltipTrigger } from '../../primitives/tooltip';
 import { AssetTagMenu } from './AssetTagMenu';
+import { RevealImage } from '../../primitives/RevealImage';
+import { Skeleton } from '../../primitives/Skeleton';
+import { encounterPreviewStyle } from '../utils/encounterPreviewLayout';
 
 export interface AssetCardProps extends AssetCardHandlers {
   asset: AnyAsset;
@@ -13,21 +16,20 @@ export interface AssetCardProps extends AssetCardHandlers {
   spawnCount: number;
 }
 
-/** Layout of up to three overlapping portraits inside an encounter card. */
-function encounterPreviewStyle(index: number, total: number): React.CSSProperties {
-  if (total <= 1) {
-    return { width: '62%', height: '62%', top: '19%', left: '19%' };
-  }
-  if (total === 2) {
-    return index === 0
-      ? { width: '48%', height: '48%', top: '26%', left: '6%' }
-      : { width: '48%', height: '48%', top: '26%', right: '6%' };
-  }
-  if (index === 0) return { width: '44%', height: '44%', top: '8%', left: '28%' };
-  if (index === 1) return { width: '44%', height: '44%', top: '44%', left: '8%' };
-  return { width: '44%', height: '44%', top: '44%', right: '8%' };
+function ArtFallback({ asset }: { asset: AnyAsset }): React.JSX.Element {
+  return (
+    <div className="atlas-asset-placeholder-icon">
+      {asset.type === 'scenes' ? <MapIcon size={28} /> : asset.name.charAt(0).toUpperCase()}
+    </div>
+  );
 }
 
+/**
+ * The card's art. Every image holds its place with a placeholder until it can
+ * be painted; art whose thumbnail is still being made shows only the
+ * placeholder, never the full image. Images load with their card: the grid
+ * mounts rows ahead of the view, so their art is there when they scroll in.
+ */
 function Artwork({ asset }: { asset: AnyAsset }): React.JSX.Element {
   if (asset.type === 'encounters' && asset.tokenPreviews.length > 0) {
     const overflow = Math.max(0, asset.tokens.length - asset.tokenPreviews.length);
@@ -41,23 +43,24 @@ function Artwork({ asset }: { asset: AnyAsset }): React.JSX.Element {
             alt={`${asset.name} token ${index + 1}`}
             showRing={preview.showRing}
             ringColor={preview.ringColor}
-            lazy
+            reveal
           />
         ))}
         {overflow > 0 && <div className="atlas-encounter-preview-overflow">+{overflow}</div>}
       </div>
     );
   }
+  if (asset.thumbnailPending) {
+    return asset.type === 'tokens'
+      ? <TokenPortrait src="" alt={asset.name} showRing={asset.showRing} pending />
+      : <Skeleton className="atlas-asset-card-art-skeleton" live />;
+  }
   if (asset.thumbnailUrl) {
     return asset.type === 'tokens'
-      ? <TokenPortrait src={asset.thumbnailUrl} alt={asset.name} showRing={asset.showRing} lazy />
-      : <img src={asset.thumbnailUrl} alt={asset.name} draggable={false} loading="lazy" decoding="async" />;
+      ? <TokenPortrait src={asset.thumbnailUrl} alt={asset.name} showRing={asset.showRing} reveal />
+      : <RevealImage src={asset.thumbnailUrl} alt={asset.name} fallback={<ArtFallback asset={asset} />} />;
   }
-  return (
-    <div className="atlas-asset-placeholder-icon">
-      {asset.type === 'scenes' ? <MapIcon size={28} /> : asset.name.charAt(0).toUpperCase()}
-    </div>
-  );
+  return <ArtFallback asset={asset} />;
 }
 
 /**
@@ -66,10 +69,16 @@ function Artwork({ asset }: { asset: AnyAsset }): React.JSX.Element {
  */
 export const AssetCard = memo(function AssetCard({
   asset, isSelected, isDragging, spawnCount,
-  onSelect, onContextMenu, onOpen, onDragStart, onDragEnd, onSpawnCountChange, onOpenStatblock,
+  onSelect, onContextMenu, onOpen, onDragStart, onDragEnd, onSpawnCountChange, onOpenStatblock, onArtNeeded,
 }: AssetCardProps): React.JSX.Element {
   const nameId = useId();
   const statblockPath = asset.type === 'tokens' ? asset.statblockPath : undefined;
+  const awaitsArt = asset.thumbnailPending === true;
+
+  // Cards are mounted only in and around the view, so this card's art is wanted now.
+  useEffect(() => {
+    if (awaitsArt) onArtNeeded(asset.id);
+  }, [awaitsArt, asset.id, onArtNeeded]);
 
   const handleDoubleClick = (event: React.MouseEvent): void => {
     event.preventDefault();
@@ -113,7 +122,7 @@ export const AssetCard = memo(function AssetCard({
                   className="atlas-asset-statblock-indicator"
                   onClick={(event) => { event.stopPropagation(); onOpenStatblock(statblockPath); }}
                 >
-                  <Link size={12} />
+                  <ScrollText />
                 </div>
               </LabelTooltip>
             )}

@@ -1,76 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { TFile, type App } from 'obsidian';
+import { TFile } from 'obsidian';
 import { CreatureIndex } from '../../src/app/creatures/CreatureIndex';
-import { createInMemoryApp } from '../mocks/inMemoryVault';
-import type { FantasyStatblocksCreature } from '../../src/app/services/FantasyStatblocksService';
-
-type Listener = (...data: unknown[]) => unknown;
-
-/** Obsidian's `Events`: `on` returns a ref, `trigger` calls every listener of a name. */
-function emitter(): { on: (name: string, cb: Listener) => { name: string; cb: Listener }; offref: (ref: { name: string; cb: Listener }) => void; trigger: (name: string, ...data: unknown[]) => void; count: () => number } {
-  const listeners = new Map<string, Set<Listener>>();
-  return {
-    on: (name, cb) => {
-      if (!listeners.has(name)) listeners.set(name, new Set());
-      listeners.get(name)!.add(cb);
-      return { name, cb };
-    },
-    offref: (ref) => { listeners.get(ref.name)?.delete(ref.cb); },
-    trigger: (name, ...data) => { for (const cb of listeners.get(name) ?? []) cb(...data); },
-    count: () => [...listeners.values()].reduce((sum, set) => sum + set.size, 0),
-  };
-}
-
-interface Setup {
-  app: App;
-  files: Map<string, string>;
-  frontmatter: Record<string, Record<string, unknown>>;
-  bestiary: FantasyStatblocksCreature[];
-  workspace: ReturnType<typeof emitter>;
-  metadata: ReturnType<typeof emitter>;
-  vault: ReturnType<typeof emitter>;
-  getBestiaryCreatures: ReturnType<typeof vi.fn>;
-}
-
-function setup(): Setup {
-  const { app, files } = createInMemoryApp({
-    files: {
-      'Bestiary/Goblin.md': '---\nstatblock: true\n---',
-      'Bestiary/Orc.md': '```statblock\nname: Orc\ncr: 1/2\n```',
-      'Notes/Plain.md': 'just a note',
-    },
-  });
-  const frontmatter: Record<string, Record<string, unknown>> = {
-    'Bestiary/Goblin.md': { statblock: true, name: 'Goblin', cr: '1/4', layout: 'Basic 5e Layout' },
-  };
-  const bestiary: FantasyStatblocksCreature[] = [];
-  const getBestiaryCreatures = vi.fn(() => bestiary);
-  const workspace = emitter();
-  const metadata = emitter();
-  const vault = emitter();
-  Object.assign(app.workspace, { on: workspace.on, offref: workspace.offref });
-  Object.assign(app.metadataCache, {
-    on: metadata.on,
-    offref: metadata.offref,
-    getFileCache: (file: TFile) => ({ frontmatter: frontmatter[file.path] }),
-  });
-  Object.assign(app.vault, { on: vault.on, offref: vault.offref });
-  Object.assign(window, {
-    FantasyStatblocks: {
-      getBestiaryCreatures,
-      hasCreature: () => false,
-      getCreatureFromBestiary: () => null,
-    },
-  });
-  return { app, files, frontmatter, bestiary, workspace, metadata, vault, getBestiaryCreatures };
-}
+import { creatureVault, type CreatureVault } from '../mocks/creatureVault';
 
 async function settled(index: CreatureIndex): Promise<void> {
   await vi.waitFor(() => expect(index.isPending()).toBe(false));
 }
 
-let current: Setup;
-beforeEach(() => { current = setup(); });
+let current: CreatureVault;
+beforeEach(() => { current = creatureVault(); });
 afterEach(() => {
   CreatureIndex.release(current.app);
   Reflect.deleteProperty(window, 'FantasyStatblocks');
@@ -98,6 +36,25 @@ describe('CreatureIndex', () => {
     await settled(index);
     expect(index.get('Bestiary/Goblin.md')?.fields).toMatchObject({ name: 'Goblin Boss', cr: 1 });
     expect(current.getBestiaryCreatures).toHaveBeenCalledTimes(1);
+  });
+
+  it('gives the browser a turn while it resolves a large library from the bestiary', async () => {
+    const paths = Array.from({ length: 400 }, (_, number) => `Bestiary/Creature ${number}.md`);
+    for (const path of paths) current.bestiary.push({ name: path, path });
+    // Every note takes a millisecond; none of them needs a read, so nothing else would interrupt the batch.
+    let now = 0;
+    const clock = vi.spyOn(performance, 'now').mockImplementation(() => (now += 1));
+    const index = CreatureIndex.forApp(current.app);
+    let turns = 0;
+    const timer = setInterval(() => { if (index.isPending()) turns += 1; }, 0);
+
+    index.request(paths);
+    await settled(index);
+    clearInterval(timer);
+    clock.mockRestore();
+
+    expect(index.get(paths[399]!)).not.toBeUndefined();
+    expect(turns).toBeGreaterThan(5);
   });
 
   it('does not resolve a note twice', async () => {

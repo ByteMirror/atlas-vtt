@@ -2,6 +2,7 @@ import React, { useId, useRef, useState } from 'react';
 import { Check, ImageOff, ImagePlus } from 'lucide-react';
 import type { CoverCandidate, CoverChoice, CurrentCover } from '../../../../services/collectionBundle/collectionCover';
 import { LabelTooltip } from '../../primitives/tooltip';
+import { RevealImage } from '../../primitives/RevealImage';
 import { useScrollActivity } from '../../primitives/useScrollActivity';
 
 interface CoverPickerProps {
@@ -68,12 +69,12 @@ export function CoverPicker({ value, current, candidates, upload, onUpload, onCh
         )}
         {current && (
           <Card label="Current cover" selected={value.kind === 'current'} onSelect={() => onChange({ kind: 'current' })}>
-            <img src={current.url} alt="" draggable={false} decoding="async" />
+            <RevealImage src={current.url} alt="" />
           </Card>
         )}
         {candidates.map((candidate) => (
           <Card key={candidate.sourcePath} label={candidate.name} selected={isArtwork(candidate.sourcePath)} onSelect={() => onChange({ kind: 'artwork', path: candidate.sourcePath })}>
-            <img src={candidate.previewUrl} alt="" draggable={false} loading="lazy" decoding="async" />
+            <RevealImage src={candidate.previewUrl} alt="" lazy />
           </Card>
         ))}
         <Card label="No cover" hint="Export without a cover image" variant="action" selected={value.kind === 'none'} onSelect={() => onChange({ kind: 'none' })}>

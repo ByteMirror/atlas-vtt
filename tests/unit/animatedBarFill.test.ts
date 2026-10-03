@@ -1,10 +1,7 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { Graphics } from 'pixi.js';
 import { manualTicker } from '../mocks/manualTicker';
 import { AnimatedBarFill, type BarFillRect } from '../../src/app/pixi/token-renderer/AnimatedBarFill';
-
-// Gradients rasterise on a 2D canvas, which jsdom lacks; a flat colour draws the same shape.
-vi.mock('../../src/app/pixi/token-renderer/barGradient', () => ({ getBarGradient: (color: number) => color }));
 
 const RECT: BarFillRect = { x: 0, y: 0, width: 100, height: 6 };
 
@@ -17,6 +14,18 @@ const trailWidth = (bar: AnimatedBarFill): number => drawnWidth(bar, 0);
 const fillWidth = (bar: AnimatedBarFill): number => drawnWidth(bar, 1);
 
 describe('AnimatedBarFill', () => {
+  it('fills the bar in one flat colour, without a gradient or gloss', () => {
+    const { ticker } = manualTicker();
+    const bar = new AnimatedBarFill(() => 0x22c55e, ticker);
+
+    bar.set(0.5, RECT, true);
+
+    const fill = bar.view.children[1] as Graphics;
+    const { style } = fill.context.instructions.at(-1)!.data as { style: { color: number; fill?: unknown } };
+    expect(style.color).toBe(0x22c55e);
+    expect(style.fill ?? null).toBeNull();
+  });
+
   it('shows the first value at once', () => {
     const { ticker } = manualTicker();
     const bar = new AnimatedBarFill(() => 0x00ff00, ticker);

@@ -1,6 +1,7 @@
 import { useViewStoreHook } from "src/app/react/ViewStoreContext"
+import { useAtlasUI } from "src/app/react/root/AtlasUIContext"
 import { useMapHotkeys } from "../../../keyboard/useMapHotkeys"
-import { AMBIENT_AUDIO_ENABLED, WALLS_AND_LIGHTING_ENABLED } from "../../../featureFlags"
+import { AMBIENT_AUDIO_ENABLED } from "../../../featureFlags"
 import { MEASURE_SHAPES, MEASURE_TOOLS, isMeasureTool, type Tool } from "./toolFaces"
 import { useEmitViewEvent } from "./useEmitViewEvent"
 
@@ -26,6 +27,7 @@ interface ToolbarHotkeyActions {
 export function useToolbarHotkeys(viewId: string | undefined, isPlayerView: boolean, actions: ToolbarHotkeyActions): void {
   const store = useViewStoreHook()
   const emit = useEmitViewEvent()
+  const { renderer } = useAtlasUI()
   const { selectTool, toggleAssetManager, closeAssetManager, toggleGMView, closeMenus } = actions
   const activeTool = (): Tool => store.getState().activeTool
   const dmOnly = (action: () => void) => (): void => {
@@ -46,12 +48,13 @@ export function useToolbarHotkeys(viewId: string | undefined, isPlayerView: bool
     erase: dmOnly(() => selectTool("eraser")),
     gmView: dmOnly(toggleGMView),
     selectAll: dmOnly(() => {
-      const tokenIds = Object.keys(store.getState().objects.tokens)
+      // Only what the canvas shows: session view hides tokens, which must not be selected unseen.
+      const tokenIds = renderer?.getTokenRenderer()?.visibleTokenIds() ?? Object.keys(store.getState().objects.tokens)
       if (tokenIds.length > 0) store.getState().setSelection(tokenIds)
     }),
     assets: dmOnly(toggleAssetManager),
     pin: dmOnly(() => selectTool("note-pin")),
-    wall: dmOnly(() => { if (WALLS_AND_LIGHTING_ENABLED) selectTool("wall") }),
+    wall: dmOnly(() => selectTool("wall")),
     audio: dmOnly(() => { if (AMBIENT_AUDIO_ENABLED) selectTool("audio") }),
     diceTray: () => store.getState().setDiceTrayOpen(!store.getState().isDiceTrayOpen),
     initiative: dmOnly(() => {

@@ -1,0 +1,423 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// Collection Settings: Resources tab
+// A picture of a token whose sockets hold the collection's resources
+// (ResourcesTab.tsx and resources/).
+// ═══════════════════════════════════════════════════════════════════════════
+
+@use '../../../../../styles/tokens' as *;
+@use '../../../../../styles/mixins' as *;
+
+// The look of a resource on the map (BAR_LOOK in ResourceBarView.ts)
+$track: #1a1a1a;
+$track-border: #888;
+$groove: rgba(51, 51, 51, 0.5);
+$token-size: 112px;
+$fan-button: 34px;
+
+.atlas-csm-resources {
+  @include atlas-flex-col($spacing-l);
+}
+
+// ── Stage ──────────────────────────────────────────────────────────────────
+.atlas-csm-token-stage {
+  @include atlas-inset-surface;
+  position: relative;
+  flex-shrink: 0;
+  // Room for the fan of the lowest socket; nothing is clipped, so a tooltip may reach past the edge
+  height: 304px;
+}
+
+// Everything is placed from the token's centre
+.atlas-csm-token-rig {
+  position: absolute;
+  left: 50%;
+  top: 110px;
+  width: 0;
+  height: 0;
+}
+
+.atlas-csm-token-art {
+  position: absolute;
+  left: calc(#{$token-size} / -2);
+  top: calc(#{$token-size} / -2);
+  width: $token-size;
+  height: $token-size;
+  pointer-events: none;
+  transition: opacity $transition-normal $transition-ease;
+
+  .atlas-token-portrait {
+    width: 100%;
+    height: 100%;
+  }
+}
+
+.atlas-csm-token-nameplate {
+  position: absolute;
+  left: -44px;
+  top: 46px;
+  width: 88px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  border-radius: $radius-full;
+  background: var(--background-modifier-border);
+  color: var(--text-muted);
+  font-size: $font-ui-smaller;
+  pointer-events: none;
+  transition: opacity $transition-normal $transition-ease;
+}
+
+.atlas-csm-token-caption {
+  position: absolute;
+  transform: translateX(-50%);
+  color: var(--text-faint);
+  font-size: $font-ui-smaller;
+  white-space: nowrap;
+  pointer-events: none;
+  transition: opacity $transition-normal $transition-ease;
+}
+
+.atlas-csm-token-caption--bars { left: 0; top: 138px; }
+.atlas-csm-token-caption--right { left: 92px; top: -76px; }
+.atlas-csm-token-caption--left { left: -92px; top: -76px; }
+
+// ── Sockets ────────────────────────────────────────────────────────────────
+.atlas-csm-socket {
+  appearance: none;
+  position: absolute;
+  padding: 0;
+  margin: 0;
+  background: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  color: inherit;
+  cursor: pointer;
+  outline: none;
+  touch-action: none;
+  transition: opacity $transition-normal $transition-ease, transform $transition-press $transition-ease-out;
+
+  &:active { transform: scale(0.97); }
+}
+
+.atlas-csm-socket__shape {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: $radius-full;
+  transition: box-shadow $transition-press $transition-ease, border-color $transition-press $transition-ease,
+    background-color $transition-press $transition-ease;
+}
+
+.atlas-csm-socket--empty .atlas-csm-socket__shape {
+  border: $border-width-m dashed var(--background-modifier-border-hover);
+}
+
+.atlas-csm-socket--filled .atlas-csm-socket__shape {
+  background: $track;
+  border: $border-width-m solid $track-border;
+}
+
+.atlas-csm-socket__plus {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: $icon-s;
+  height: $icon-s;
+  color: var(--text-normal);
+  opacity: 0;
+  transform: scale(0.6);
+  transition: opacity $transition-fast $transition-ease, transform $transition-normal $transition-ease-out;
+}
+
+.atlas-csm-socket__fill {
+  position: absolute;
+  left: 2px;
+  top: 2px;
+  bottom: 2px;
+  border-radius: $radius-full;
+}
+
+.atlas-csm-socket__ring {
+  position: absolute;
+  inset: -$border-width-m;
+  width: calc(100% + #{$border-width-m * 2});
+  height: calc(100% + #{$border-width-m * 2});
+}
+
+.atlas-csm-socket__groove { stroke: $groove; }
+
+.atlas-csm-socket__label {
+  font-size: $font-ui-smaller;
+  font-weight: $font-weight-semibold;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+// A bar carries its name on the fill, as the map writes its numbers
+.atlas-csm-socket--bar .atlas-csm-socket__label {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  text-shadow: 0 0 2px #000, 0 1px 1px #000;
+}
+
+// A wheel has its name on its outer side
+.atlas-csm-socket--wheel .atlas-csm-socket__label {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-normal);
+  transition: opacity $transition-fast $transition-ease;
+}
+
+.atlas-csm-socket--wheel.atlas-csm-socket--right .atlas-csm-socket__label { left: calc(100% + #{$spacing-s}); }
+.atlas-csm-socket--wheel.atlas-csm-socket--left .atlas-csm-socket__label { right: calc(100% + #{$spacing-s}); }
+
+@media (hover: hover) and (pointer: fine) {
+  .atlas-csm-socket:hover .atlas-csm-socket__shape {
+    box-shadow: 0 0 0 3px var(--background-modifier-hover);
+  }
+
+  .atlas-csm-socket--empty:hover .atlas-csm-socket__shape {
+    border-color: var(--text-muted);
+    background: var(--background-modifier-hover);
+  }
+
+  .atlas-csm-socket--empty:hover .atlas-csm-socket__plus {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.atlas-csm-socket:focus-visible .atlas-csm-socket__shape {
+  box-shadow: 0 0 0 2px var(--background-modifier-border-focus);
+}
+
+// Begun but not yet complete: it needs a name and a field before the settings can be saved
+.atlas-csm-socket[aria-invalid='true'] .atlas-csm-socket__shape {
+  border-color: var(--text-error);
+  border-style: dashed;
+}
+
+.atlas-csm-socket.atlas-selected .atlas-csm-socket__shape {
+  box-shadow: 0 0 0 2px var(--background-secondary), 0 0 0 4px var(--interactive-accent);
+}
+
+// The fan opens where the label was
+.atlas-csm-socket--wheel.atlas-selected .atlas-csm-socket__label { opacity: 0; }
+
+// While a socket is open the rest of the token steps back
+.atlas-csm-token-stage.atlas-focused {
+  .atlas-csm-socket:not(.atlas-selected),
+  .atlas-csm-token-caption { opacity: 0.2; }
+
+  .atlas-csm-token-art,
+  .atlas-csm-token-nameplate { opacity: 0.45; }
+}
+
+// Dragging a resource to another socket
+.atlas-csm-token-stage.atlas-dragging { cursor: grabbing; }
+.atlas-csm-socket.atlas-lifted { opacity: 0.4; }
+
+.atlas-csm-socket.atlas-drop-target .atlas-csm-socket__shape {
+  box-shadow: 0 0 0 3px var(--interactive-accent);
+}
+
+// ── Fan ────────────────────────────────────────────────────────────────────
+.atlas-csm-fan {
+  position: absolute;
+  width: 0;
+  height: 0;
+  z-index: 1;
+}
+
+.atlas-csm-fan.atlas-leaving { pointer-events: none; }
+
+.atlas-csm-fan__item {
+  position: absolute;
+  left: calc(#{$fan-button} / -2);
+  top: calc(#{$fan-button} / -2);
+  width: $fan-button;
+  height: $fan-button;
+}
+
+.atlas-csm-fan__button {
+  appearance: none;
+  display: grid;
+  place-items: center;
+  width: $fan-button;
+  height: $fan-button;
+  padding: 0;
+  margin: 0;
+  border: $border-width-s solid var(--background-modifier-border) !important;
+  border-radius: $radius-full !important;
+  // Circles: Obsidian shapes every button and input as a squircle on macOS
+  corner-shape: round;
+  background-color: var(--background-primary) !important;
+  box-shadow: $shadow-md !important;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color $transition-fast $transition-ease, border-color $transition-fast $transition-ease,
+    background-color $transition-fast $transition-ease, transform $transition-press $transition-ease-out;
+
+  &:active { transform: scale(0.94); }
+
+  &:focus-visible { border-color: var(--background-modifier-border-focus) !important; }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+
+  svg {
+    width: $icon-s;
+    height: $icon-s;
+  }
+}
+
+.atlas-csm-fan__button.atlas-pressed {
+  background-color: var(--interactive-accent) !important;
+  border-color: var(--interactive-accent) !important;
+  color: var(--text-on-accent);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .atlas-csm-fan__button:not(.atlas-pressed):not(:disabled):hover {
+    color: var(--text-normal);
+    border-color: var(--background-modifier-border-hover) !important;
+    background-color: var(--background-modifier-hover) !important;
+  }
+
+  .atlas-csm-fan__button.atlas-danger:hover {
+    color: var(--text-error);
+    border-color: var(--text-error) !important;
+  }
+}
+
+// ── Card ───────────────────────────────────────────────────────────────────
+// Docked under the token, always in the same place
+.atlas-csm-resource-dock {
+  position: relative;
+  flex-shrink: 0;
+  min-height: 218px;
+}
+
+.atlas-csm-resource-dock__idle {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  border: $border-width-s dashed var(--background-modifier-border);
+  border-radius: $radius-l;
+  color: var(--text-faint);
+  font-size: $font-ui-small;
+  // It lies under the card and never takes a click meant for it
+  pointer-events: none;
+  transition: opacity $transition-normal $transition-ease;
+
+  &.atlas-hidden { opacity: 0; }
+}
+
+.atlas-csm-resource-dock__card { position: relative; }
+
+.atlas-csm-resource-card {
+  @include atlas-inset-surface;
+  @include atlas-flex-col($spacing-m);
+  padding: $spacing-m;
+  min-height: 218px;
+}
+
+.atlas-csm-resource-card__head {
+  @include atlas-flex-row($spacing-s);
+  color: var(--text-muted);
+  font-size: $font-ui-smaller;
+}
+
+.atlas-csm-resource-card__dot {
+  flex-shrink: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: $radius-full;
+}
+
+.atlas-csm-resource-card__fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: $spacing-m;
+}
+
+.atlas-csm-resource-card__field {
+  @include atlas-flex-col($spacing-xs);
+  color: var(--text-muted);
+  font-size: $font-ui-smaller;
+
+  .atlas-csm-input {
+    height: $input-height-s;
+
+    &[aria-invalid='true'] { border-color: var(--text-error); }
+  }
+}
+
+// The curated colours in two centred rows of ten (DropdownSwatchGrid lays out eight to a row in a
+// menu). The swatches have a size of their own here: Obsidian gives every button a height.
+$swatch: 24px;
+
+.atlas-csm-resource-card .atlas-swatch-grid {
+  grid-template-columns: repeat(10, $swatch);
+  justify-content: center;
+}
+
+.atlas-csm-resource-card .atlas-swatch {
+  width: $swatch;
+  height: $swatch;
+}
+
+.atlas-csm-resource-card .atlas-dropdown-swatches__label {
+  color: var(--text-muted);
+  font-size: $font-ui-smaller;
+}
+
+.atlas-csm-resource-card__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-xs;
+  max-height: 56px;
+  overflow-y: auto;
+}
+
+.atlas-csm-field-chip {
+  appearance: none;
+  height: auto;
+  padding: 2px $spacing-s;
+  border: $border-width-s solid var(--background-modifier-border) !important;
+  border-radius: $radius-full !important;
+  // A capsule, not Obsidian's squircle
+  corner-shape: round;
+  background: none !important;
+  box-shadow: none !important;
+  color: var(--text-muted);
+  font-size: $font-ui-smaller;
+  cursor: pointer;
+  transition: color $transition-fast $transition-ease, border-color $transition-fast $transition-ease;
+
+  &.atlas-selected {
+    color: var(--text-normal);
+    border-color: var(--text-muted) !important;
+    background: var(--background-modifier-hover) !important;
+  }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .atlas-csm-field-chip:hover {
+    color: var(--text-normal);
+    border-color: var(--background-modifier-border-hover) !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .atlas-csm-socket,
+  .atlas-csm-socket__plus,
+  .atlas-csm-fan__button { transition: none; }
+}

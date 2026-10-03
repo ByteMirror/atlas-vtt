@@ -6,7 +6,10 @@ import { PlayerWindowService } from '../../src/app/services/PlayerWindowService'
 
 vi.mock('../../src/app/atlas-view', () => ({ AtlasView: class {}, ATLAS_VIEW_TYPE: 'atlas-vtt' }));
 
-const app = { vault: { adapter: { exists: async () => true, write: async () => {} } } } as any;
+const app = {
+  vault: { adapter: { exists: async () => true, write: async () => {} } },
+  workspace: { on: vi.fn(() => ({})), offref: vi.fn() },
+} as any;
 afterEach(() => { PlayerWindowService.getInstance()?.destroy(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 interface ScheduledRenders {
@@ -87,6 +90,18 @@ describe('player window mirroring', () => {
     nextFrame();
 
     expect(renders.requestRender).toHaveBeenCalled();
+  });
+
+  it('copies again when a collection changes what players see, even without a new DM frame', () => {
+    const { capture, nextFrame } = mirror(() => 1);
+    capture.mockClear();
+
+    // The app is shared by every test here: the last registration belongs to this service
+    const [, changed] = app.workspace.on.mock.calls.findLast(([name]: [string]) => name === 'atlas-vtt:collection-settings-changed');
+    changed('Cairn');
+    nextFrame();
+
+    expect(capture).toHaveBeenCalled();
   });
 
   it('drops a closing view but keeps showing its last frame', () => {

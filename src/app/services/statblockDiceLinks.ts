@@ -20,12 +20,13 @@ import { ATLAS_VIEW_TYPE } from '../atlas-view';
  * Dice expressions (`2d8+3`) plus bare attack bonuses (`+4`, `ATK: +4`). A
  * bare sign must sit directly on its digits and must not open a dice term, so
  * the dash in "Very Close - 1d12+2" is punctuation rather than a -1 roll.
+ *
+ * Dice may carry the exploding notation (`1d6!i`, `1d6!3`, `1d6!!`). A single
+ * `!` is left out: in running text it ends a sentence far more often than it
+ * means a die that explodes once.
  */
 const DICE_PATTERN =
-  /((?<![a-z])\d*d\d+(?:\s*[+-]\s*\d+)*|(?:ATK|Attack)\s*:\s*[+-]\d+|(?<!\w)[+-]\d+(?!\s*d\d))/gi;
-
-/** Bare modifiers are rolled against a d20 unless the text names its own dice. */
-const MODIFIER_BASE_DICE = '1d20';
+  /((?<![a-z])\d*d\d+(?:!!?(?:\d+|i(?![a-z]))|!!)?(?:\s*[+-]\s*\d+)*|(?:ATK|Attack)\s*:\s*[+-]\d+|(?<!\w)[+-]\d+(?!\s*d\d))/gi;
 
 const LINK_CLASS = 'atlas-dice-link';
 
@@ -83,10 +84,12 @@ export function rollStatblockDice(app: App, formula: string, source: DiceRollSou
   return diceTool.rollDice(formula, rollSource);
 }
 
-/** Turns matched display text into a formula the dice tool understands. */
+/**
+ * Turns matched display text into a formula the dice tool understands. A bare
+ * bonus stays bare: the dice tool adds it to the collection's default roll.
+ */
 export function toRollFormula(text: string): string {
-  const normalized = text.replace(/\s+/g, '').replace(/^(?:ATK|Attack):/i, '');
-  return /d\d/i.test(normalized) ? normalized : `${MODIFIER_BASE_DICE}${normalized}`;
+  return text.replace(/\s+/g, '').replace(/^(?:ATK|Attack):/i, '');
 }
 
 /** Nearest heading-ish label above the roll, used to title the dice toast. */

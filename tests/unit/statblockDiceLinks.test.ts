@@ -43,12 +43,12 @@ describe('toRollFormula', () => {
     expect(toRollFormula('2d8 + 3')).toBe('2d8+3');
   });
 
-  it('rolls bare modifiers against a d20', () => {
-    expect(toRollFormula('+4')).toBe('1d20+4');
+  it('leaves bare modifiers for the dice tool to add to the default roll', () => {
+    expect(toRollFormula('+4')).toBe('+4');
   });
 
   it('strips an ATK label before rolling the bonus', () => {
-    expect(toRollFormula('ATK: +4')).toBe('1d20+4');
+    expect(toRollFormula('ATK: +4')).toBe('+4');
   });
 });
 
@@ -131,6 +131,21 @@ describe('linkDiceIn + attachDiceRolling', () => {
       { text: 'Claws - Very Close - ', dice: false },
       { text: '1d12+2', dice: true },
       { text: ' phy', dice: false },
+    ]);
+  });
+
+  it('takes the exploding notation into the roll, but not an exclamation mark that ends a sentence', () => {
+    expect(splitDiceSegments('Shiv 1d6!i+2 damage')).toEqual([
+      { text: 'Shiv ', dice: false },
+      { text: '1d6!i+2', dice: true },
+      { text: ' damage', dice: false },
+    ]);
+    expect(splitDiceSegments('d8!3 and 2d6!!')[0]).toEqual({ text: 'd8!3', dice: true });
+    expect(splitDiceSegments('d8!3 and 2d6!!')[2]).toEqual({ text: '2d6!!', dice: true });
+    expect(splitDiceSegments('Take 2d6!')).toEqual([
+      { text: 'Take ', dice: false },
+      { text: '2d6', dice: true },
+      { text: '!', dice: false },
     ]);
   });
 

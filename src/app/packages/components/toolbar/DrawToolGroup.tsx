@@ -80,7 +80,7 @@ export function DrawToolGroup({ activeTool, selectTool, menuOpen, toggleMenu, cl
 
       <div className="atlas-dropdown-section">
         <div className="space-y-2">
-          <span className="text-sm text-[var(--text-normal)]">Icons</span>
+          <span className="atlas-dropdown-label">Icons</span>
           <div className="atlas-icon-grid">
             {MAP_ICON_OPTIONS.map(({ key, icon: Icon }) => (
               <LabelTooltip key={key} label={MAP_ICON_LABELS[key] ?? key}>

@@ -1,3 +1,4 @@
+import { gmPictureDiffers } from '../lighting/sceneLightingOptions';
 import type { ViewAtlasState, ViewAtlasStore } from '../storeFactory';
 
 export interface SceneThumbnailPorts {
@@ -12,8 +13,10 @@ const AFTER_EDIT_MS = 3000;
 /** A scene without a thumbnail gets one shortly after it opens, once the opening has settled. */
 const AFTER_OPEN_MS = 1000;
 
+/** Walls, lights and tokens with vision or a light are `objects`; the scene's own lighting counts where the GM's picture shows it. */
 function contentChanged(state: ViewAtlasState, previous: ViewAtlasState): boolean {
-  return state.background !== previous.background || state.grid !== previous.grid || state.objects !== previous.objects;
+  return state.background !== previous.background || state.grid !== previous.grid || state.objects !== previous.objects
+    || gmPictureDiffers(state.lighting, previous.lighting);
 }
 
 /**
@@ -57,7 +60,7 @@ export class SceneThumbnailUpdater {
       this.shownPath = state.mapPath;
       if (reloaded) this.markStale(state.mapPath, AFTER_OPEN_MS);
       else this.ensureThumbnail(state.mapPath);
-    } else if (state.mapPath === previous.mapPath && contentChanged(state, previous)) {
+    } else if (state.mapLoaded && state.mapPath === previous.mapPath && contentChanged(state, previous)) {
       this.markStale(state.mapPath, AFTER_EDIT_MS);
     }
   }
@@ -80,12 +83,16 @@ export class SceneThumbnailUpdater {
     }, delay);
   }
 
-  /** Renders the stale scene if the view still shows it; another scene's pixels must never become its thumbnail. */
+  /**
+   * Renders the stale scene if the view still shows it; another scene's pixels must never become
+   * its thumbnail. Nor does a store that is out of use (`mapLoaded` false: the scene's file is
+   * being rewritten, or its load failed) show the scene: the thumbnail it has stays.
+   */
   private write(): void {
     const mapPath = this.stalePath;
     this.stalePath = null;
     const state = this.store.getState();
-    if (!mapPath || state.mapPath !== mapPath || state.isMapLoading) return;
+    if (!mapPath || state.mapPath !== mapPath || state.isMapLoading || !state.mapLoaded) return;
     let bytes: ArrayBuffer | null;
     try {
       bytes = this.ports.render();

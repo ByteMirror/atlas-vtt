@@ -40,6 +40,7 @@ export class SpriteFactory implements ITokenSpriteFactory {
     });
     tokenGroup.label = 'tokenGroup';
     tokenGroup.sortableChildren = true;
+    tokenGroup.zIndex = token.layer || 0;
     tokenGroup.position.set(token.x, token.y);
     tokenGroup.eventMode = 'passive';
     // Children stay hit-testable so resize/rotate handles parented to the group receive pointer events

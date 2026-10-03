@@ -12,7 +12,7 @@ const MAP = 1024;
 const EXPLORED_TEXEL = 2;
 /** The memory covers x < EDGE. */
 const EDGE = 512;
-const NOTHING_SEEN: Sight = { all: false, polygons: [], origins: [], apexes: [], darkvision: [], darkvisionOrigins: [], darkvisionApexes: [], tremors: [] };
+const NOTHING_SEEN: Sight = { all: false, regions: [] };
 
 describe('explored memory', () => {
   const cleanup: (() => void)[] = [];

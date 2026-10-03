@@ -31,3 +31,23 @@ export function setBackBuffer(renderer: Renderer, on: boolean): void {
   }
   backBuffer.useBackBuffer = on;
 }
+
+/**
+ * One owner's hold on the back buffer: on while its lighting is, and given back only by the one
+ * that took it, so nothing else turns the back buffer on or off behind its back.
+ */
+export class BackBufferHold {
+  private held = false;
+
+  constructor(private readonly renderer: Renderer) {}
+
+  set(on: boolean): void {
+    setBackBuffer(this.renderer, on);
+    this.held = on;
+  }
+
+  release(): void {
+    if (this.held) setBackBuffer(this.renderer, false);
+    this.held = false;
+  }
+}

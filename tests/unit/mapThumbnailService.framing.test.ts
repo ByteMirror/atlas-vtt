@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import { Application, Container, Graphics, Rectangle, Sprite, Texture } from 'pixi.js';
-import { MapThumbnailService } from '../../src/app/services/MapThumbnailService';
+import { MapThumbnailService, SNAPSHOT_THUMBNAIL_SIZE, type ThumbnailSize } from '../../src/app/services/MapThumbnailService';
+import * as renderScheduler from '../../src/app/pixi/RenderScheduler';
+import type { SceneFrame } from '../../src/app/pixi/lighting/engine/types';
+import type { SceneFrameCapture } from '../../src/app/pixi/sceneFrameCapture';
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -21,8 +24,8 @@ function setup(width = 1200, height = 600) {
   vi.spyOn(HTMLCanvasElement.prototype, 'toDataURL').mockReturnValue('data:image/jpeg;base64,AA==');
   const app = { renderer: { generateTexture, extract: { canvas: vi.fn(() => source) } } };
   const service = new MapThumbnailService({ vault: { getAbstractFileByPath: () => null } } as any);
-  const capture = async (mapBackground?: Container): Promise<string | null> => service.renderThumbnail(
-    app as unknown as Application, viewport, mapBackground,
+  const capture = async (mapBackground?: Container, size?: ThumbnailSize, sceneCapture?: SceneFrameCapture): Promise<string | null> => service.renderThumbnail(
+    app as unknown as Application, viewport, mapBackground, size, sceneCapture,
   );
   const frame = () => generateTexture.mock.calls.at(-1)![0].frame as Rectangle;
   return { viewport, background, app, capture, frame, generateTexture, destroy, source, drawImage };
@@ -70,6 +73,40 @@ describe('scene thumbnail framing', () => {
     source.height = 300;
     await capture();
     expect(drawImage).toHaveBeenCalledWith(source, -200, 0, 800, 300);
+  });
+
+  test.each([
+    [undefined, { x: 300, y: 200, resolution: 0.5 }],
+    [SNAPSHOT_THUMBNAIL_SIZE, { x: 166.66666666666669, y: 200, resolution: 0.6 }],
+  ])('hands the map view the frame it renders, for a thumbnail of %o', async (size, expected) => {
+    const { background, capture, frame, generateTexture } = setup();
+    const frames: SceneFrame[] = [];
+    const sceneCapture: SceneFrameCapture = (sceneFrame, render) => {
+      frames.push(sceneFrame);
+      expect(generateTexture).not.toHaveBeenCalled();
+      return render();
+    };
+    await capture(background, size, sceneCapture);
+    expect(frames).toHaveLength(1);
+    expect(frames[0]!.x).toBeCloseTo(expected.x);
+    expect(frames[0]!).toMatchObject({ y: expected.y, resolution: expected.resolution });
+    const rendered = generateTexture.mock.calls[0]![0];
+    expect(frames[0]).toEqual({ x: frame().x, y: frame().y, resolution: rendered.resolution });
+  });
+
+  test('asks for a canvas render even when the map view fails to capture the frame', async () => {
+    const { app, background, capture } = setup();
+    const requestRender = vi.spyOn(renderScheduler, 'requestRender');
+    const failing: SceneFrameCapture = () => { throw new Error('Capture failed'); };
+    await expect(capture(background, undefined, failing)).rejects.toThrow('Capture failed');
+    expect(requestRender).toHaveBeenCalledWith(app);
+  });
+
+  test('renders nothing while the WebGL context is lost, so the thumbnail the scene has stays', async () => {
+    const { app, background, capture, generateTexture } = setup();
+    Object.assign(app.renderer, { name: 'webgl', gl: { isContextLost: () => true } });
+    expect(await capture(background)).toBeNull();
+    expect(generateTexture).not.toHaveBeenCalled();
   });
 
   test('skips empty scenes instead of overwriting a preview with a blank image', async () => {

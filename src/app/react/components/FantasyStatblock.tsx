@@ -19,6 +19,7 @@ import { StatblockTokenResources, type StatblockTokenActions } from './statblock
 import type { StatblockEditApi } from './statblock/statblockEditContext';
 import { isEditableNote, writeStatblockValue } from '../../services/statblockEditing';
 import { useBestiaryRevision } from '../hooks/useBestiaryRevision';
+import { StatblockSkeleton } from './statblock/StatblockSkeleton';
 
 interface FantasyStatblockProps {
   /** Vault path of the note backing the Fantasy Statblocks creature */
@@ -27,7 +28,7 @@ interface FantasyStatblockProps {
   noteContent?: string | undefined;
   /** Obsidian app — used for markdown, images and click-to-roll dice */
   app: App;
-  /** Tokens whose HP/stress drive the statblock's vitals — one block per token */
+  /** Tokens whose resources drive the statblock's vitals — one block per token */
   tokens?: TokenVitals[];
   /** Allows values to be edited in place, writing back to the note's frontmatter */
   editable?: boolean;
@@ -37,7 +38,7 @@ interface FantasyStatblockProps {
 
 /** Signature of the values mirrored into the statblock, for change detection. */
 function vitalsKey(tokens: TokenVitals[]): string {
-  return JSON.stringify(tokens.map((t) => [t.name, t.hp, t.stress, t.maxStress]));
+  return JSON.stringify(tokens.map((t) => [t.name, t.resources]));
 }
 
 /**
@@ -71,6 +72,8 @@ export function FantasyStatblock({
   // Notes that define their statblock in a ```statblock fence never enter the
   // bestiary, so resolve those from the fence itself.
   const [noteCreature, setNoteCreature] = useState<FantasyStatblocksCreature | null>(null);
+  // The note whose own statblock has been looked for: until then "no creature" is not known yet.
+  const [readNote, setReadNote] = useState<string | null>(null);
 
   useEffect(() => {
     if (bestiaryCreature) {
@@ -79,7 +82,7 @@ export function FantasyStatblock({
     }
 
     let cancelled = false;
-    void (async () => {
+    const readNoteCreature = async (): Promise<void> => {
       if (noteContent !== undefined) {
         const source = statblockSourceFromText(noteContent);
         const basename = notePath.split('/').pop()?.replace(/\.md$/, '') ?? '';
@@ -98,7 +101,10 @@ export function FantasyStatblock({
 
       const resolved = await resolveCreatureFromFence(app, source.params, notePath);
       if (!cancelled) setNoteCreature(resolved);
-    })();
+    };
+    void readNoteCreature().finally(() => {
+      if (!cancelled) setReadNote(notePath);
+    });
 
     return () => {
       cancelled = true;
@@ -188,7 +194,7 @@ export function FantasyStatblock({
     );
   }, [app, monster, notePath]);
 
-  // Mirror token HP/stress into any vitals track the layout renders.
+  // Mirror the tokens' resources into any vitals track the layout renders.
   useEffect(() => {
     if (ref.current && !tokenActions) {
       syncStatblockVitals(ref.current, tokensRef.current);
@@ -207,9 +213,10 @@ export function FantasyStatblock({
 
   if (!monster || !layout) {
     // The bestiary is parsed asynchronously at startup, so an unresolved
-    // bestiary means "not ready yet" rather than "no such creature".
-    if (!api.isResolved?.()) {
-      return <div className="atlas-statblock-missing-hint">Loading statblock…</div>;
+    // bestiary means "not ready yet" rather than "no such creature"; so does
+    // a note whose own statblock is still being read.
+    if (!api.isResolved?.() || (!bestiaryCreature && readNote !== notePath)) {
+      return <StatblockSkeleton className={className} />;
     }
 
     return (

@@ -1,4 +1,7 @@
 import type { SystemPreset } from '../../types/systemPresetTypes';
+import { OLD_SCHOOL_ESSENTIALS_LIGHTS } from '../lightPresets/oldSchoolEssentials';
+import { HP_RESOURCE } from '../../resources/resourceDefinitions';
+import { OLD_SCHOOL_ESSENTIALS_SENSES } from '../senses/oldSchoolEssentials';
 import { builtInPresetId, conditionsOf } from './presetHelpers';
 
 /**
@@ -21,17 +24,20 @@ export const OLD_SCHOOL_ESSENTIALS: SystemPreset = {
       diagonalRule: 'equidistant',
       abstractRangeBands: [],
     },
+    dice: { defaultRoll: '1d20', crit: 'natural' },
     conditions: conditionsOf('ose', [
       { name: 'Paralysed', color: '#38bdf8', icon: 'frozen-body' },
       { name: 'Petrified', color: '#78716c', icon: 'stoned-skull' },
       { name: 'Charmed', color: '#db2777', icon: 'heart' },
       { name: 'Asleep', color: '#1e3a8a', icon: 'sleepy' },
-      { name: 'Blinded', color: '#475569', icon: 'blindfold' },
-      { name: 'Invisible', color: '#c7d2fe', icon: 'invisible' },
+      { name: 'Blinded', color: '#475569', icon: 'blindfold', effect: 'blinded' },
+      { name: 'Invisible', color: '#c7d2fe', icon: 'invisible', effect: 'invisible' },
       { name: 'Entangled', color: '#0d9488', icon: 'spider-web' },
       { name: 'Fleeing', color: '#7c3aed', icon: 'run' },
       { name: 'Surprised', color: '#f59e0b', icon: 'surprised' },
     ]),
-    defaultWidgets: { hpBar: true },
+    resources: [{ ...HP_RESOURCE }],
+    senses: OLD_SCHOOL_ESSENTIALS_SENSES,
+    lightPresets: OLD_SCHOOL_ESSENTIALS_LIGHTS,
   },
 };

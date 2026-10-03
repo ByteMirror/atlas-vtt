@@ -23,6 +23,8 @@ interface TokenCreatorRailProps {
   isDragging: boolean;
   previews: TokenPreviewsApi;
   onFiles: (files: File[]) => void;
+  /** The picker also offers Universal VTT map files. */
+  acceptsMapFiles: boolean;
   collection: string;
   collections: CollectionMetadata[];
   onCollectionChange: (collection: string) => void;
@@ -70,6 +72,7 @@ export function TokenCreatorRail(props: TokenCreatorRailProps): React.JSX.Elemen
           title={isEditing ? 'Choose a new image' : 'Drop images anywhere'}
           hint={isEditing ? 'The current image will be replaced' : `or click to browse for ${mode} images`}
           multiple={!isEditing}
+          acceptsMapFiles={props.acceptsMapFiles && !isEditing}
           isDragging={isDragging}
           onFiles={onFiles}
         />

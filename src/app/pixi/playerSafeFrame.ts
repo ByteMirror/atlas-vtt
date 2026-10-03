@@ -1,4 +1,5 @@
 import type { PlayerCameraState } from '../local-player-view';
+import type { Perception } from '../vision/perception';
 
 /** Anything whose `visible` flag decides whether it is part of the next render. */
 export interface HideableLayer {
@@ -26,17 +27,49 @@ export interface LayerVisibility {
 }
 
 /**
+ * Sets each layer's visibility and leaves it so, for a view that lasts longer than one captured
+ * frame. Of two entries for one layer the later decides.
+ */
+export function setLayerVisibility(layers: readonly LayerVisibility[]): void {
+  const wanted = new Map<HideableLayer, boolean>();
+  for (const { layer, visible } of layers) wanted.set(layer, visible);
+  for (const [layer, visible] of wanted) {
+    if (layer.visible !== visible) layer.visible = visible;
+  }
+}
+
+/**
  * Sprites of tokens players must not see: hidden ones (the DM sees them translucent) and,
- * with dynamic lighting, those no player token sees (`isSeen`).
+ * with dynamic lighting, those no player token sees (`perception`). A token the players only
+ * sense is left out too: its outline stands for it (`SensedOutlines`).
  */
 export function hiddenTokenLayers(
   tokens: Record<string, { isHidden?: boolean }>,
   sprites: Record<string, HideableLayer | null>,
-  isSeen: (tokenId: string) => boolean = () => true,
+  perception: (tokenId: string) => Perception = () => 'seen',
 ): LayerVisibility[] {
   const layers: LayerVisibility[] = [];
   for (const [tokenId, sprite] of Object.entries(sprites)) {
-    if (sprite && (tokens[tokenId]?.isHidden || !isSeen(tokenId))) layers.push({ layer: sprite, visible: false });
+    if (sprite && (tokens[tokenId]?.isHidden || perception(tokenId) !== 'seen')) layers.push({ layer: sprite, visible: false });
+  }
+  return layers;
+}
+
+/** How translucent the GM sees a hidden token. */
+export const HIDDEN_TOKEN_ALPHA = 0.5;
+
+/**
+ * Every token sprite as the GM view shows it, hidden tokens translucent, whatever the canvas
+ * shows now (session view hides hidden tokens and those out of the players' sight): for a
+ * picture of the scene, which is always the GM's.
+ */
+export function gmTokenLayers(
+  tokens: Record<string, { isHidden?: boolean }>,
+  sprites: Record<string, HideableLayer | null>,
+): LayerVisibility[] {
+  const layers: LayerVisibility[] = [];
+  for (const [tokenId, sprite] of Object.entries(sprites)) {
+    if (sprite) layers.push({ layer: sprite, visible: true, alpha: tokens[tokenId]?.isHidden ? HIDDEN_TOKEN_ALPHA : 1 });
   }
   return layers;
 }

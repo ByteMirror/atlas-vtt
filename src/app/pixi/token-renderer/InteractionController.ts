@@ -5,6 +5,9 @@
  * hover effects, context menus, and path recording for smooth animations.
  */
 
+import type { ResourceDefsProvider } from '../../resources/resourceTypes';
+import { isKillable, resetLabel } from '../../resources/resourceValues';
+import { visibleResources } from '../../resources/visibleResources';
 import React from 'react';
 import { Container, FederatedPointerEvent } from 'pixi.js';
 import { Viewport } from 'pixi-viewport';
@@ -14,17 +17,17 @@ import { STATBLOCK_UNLINK_UPDATES } from './statblockFrontmatter';
 import { openContextMenuGlobal, closeContextMenuGlobal, type ContextMenuEntry } from '../../react/root/ContextMenuContext';
 import { DestructiveActionRow } from './DestructiveActionRow';
 import type { ITokenInteractionController, TokenGroupContainer } from './types';
-import type { TokenEntity } from '../../types';
-import type { InitiativeEntry } from '../../types/initiativeTypes';
+import type { Character, TokenEntity } from '../../types';
 import type { ViewAtlasState } from '../../storeFactory';
 import type { StoreApi } from 'zustand';
 import type { GridSystem } from '../../grid/GridSystem';
 import { beginHistoryTransaction, endHistoryTransaction } from '../../stores/history';
+import { initiativeEntryForToken } from '../../stores/initiativeEntries';
 import { EventEmitter } from 'events';
 import { StatblockDialogService } from '../../services/StatblockDialogService';
 import { TokenStatblockLinkService } from '../../services/TokenStatblockLinkService';
 import type { ConditionDefinition } from '../../types/collectionSettingsTypes';
-import { WALLS_AND_LIGHTING_ENABLED } from '../../featureFlags';
+import { dynamicLightingOn } from '../../experimental/experimentalFeatures';
 import { saveMapTokensAsEncounter } from '../../encounters/saveMapTokensAsEncounter';
 import { copyMapObjects } from '../../clipboard/mapClipboardActions';
 import { copyDragSelection } from './dragCopy';
@@ -32,12 +35,16 @@ import type { DragRuler } from './DragRuler';
 import { runInBackground } from '../../utils/backgroundTask';
 import { tokenSizeSubmenu } from '../../react/components/context-menu/tokenSizeMenu';
 import { tokenLightingEntries } from '../../react/components/context-menu/tokenLightingMenu';
+import { mapLightPresets } from '../../services/mapCollectionRules';
 import { conditionsSubmenu } from '../../react/components/context-menu/conditionsMenu';
+import { holdTokens } from '../../lighting/sightOnDrop';
 
 interface DragState {
   isDragging: boolean;
   dragIds: string[];
   dragStartPointer: { x: number; y: number };
+  /** Where the pointer was last seen, in world pixels: a drag whose pointer is lost drops there. */
+  lastPointer?: { x: number; y: number };
   initialPositions: Record<string, { x: number; y: number }>;
   animationFrameId?: number;
   pendingUpdate: boolean;
@@ -59,6 +66,8 @@ export class InteractionController implements ITokenInteractionController {
   
   // Condition definitions provider — wired by PixiRendererOrchestrator
   public conditionDefsProvider: (() => ConditionDefinition[]) | null = null;
+  /** The resources of the map's collection, for Kill and Reset. */
+  public resourceDefsProvider: ResourceDefsProvider = () => [];
   
   // Drag state
   private dragState: DragState = {
@@ -84,6 +93,8 @@ export class InteractionController implements ITokenInteractionController {
   private onTokensHeldChange?: (tokenIds: string[]) => void;
   private updateHandlePositions?: () => void;
   private dragRuler?: DragRuler;
+  /** Where a lost pointer is heard while the pointer is down (`watchLostPointer`). */
+  private lostPointerTargets: { canvas: HTMLElement; win: Window | null } | null = null;
 
   constructor(
     viewport: Viewport,
@@ -198,9 +209,7 @@ export class InteractionController implements ITokenInteractionController {
             type: 'token',
             // Vitals travel with the pin so the preview can mirror them.
             name: token.name,
-            hp: token.hp,
-            stress: token.stress,
-            maxStress: token.maxStress,
+            resources: token.resources,
             imagePath: token.imagePath,
             ringColor: token.ringColor,
             showRing: token.showRing,
@@ -219,6 +228,10 @@ export class InteractionController implements ITokenInteractionController {
   }
 
   private prepareInteraction(token: TokenEntity, e: FederatedPointerEvent): void {
+    // A second pointer (another finger) pressing during a drag is not a new gesture: taking it
+    // would let go of the held tokens and leave the drag's history transaction open.
+    if (this.dragState.isDragging && this.dragState.hasMoved) return;
+
     const { selectedIds, setSelection } = this.store.getState();
     const isTokenSelected = selectedIds.includes(token.id);
 
@@ -255,6 +268,7 @@ export class InteractionController implements ITokenInteractionController {
     // Initialize drag state
     const worldPos = this.viewport.toWorld(e.global);
     this.dragState.dragStartPointer = { x: worldPos.x, y: worldPos.y };
+    this.dragState.lastPointer = this.dragState.dragStartPointer;
     this.dragState.initialPositions = {};
     
     for (const id of this.dragState.dragIds) {
@@ -266,7 +280,7 @@ export class InteractionController implements ITokenInteractionController {
     
     this.dragState.isDragging = true;
     // Tokens this press selects stay at rest until release, so a drag never grows their UI first
-    this.onTokensHeldChange?.(this.dragState.dragIds.filter((id) => !selectedIds.includes(id)));
+    this.reportHeld(this.dragState.dragIds.filter((id) => !selectedIds.includes(id)));
     
     // Don't set isDragging in store yet - wait for actual movement
     
@@ -274,12 +288,32 @@ export class InteractionController implements ITokenInteractionController {
     this.viewport.on('pointermove', this.onPointerMove, this);
     this.viewport.on('pointerup', this.onPointerUp, this);
     this.viewport.on('pointerupoutside', this.onPointerUp, this);
+    this.watchLostPointer();
   }
+
+  /**
+   * No release follows a pointer the browser cancels (a touch taken over by a system gesture)
+   * or a press that outlasts the window's focus, and PIXI reports neither: the drag then ends
+   * where the token is, as a drop.
+   */
+  private watchLostPointer(): void {
+    const canvas = this.viewport.options?.events?.domElement;
+    if (!canvas) return;
+    const win = canvas.ownerDocument.defaultView;
+    canvas.addEventListener('pointercancel', this.dropWhereItIs);
+    win?.addEventListener('blur', this.dropWhereItIs);
+    this.lostPointerTargets = { canvas, win };
+  }
+
+  private readonly dropWhereItIs = (): void => {
+    this.endDrag(this.dragState.lastPointer ?? this.dragState.dragStartPointer);
+  };
 
   private onPointerMove = (e: FederatedPointerEvent) => {
     if (!this.dragState.isDragging) return;
     
     const worldPos = this.viewport.toWorld(e.global);
+    this.dragState.lastPointer = { x: worldPos.x, y: worldPos.y };
     const dx = worldPos.x - this.dragState.dragStartPointer.x;
     const dy = worldPos.y - this.dragState.dragStartPointer.y;
     const currentTime = Date.now();
@@ -289,11 +323,12 @@ export class InteractionController implements ITokenInteractionController {
     if (!this.dragState.hasMoved && moveDistance > 5) {
       this.dragState.hasMoved = true;
       this.store.getState().setIsDragging(true);
-      this.onTokensHeldChange?.(this.dragState.dragIds);
       // The whole drag becomes one undo step; closed in onPointerUp.
       beginHistoryTransaction(this.store);
       const grabbedIndex = Math.max(0, this.dragState.dragIds.indexOf(this.dragState.clickToken?.id ?? ''));
       if (this.dragState.copyOnDrag) this.dragCopiesInstead();
+      // Held are the tokens that move: the copies of an Alt-drag, before anything has moved.
+      this.reportHeld(this.dragState.dragIds);
       this.startDragRuler(this.dragState.dragIds[grabbedIndex]);
     }
     
@@ -327,7 +362,8 @@ export class InteractionController implements ITokenInteractionController {
       });
 
       if (updates.length > 0) {
-        // Update store positions during drag so vision recomputes in real time.
+        // The store follows the drag, so everything that reads positions does. Sight waits for
+        // the drop unless the scene has sight on drop off (`SightTokens`).
         // Persistence is debounced (1000ms) so these intermediate updates won't save,
         // and the open history transaction keeps them out of the undo stack.
         this.store.getState().setTokenPositions(updates);
@@ -389,9 +425,17 @@ export class InteractionController implements ITokenInteractionController {
     this.viewport.off('pointermove', this.onPointerMove, this);
     this.viewport.off('pointerup', this.onPointerUp, this);
     this.viewport.off('pointerupoutside', this.onPointerUp, this);
+    this.lostPointerTargets?.canvas.removeEventListener('pointercancel', this.dropWhereItIs);
+    this.lostPointerTargets?.win?.removeEventListener('blur', this.dropWhereItIs);
+    this.lostPointerTargets = null;
   }
 
-  private onPointerUp = (e: FederatedPointerEvent) => {
+  private onPointerUp = (e: FederatedPointerEvent): void => {
+    this.endDrag(this.viewport.toWorld(e.global));
+  };
+
+  /** Ends the press or drag with the pointer at `worldPos`: a drag drops its tokens there, as one undo step. */
+  private endDrag(worldPos: { x: number; y: number }): void {
     if (!this.dragState.isDragging) return;
     const wasDrag = this.dragState.hasMoved;
 
@@ -424,7 +468,6 @@ export class InteractionController implements ITokenInteractionController {
       }
       
       // Calculate final positions
-      const worldPos = this.viewport.toWorld(e.global);
       const dx = worldPos.x - this.dragState.dragStartPointer.x;
       const dy = worldPos.y - this.dragState.dragStartPointer.y;
       
@@ -454,14 +497,7 @@ export class InteractionController implements ITokenInteractionController {
         tokenUpdates.push({id, x: finalPos.x, y: finalPos.y});
       }
       
-      if (tokenUpdates.length === 1) {
-        const update = tokenUpdates[0];
-        if (update) {
-          this.store.getState().moveToken(update.id, update.x, update.y);
-        }
-      } else if (tokenUpdates.length > 1) {
-        this.store.getState().setTokenPositions(tokenUpdates);
-      }
+      if (tokenUpdates.length > 0) this.store.getState().dropTokens(tokenUpdates);
       
       // Update UI
       this.onSelectionUpdate?.();
@@ -501,9 +537,15 @@ export class InteractionController implements ITokenInteractionController {
       this.dragState.hasMoved = false;
       this.lastDragStreamSentAt = 0;
       delete this.dragState.clickToken;
-      this.onTokensHeldChange?.([]);
+      this.reportHeld([]);
     }
-  };
+  }
+
+  /** The store notes where the held tokens stand (`holdTokens`: sight waits there for the drop); then the token UI. */
+  private reportHeld(tokenIds: string[]): void {
+    holdTokens(this.store, tokenIds);
+    this.onTokensHeldChange?.(tokenIds);
+  }
 
   private getConditionDefs(): ConditionDefinition[] {
     return this.conditionDefsProvider?.() ?? [];
@@ -542,8 +584,9 @@ export class InteractionController implements ITokenInteractionController {
     });
 
     // Vision and carried light, for the selection the token belongs to
-    if (WALLS_AND_LIGHTING_ENABLED && !this.isPlayerView) {
-      entries.push(...tokenLightingEntries(this.store, token.id, this.contextMenuTargets(token.id)));
+    if (!this.isPlayerView && dynamicLightingOn(this.obsApp)) {
+      const lightPresets = mapLightPresets(this.obsApp, this.store.getState());
+      entries.push(...tokenLightingEntries(this.store, token.id, this.contextMenuTargets(token.id), lightPresets));
     }
 
 
@@ -581,14 +624,15 @@ export class InteractionController implements ITokenInteractionController {
       onClick: () => this.showEditTokenModal(token),
     });
 
-    // Initiative
+    // Initiative, for the selection the token belongs to; the clicked token decides which way
     const initiativeEntries = this.store.getState().initiative?.entries || [];
     const isInInitiative = initiativeEntries.some((entry) => entry.tokenId === token.id);
+    const initiativeTargets = this.contextMenuTargets(token.id);
     entries.push({
       type: 'item',
       label: isInInitiative ? 'Remove from Initiative' : 'Add to Initiative',
       icon: 'swords',
-      onClick: () => this.handleInitiativeToggle(token, isInInitiative),
+      onClick: () => this.handleInitiativeToggle(initiativeTargets, isInInitiative),
     });
 
 
@@ -677,13 +721,13 @@ export class InteractionController implements ITokenInteractionController {
       })),
     });
 
-    // Reset (only if token has HP)
-    if (character?.hp !== undefined) {
+    // Reset (only if the token tracks resources)
+    if (this.hasResources(character)) {
       entries.push({
         type: 'item',
-        label: 'Reset (Full HP, Clear Status)',
+        label: resetLabel(this.resourceDefsProvider()),
         icon: 'rotate-ccw',
-        onClick: () => this.store.getState().resetTokens([token.id]),
+        onClick: () => this.store.getState().resetTokens([token.id], this.resourceDefsProvider()),
       });
     }
 
@@ -746,59 +790,31 @@ export class InteractionController implements ITokenInteractionController {
     this.dragRuler = ruler;
   }
 
+  private hasResources(character: Character | undefined): boolean {
+    return character !== undefined && visibleResources(character, this.resourceDefsProvider(), 'dm').length > 0;
+  }
+
   private renderDestructiveRow(token: TokenEntity): React.ReactNode {
     return React.createElement(DestructiveActionRow, {
       tokenId: token.id,
       store: this.store,
-      hasHp: token.kind === 'character' && token.hp !== undefined,
+      canKill: token.kind === 'character' && isKillable(token, this.resourceDefsProvider()),
+      definitions: this.resourceDefsProvider(),
       onClose: () => closeContextMenuGlobal(),
     });
   }
 
-  private handleInitiativeToggle(token: TokenEntity, isInInitiative: boolean): void {
+  private handleInitiativeToggle(tokenIds: string[], remove: boolean): void {
     if (!this.store.getState().initiativeTrackerOpen) {
       this.store.getState().setInitiativeTrackerOpen(true);
     }
 
-    const initiativeEntries = this.store.getState().initiative?.entries || [];
-
-    if (isInInitiative) {
-      const entry = initiativeEntries.find((e) => e.tokenId === token.id);
-      if (entry) this.store.getState().removeFromInitiative(entry.id);
-    } else {
-      const character = token.kind === 'character' ? token : undefined;
-
-      let hp: { current: number; max: number };
-      if (character?.hp) {
-        hp = typeof character.hp === 'object'
-          ? { current: character.hp.current, max: character.hp.max }
-          : { current: character.hp, max: character.hp };
-      } else {
-        hp = { current: 10, max: 10 };
-      }
-
-      const entry: Omit<InitiativeEntry, 'id' | 'order' | 'isActive'> = {
-        tokenId: token.id,
-        name: character ? character.name : 'Token',
-        initiative: 0,
-        initiativeModifier: 0,
-        hp,
-        imagePath: token.imagePath,
-        isDefeated: hp.current <= 0,
-        isNPC: !character?.playerLinked,
-      };
-
-      if (character?.stress !== undefined) {
-        entry.stress = typeof character.stress === 'object'
-          ? { current: character.stress.current, max: character.stress.max }
-          : { current: character.stress, max: character.maxStress ?? 10 };
-      }
-
-      if (character?.statblockPath) {
-        entry.statblockPath = character.statblockPath;
-      }
-
-      this.store.getState().addToInitiative(entry);
+    for (const tokenId of tokenIds) {
+      const { initiative, objects, addToInitiative, removeFromInitiative } = this.store.getState();
+      const entry = initiative.entries.find((e) => e.tokenId === tokenId);
+      const token = objects.tokens[tokenId];
+      if (remove && entry) removeFromInitiative(entry.id);
+      else if (!remove && !entry && token) addToInitiative(initiativeEntryForToken(token));
     }
   }
 
@@ -811,7 +827,7 @@ export class InteractionController implements ITokenInteractionController {
   }
 
   private showEditTokenModal(token: TokenEntity): void {
-    openEditTokenModal(token, this.store, this.obsApp);
+    openEditTokenModal(token, this.store, this.obsApp, this.resourceDefsProvider());
   }
 
   destroyAll(): void {
@@ -822,6 +838,7 @@ export class InteractionController implements ITokenInteractionController {
 
     // A drag interrupted by teardown must not leave its transaction open
     if (this.dragState.hasMoved) endHistoryTransaction(this.store);
+    holdTokens(this.store, []);
     this.dragRuler?.end();
 
     // Remove any active viewport listeners using the same cleanup method

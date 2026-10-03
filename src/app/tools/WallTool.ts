@@ -1,17 +1,16 @@
 import { EventEmitter } from 'events';
 import type { WallType } from '../types/wallTypes';
 import { simplifyStroke } from '../pixi/lighting/wallEdits';
-import type { LightPresetId } from '../lighting/lightPresets';
 
 export type WallToolMode = 'point-to-point' | 'freeform';
-export type WallToolSubMode = 'draw' | 'place-light';
+export type WallToolSubMode = 'draw' | 'place-light' | 'light-zone' | 'explored-memory';
 
 export interface WallToolSettings {
   mode: WallToolMode;
   subMode: WallToolSubMode;
   wallType: WallType;
-  /** What the place-light mode puts down. */
-  lightPreset: LightPresetId;
+  /** Id of the light preset the place-light mode puts down; null is the collection's default light (`chosenLightPreset`). */
+  lightPreset: string | null;
 }
 
 /**
@@ -37,7 +36,7 @@ export class WallTool {
       mode: 'point-to-point',
       subMode: 'draw',
       wallType: 'solid',
-      lightPreset: 'torch',
+      lightPreset: null,
     };
   }
 
@@ -60,7 +59,7 @@ export class WallTool {
     this.eventBus.emit('wall-type-changed', type);
   }
 
-  setLightPreset(preset: LightPresetId): void {
+  setLightPreset(preset: string): void {
     this.settings.lightPreset = preset;
   }
 

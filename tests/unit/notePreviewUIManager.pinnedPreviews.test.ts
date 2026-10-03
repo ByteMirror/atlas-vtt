@@ -88,14 +88,16 @@ function createHarness({ noteLeaves = false } = {}): Harness {
 /** The store side of `MapService.loadMap`: save the old map, rehydrate the new one, announce it. */
 async function loadMap({ store, eventBus }: Harness, path: string): Promise<void> {
   const state = store.getState();
-  if (state.mapPath) eventBus.emit('map-unloading');
+  if (state.mapLoaded) eventBus.emit('map-unloading');
   state.setPersistenceEnabled(false);
   await store.flushStorage();
+  state.setMapLoaded(false);
   state.setMapPath(path);
   state.clearMapState();
   await store.persist.rehydrate();
   state.setPersistenceEnabled(true);
   eventBus.emit('map-loaded');
+  state.setMapLoaded(true);
 }
 
 async function openPreview({ eventBus }: Harness): Promise<HTMLElement> {

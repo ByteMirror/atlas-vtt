@@ -5,7 +5,8 @@ import {
   type FantasyStatblocksApi,
   type FantasyStatblocksCreature,
 } from '../services/FantasyStatblocksService';
-import { hasBestiaryFrontmatter, parseStatblockFence } from '../services/statblockNoteSource';
+import { hasBestiaryFrontmatter, parseStatblockFence, resolveStatblockNote } from '../services/statblockNoteSource';
+import { workSlices } from '../utils/workSlices';
 
 /** The bestiary as one lookup, built once and reused for many notes. */
 export interface BestiaryLookup {
@@ -68,4 +69,28 @@ export async function resolveLinkedCreature(
 
   const basename = notePath.split('/').pop()?.replace(/\.md$/, '') ?? '';
   return basename && api?.hasCreature(basename) ? api.getCreatureFromBestiary(basename) : null;
+}
+
+/**
+ * The creatures of the vault's statblock notes that the bestiary lacks: notes
+ * Fantasy Statblocks renders from a ```statblock fence, which it never parses,
+ * and statblock frontmatter it has not parsed. Tokens link to these like any
+ * bestiary note. An aborted read stops at the next note.
+ */
+export async function unparsedStatblockNotes(
+  app: App,
+  bestiary: BestiaryLookup = bestiaryLookup(),
+  signal?: AbortSignal,
+): Promise<FantasyStatblocksCreature[]> {
+  const creatures: FantasyStatblocksCreature[] = [];
+  const pause = workSlices();
+  for (const file of app.vault.getMarkdownFiles()) {
+    await pause();
+    if (signal?.aborted) break;
+    if (bestiary.byPath.has(file.path) || !(await resolveStatblockNote(app, file))) continue;
+    const creature = await resolveLinkedCreature(app, file.path, bestiary);
+    const name = typeof creature?.name === 'string' && creature.name.trim() ? creature.name : file.basename;
+    creatures.push({ ...creature, name, path: file.path });
+  }
+  return creatures;
 }

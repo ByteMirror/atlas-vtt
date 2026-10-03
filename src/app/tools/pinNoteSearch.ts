@@ -1,6 +1,7 @@
 import { App, TFile, setIcon } from 'obsidian';
 import { mayLinkFromScene } from '../services/sceneLinks';
 import { baseName, parentPath } from '../utils/pathUtils';
+import { STANDING_LIST } from '../keyboard/tooltipEscape';
 
 const RESULT_LIMIT = 30;
 
@@ -49,7 +50,7 @@ export function createPinNoteSearch(container: HTMLElement, options: PinNoteSear
     },
   });
 
-  const results = container.createDiv({ cls: 'pin-results', attr: { id: listId, role: 'listbox' } });
+  const results = container.createDiv({ cls: 'pin-results', attr: { id: listId, role: 'listbox', ...STANDING_LIST } });
 
   const footer = container.createDiv({ cls: 'pin-footer' });
   const footerHints: Array<[key: string, label: string]> = [['↑↓', 'navigate'], ['Enter', 'select'], ['Esc', 'cancel']];

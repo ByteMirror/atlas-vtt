@@ -41,6 +41,10 @@ $font-ui-smaller: var(--font-ui-smaller); // 12px – captions, counts, shortcut
 $font-ui-small:   var(--font-ui-small);   // 13px – labels, body UI text
 $font-ui-medium:  var(--font-ui-medium);  // 15px – section titles
 $font-ui-large:   var(--font-ui-large);   // 20px – modal titles
+// The dice numerals' display face (@font-face in main.scss): medieval FantaisieArtistique,
+// or Oxanium where `.atlas-dice-font--scifi` sets --atlas-dice-font.
+$font-dice-display: var(--atlas-dice-font, 'Atlas Fantaisie Artistique', 'Palatino Linotype', Palatino, Georgia, serif);
+$font-dice-scifi: 'Atlas Oxanium', 'Rajdhani', 'Segoe UI', sans-serif;
 $font-weight-normal:   var(--font-normal);
 $font-weight-medium:   var(--font-medium);
 $font-weight-semibold: var(--font-semibold);
@@ -75,6 +79,9 @@ $z-atlas-modal: 10000;
 // Inside a map's UI layer: note previews stack above its bars (100) and below
 // its overlays, such as the DM screen (1000) and the command palette (999)
 $z-atlas-note-preview: 500;
+// Dice rolls stand above those overlays: a roll made from a statblock on the DM
+// screen must show. Menus (2000 and up) still open over them.
+$z-atlas-dice-rolls: 1100;
 
 // ── Transitions ──────────────────────────────────────────────────────────────
 $transition-fast: 100ms;

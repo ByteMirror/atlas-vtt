@@ -29,6 +29,8 @@ function viewContext(currentMapFilePath: string | null = null) {
       workspace: { requestSaveLayout: vi.fn() },
     },
   };
+  // Private helpers of the view resolve through its prototype
+  Object.setPrototypeOf(context, AtlasView.prototype);
   return { context, setMapLoading };
 }
 

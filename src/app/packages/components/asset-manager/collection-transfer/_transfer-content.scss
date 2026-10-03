@@ -210,6 +210,8 @@
 .atlas-transfer-item {
   @include atlas-flex-row($gap: $spacing-s);
   min-width: 0;
+  // A note found through another note stands one step to the right of it.
+  padding-left: calc(var(--atlas-transfer-item-level, 0) * #{$spacing-l});
 
   &__label {
     @include atlas-flex-row($gap: $spacing-s);
@@ -234,6 +236,15 @@
     flex-shrink: 0;
     color: var(--text-faint);
     font-size: $font-ui-smaller;
+  }
+
+  // How many notes come with this one; unticking it leaves them out.
+  &__linked {
+    flex-shrink: 0;
+    margin-left: auto;
+    color: var(--text-faint);
+    font-size: $font-ui-smaller;
+    font-variant-numeric: tabular-nums;
   }
 
   &[data-orphaned] {

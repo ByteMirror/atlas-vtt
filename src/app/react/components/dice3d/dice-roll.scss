@@ -1,0 +1,317 @@
+// ──────────────────────────────────────────────
+// Dice rolls – BEM: atlas-dice-rolls, atlas-dice-roll*
+// Every roll at the top centre of the map: 3D dice thrown inside an elevated
+// panel, or the result card (dice-toast.scss).
+// ──────────────────────────────────────────────
+@use '../../../../../styles/tokens' as *;
+@use '../../../../../styles/mixins' as *;
+
+$dice-roll-width: 21rem;
+$dice-roll-row-height: 3.4rem;
+// The portrait alone says who rolled, so it is large enough to recognise at a glance.
+$dice-roll-avatar: 44px;
+// The engraving fades towards the rim, as if printed and rubbed off with use.
+$dice-roll-engraving-fade: radial-gradient(ellipse 74% 74% at 50% 50%, #000 38%, rgb(0 0 0 / 0.45) 76%, rgb(0 0 0 / 0) 100%);
+
+// The column carries .atlas-vtt-plugin itself (see DiceRollDisplay). For the DM
+// it hangs from the right end of the top bar row, right-aligned and out of the
+// middle of the map where the DM works: below the widgets, or at the top when
+// there are none. The player window centres it (player-window.scss).
+&.atlas-dice-rolls {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  width: $dice-roll-width;
+  max-width: calc(100vw - 2 * #{$spacing-s});
+  z-index: $z-atlas-dice-rolls;
+  pointer-events: none;
+  @include atlas-flex-col($spacing-s);
+  align-items: flex-end;
+}
+
+.atlas-widget-bar + &.atlas-dice-rolls {
+  margin-top: $spacing-s;
+}
+
+.atlas-dice-roll {
+  --atlas-dice-accent: var(--interactive-accent);
+
+  width: 100%;
+  @include atlas-flex-col($spacing-s);
+  pointer-events: auto;
+  cursor: pointer;
+  user-select: none;
+
+  &--crit-success {
+    --atlas-dice-accent: var(--color-yellow);
+  }
+
+  &--crit-fail {
+    --atlas-dice-accent: var(--color-red);
+  }
+}
+
+// The surface the dice are thrown on; the modifier chip lies below it.
+.atlas-dice-roll__sheet {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  @include atlas-elevated-surface;
+  @include atlas-panel-radius($radius-2xl);
+}
+
+.atlas-dice-roll__engraving {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  color: var(--text-normal);
+  opacity: 0.13;
+  mask-image: $dice-roll-engraving-fade;
+
+  // On a dark surface the same opacity steps out of the panel like a radar screen.
+  .theme-dark & {
+    opacity: 0.06;
+  }
+}
+
+// A shallow dish: a soft ground, the shaded wall at the top where the light
+// comes from and the lit wall at the bottom that shows the rim.
+.atlas-dice-roll__dish {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 80% 72% at 50% 50%, rgb(22 19 15 / 0.17), rgb(22 19 15 / 0.075) 54%, rgb(22 19 15 / 0) 84%),
+    radial-gradient(ellipse 66% 40% at 48% 17%, rgb(22 19 15 / 0.13), rgb(22 19 15 / 0) 74%),
+    radial-gradient(ellipse 66% 40% at 54% 84%, rgb(255 253 246 / 0.75), rgb(255 253 246 / 0) 74%);
+
+  // Less light at night, but it falls deeper: the shadow goes to black and the
+  // lit rim needs only a trace.
+  .theme-dark & {
+    background:
+      radial-gradient(ellipse 80% 72% at 50% 50%, rgb(0 0 0 / 0.34), rgb(0 0 0 / 0.15) 54%, rgb(0 0 0 / 0) 84%),
+      radial-gradient(ellipse 66% 40% at 48% 17%, rgb(0 0 0 / 0.26), rgb(0 0 0 / 0) 74%),
+      radial-gradient(ellipse 66% 40% at 54% 84%, rgb(233 222 203 / 0.06), rgb(233 222 203 / 0) 74%);
+  }
+}
+
+// A high or low roll tints the panel behind the dice.
+.atlas-dice-roll__glow {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse at 50% 42%, color-mix(in oklch, var(--atlas-dice-accent) 28%, transparent), transparent 70%);
+}
+
+.atlas-dice-roll__close {
+  @include atlas-close-corner;
+  z-index: 2;
+}
+
+// The action stands in the middle of the panel. The portrait hangs on its left
+// and takes no part in the centring, so the action is centred with or without
+// one. The sides keep room for the portrait and, on the right, the close button.
+.atlas-dice-roll__header {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  padding: $spacing-m calc(max(#{$dice-roll-avatar}, #{$close-button-size}) + 2 * #{$close-button-gap}) 0;
+
+  .atlas-dice-roll__who {
+    position: relative;
+    min-height: $dice-roll-avatar;
+  }
+
+  .atlas-dice-roll__avatar {
+    position: absolute;
+    top: 50%;
+    right: calc(100% + #{$spacing-s});
+    translate: 0 -50%;
+  }
+
+  // Between the sides there is room for few letters, so a long action takes a second line.
+  .atlas-dice-roll__label {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    white-space: normal;
+    text-align: center;
+  }
+}
+
+.atlas-dice-roll__who {
+  display: inline-flex;
+  align-items: center;
+  gap: $spacing-s;
+  min-width: 0;
+}
+
+.atlas-dice-roll__avatar {
+  width: $dice-roll-avatar;
+  height: $dice-roll-avatar;
+  flex-shrink: 0;
+}
+
+.atlas-dice-roll__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: $font-ui-smaller;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.atlas-dice-roll__content {
+  display: flex;
+  flex-direction: column;
+}
+
+// Holds the height where the dice come to rest; they roll over the whole panel.
+.atlas-dice-roll__floor {
+  width: 100%;
+  aspect-ratio: 16 / 10;
+}
+
+.atlas-dice-roll__slot {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: $spacing-xs;
+  padding: 0 $spacing-l;
+  margin-bottom: $spacing-l;
+  text-align: center;
+}
+
+.atlas-dice-roll__total {
+  font-family: $font-dice-display;
+  font-size: 2.8rem;
+  font-weight: normal;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-normal);
+
+  &--row {
+    font-size: 1.5rem;
+  }
+}
+
+// Written out: `.parent &` would put the parent before the .atlas-vtt-plugin namespace.
+.atlas-dice-roll--crit-success .atlas-dice-roll__total,
+.atlas-dice-roll--crit-fail .atlas-dice-roll__total {
+  color: var(--atlas-dice-accent);
+}
+
+.atlas-dice-roll__count {
+  display: inline-block;
+}
+
+.atlas-dice-roll__breakdown {
+  font-size: $font-ui-smaller;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+
+.atlas-dice-roll__formula {
+  font-family: $font-dice-display;
+  font-size: 1.05rem;
+  color: var(--text-faint);
+}
+
+// The stage lies over everything and lets clicks through to the panel. It
+// shows the bottom left corner of its canvas, which is at least as large and
+// keeps its size when the stage changes its own (`DiceRenderer.setView`).
+.atlas-dice-roll__stage {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+// A row gives the dice a square field at its start: a square shows more
+// depth than the tall panel, so dice thrown with the old walls stay in view.
+// As tall as the row from the first frame, not as the sheet still shrinking to it.
+.atlas-dice-roll--compact .atlas-dice-roll__stage {
+  inset: $spacing-xs auto auto $spacing-xs;
+  height: calc(#{$dice-roll-row-height} - 2 * #{$spacing-xs});
+  aspect-ratio: var(--atlas-dice-field-aspect, 1);
+}
+
+.atlas-dice-stage__canvas {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  display: block;
+  // Wider than the stage of a row, and no rule may fit it in.
+  max-width: none;
+}
+
+.atlas-dice-roll__row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: $spacing-m;
+  min-height: $dice-roll-row-height;
+  // Room for the dice field at the start: as tall as the row inside its inset, as wide as its shape asks.
+  padding: $spacing-s $spacing-l $spacing-s calc((#{$dice-roll-row-height} - 2 * #{$spacing-xs}) * var(--atlas-dice-field-aspect, 1) + #{$spacing-xs} + #{$spacing-s});
+
+  .atlas-dice-roll__who {
+    flex: 1;
+  }
+
+  // As much of the portrait as the row holds inside its padding.
+  .atlas-dice-roll__avatar {
+    width: calc(#{$dice-roll-row-height} - 2 * #{$spacing-s});
+    height: calc(#{$dice-roll-row-height} - 2 * #{$spacing-s});
+  }
+}
+
+// A capsule under the panel, like every bar shorter than 48px, aligned with the
+// column: right for the DM, centred in the player window.
+.atlas-dice-roll__chip {
+  align-self: flex-end;
+  display: inline-flex;
+  align-items: center;
+  gap: $spacing-s;
+  // Wider at the ends: a capsule's round ends would otherwise crowd the text.
+  padding: $spacing-s $spacing-m;
+  @include atlas-elevated-surface;
+  border-radius: $radius-full;
+  @include atlas-corner-shape;
+}
+
+.atlas-dice-roll__chip-label {
+  font-size: $font-ui-smaller;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.atlas-dice-roll__chip-amount {
+  font-family: $font-dice-display;
+  font-size: 1.15rem;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  transition: color 0.3s;
+}
+
+.atlas-dice-roll__chip--applied .atlas-dice-roll__chip-amount {
+  color: var(--text-normal);
+}
+
+// The dice font chosen in Dice settings, for everything that shows dice numbers.
+// Also on the plugin root itself: in the player window the roll column is the root.
+&.atlas-dice-font--scifi,
+.atlas-dice-font--scifi {
+  --atlas-dice-font: #{$font-dice-scifi};
+}

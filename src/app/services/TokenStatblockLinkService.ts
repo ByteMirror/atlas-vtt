@@ -2,9 +2,13 @@ import { StatblockTokenImportService } from './StatblockTokenImportService';
 import { App, TFile, Notice, Modal } from 'obsidian';
 import { EventEmitter } from 'events';
 import { AssetService, type TokenAsset } from './AssetService';
-import { loadStatblockOverrides } from '../packages/components/asset-manager/utils/statblockLoader';
-import { parseResourceValue } from './statblockResources';
+import { resolveLinkedCreature } from '../creatures/linkedCreature';
+import { mapResources } from '../resources/collectionResources';
+import { tokenFromFile, tokenToFile } from '../resources/resourceFileFormat';
+import type { ResourceDefinition } from '../resources/resourceTypes';
+import { startingResources } from '../resources/statblockResourceValues';
 import { isPersistedMapEnvelope } from './MapPersistence';
+import { STATBLOCK_IMAGE_KEYS } from './statblockImageKeys';
 import type { BaseToken, Character } from '../types';
 import { ATLAS_NATIVE_MODAL_CLASSES } from '../ui/nativeModal';
 
@@ -14,15 +18,15 @@ export interface TokenStatblockLink {
 }
 
 /**
- * The statblock-derived fields of a token as stored in a map file. Linking
+ * The statblock-derived fields of a token read from a map file. Linking
  * writes them onto the token whatever its `kind`, so all are optional here.
  */
 type StoredStatblockFields = Pick<BaseToken, 'imagePath'>
-  & Partial<Pick<Character, 'name' | 'hp' | 'stress' | 'maxStress' | 'maxHpOverridden' | 'maxStressOverridden' | 'difficulty' | 'statblockPath' | 'statblockName'>>
-  & {
-    /** Written by older versions and never read; still stripped on unlink. */
-    maxHp?: number;
-  };
+  & Partial<Pick<Character, 'name' | 'difficulty' | 'statblockPath' | 'statblockName' | 'resources' | 'overriddenMax'>>;
+
+function nonEmpty<T extends object>(record: T): T | undefined {
+  return Object.keys(record).length > 0 ? record : undefined;
+}
 
 /** A frontmatter scalar usable as text; YAML may hold a name or tier as a number. */
 function frontmatterLabel(value: unknown): string | undefined {
@@ -209,7 +213,7 @@ export class TokenStatblockLinkService extends EventEmitter {
         const currentImage = this.readStatblockImage(statblockFile);
         // Path comparison handles differing formats (app:// URLs, relative paths).
         if (currentImage && this.arePathsEquivalent(currentImage, tokenImagePath)) {
-          await this.updateStatblockImage(statblockPath, null);
+          await this.updateStatblockImage(statblockPath, tokenImagePath, false);
         }
       }
     }
@@ -277,14 +281,14 @@ export class TokenStatblockLinkService extends EventEmitter {
   }
 
   /**
-   * The statblock's image. Fantasy Statblocks' `image` is authoritative; the
-   * legacy `token-image` from the removed in-house system is read as a fallback
-   * so statblocks linked before the migration keep working.
+   * The statblock's image. Fantasy Statblocks' `image` is authoritative; a
+   * `token` property and the legacy `token-image` from the removed in-house
+   * system are read where it names none.
    */
   public readStatblockImage(file: TFile): string | null {
     const frontmatter: Record<string, unknown> | undefined = this.app.metadataCache.getFileCache(file)?.frontmatter;
-    const image = frontmatter?.image ?? frontmatter?.['token-image'];
-    return typeof image === 'string' && image.length ? image : null;
+    const images = STATBLOCK_IMAGE_KEYS.map((key) => frontmatter?.[key]);
+    return images.find((image): image is string => typeof image === 'string' && image.length > 0) ?? null;
   }
 
   /**
@@ -294,18 +298,21 @@ export class TokenStatblockLinkService extends EventEmitter {
    * truth. The legacy `token-image` field (from the removed in-house statblock
    * system) is still read elsewhere as a fallback but is no longer written; it
    * is cleared alongside `image` on unlink so a stale value cannot resurface.
+   * A `token` property is the user's own: an unlink clears it only when it
+   * names the token being unlinked.
    */
-  private async updateStatblockImage(statblockPath: string, tokenImagePath: string | null): Promise<void> {
+  private async updateStatblockImage(statblockPath: string, tokenImagePath: string, linked = true): Promise<void> {
     const file = this.app.vault.getAbstractFileByPath(statblockPath);
     if (!(file instanceof TFile)) return;
 
     try {
       await this.app.fileManager.processFrontMatter(file, (frontmatter: Record<string, unknown>) => {
-        if (tokenImagePath) {
+        if (linked) {
           frontmatter.image = tokenImagePath;
         } else {
           delete frontmatter.image;
           delete frontmatter['token-image'];
+          if (typeof frontmatter.token === 'string' && this.arePathsEquivalent(frontmatter.token, tokenImagePath)) delete frontmatter.token;
         }
       });
     } catch (error) {
@@ -320,7 +327,7 @@ export class TokenStatblockLinkService extends EventEmitter {
     const statblockData = statblockPath ? await this.extractStatblockData(statblockPath) : null;
 
     /** Returns the rewritten map JSON, or null when no token on the map uses the image. */
-    const rewriteMap = (content: string): string | null => {
+    const rewriteMap = (content: string, definitions: readonly ResourceDefinition[]): string | null => {
       const mapData: unknown = JSON.parse(content);
       if (!isPersistedMapEnvelope(mapData)) return null;
 
@@ -329,77 +336,75 @@ export class TokenStatblockLinkService extends EventEmitter {
 
       let modified = false;
 
-      for (const token of Object.values<StoredStatblockFields>(tokens)) {
-        if (token.imagePath === tokenImagePath) {
-          if (statblockPath) {
-            token.statblockPath = statblockPath;
+      for (const [id, stored] of Object.entries<StoredStatblockFields>(tokens)) {
+        if (stored.imagePath !== tokenImagePath) continue;
+        const token = tokenFromFile(stored);
+        if (statblockPath) {
+          token.statblockPath = statblockPath;
 
-            if (statblockData) {
-              token.name = statblockData.name;
-              token.hp = statblockData.hp;
-              setOrDelete(token, 'stress', statblockData.stress);
-              setOrDelete(token, 'maxStress', statblockData.maxStress);
-              setOrDelete(token, 'difficulty', statblockData.difficulty);
-              delete token.maxHpOverridden;
-              delete token.maxStressOverridden;
-            }
-          } else {
-            // Unlink from statblock - clear ALL statblock-derived data
-            delete token.statblockPath;
-            delete token.name;
-            delete token.statblockName;
-            delete token.hp;
-            delete token.maxHp;
-            delete token.stress;
-            delete token.maxStress;
-            delete token.maxHpOverridden;
-            delete token.maxStressOverridden;
-            delete token.difficulty;
+          if (statblockData) {
+            token.name = statblockData.name;
+            // As on an open map: what the statblock supplies starts anew, the rest stays
+            setOrDelete(token, 'resources', nonEmpty({ ...token.resources, ...startingResources(statblockData.record, definitions) }));
+            setOrDelete(token, 'difficulty', statblockData.difficulty);
+            delete token.overriddenMax;
           }
-          modified = true;
+        } else {
+          // Unlink from statblock - clear ALL statblock-derived data
+          delete token.statblockPath;
+          delete token.name;
+          delete token.statblockName;
+          delete token.resources;
+          delete token.overriddenMax;
+          delete token.difficulty;
         }
+        (tokens as Record<string, object>)[id] = tokenToFile(token);
+        modified = true;
       }
-      
+
       return modified ? JSON.stringify(mapData, null, 2) : null;
     };
 
     for (const mapFile of mapFiles) {
       try {
-        if (rewriteMap(await this.app.vault.read(mapFile)) === null) continue;
-        await this.app.vault.process(mapFile, (latest) => rewriteMap(latest) ?? latest);
+        // Only a link reads the collection's resources; an unlink clears whatever the token holds.
+        const definitions = statblockData ? mapResources(this.assetService, mapFile.path) : [];
+        if (rewriteMap(await this.app.vault.read(mapFile), definitions) === null) continue;
+        await this.app.vault.process(mapFile, (latest) => rewriteMap(latest, definitions) ?? latest);
       } catch (error) {
         console.error(`Error updating tokens in map ${mapFile.path}:`, error);
       }
     }
   }
   
+  /** The fields of a statblock note, as resources read them; null when the note is no statblock. */
+  async readStatblockRecord(statblockPath: string): Promise<Record<string, unknown> | null> {
+    return (await this.extractStatblockData(statblockPath))?.record ?? null;
+  }
+
   /**
    * Extracts relevant data from a statblock.
    */
   private async extractStatblockData(statblockPath: string): Promise<{
     name: string;
-    hp: { current: number; max: number };
-    stress?: number;
-    maxStress?: number;
     difficulty?: string;
+    /** The statblock's fields: the Fantasy Statblocks creature, with the note's frontmatter laid over it. */
+    record: Record<string, unknown>;
   } | null> {
     const file = this.app.vault.getAbstractFileByPath(statblockPath);
     if (!(file instanceof TFile)) return null;
-    
-    const metadata = this.app.metadataCache.getFileCache(file);
-    const overrides = await loadStatblockOverrides(this.app, statblockPath);
-    if (!metadata?.frontmatter && !overrides.name) return null;
-    const fm: Record<string, unknown> = metadata?.frontmatter ?? {};
-    const hp = overrides.hp ?? parseResourceValue(fm.hp ?? fm.Health ?? fm.health) ?? { current: 10, max: 10 };
-    const stress = parseResourceValue(fm.stress, true);
-    const difficulty = overrides.difficulty ?? frontmatterLabel(fm.tier) ?? frontmatterLabel(fm.difficulty);
+
+    const frontmatter: Record<string, unknown> | undefined = this.app.metadataCache.getFileCache(file)?.frontmatter;
+    const creature: Record<string, unknown> | null = await resolveLinkedCreature(this.app, statblockPath);
+    if (!frontmatter && !creature) return null;
+    const record = { ...creature, ...frontmatter };
+    const tier = frontmatterLabel(record.tier);
+    const difficulty = frontmatterLabel(record.cr) !== undefined ? `CR ${frontmatterLabel(record.cr)}`
+      : tier !== undefined ? `T${tier}` : frontmatterLabel(record.difficulty);
     return {
-      name: overrides.name ?? frontmatterLabel(fm.name) ?? 'Unknown',
-      hp,
-      ...(overrides.stress !== undefined
-        ? { stress: overrides.stress, ...(overrides.maxStress !== undefined && { maxStress: overrides.maxStress }) }
-        : stress ? { stress: stress.current, maxStress: stress.max } : {}),
+      name: frontmatterLabel(record.name) ?? 'Unknown',
       ...(difficulty !== undefined && { difficulty }),
+      record,
     };
   }
   

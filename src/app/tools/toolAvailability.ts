@@ -1,4 +1,4 @@
-import { AMBIENT_AUDIO_ENABLED, WALLS_AND_LIGHTING_ENABLED } from '../featureFlags';
+import { AMBIENT_AUDIO_ENABLED } from '../featureFlags';
 
 /**
  * Central release gate for tool availability.
@@ -10,6 +10,5 @@ import { AMBIENT_AUDIO_ENABLED, WALLS_AND_LIGHTING_ENABLED } from '../featureFla
  */
 export function isAtlasToolAvailable(tool: string): boolean {
   if (tool === 'audio') return AMBIENT_AUDIO_ENABLED;
-  if (tool === 'wall') return WALLS_AND_LIGHTING_ENABLED;
   return true;
 }

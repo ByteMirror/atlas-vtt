@@ -1,5 +1,5 @@
 import type { App } from 'obsidian';
-import { rulesOfPreset } from '../gameSystems/systemRules';
+import { rulesOfPreset, vanillaSystemSettings } from '../gameSystems/systemRules';
 import type { SystemPreset } from '../types/systemPresetTypes';
 import { AssetService, type CollectionMetadata } from './AssetService';
 import { syncCollectionSystem } from './collectionSystemSync';
@@ -7,7 +7,8 @@ import { syncCollectionSystem } from './collectionSystemSync';
 /**
  * Creates a collection that plays `preset`'s game system: its measurement,
  * conditions and resource bars, and the widgets it adds (e.g. Shadowdark's
- * torch timer). Without a preset the collection starts with no game system.
+ * torch timer). Without a preset the collection starts with no game system:
+ * HP as its only resource.
  */
 export async function createCollectionWithSystem(
   app: App,
@@ -17,7 +18,10 @@ export async function createCollectionWithSystem(
 ): Promise<CollectionMetadata> {
   const assets = AssetService.getInstance(app);
   const collection = await assets.createCollection(name);
-  if (!preset) return collection;
+  if (!preset) {
+    await assets.updateCollectionSettings(collection.id, vanillaSystemSettings());
+    return collection;
+  }
   await assets.updateCollectionSettings(collection.id, { ...rulesOfPreset(preset), systemPresetId: preset.id });
   await syncCollectionSystem(app, collection.id, presets);
   return collection;

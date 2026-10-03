@@ -3,32 +3,36 @@ import type { App } from 'obsidian';
 import type { Application, Texture } from 'pixi.js';
 import type { Viewport } from 'pixi-viewport';
 import type { MeasurementSettings } from '../../grid/measurementFormat';
-import { bindHoldHotkey } from '../../keyboard/holdHotkey';
-import { DEFAULT_MAP_HOTKEYS } from '../../keyboard/mapHotkeys';
-import { emissionOfPreset } from '../../lighting/lightEmissionForm';
-import type { LightPresetId } from '../../lighting/lightPresets';
 import { AssetService } from '../../services/AssetService';
+import { mapLightPresets } from '../../services/mapCollectionRules';
 import { mapMeasurementSettings } from '../../services/mapMeasurementSettings';
-import { SettingsService } from '../../services/SettingsService';
+import { heldForSight } from '../../lighting/sightOnDrop';
+import { CreatureIndex } from '../../creatures/CreatureIndex';
+import { tokenSensesResolver, type TokenSensesResolver } from '../../creatures/tokenSensesResolver';
+import { mapSenseRulesSource } from '../../services/mapSenseRules';
 import type { ViewAtlasStore } from '../../storeFactory';
-import { runHistoryTransaction } from '../../stores/history';
-import { WallTool, type WallToolMode, type WallToolSubMode } from '../../tools/WallTool';
-import type { Point } from '../../types/visionTypes';
-import type { WallType } from '../../types/wallTypes';
+import type { SightRules } from '../../vision/sightRules';
 import type { MapBounds } from '../../vision/visibility';
+import type { HideableLayer, LayerVisibility } from '../playerSafeFrame';
+import { requestRender } from '../RenderScheduler';
 import type { TokenRenderer } from '../TokenRenderer';
-import { usesCanvasRenderer } from '../utils/rendererType';
-import { WallInteraction } from '../vision/WallInteraction';
-import { WallRenderer } from '../vision/WallRenderer';
-import { CanvasLightingFallback } from './CanvasLightingFallback';
+import { createSceneLighting } from './createSceneLighting';
+import { GmSightAids } from './GmSightAids';
 import { DoorIcons } from './DoorIcons';
-import { showWallMenu, type LightingMenuContext } from './lightingMenus';
-import { LightingRenderer } from './LightingRenderer';
+import { showDoorMenu, showWallMenu, type LightingMenuContext } from './lightingMenus';
+import { wireLightingPointer } from './lightingPointer';
+import { listenToLightingSceneEvents } from './lightingSceneEvents';
+import { LightInteraction } from './LightInteraction';
 import { LightMarkers } from './LightMarkers';
-import type { GmOverlays } from './playerLightingLayers';
+import { LightRangeRings } from './LightRangeRings';
+import { LightingModes } from './LightingModes';
+import { showExploredTravelNotice, showZonesFullNotice } from './lightingNotices';
+import { closeStalePopovers } from './popoverGuards';
+import { PerceptionMemo, playerDoorSight, playerLightingLayers, playerTokenSight, type GmOverlays, type TokenPerception } from './playerLightingLayers';
 import type { SceneLightingView } from './sceneLightingView';
-import { WallDrawingSession } from './WallDrawingSession';
-import { splitWall } from './wallEdits';
+import { SessionLighting } from './SessionLighting';
+import { SightRulesWatch } from './SightRulesWatch';
+import { WallEditor } from './WallEditor';
 
 export interface LightingControllerDeps {
   viewport: Viewport;
@@ -40,260 +44,252 @@ export interface LightingControllerDeps {
   bounds: () => MapBounds | null;
   /** The map image, for the colours light bounces off. */
   albedo: () => Texture | null;
+  /** How each token perceives; unset, by its own vision and its linked statblock (`tokenSensesResolver`). */
+  senses?: TokenSensesResolver;
 }
 
-interface SegmentEvent { p1: Point; p2: Point; type: WallType; chainId: string }
-
 /**
- * Walls, lights and scene lighting for one map view: owns the lighting renderer, wall editor and GM
- * overlays and routes the wall tool's input to them. Walls follow the map's artwork, never the grid.
+ * Walls, lights and scene lighting for one map view: owns the lighting renderer, the wall editor, the tool's
+ * zone and memory modes and the GM's overlays (door badges, light markers, the open light's range rings, the sight aids), and routes
+ * the pointer to them. Walls follow the map's artwork, never the grid. In session view and while
+ * the peek key is held, the canvas shows the players' lighting (`SessionLighting`): the GM's
+ * overlays are hidden then, and take no input.
  */
 export class LightingController {
   readonly renderer: SceneLightingView;
-  private readonly wallRenderer: WallRenderer;
-  private readonly walls: WallInteraction;
-  private readonly tool: WallTool;
+  /** What tells the GM how the rules of sight apply: sense ranges and marks on unseen tokens. */
+  readonly sightAids: GmSightAids;
+  private readonly editor: WallEditor;
+  private readonly modes: LightingModes;
   private readonly doors: DoorIcons;
   private readonly lightMarkers: LightMarkers;
-  private readonly drawing: WallDrawingSession;
+  private readonly rangeRings: LightRangeRings;
+  private readonly lights: LightInteraction;
+  private readonly session: SessionLighting;
   private readonly cleanups: Array<() => void> = [];
-  /** The toolbar's preview switch and the held peek key both show the players' view. */
-  private previewing = false;
-  private peeking = false;
+  private tokens: TokenRenderer | null = null;
+  /** What the players perceive of each token, kept between frames while sight and light stay. */
+  private readonly perceptions = new PerceptionMemo();
+  /** The sight rules of the map's collection; sight is worked out anew when they differ. */
+  private readonly rules: SightRulesWatch;
+  /**
+   * Every part exists. The lighting view builds a scene that is already loaded while it is
+   * constructed (lighting switched on for an open map) and reports its sight then, before the
+   * door badges and the sight aids are there: that report is made up for once they are.
+   */
+  private constructed = false;
 
   constructor(private readonly deps: LightingControllerDeps) {
-    const { viewport, app, store, obsApp } = deps;
+    const { viewport, app, store, eventBus, obsApp } = deps;
     const assetService = AssetService.getInstance(obsApp);
     const measurement = (): MeasurementSettings => mapMeasurementSettings(assetService, store.getState());
-    this.renderer = usesCanvasRenderer(app.renderer)
-      ? new CanvasLightingFallback({ viewport, store, measurement, bounds: deps.bounds })
-      : new LightingRenderer({ viewport, app, store, measurement, bounds: deps.bounds, albedo: deps.albedo });
-    this.wallRenderer = new WallRenderer(viewport, store);
-    this.walls = new WallInteraction(store, this.wallRenderer);
-    this.tool = new WallTool(deps.eventBus);
-    this.drawing = new WallDrawingSession(store);
-    this.doors = new DoorIcons(store);
-    viewport.addChild(this.doors.view);
+    this.rules = new SightRulesWatch({
+      obsApp,
+      store,
+      senses: deps.senses ?? tokenSensesResolver(CreatureIndex.forApp(obsApp), mapSenseRulesSource(obsApp, assetService, () => store.getState())),
+      frames: () => this.frames(),
+      // Rebuilds the scene from the store, as after a new map image.
+      onChange: () => this.renderer.refreshBounds(),
+    });
+    this.modes = new LightingModes({
+      viewport, canvas: app.canvas, store, eventBus, bounds: deps.bounds, edit: (edit) => this.renderer.editExplored(edit),
+      onActiveChange: () => this.session.sync(), onFull: showZonesFullNotice, announce: showExploredTravelNotice,
+    });
+    this.renderer = createSceneLighting({
+      viewport, app, store, obsApp, measurement, bounds: deps.bounds, albedo: deps.albedo,
+      rules: () => this.sightRules(),
+      onSightChange: () => this.onSightChange(),
+      exploredWatcher: this.modes.memory,
+    });
+    this.sightAids = new GmSightAids({
+      viewport, store, measurement, bounds: deps.bounds,
+      rules: () => this.sightRules(),
+      perception: () => this.playerSight(),
+      frames: () => this.frames(),
+    });
     this.lightMarkers = new LightMarkers(viewport, store);
-    const peekKey = (): string => (SettingsService.forApp(obsApp)?.getHotkeys() ?? DEFAULT_MAP_HOTKEYS).lightingPeek;
-    this.cleanups.push(bindHoldHotkey(window, peekKey, deps.viewId, (held) => {
-      this.peeking = held;
-      this.applyPreview();
-    }));
+    this.rangeRings = new LightRangeRings(viewport, store, measurement);
+    this.editor = new WallEditor(viewport, store, eventBus, (lightIds) => this.lightMarkers.setSelected(lightIds), () => mapLightPresets(obsApp, store.getState()));
+    this.doors = new DoorIcons(store, app.canvas, () => playerDoorSight(this.renderer, store.getState().objects.walls));
+    viewport.addChild(this.doors.view, this.doors.playerView);
+    this.lights = new LightInteraction({
+      viewport,
+      canvas: app.canvas,
+      store,
+      markers: this.lightMarkers,
+      rings: this.rangeRings,
+      canMove: () => this.editor.shown,
+      select: (lightId, add) => this.editor.walls.selectLight(lightId, add),
+    });
+    this.session = new SessionLighting({
+      store,
+      playerLayers: () => this.playerLayers(),
+      gmLayers: () => this.gmLayers(),
+      onChange: () => this.afterLayerSync(),
+    });
+    // Subscribed after the overlays' own subscriptions, so the players' view is set last.
     this.cleanups.push(store.subscribe((state, previous) => {
-      if (state.activeTool !== previous.activeTool || state.lighting.enabled !== previous.lighting.enabled) this.syncTool();
+      if (state.activeTool !== previous.activeTool || state.lighting.enabled !== previous.lighting.enabled) this.session.sync();
+      closeStalePopovers(state);
     }));
     this.listen();
-    this.syncTool();
+    this.session.sync();
+    this.constructed = true;
+    this.onSightChange();
   }
 
-  /** Routes the wall tool's viewport input and door clicks from the token renderer's dispatch. */
+  /** Routes the pointer from the token renderer's dispatch: lights and door badges with any tool, walls with the lighting tool. */
   wire(tokens: TokenRenderer): void {
-    tokens.setWallPointerDownHandler((x, y, e) => this.pointerDown({ x, y }, e.shiftKey, e.ctrlKey || e.metaKey));
-    tokens.setWallPointerMoveHandler((x, y) => this.pointerMove({ x, y }));
-    tokens.setWallPointerUpHandler(() => this.pointerUp());
-    tokens.setWallDoubleClickHandler((x, y) => {
-      const lightId = this.wallRenderer.hitTestLights(x, y);
-      if (lightId) this.configureLight(lightId, this.clientPoint({ x, y }));
-      else this.tool.finishChain();
+    this.tokens = tokens;
+    tokens.setPlayerSightProvider(() => (this.session.active ? this.playerSight() : undefined));
+    wireLightingPointer(tokens, {
+      lights: this.lights, editor: this.editor, modes: this.modes, doors: this.doors,
+      wallMenu: (x, y, screenX, screenY) => showWallMenu(this.menuContext(), x, y, screenX, screenY),
+      doorMenu: (doorId, screenX, screenY) => showDoorMenu(this.deps.store, doorId, screenX, screenY),
     });
-    tokens.setWallContextMenuHandler((x, y, screenX, screenY) => showWallMenu(this.menuContext(), x, y, screenX, screenY));
-    tokens.setWallCursorProvider((x, y) => {
-      if (this.wallRenderer.hitTestVertices(x, y)) return 'grab';
-      return this.wallRenderer.hitTestWalls(x, y) || this.wallRenderer.hitTestLights(x, y) ? 'pointer' : 'crosshair';
-    });
-    tokens.setDoorClickHandler((x, y) => {
-      const doorId = this.doors.hitTest(x, y);
-      if (doorId) this.doors.toggle(doorId);
-      return !!doorId;
-    });
+    // The token renderer brings the outlines of sensed tokens, which the view now shows or hides.
+    this.session.sync();
   }
 
   gmOverlays(): GmOverlays {
-    return { wallEditor: this.wallRenderer.getContainer(), doorBadges: this.doors.view, lightMarkers: this.lightMarkers.view };
+    return {
+      wallEditor: this.editor.layer, ...this.modes.views, doorBadges: this.doors.view, lightMarkers: this.lightMarkers.view,
+      rangeRings: this.rangeRings.view, sightAids: this.sightAids.view,
+    };
   }
 
-  /** Escape: stop placing a door, drop the chain being drawn, or clear the wall selection. */
+  /** What only the players' view shows of the lighting: a picture of the scene, always the GM's, leaves it out. */
+  readonly playerOnlyLayers = (): HideableLayer[] => [this.doors.playerView];
+
+  /** What the players' view changes about the lighting: for their frame, and held in session view. */
+  playerLayers(): LayerVisibility[] {
+    return playerLightingLayers({
+      enabled: this.renderer.isEnabled(),
+      modeLayer: this.renderer.modeLayer,
+      gmOverlays: this.gmOverlays(),
+      sensedOutlines: this.tokens?.getSensedOutlineLayer(),
+      playerDoorBadges: this.doors.playerView,
+    });
+  }
+
+  /** How the players perceive each token, for their frame and for session view; sight hides nothing in an unlit scene. */
+  playerSight(): TokenPerception | undefined {
+    const state = this.deps.store.getState();
+    return playerTokenSight(this.renderer, state.objects.tokens, { conditions: this.sightRules().conditions, held: heldForSight(state) }, this.perceptions);
+  }
+
+  /** The senses and conditions of the map's collection, and how each token perceives. */
+  private sightRules(): SightRules {
+    return this.rules.current();
+  }
+
+  /** The window the canvas is in: a popout has its own frames. */
+  private frames(): Window {
+    return this.deps.app.canvas.ownerDocument?.defaultView ?? window;
+  }
+
+  /** Escape cancels a light or ring being dragged and closes the light popover; else it is the tool's zone or memory mode's, or the wall editor's. */
   handleEscape(): boolean {
-    if (this.deps.store.getState().activeTool !== 'wall') return false;
-    if (this.walls.isPlacingDoor()) this.walls.cancelDoorPlacement();
-    else if (this.tool.isCurrentlyDrawing()) this.tool.cancelDrawing();
-    else if (this.walls.hasSelection()) this.walls.clearSelection();
-    else return false;
+    const state = this.deps.store.getState();
+    const dragging = this.lights.dragging;
+    if (!dragging && !state.lightPopover) return this.modes.handleEscape() || this.editor.handleEscape();
+    this.lights.cancel();
+    state.closeLightPopover();
     return true;
   }
 
   handleDelete(): boolean {
-    if (this.deps.store.getState().activeTool !== 'wall') return false;
-    this.walls.deleteSelected();
-    return true;
+    return this.modes.handleDelete() || this.editor.handleDelete();
+  }
+
+  /** Enter closes the light zone being drawn. */
+  handleEnter(): boolean {
+    return this.modes.handleEnter();
   }
 
   private menuContext(): LightingMenuContext {
     return {
       store: this.deps.store,
-      walls: this.walls,
-      wallRenderer: this.wallRenderer,
-      configureLight: (lightId, clientX, clientY) => this.configureLight(lightId, { x: clientX, y: clientY }),
+      walls: this.editor.walls,
+      wallRenderer: this.editor.renderer,
+      lightAt: (x, y) => this.lightMarkers.hitTest(x, y),
     };
   }
 
-  private configureLight(lightId: string, client: Point): void {
-    this.deps.store.getState().openLightPanel({ lightId, clientX: client.x, clientY: client.y });
+  /**
+   * The layers the players' view changes, as the GM sees them. The light markers, the range
+   * rings and the sight aids show by their own rules and follow `setSuppressed`.
+   */
+  private gmLayers(): LayerVisibility[] {
+    const { activeTool, lighting } = this.deps.store.getState();
+    const tool = activeTool === 'wall';
+    const outlines = this.tokens?.getSensedOutlineLayer();
+    return [
+      { layer: this.renderer.modeLayer, visible: false },
+      ...(outlines ? [{ layer: outlines, visible: false }] : []),
+      { layer: this.editor.layer, visible: tool },
+      ...this.modes.layers(tool),
+      ...this.doors.gmLayers(tool || lighting.enabled),
+    ];
   }
 
-  /** A world point in client pixels, where panels open from. */
-  private clientPoint(world: Point): Point {
-    const screen = this.deps.viewport.toScreen(world.x, world.y);
-    const canvas = this.deps.app.canvas.getBoundingClientRect();
-    return { x: canvas.left + screen.x, y: canvas.top + screen.y };
+  private afterLayerSync(): void {
+    const players = this.session.active;
+    this.lightMarkers.setSuppressed(players);
+    this.rangeRings.setSuppressed(players);
+    this.sightAids.setSuppressed(players);
+    if (players) this.lights.cancel();
+    this.editor.afterVisibilityChange();
+    this.modes.afterVisibilityChange();
+    this.tokens?.refreshPlayerSight();
+    requestRender(this.deps.app);
   }
 
-  private applyPreview(): void {
-    this.renderer.setPreview(this.peeking || this.previewing);
-    this.lightMarkers.setSuppressed(this.peeking || this.previewing);
-  }
-
-  private syncTool(): void {
-    const state = this.deps.store.getState();
-    const active = state.activeTool === 'wall';
-    this.wallRenderer.setVisible(active);
-    this.doors.view.visible = active || state.lighting.enabled;
-    if (active) return;
-    this.wallRenderer.clearPreview();
-    this.wallRenderer.clearFreeformPreview();
-    this.tool.cancelDrawing();
+  /** In the players' view, tokens show and hide as the sight they are checked against changes; in the GM's, the sight aids follow. The players' door badges follow in both. */
+  private onSightChange(): void {
+    if (!this.constructed) return;
+    this.doors.refreshPlayers();
+    if (this.tokens && this.session.active) this.tokens.refreshPlayerSight();
+    else this.sightAids.schedule();
   }
 
   private listen(): void {
-    const { eventBus } = this.deps;
-    const on = <Args extends unknown[]>(event: string, handler: (...args: Args) => void): void => {
-      eventBus.on(event, handler);
-      this.cleanups.push(() => eventBus.off(event, handler));
-    };
-    on('wall-submode-changed', (subMode: WallToolSubMode) => this.tool.setSubMode(subMode));
-    on('wall-type-changed', (type: WallType) => this.tool.setWallType(type));
-    on('wall-mode-changed', (mode: WallToolMode) => this.tool.setMode(mode));
-    on('lighting-preset-changed', (preset: LightPresetId) => this.tool.setLightPreset(preset));
-    on('lighting-preview', (preview: boolean) => {
-      this.previewing = preview;
-      this.applyPreview();
-    });
-    on('lighting-reset-explored', () => this.renderer.resetExplored());
-    // A chain half drawn on the old scene must not follow the map switch.
-    on('map-unloading', () => {
-      this.tool.cancelDrawing();
-      this.renderer.beforeMapUnload();
-    });
-    on('wall-chain-start', (point: Point) => {
-      this.drawing.start();
-      this.wallRenderer.setPreviewAnchor(point);
-    });
-    on('wall-segment-created', ({ p1, p2, type, chainId }: SegmentEvent) => {
-      this.drawing.add({ type, p1, p2, chainId, closed: true });
-      if (this.tool.isCurrentlyDrawing()) this.wallRenderer.setPreviewAnchor(p2);
-    });
-    on('wall-chain-finish', () => {
-      this.drawing.finish();
-      this.wallRenderer.clearPreview();
-    });
-    on('wall-drawing-cancelled', () => {
-      this.drawing.cancel();
-      this.wallRenderer.clearPreview();
-      this.wallRenderer.clearFreeformPreview();
-    });
+    const { eventBus, store, obsApp, viewId } = this.deps;
+    this.cleanups.push(() => this.rules.destroy(), ...listenToLightingSceneEvents({
+      eventBus, obsApp, viewId,
+      resetExplored: () => this.renderer.resetExplored(),
+      revealExplored: () => this.renderer.editExplored({ mode: 'reveal', area: 'everything' }),
+      peek: (held) => {
+        // A light is not edited in the players' view: the peek closes its popover, as session view does.
+        if (held) store.getState().closeLightPopover();
+        this.session.setPeeking(held);
+      },
+      stopEditing: () => this.stopEditing(),
+      beforeMapUnload: () => this.beforeMapUnload(),
+    }));
   }
 
-  private pointerDown(point: Point, shift: boolean, ctrl: boolean): boolean {
-    if (this.walls.isPlacingDoor()) {
-      this.walls.confirmDoorPlacement();
-      return true;
-    }
-    const settings = this.tool.getSettings();
-    if (shift && !ctrl && settings.mode === 'point-to-point' && settings.subMode === 'draw') {
-      // Shift on a vertex continues from it; Shift on a wall line splits the wall there
-      const endpoint = this.vertexAt(point);
-      if (endpoint) {
-        this.tool.continueFromEndpoint(endpoint.x, endpoint.y);
-        this.wallRenderer.setPreviewAnchor(endpoint);
-        return true;
-      }
-      const wallId = this.wallRenderer.hitTestWalls(point.x, point.y);
-      if (wallId) {
-        this.split(wallId, point);
-        return true;
-      }
-    }
-    // Without Shift (or with Ctrl to multi-select), existing walls and lights take the click
-    if ((!shift || ctrl) && this.walls.handlePointerDown(point.x, point.y, ctrl)) {
-      this.wallRenderer.clearPreview();
-      return true;
-    }
-    if (settings.subMode === 'place-light') {
-      this.deps.store.getState().addLight({ x: point.x, y: point.y, emission: emissionOfPreset(settings.lightPreset) });
-      return true;
-    }
-    if (settings.mode === 'point-to-point') {
-      this.tool.addVertex(point.x, point.y, shift);
-      return true;
-    }
-    const start = this.vertexAt(point) ?? point;
-    this.tool.startFreeform(start.x, start.y);
-    this.wallRenderer.startFreeformPreview(start.x, start.y);
-    return true;
+  private stopEditing(): void {
+    this.lights.cancel();
+    this.modes.stop();
+    this.deps.store.getState().closeLightPopover();
   }
 
-  private pointerMove(point: Point): void {
-    if (this.walls.isPlacingDoor()) {
-      this.walls.updateDoorPlacement(point.x, point.y);
-      return;
-    }
-    if (this.walls.isDragging()) {
-      this.walls.handlePointerMove(point.x, point.y);
-      return;
-    }
-    if (!this.tool.isCurrentlyDrawing()) return;
-    if (this.tool.getSettings().mode === 'point-to-point') {
-      this.wallRenderer.updatePreviewCursor(point.x, point.y);
-    } else {
-      this.tool.addFreeformPoint(point.x, point.y);
-      this.wallRenderer.addFreeformPreviewPoint(point.x, point.y);
-    }
+  private beforeMapUnload(): void {
+    this.editor.cancelDrawing();
+    this.renderer.beforeMapUnload();
   }
 
-  private pointerUp(): void {
-    this.walls.handlePointerUp();
-    if (!this.tool.isCurrentlyDrawing() || this.tool.getSettings().mode !== 'freeform') return;
-    // A stroke's segments arrive together; one session makes them one undo step
-    this.drawing.start();
-    this.tool.finishFreeform();
-    this.drawing.finish();
-    this.wallRenderer.clearFreeformPreview();
-  }
-
-  private vertexAt(point: Point): Point | null {
-    const hit = this.wallRenderer.hitTestVertices(point.x, point.y);
-    return hit ? this.deps.store.getState().objects.walls[hit.wallId]?.[hit.vertex] ?? null : null;
-  }
-
-  private split(wallId: string, at: Point): void {
-    const state = this.deps.store.getState();
-    const wall = state.objects.walls[wallId];
-    const halves = wall ? splitWall(wall, at) : null;
-    if (!halves) return;
-    runHistoryTransaction(this.deps.store, () => {
-      state.deleteWall(wallId);
-      for (const half of halves) state.addWall(half);
-    });
+  /** Taken off a map that stays open: what is being edited ends and what is pending is saved, as before an unload. */
+  remove(): void {
+    this.stopEditing();
+    this.beforeMapUnload();
+    this.destroy();
+    this.tokens?.clearLighting();
   }
 
   destroy(): void {
-    this.drawing.finish();
     for (const cleanup of this.cleanups) cleanup();
-    this.renderer.destroy();
-    this.doors.destroy();
-    this.lightMarkers.destroy();
-    this.wallRenderer.destroy();
-    this.walls.destroy();
+    for (const part of [this.session, this.lights, this.editor, this.modes, this.renderer, this.doors, this.rangeRings, this.lightMarkers, this.sightAids]) part.destroy();
   }
 }

@@ -22,15 +22,16 @@ import { canInteractWithFog, resolveFogPreviewAlpha } from './fogVisibilityPolic
 import type { LayerVisibility } from '../playerSafeFrame';
 import { destroyTree } from '../utils/destroyTree';
 import { requestRender } from '../RenderScheduler';
+import { isHandled } from '../utils/handledEvents';
 import { openContextMenuGlobal } from '../../react/root/ContextMenuContext';
+import { STROKE_COLORS, ShapeStroke, type StrokeMode } from '../../tools/shapeStroke';
+import { drawStrokeArea } from '../utils/strokePreview';
 
 const DEFAULT_BOUNDS: FogBounds = { x: -2000, y: -2000, width: 4000, height: 4000 };
 const BOUNDS_PADDING = 200;
 const COMPONENT_DELETE_CELL_SIZE = 2;
 const COMPONENT_DELETE_ALPHA_THRESHOLD = 12;
 const COMPONENT_DELETE_MAX_RECTS = 320;
-
-type FogMode = 'brush' | 'lasso' | 'rectangle';
 
 interface FogSpriteEntry {
   sprite: PIXI.Sprite;
@@ -54,22 +55,9 @@ export class FogOfWarRenderer {
   private compositor: FogCanvasCompositor;
   private cursorPreview: FogCursorPreview;
 
-  // Drawing state
-  private isDrawing = false;
+  // Drawing state: the stroke under way, with the brush, lasso or rectangle
+  private readonly stroke = new ShapeStroke();
   private isErasing = false;
-  private fogMode: FogMode = 'brush';
-  private brushSize = 50;
-
-  // Brush state
-  private currentBrushPoints: Array<{ x: number; y: number }> = [];
-
-  // Lasso state
-  private isLassoDrawing = false;
-  private lassoPoints: Array<{ x: number; y: number }> = [];
-
-  // Rectangle state
-  private rectStart: { x: number; y: number } | null = null;
-  private lastRectBounds: { x: number; y: number; width: number; height: number } | null = null;
 
   // Map tracking
   private currentMapPath: string | null = null;
@@ -82,9 +70,10 @@ export class FogOfWarRenderer {
   private pointerDownHandler: (e: PIXI.FederatedPointerEvent) => void;
   private pointerMoveHandler: (e: PIXI.FederatedPointerEvent) => void;
   private pointerUpHandler: () => void;
+  private readonly pointerLeaveHandler = (): void => this.onPointerLeave();
   private fogBrushSizeChangedHandler: (size: number) => void;
   private fogClearAllHandler: () => void;
-  private fogModeChangedHandler: (mode: FogMode) => void;
+  private fogModeChangedHandler: (mode: StrokeMode) => void;
   private backgroundBoundsUpdatedHandler: (data?: { x: number; y: number; width: number; height: number }) => void;
 
   constructor(
@@ -142,7 +131,7 @@ export class FogOfWarRenderer {
     this.pointerUpHandler = this.onPointerUp.bind(this);
     this.fogBrushSizeChangedHandler = (size: number) => this.setBrushSize(size);
     this.fogClearAllHandler = () => this.clearAllFog();
-    this.fogModeChangedHandler = (mode: FogMode) => this.setFogMode(mode);
+    this.fogModeChangedHandler = (mode: StrokeMode) => this.setFogMode(mode);
     this.backgroundBoundsUpdatedHandler = (data) => {
       if (
         data &&
@@ -194,6 +183,11 @@ export class FogOfWarRenderer {
       { layer: this.lassoGraphics, visible: false },
       { layer: this.rectPreviewGraphics, visible: false },
     ];
+  }
+
+  /** The fog as translucent as the GM view shows it, also while the canvas is in session view: for a picture of the scene. */
+  getGmViewLayers(): LayerVisibility[] {
+    return [{ layer: this.previewSprite, visible: this.previewSprite.visible, alpha: resolveFogPreviewAlpha({ isPlayerView: false, isGMView: true }) }];
   }
 
   /** Returns a map of fog sprite IDs → Containers for SelectionManager. */
@@ -255,7 +249,6 @@ export class FogOfWarRenderer {
     this.container.eventMode = 'static';
     this.container.interactiveChildren = true;
     this.container.visible = true;
-    this.viewport.pause = true;
 
     // Disable interaction on hit-test sprites during drawing
     this.setFogSpritesInteractive(false);
@@ -264,23 +257,15 @@ export class FogOfWarRenderer {
     this.renderPreviewFromStore();
     this.previewSprite.visible = true;
 
-    if (this.fogMode === 'brush') {
+    if (this.stroke.mode === 'brush') {
       this.cursorPreview.show(this.isErasing);
     }
   }
 
   disableFogMode(): void {
     this.container.interactiveChildren = false;
-    this.viewport.pause = false;
 
-    // Reset drawing state
-    this.isDrawing = false;
-    this.isLassoDrawing = false;
-    this.currentBrushPoints = [];
-    this.lassoPoints = [];
-    this.rectStart = null;
-    this.lastRectBounds = null;
-    this.clearPreviewGraphics();
+    this.resetDrawingState();
     this.cursorPreview.hide();
 
     // Rebuild per-op hit-test sprites and refresh compositor display
@@ -308,6 +293,7 @@ export class FogOfWarRenderer {
     this.viewport.off('pointermove', this.pointerMoveHandler);
     this.viewport.off('pointerup', this.pointerUpHandler);
     this.viewport.off('pointerupoutside', this.pointerUpHandler);
+    this._pixiApp.canvas.removeEventListener('pointerleave', this.pointerLeaveHandler);
 
     this.eventBus.off('fog-brush-size-changed', this.fogBrushSizeChangedHandler);
     this.eventBus.off('fog-clear-all', this.fogClearAllHandler);
@@ -344,13 +330,16 @@ export class FogOfWarRenderer {
   }
 
   private setBrushSize(size: number): void {
-    this.brushSize = size;
+    this.stroke.brushRadius = size;
     this.cursorPreview.setBrushRadius(size);
   }
 
-  setFogMode(mode: FogMode): void {
-    this.fogMode = mode;
-    this.clearPreviewGraphics();
+  setFogMode(mode: StrokeMode): void {
+    // A brush stroke under way is painted on the preview: dropped, the preview shows the store's fog again.
+    const painted = this.stroke.active && this.stroke.mode === 'brush';
+    this.resetDrawingState();
+    if (painted) this.renderPreviewFromStore();
+    this.stroke.mode = mode;
 
     const tool = this.store.getState().activeTool;
     const isFogActive = tool === 'fog' || tool === 'eraser';
@@ -370,6 +359,7 @@ export class FogOfWarRenderer {
     this.viewport.on('pointermove', this.pointerMoveHandler);
     this.viewport.on('pointerup', this.pointerUpHandler);
     this.viewport.on('pointerupoutside', this.pointerUpHandler);
+    this._pixiApp.canvas.addEventListener('pointerleave', this.pointerLeaveHandler);
 
     this.eventBus.on('fog-brush-size-changed', this.fogBrushSizeChangedHandler);
     this.eventBus.on('fog-clear-all', this.fogClearAllHandler);
@@ -397,11 +387,11 @@ export class FogOfWarRenderer {
       }
 
       // Fog data changes (undo/redo, map load, drag commit) → rebuild sprites
-      // Skip during drawing (Zustand fires synchronously before isDrawing resets)
+      // Skip while a stroke is under way: its preview is on the canvas
       // and during map loading (the isMapLoading→false handler rebuilds instead)
       if (state.objects?.fog !== prevFog) {
         prevFog = state.objects?.fog;
-        if (!this.isDrawing && !this.isLassoDrawing && !state.isMapLoading) {
+        if (!this.stroke.active && !state.isMapLoading) {
           this.refreshBounds();
           this.rebuildFogSprites();
         }
@@ -605,7 +595,7 @@ export class FogOfWarRenderer {
           this.store.getState().deleteFogOperations(fogIds);
         }
       },
-    }], { x: e.global.x, y: e.global.y });
+    }], { x: e.clientX, y: e.clientY });
   }
 
   private eraseConnectedVisibleRegionAt(worldX: number, worldY: number): boolean {
@@ -742,22 +732,19 @@ export class FogOfWarRenderer {
   private onPointerDown(event: PIXI.FederatedPointerEvent): void {
     const tool = this.store.getState().activeTool;
     if (tool !== 'fog' && tool !== 'eraser') return;
+    // Only the primary button paints; the right button pans the map.
+    if (event.button !== 0) return;
+    // A press a pin, door badge or light marker took paints no fog.
+    if (isHandled(event)) return;
 
-    const worldPos = this.viewport.toWorld(event.global);
+    this.stroke.begin(this.strokePoint(event));
+    this.previewStroke();
+  }
 
-    if (this.fogMode === 'lasso') {
-      this.isLassoDrawing = true;
-      this.lassoPoints = [{ x: worldPos.x, y: worldPos.y }];
-      this.drawLassoPreview();
-    } else if (this.fogMode === 'rectangle') {
-      this.isDrawing = true;
-      this.rectStart = this.snapToGridCorner(worldPos.x, worldPos.y);
-    } else {
-      // Brush mode
-      this.isDrawing = true;
-      this.currentBrushPoints = [{ x: worldPos.x, y: worldPos.y }];
-      this.previewBrushIncremental();
-    }
+  /** Where the pointer is on the map; a rectangle's corners snap to the grid's. */
+  private strokePoint(event: PIXI.FederatedPointerEvent): { x: number; y: number } {
+    const { x, y } = this.viewport.toWorld(event.global);
+    return this.stroke.mode === 'rectangle' ? this.snapToGridCorner(x, y) : { x, y };
   }
 
   private snapToGridCorner(x: number, y: number): { x: number; y: number } {
@@ -772,89 +759,46 @@ export class FogOfWarRenderer {
 
   private onPointerMove(event: PIXI.FederatedPointerEvent): void {
     const tool = this.store.getState().activeTool;
-    const worldPos = this.viewport.toWorld(event.global);
 
-    if (this.fogMode === 'brush' && (tool === 'fog' || tool === 'eraser')) {
+    if (this.stroke.mode === 'brush' && (tool === 'fog' || tool === 'eraser')) {
+      const worldPos = this.viewport.toWorld(event.global);
       this.cursorPreview.updatePosition(worldPos.x, worldPos.y);
+      // Back on the map after the pointer had left it.
+      if (!this.cursorPreview.shown) this.cursorPreview.show(tool === 'eraser');
     }
 
-    if (this.fogMode === 'lasso' && this.isLassoDrawing) {
-      this.lassoPoints.push({ x: worldPos.x, y: worldPos.y });
-      this.drawLassoPreview();
-    } else if (this.fogMode === 'rectangle' && this.isDrawing && this.rectStart) {
-      this.drawRectPreview(this.snapToGridCorner(worldPos.x, worldPos.y));
-    } else if (this.fogMode === 'brush' && this.isDrawing) {
-      this.currentBrushPoints.push({ x: worldPos.x, y: worldPos.y });
-      this.previewBrushIncremental();
-    }
+    if (!this.stroke.active) return;
+    this.stroke.extend(this.strokePoint(event));
+    this.previewStroke();
+  }
+
+  /** The pointer left the map's canvas: the brush's ring would stay where it last was. */
+  private onPointerLeave(): void {
+    this.cursorPreview.hide();
   }
 
   private onPointerUp(): void {
-    const tool = this.store.getState().activeTool;
-    const isErasing = tool === 'eraser';
-
-    if (this.fogMode === 'lasso' && this.isLassoDrawing) {
-      this.isLassoDrawing = false;
-      if (this.lassoPoints.length >= 3) {
-        this.store.getState().addFogOperation({
-          type: 'lasso',
-          isErasing,
-          points: this.lassoPoints.map((p) => ({ x: p.x, y: p.y })),
-        });
-      }
-      this.lassoPoints = [];
-      this.lassoGraphics.clear();
-    } else if (this.fogMode === 'rectangle' && this.isDrawing && this.rectStart) {
-      this.isDrawing = false;
-      const bounds = this.lastRectBounds;
-      if (bounds && bounds.width > 0 && bounds.height > 0) {
-        this.store.getState().addFogOperation({
-          type: 'rectangle',
-          isErasing,
-          x: bounds.x,
-          y: bounds.y,
-          width: bounds.width,
-          height: bounds.height,
-        });
-      }
-      this.rectStart = null;
-      this.lastRectBounds = null;
-      this.rectPreviewGraphics.clear();
-    } else if (this.fogMode === 'brush' && this.isDrawing) {
-      this.isDrawing = false;
-      if (this.currentBrushPoints.length > 0) {
-        this.store.getState().addFogOperation({
-          type: 'brush',
-          isErasing,
-          points: this.currentBrushPoints.map((p) => ({ x: p.x, y: p.y })),
-          brushRadius: this.brushSize,
-        });
-      }
-      this.currentBrushPoints = [];
-    }
+    const shape = this.stroke.finish();
+    this.clearPreviewGraphics();
+    if (shape) this.store.getState().addFogOperation({ ...shape, isErasing: this.store.getState().activeTool === 'eraser' });
   }
 
   // ═══════════════════════════════════════════════════════════════════
   // Preview helpers (live visual feedback during drawing)
   // ═══════════════════════════════════════════════════════════════════
 
-  private previewBrushIncremental(): void {
-    const tool = this.store.getState().activeTool;
-    const isErasing = tool === 'eraser';
-
-    const tempOp: FogOperation = {
-      id: '__preview__',
-      kind: 'fog',
-      timestamp: Date.now(),
-      type: 'brush',
-      isErasing,
-      points: this.currentBrushPoints,
-      brushRadius: this.brushSize,
-    };
-
-    const committed = Object.values(this.store.getState().objects?.fog ?? {});
-    this.compositor.compositeAll([...committed, tempOp]);
-    this.updatePreviewTexture();
+  /** Shows the stroke under way: the brush on the fog itself, a lasso or rectangle as its outline. */
+  private previewStroke(): void {
+    const erasing = this.store.getState().activeTool === 'eraser';
+    const shape = this.stroke.shape();
+    if (shape?.type === 'brush') {
+      const tempOp: FogOperation = { id: '__preview__', kind: 'fog', timestamp: Date.now(), isErasing: erasing, ...shape };
+      const committed = Object.values(this.store.getState().objects?.fog ?? {});
+      this.compositor.compositeAll([...committed, tempOp]);
+      this.updatePreviewTexture();
+      return;
+    }
+    drawStrokeArea(this.stroke.mode === 'lasso' ? this.lassoGraphics : this.rectPreviewGraphics, this.stroke, erasing ? STROKE_COLORS.erase : STROKE_COLORS.paint);
   }
 
   private renderPreviewFromStore(): void {
@@ -862,43 +806,6 @@ export class FogOfWarRenderer {
     const ops = fogOps ? Object.values(fogOps) : [];
     this.compositor.compositeAll(ops);
     this.updatePreviewTexture();
-  }
-
-  private drawLassoPreview(): void {
-    this.lassoGraphics.clear();
-    if (this.lassoPoints.length < 2) return;
-
-    const tool = this.store.getState().activeTool;
-    const color = tool === 'eraser' ? 0xff4444 : 0xffffff;
-
-    const first = this.lassoPoints[0]!;
-    this.lassoGraphics.moveTo(first.x, first.y);
-    for (let i = 1; i < this.lassoPoints.length; i++) {
-      const p = this.lassoPoints[i]!;
-      this.lassoGraphics.lineTo(p.x, p.y);
-    }
-    this.lassoGraphics.closePath();
-    this.lassoGraphics.stroke({ width: 2, color, alpha: 0.6 });
-    this.lassoGraphics.fill({ color, alpha: 0.15 });
-  }
-
-  private drawRectPreview(currentPos: { x: number; y: number }): void {
-    this.rectPreviewGraphics.clear();
-    if (!this.rectStart) return;
-
-    const tool = this.store.getState().activeTool;
-    const color = tool === 'eraser' ? 0xff4444 : 0xffffff;
-
-    const x = Math.min(this.rectStart.x, currentPos.x);
-    const y = Math.min(this.rectStart.y, currentPos.y);
-    const w = Math.abs(currentPos.x - this.rectStart.x);
-    const h = Math.abs(currentPos.y - this.rectStart.y);
-
-    this.lastRectBounds = { x, y, width: w, height: h };
-
-    this.rectPreviewGraphics.rect(x, y, w, h);
-    this.rectPreviewGraphics.stroke({ width: 2, color, alpha: 0.6 });
-    this.rectPreviewGraphics.fill({ color, alpha: 0.15 });
   }
 
   // ═══════════════════════════════════════════════════════════════════
@@ -1095,12 +1002,7 @@ export class FogOfWarRenderer {
   // ═══════════════════════════════════════════════════════════════════
 
   private resetDrawingState(): void {
-    this.isDrawing = false;
-    this.isLassoDrawing = false;
-    this.currentBrushPoints = [];
-    this.lassoPoints = [];
-    this.rectStart = null;
-    this.lastRectBounds = null;
+    this.stroke.cancel();
     this.clearPreviewGraphics();
   }
 

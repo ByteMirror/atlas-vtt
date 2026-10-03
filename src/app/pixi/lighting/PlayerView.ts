@@ -1,30 +1,21 @@
 import type { HideableLayer } from '../playerSafeFrame';
 
 /**
- * Whether scene lighting shows the players' view: while their frame is captured, or as the
- * GM's preview. As a `HideableLayer`, `visible` is what the player-frame capture flips.
+ * Whether scene lighting shows the players' view. As a `HideableLayer`, `visible` is what the
+ * players' view flips (`playerLightingLayers`): for one captured frame, or held for as long as
+ * the GM's canvas shows session view.
  */
 export class PlayerView implements HideableLayer {
-  private capturing = false;
-  private previewing = false;
+  private shown = false;
 
-  constructor(private readonly onChange: (active: boolean) => void) {}
+  constructor(private readonly onChange: (shown: boolean) => void) {}
 
   get visible(): boolean {
-    return this.capturing;
+    return this.shown;
   }
 
-  set visible(capturing: boolean) {
-    this.capturing = capturing;
-    this.onChange(this.active);
-  }
-
-  get active(): boolean {
-    return this.capturing || this.previewing;
-  }
-
-  setPreview(on: boolean): void {
-    this.previewing = on;
-    this.onChange(this.active);
+  set visible(shown: boolean) {
+    this.shown = shown;
+    this.onChange(shown);
   }
 }

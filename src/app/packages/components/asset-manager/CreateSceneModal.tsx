@@ -2,8 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Notice, normalizePath } from 'obsidian';
 import { motion } from 'framer-motion';
 import { MapIcon } from 'lucide-react';
-import { AssetService } from '../../../services/AssetService';
-import { tokenBarsOf, withTokenBars } from '../../../services/collectionTokenBars';
+import type { AssetService } from '../../../services/AssetService';
+import { newSceneFile } from '../../../services/newSceneFile';
 import { normalizeImagePath } from '../../../utils/pathUtils';
 import { ensureFolder } from '../../../plugin/vaultFolders';
 import { useAtlasUI } from '../../../react/root/AtlasUIContext';
@@ -16,7 +16,7 @@ import { useAssetTags } from './token-creator/useAssetTags';
 interface CreateSceneModalProps {
   isOpen: boolean;
   onClose: () => void;
-  selectedCollection: string | null;
+  selectedCollection: string;
   assetService: AssetService | null;
   onSceneCreated: () => void;
   // Optional prefill when invoked from double-clicking a map
@@ -36,7 +36,7 @@ export default function CreateSceneModal({
   const [sceneName, setSceneName] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  const { tags, createTag, isCreatingTag } = useAssetTags(assetService, isOpen, selectedCollection || AssetService.defaultCollectionId(), 'maps');
+  const { tags, createTag, isCreatingTag } = useAssetTags(assetService, isOpen, selectedCollection, 'maps');
   const inputRef = useRef<HTMLInputElement>(null);
   const { app } = useAtlasUI();
   const [hasSetDefaultName, setHasSetDefaultName] = useState(false);
@@ -86,64 +86,17 @@ export default function CreateSceneModal({
 
     setIsCreating(true);
     try {
-      const selection = selectedCollection || AssetService.defaultCollectionId();
-      const collection = await assetService.getCollection(selection);
+      const collection = await assetService.getCollection(selectedCollection);
       if (!collection) {
-        throw new Error(`Collection "${selection}" no longer exists. Select another collection and try again.`);
+        throw new Error(`Collection "${selectedCollection}" no longer exists. Select another collection and try again.`);
       }
       const collectionId = collection.id;
 
-      // Create a new empty scene structure
-      const normalizedBackground = backgroundPath ? normalizeImagePath(backgroundPath) : null;
-      const mapData = {
-        state: {
-          schema: "atlas-vtt",
-          version: 3,
-          // If invoked from a map, prefill background (ensure vault-relative path)
-          background: normalizedBackground,
-          grid: {
-            enabled: true,
-            visible: true,
-            snapToGrid: true,
-            type: 'square',
-            size: 70,
-            offsetX: 0,
-            offsetY: 0,
-            opacity: 0.5,
-            lineType: 'solid' as const,
-            lineWidth: 1,
-            autoDetect: true
-          },
-          objects: {
-            tokens: {},
-            fog: {},
-            pins: {},
-            texts: {},
-            drawings: {} // Include drawings for all scenes
-          },
-          camera: {
-            x: 0,
-            y: 0,
-            scale: 1
-          }
-        },
-        version: 3
-      };
-
-      // Apply collection grid defaults if available
-      if (assetService) {
-        const settings = assetService.getCollectionSettings(collectionId);
-        if (settings.gridDefaults) {
-          const gd = settings.gridDefaults;
-          Object.assign(mapData.state.grid, {
-            unitType: gd.unitType,
-            unitDistance: gd.unitDistance,
-            measurementType: gd.measurementMode === 'abstract' ? 'abstract' as const : 'units' as const,
-          });
-        }
-        // The collection's resource bars, e.g. Daggerheart's Stress
-        Object.assign(mapData.state, { tokenSettings: withTokenBars(undefined, tokenBarsOf(settings.defaultWidgets)) });
-      }
+      // If invoked from a map, the scene starts on its image (as a vault-relative path)
+      const mapData = newSceneFile(
+        assetService.getCollectionSettings(collectionId),
+        backgroundPath ? normalizeImagePath(backgroundPath) : null,
+      );
 
       const scenePath = normalizePath(`atlas-vtt/collections/${collectionId}/scenes/${sceneName.trim()}.atlasmap`);
 

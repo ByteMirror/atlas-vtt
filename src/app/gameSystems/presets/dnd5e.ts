@@ -1,4 +1,7 @@
 import type { SystemPreset } from '../../types/systemPresetTypes';
+import { DND_5E_LIGHTS } from '../lightPresets/dnd5e';
+import { HP_RESOURCE } from '../../resources/resourceDefinitions';
+import { DND_5E_SENSES } from '../senses/dnd5e';
 import { builtInPresetId, conditionsOf } from './presetHelpers';
 
 /** D&D 5th edition: 5-foot squares, every diagonal counts 5 feet, the 15 SRD conditions. */
@@ -12,17 +15,20 @@ export const DND_5E: SystemPreset = {
       unitDistance: 5,
       measurementMode: 'metric',
       diagonalRule: 'equidistant',
+      // A cone is as wide as it is long at every point: 2 × atan(1/2)
+      coneAngle: 53.13,
       abstractRangeBands: [],
     },
+    dice: { defaultRoll: '1d20', crit: 'natural' },
     conditions: conditionsOf('dnd5e', [
-      { name: 'Blinded', color: '#475569', icon: 'blindfold' },
+      { name: 'Blinded', color: '#475569', icon: 'blindfold', effect: 'blinded' },
       { name: 'Charmed', color: '#db2777', icon: 'heart' },
       { name: 'Deafened', color: '#0891b2', icon: 'hearing-disabled' },
       { name: 'Exhaustion', color: '#92400e', icon: 'tired-eye', valued: true },
       { name: 'Frightened', color: '#7c3aed', icon: 'terror' },
       { name: 'Grappled', color: '#ea580c', icon: 'grab' },
       { name: 'Incapacitated', color: '#b91c1c', icon: 'knockout' },
-      { name: 'Invisible', color: '#c7d2fe', icon: 'invisible' },
+      { name: 'Invisible', color: '#c7d2fe', icon: 'invisible', effect: 'invisible' },
       { name: 'Paralyzed', color: '#38bdf8', icon: 'frozen-body' },
       { name: 'Petrified', color: '#78716c', icon: 'stoned-skull' },
       { name: 'Poisoned', color: '#16a34a', icon: 'poison' },
@@ -31,6 +37,8 @@ export const DND_5E: SystemPreset = {
       { name: 'Stunned', color: '#facc15', icon: 'knocked-out-stars' },
       { name: 'Unconscious', color: '#1e3a8a', icon: 'sleepy' },
     ]),
-    defaultWidgets: { hpBar: true },
+    resources: [{ ...HP_RESOURCE }],
+    senses: DND_5E_SENSES,
+    lightPresets: DND_5E_LIGHTS,
   },
 };

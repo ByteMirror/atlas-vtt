@@ -2,13 +2,18 @@ import React from 'react';
 import { ConditionsTab } from '../../../../react/components/collection-settings/ConditionsTab';
 import { DefaultWidgetsTab } from '../../../../react/components/collection-settings/DefaultWidgetsTab';
 import { GridMeasurementTab } from '../../../../react/components/collection-settings/GridMeasurementTab';
+import { ResourcesTab } from '../../../../react/components/collection-settings/ResourcesTab';
+import type { ResourceDefinition } from '../../../../resources/resourceTypes';
 import type { CollectionGridDefaults, ConditionDefinition } from '../../../../types/collectionSettingsTypes';
+import type { InitiativeRules } from '../../../../types/initiativeRulesTypes';
 
 /** The rules a game system set up while creating a collection consists of. */
 export interface CustomSystemRules {
   gridDefaults: CollectionGridDefaults;
   conditions: ConditionDefinition[];
   defaultWidgets: Record<string, boolean>;
+  initiative: InitiativeRules;
+  resources: ResourceDefinition[];
 }
 
 interface CustomSystemStepProps {
@@ -60,11 +65,22 @@ export function CustomSystemStep({
         />
       </section>
 
+      <section className="atlas-create-collection__section" aria-labelledby="atlas-new-system-resources">
+        <h4 id="atlas-new-system-resources" className="atlas-create-collection__heading">Resources</h4>
+        <ResourcesTab
+          resources={rules.resources}
+          onChange={(resources) => onRulesChange({ ...rules, resources })}
+          fieldSuggestions={[]}
+        />
+      </section>
+
       <section className="atlas-create-collection__section" aria-labelledby="atlas-new-system-widgets">
-        <h4 id="atlas-new-system-widgets" className="atlas-create-collection__heading">Token bars and widgets</h4>
+        <h4 id="atlas-new-system-widgets" className="atlas-create-collection__heading">Widgets</h4>
         <DefaultWidgetsTab
           defaultWidgets={rules.defaultWidgets}
           onChange={(defaultWidgets) => onRulesChange({ ...rules, defaultWidgets })}
+          initiative={rules.initiative}
+          onInitiativeChange={(initiative) => onRulesChange({ ...rules, initiative })}
         />
       </section>
     </>

@@ -4,6 +4,7 @@ import { hasAssetTag } from '../../../../services/tagGroups';
 import type { AnyAsset, Tag } from '../types';
 import { tagPickerOptions, toggleAssetTag } from '../utils/assetTags';
 import { useAssetTagMenuActions } from './assetTagMenuContext';
+import { STANDING_LIST } from '../../../../keyboard/tooltipEscape';
 
 interface AssetTagPickerProps {
   asset: AnyAsset;
@@ -98,6 +99,7 @@ export function AssetTagPicker({ asset }: AssetTagPickerProps): React.ReactEleme
         ref={listRef}
         id={`${idPrefix}-list`}
         role="listbox"
+        {...STANDING_LIST}
         aria-multiselectable
         aria-labelledby={`${idPrefix}-list-label`}
         className="atlas-asset-tag-menu__list"

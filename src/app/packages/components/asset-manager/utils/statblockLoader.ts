@@ -1,17 +1,13 @@
 import type { App as ObsidianApp } from 'obsidian';
 import { resolveLinkedCreature } from '../../../../creatures/linkedCreature';
-import { layoutForCreature } from '../../../../services/FantasyStatblocksService';
-import { getStatblockResources, getResourceUpdate } from '../../../../services/statblockResources';
-import type { TokenResourceValue } from '../../../../types';
+import type { ResourceDefinition, ResourceValue } from '../../../../resources/resourceTypes';
+import { startingResources } from '../../../../resources/statblockResourceValues';
 
 export interface StatblockOverrides {
-  hope?: TokenResourceValue;
-  statblockResources?: Record<string, TokenResourceValue>;
   name?: string;
-  hp?: { current: number; max: number };
-  stress?: number;
-  maxStress?: number;
   difficulty?: string;
+  /** Starting values of the collection's resources the statblock has a field for. */
+  resources?: Record<string, ResourceValue>;
 }
 
 /** A non-empty challenge rating or tier as bestiaries store it, e.g. `5` or `"1/4"`. */
@@ -20,12 +16,14 @@ function isLabelValue(value: unknown): value is string | number {
 }
 
 /**
- * Resolves token-relevant overrides (HP, difficulty, name) from the Fantasy
- * Statblocks creature backing a linked statblock note.
+ * Resolves what a token takes from the Fantasy Statblocks creature backing a
+ * linked statblock note: its name, difficulty and the starting values of the
+ * collection's resources.
  */
 export async function loadStatblockOverrides(
   app: ObsidianApp,
-  statblockPath: string
+  statblockPath: string,
+  definitions: readonly ResourceDefinition[],
 ): Promise<StatblockOverrides> {
   const overrides: StatblockOverrides = {};
 
@@ -33,10 +31,8 @@ export async function loadStatblockOverrides(
     const creature = await resolveLinkedCreature(app, statblockPath);
     if (!creature) return overrides;
 
-    const layout = layoutForCreature(app, creature) ?? { id: '', name: '', blocks: [] };
-    for (const resource of getStatblockResources(creature, layout, {})) {
-      Object.assign(overrides, getResourceUpdate(overrides, resource, resource.current));
-    }
+    const resources = startingResources(creature, definitions);
+    if (Object.keys(resources).length > 0) overrides.resources = resources;
 
     if (isLabelValue(creature.cr)) {
       overrides.difficulty = `CR ${creature.cr}`;

@@ -98,7 +98,7 @@
   flex: 1;
   min-width: 0;
   overflow-y: auto;
-  padding: $spacing-l;
+  @include atlas-scroll-padding($spacing-l);
   @include atlas-scrollbar;
   @include atlas-flex-col($spacing-l);
 }
@@ -134,6 +134,25 @@
   color: var(--text-muted);
 }
 
+// A label with its info mark, whose tooltip explains a term of the setting.
+.atlas-csm-label-row {
+  display: flex;
+  align-items: center;
+  gap: $spacing-xs;
+}
+
+.atlas-csm-info {
+  display: inline-flex;
+  border-radius: $radius-full;
+  color: var(--text-faint);
+  cursor: help;
+
+  &:hover,
+  &:focus-visible {
+    color: var(--text-normal);
+  }
+}
+
 .atlas-csm-hint {
   font-size: $font-ui-smaller;
   color: var(--text-faint);
@@ -153,7 +172,7 @@
   width: 100%;
   height: $input-height-m;
   padding: $spacing-xs $spacing-s;
-  background: var(--background-primary);
+  background: var(--background-modifier-form-field);
   border: $border-width-s solid var(--background-modifier-border);
   border-radius: $radius-l;
   color: var(--text-normal);
@@ -227,6 +246,20 @@
     &::after {
       transform: translateX(16px);
     }
+  }
+}
+
+// ── Folded-away fields: settings few collections change ────────────────────
+.atlas-csm-details {
+  > summary {
+    cursor: pointer;
+    font-size: $font-ui-small;
+    color: var(--text-muted);
+  }
+
+  // A margin, not a gap: the fields lie in the element's own content slot, which no flex rule reaches.
+  > .atlas-csm-field {
+    margin-top: $spacing-m;
   }
 }
 

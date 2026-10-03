@@ -19,6 +19,16 @@ export interface MeasurementSettings {
   unitDistance: number;
   diagonalRule: DiagonalRule;
   rangeBands: readonly RangeBand[];
+  /** Full opening of the cone measurement in degrees. */
+  coneAngle: number;
+}
+
+/** Cone of a collection that never set one: a quarter circle. */
+export const DEFAULT_CONE_ANGLE = 90;
+
+/** Whether `angle` can open a cone: more than 0 and at most a full turn, in degrees. */
+export function isValidConeAngle(angle: unknown): angle is number {
+  return typeof angle === 'number' && angle > 0 && angle <= 360;
 }
 
 /** Collection grid defaults win; a map without a collection falls back to its grid state. */
@@ -33,6 +43,7 @@ export function resolveMeasurementSettings(
       unitDistance: collection.unitDistance,
       diagonalRule: collection.diagonalRule ?? 'equidistant',
       rangeBands: collection.abstractRangeBands ?? [],
+      coneAngle: collection.coneAngle ?? DEFAULT_CONE_ANGLE,
     };
   }
   return {
@@ -42,6 +53,7 @@ export function resolveMeasurementSettings(
     unitDistance: grid?.unitDistance ?? 5,
     diagonalRule: 'equidistant',
     rangeBands: [],
+    coneAngle: DEFAULT_CONE_ANGLE,
   };
 }
 
@@ -57,6 +69,16 @@ export function unitLabelFor(unitType: GridUnitType | undefined): string {
 export function formatDistance(cells: number, settings: MeasurementSettings): string {
   if (settings.mode === 'abstract') return rangeBandName(cells, settings.rangeBands);
   return `${Math.round(cells * settings.unitDistance)}${UNIT_SUFFIX[settings.unitType]}`;
+}
+
+/**
+ * Label for a distance that is set rather than measured (a sense's range): as `formatDistance`,
+ * with one decimal where the distance has one, since 7.5 m is not 8 m.
+ */
+export function formatReach(cells: number, settings: MeasurementSettings): string {
+  const tenths = (value: number): number => Math.round(value * 10) / 10;
+  if (settings.mode === 'abstract') return settings.rangeBands.length > 0 ? rangeBandName(cells, settings.rangeBands) : `${tenths(cells)} sq`;
+  return `${tenths(cells * settings.unitDistance)}${UNIT_SUFFIX[settings.unitType]}`;
 }
 
 /** A band threshold must be a whole number of at least one square. */

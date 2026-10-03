@@ -141,6 +141,7 @@ export class TFolder extends TAbstractFile {
 export class Notice {
   // Keep a signature close to Obsidian's constructor.
   constructor(_message: string, _timeout?: number) {}
+  hide(): void {}
 }
 
 export interface RequestUrlParam {

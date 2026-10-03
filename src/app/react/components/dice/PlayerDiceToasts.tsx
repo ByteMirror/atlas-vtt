@@ -1,22 +1,23 @@
 import React, { useCallback, useMemo } from 'react';
 import type { App } from 'obsidian';
-import type { StoreApi } from 'zustand';
 import { AtlasUIContext, type AtlasUIContextValue } from '../../root/AtlasUIContext';
-import type { ViewAtlasState } from '../../../storeFactory';
+import { ReadableViewStoreProvider, type ReadableViewStore } from '../../ViewStoreContext';
 import type { DiceRollResult } from '../../../tools/DiceTool';
-import { DiceToastContainer } from './DiceToastContainer';
+import { DiceRollDisplay } from './DiceRollDisplay';
 
 interface PlayerDiceToastsProps {
   app: App;
-  /** Store of the presented scene; it tells which tokens players cannot see. */
-  store: Pick<StoreApi<ViewAtlasState>, 'getState'>;
+  /** Store of the presented scene: which tokens players cannot see, and how the others look on the map. */
+  store: ReadableViewStore;
   container: HTMLElement;
 }
 
 /**
  * The DM's dice rolls as players see them in the player window. A roll made
  * for a token hidden on the map keeps its ability and result but not the
- * token's name or portrait, so it does not give the token away.
+ * token's name or portrait, so it does not give the token away. Every other
+ * token's portrait is read from the presented scene, like in the DM's window:
+ * its artwork and ring on the map, not the picture of its statblock.
  */
 export function PlayerDiceToasts({ app, store, container }: PlayerDiceToastsProps): React.ReactElement {
   const context = useMemo((): AtlasUIContextValue => ({ app, view: null, pixiApp: null, renderer: null }), [app]);
@@ -31,7 +32,10 @@ export function PlayerDiceToasts({ app, store, container }: PlayerDiceToastsProp
 
   return (
     <AtlasUIContext.Provider value={context}>
-      <DiceToastContainer container={container} prepare={forPlayers} />
+      <ReadableViewStoreProvider store={store}>
+        {/* The DM's window plays the sound; a second one here would echo it. */}
+        <DiceRollDisplay container={container} prepare={forPlayers} muted />
+      </ReadableViewStoreProvider>
     </AtlasUIContext.Provider>
   );
 }

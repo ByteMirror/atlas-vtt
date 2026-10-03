@@ -12,7 +12,15 @@ import type {
 import type { TokenVisionDefaults } from '../types/lightingTypes';
 import type { SystemPreset, SystemRules } from '../types/systemPresetTypes';
 import type { AnyWidget } from '../types/widgetTypes';
+import { HP_RESOURCE, sameResourceDefinitions } from '../resources/resourceDefinitions';
+import { barWidgets } from '../resources/sceneVisibility';
+import { conditionEffect } from './conditionEffects';
+import { DEFAULT_DICE_RULES, sameDiceRules } from './diceRules';
+import { sameInitiativeRules } from './initiativeRules';
+import { sameLightPresets } from './lightPresetRules';
+import { sameSenses } from './senseRules';
 import { hasVisionDefaults, sameVisionDefaults } from './visionDefaults';
+import { DEFAULT_CONE_ANGLE } from '../grid/measurementFormat';
 
 /** Measurement of a collection that never set any: 5-foot squares, every diagonal counts 1. */
 export const DEFAULT_GRID_DEFAULTS: Readonly<CollectionGridDefaults> = {
@@ -24,34 +32,50 @@ export const DEFAULT_GRID_DEFAULTS: Readonly<CollectionGridDefaults> = {
 };
 
 /** What a game system sets in a collection's settings. */
-export type SystemSettings = Required<Pick<CollectionSettings, 'gridDefaults' | 'conditions' | 'defaultWidgets'>>
-  & Pick<CollectionSettings, 'systemPresetId' | 'defaultTokenVision'>;
+export type SystemSettings = Required<Pick<CollectionSettings, 'gridDefaults' | 'conditions' | 'defaultWidgets' | 'dice' | 'resources'>>
+  & Pick<CollectionSettings, 'systemPresetId' | 'defaultTokenVision' | 'senses' | 'lightPresets' | 'initiative'>;
 
-/** A collection without a game system: default measurement, no conditions, no default widgets, no default vision. */
+/**
+ * A collection without a game system: default measurement and dice, HP as its only resource
+ * (its bar on for new scenes), no conditions, no default widgets, no default vision, and no
+ * senses, light presets or initiative rules of its own, so it uses the generic ones.
+ */
 export function vanillaSystemSettings(): SystemSettings {
   return {
     gridDefaults: structuredClone(DEFAULT_GRID_DEFAULTS),
     conditions: [],
-    defaultWidgets: {},
+    defaultWidgets: barWidgets([HP_RESOURCE]),
+    dice: { ...DEFAULT_DICE_RULES },
+    resources: [{ ...HP_RESOURCE }],
     systemPresetId: undefined,
     defaultTokenVision: undefined,
+    senses: undefined,
+    lightPresets: undefined,
+    initiative: undefined,
   };
 }
 
 /**
  * The rules a collection gets from a preset: a copy of its measurement and of its
- * conditions with their own ids, and its default token vision when it sets one. Conditions from the previous system never carry
- * over; the ones tokens still have are removed when the collection is saved.
+ * conditions with their own ids, and of its default token vision when it sets one. Conditions
+ * from the previous system never carry over; the ones tokens still have are removed when the
+ * collection is saved. Senses are not copied: the collection reads its preset's
+ * (`collectionSenses`) until the GM edits them, so a corrected built-in sense reaches it; its
+ * light presets and initiative rules are read the same way (`collectionLightPresets`,
+ * `collectionInitiativeRules`).
  */
 export function rulesOfPreset(
   preset: SystemPreset,
-): Required<Pick<SystemRules, 'gridDefaults' | 'conditions' | 'defaultWidgets'>> & Pick<SystemRules, 'defaultTokenVision'> {
+): Required<Pick<SystemRules, 'gridDefaults' | 'conditions' | 'defaultWidgets' | 'dice' | 'resources'>> & Pick<SystemRules, 'defaultTokenVision'> {
   const vision: TokenVisionDefaults | undefined = preset.rules.defaultTokenVision;
   return {
     gridDefaults: structuredClone(preset.rules.gridDefaults),
     conditions: structuredClone(preset.rules.conditions),
-    defaultWidgets: { ...preset.rules.defaultWidgets },
-    ...(hasVisionDefaults(vision) && { defaultTokenVision: { ...vision } }),
+    // The bars new scenes show, which older versions of Atlas read too
+    defaultWidgets: { ...barWidgets(preset.rules.resources ?? []), ...preset.rules.defaultWidgets },
+    dice: { ...(preset.rules.dice ?? DEFAULT_DICE_RULES) },
+    resources: structuredClone(preset.rules.resources ?? []),
+    ...(hasVisionDefaults(vision) && { defaultTokenVision: structuredClone(vision) }),
   };
 }
 
@@ -62,6 +86,8 @@ function sameGridDefaults(a: CollectionGridDefaults, b: CollectionGridDefaults):
     && a.unitDistance === b.unitDistance
     && a.measurementMode === b.measurementMode
     && (a.diagonalRule ?? 'equidistant') === (b.diagonalRule ?? 'equidistant')
+    // Rules without a cone angle of their own measure with the preset's
+    && (b.coneAngle === undefined || (a.coneAngle ?? DEFAULT_CONE_ANGLE) === b.coneAngle)
     && bandsA.length === bandsB.length
     && bandsA.every((band, i) => band.name === bandsB[i]!.name && band.maxSquares === bandsB[i]!.maxSquares);
 }
@@ -70,21 +96,34 @@ function sameCondition(a: ConditionDefinition, b: ConditionDefinition): boolean 
   return a.name === b.name
     && a.color.toLowerCase() === b.color.toLowerCase()
     && a.icon === b.icon
-    && (a.valued ?? false) === (b.valued ?? false);
+    && (a.valued ?? false) === (b.valued ?? false)
+    && conditionEffect(a) === conditionEffect(b);
 }
+
+/** The bar switches older versions kept among the default widgets; resources replaced them. */
+const LEGACY_BAR_WIDGETS = new Set(['hpBar', 'stressBar']);
 
 /** The default widgets that are on, as a comparable key. */
 function enabledWidgets(defaultWidgets: Record<string, boolean> | undefined): string {
-  return Object.keys(defaultWidgets ?? {}).filter((key) => defaultWidgets?.[key]).sort().join();
+  return Object.keys(defaultWidgets ?? {}).filter((key) => defaultWidgets?.[key] && !LEGACY_BAR_WIDGETS.has(key)).sort().join();
 }
 
-/** Whether two rule sets play the same; condition ids do not matter. */
-export function sameSystemRules(a: SystemRules, b: SystemRules): boolean {
-  return sameGridDefaults(a.gridDefaults, b.gridDefaults)
-    && enabledWidgets(a.defaultWidgets) === enabledWidgets(b.defaultWidgets)
-    && sameVisionDefaults(a.defaultTokenVision, b.defaultTokenVision)
-    && a.conditions.length === b.conditions.length
-    && a.conditions.every((condition, i) => sameCondition(condition, b.conditions[i]!));
+/**
+ * Whether a collection's `rules` play as `preset` does; condition ids do not matter. Rules
+ * without senses, light presets or initiative rules of their own read the preset's, so they are
+ * the same in that.
+ */
+export function sameSystemRules(preset: SystemRules, rules: SystemRules): boolean {
+  return sameGridDefaults(preset.gridDefaults, rules.gridDefaults)
+    && sameDiceRules(preset.dice, rules.dice)
+    && sameResourceDefinitions(preset.resources, rules.resources)
+    && enabledWidgets(preset.defaultWidgets) === enabledWidgets(rules.defaultWidgets)
+    && sameVisionDefaults(preset.defaultTokenVision, rules.defaultTokenVision)
+    && (rules.senses === undefined || sameSenses(preset.senses, rules.senses))
+    && (rules.lightPresets === undefined || sameLightPresets(preset.lightPresets, rules.lightPresets))
+    && (rules.initiative === undefined || sameInitiativeRules(preset.initiative, rules.initiative))
+    && preset.conditions.length === rules.conditions.length
+    && preset.conditions.every((condition, i) => sameCondition(condition, rules.conditions[i]!));
 }
 
 const SQUARE_UNIT: Record<GridUnitType, string> = { feet: 'ft', yards: 'yd', meters: 'm', units: 'unit', custom: 'unit' };
@@ -93,15 +132,19 @@ function count(n: number, noun: string): string {
   return `${n} ${noun}${n === 1 ? '' : 's'}`;
 }
 
-/** One-line summary, e.g. "5 ft squares · 15 conditions · Default vision" or "4 range bands · 10 conditions · Torch timer". */
+/** One-line summary, e.g. "5 ft squares · 15 conditions · 5 senses · Default vision" or "4 range bands · 10 conditions · Torch timer". */
 export function describeSystemRules(rules: SystemRules): string {
   const grid = rules.gridDefaults;
   const measurement = grid.measurementMode === 'abstract'
     ? count(grid.abstractRangeBands?.length ?? 0, 'range band')
     : `${grid.unitDistance} ${SQUARE_UNIT[grid.unitType]} squares`;
   const widgets = (rules.widgets ?? []).map((widget) => `${widget.label} ${widget.type}`);
+  const senses = rules.senses?.length ? [count(rules.senses.length, 'sense')] : [];
+  // HP alone is what every system tracks; only a system's further resources tell it apart.
+  const names = (rules.resources ?? []).map((resource) => resource.name);
+  const resources = names.length > 1 ? [names.join(', ')] : [];
   const vision = hasVisionDefaults(rules.defaultTokenVision) ? ['Default vision'] : [];
-  return [measurement, count(rules.conditions.length, 'condition'), ...vision, ...widgets].join(' · ');
+  return [measurement, count(rules.conditions.length, 'condition'), ...senses, ...resources, ...vision, ...widgets].join(' · ');
 }
 
 /**

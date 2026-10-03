@@ -1,17 +1,87 @@
-@use '../../../../styles/tokens' as *;
+// ═══════════════════════════════════════════════════════════════════════════
+// Edit Token — a token's name, resources, vision and carried light
+// ═══════════════════════════════════════════════════════════════════════════
+// Imported inside the `.atlas-vtt-plugin` scope of styles/main.scss.
 
+@use '../../../../styles/tokens' as *;
+@use '../../../../styles/mixins' as *;
+
+// Between the sections of a column, and between the fields of a section.
+$section-gap: $spacing-xl;
+$field-gap: $spacing-m;
+// Below this width of the dialog its two columns become one.
+$one-column: 720px;
+// The side of a number field's reset button.
+$clear-button: $button-height-s;
+
+// Two columns of fields. As tall as its content up to most of the window; then the body
+// scrolls between the header and the footer.
 .atlas-edit-token-modal {
-  width: 340px;
-  max-width: 90vw;
+  width: min(880px, 100%);
+  max-height: min(85vh, 100%);
+  container-type: inline-size;
+}
+
+// The columns are as far apart as they are from the dialog's edge, and each is as tall as its
+// own content: switching the carried light on lengthens the right one and moves nothing left.
+.atlas-edit-token__body {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+
+  @container (max-width: #{$one-column}) {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: $section-gap;
+  }
+}
+
+.atlas-edit-token__column {
+  @include atlas-flex-col($section-gap);
+  min-width: 0;
+
+  &:only-child {
+    grid-column: 1 / -1;
+  }
+}
+
+.atlas-edit-token__section {
+  @include atlas-flex-col($field-gap);
+  min-width: 0;
+}
+
+.atlas-edit-token__section-label {
+  margin: 0;
+  font-size: var(--font-ui-small);
+  line-height: var(--line-height-tight);
+  color: var(--text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+// Fields two to a row; one alone takes the row.
+.atlas-edit-token__fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: $field-gap;
+
+  > :only-child {
+    grid-column: 1 / -1;
+  }
 }
 
 .atlas-edit-token__field {
   @include atlas-flex-col($spacing-xs);
+  min-width: 0;
+}
 
-  &--row {
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
+.atlas-edit-token__switch-row {
+  @include atlas-flex-row($field-gap);
+  justify-content: space-between;
+
+  .atlas-toggle {
+    flex-shrink: 0;
   }
 }
 
@@ -26,32 +96,48 @@
   color: var(--text-muted);
 }
 
-.atlas-edit-token__section-divider {
-  height: 1px;
-  background: var(--background-modifier-border);
-  margin: $spacing-xs 0;
-}
-
-.atlas-edit-token__section-label {
-  font-size: var(--font-ui-small);
-  color: var(--text-muted);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
+// The reset button lies inside the end of its field, so every field is as wide as its column.
 .atlas-edit-token__input-row {
+  position: relative;
   display: flex;
-  align-items: center;
-  gap: $spacing-xs;
 
   .atlas-input {
     flex: 1;
+    min-width: 0;
+
+    &:not(:placeholder-shown) {
+      padding-right: calc(#{$clear-button} + 2 * #{$spacing-xs});
+    }
   }
 }
 
-.atlas-edit-token__clear-btn {
-  flex-shrink: 0;
-  padding: $spacing-xs;
+.atlas-edit-token__clear-btn.btn {
+  position: absolute;
+  top: 50%;
+  right: $spacing-xs;
+  translate: 0 -50%;
+  width: $clear-button;
+  height: $clear-button;
+  padding: 0;
   line-height: 1;
+  color: var(--text-muted);
+}
+
+// The carried light's fields are the light popover's. In the dialog one spacing and the
+// section's heading tell them apart, so the popover's rules between its groups are left out.
+.atlas-edit-token__light {
+  @include atlas-flex-col($field-gap);
+
+  .atlas-light-popover__section {
+    gap: $field-gap;
+    padding-top: 0;
+    border-top: none;
+  }
+
+  // A column is wider than the popover: the swatches keep a button's height instead of growing
+  // square. Named through their grid, so this outweighs the height the popover's sheet gives them here.
+  .atlas-swatch-grid .atlas-swatch {
+    aspect-ratio: auto;
+    height: $button-height-m;
+  }
 }

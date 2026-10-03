@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { create } from 'zustand';
 import { TFile } from 'obsidian';
 import { ViewStoreProvider } from '../../src/app/react/ViewStoreContext';
+import { SNAPSHOT_THUMBNAIL_SIZE, type ThumbnailSize } from '../../src/app/services/MapThumbnailService';
 import { createInMemoryApp, type InMemoryApp } from '../mocks/inMemoryVault';
 
 const MAP_PATH = 'atlas-vtt/collections/c/scenes/Cave.atlasmap';
@@ -25,7 +26,7 @@ interface FakeView {
   file: TFile;
   saveMap: ReturnType<typeof vi.fn>;
   reloadActiveScene: ReturnType<typeof vi.fn>;
-  serviceManager: { renderMapThumbnail: () => ArrayBuffer };
+  serviceManager: { renderMapThumbnail: ReturnType<typeof vi.fn<(size?: ThumbnailSize) => ArrayBuffer>> };
 }
 
 function mapWithGoblinAt(x: number): string {
@@ -39,7 +40,7 @@ function renderPanel(): { vault: InMemoryApp; view: FakeView; onClose: ReturnTyp
     file: new TFile(MAP_PATH),
     saveMap: vi.fn(async () => {}),
     reloadActiveScene: vi.fn(async (rewrite: (file: TFile) => Promise<void>) => rewrite(new TFile(MAP_PATH))),
-    serviceManager: { renderMapThumbnail: () => new TextEncoder().encode('JPG').buffer },
+    serviceManager: { renderMapThumbnail: vi.fn(() => new TextEncoder().encode('JPG').buffer) },
   };
   ui.current = { app: vault.app, view };
   const store = create(() => ({ mapPath: MAP_PATH }));
@@ -85,6 +86,8 @@ describe('scene snapshots page', () => {
 
     expect(screen.getAllByRole('group').map((card) => card.getAttribute('aria-label')).sort()).toEqual(['Snapshot 1', 'Snapshot 2']);
     expect(view.saveMap).toHaveBeenCalledTimes(2);
+    // The map view's own thumbnail render, at the snapshot card's size: lit and without GM overlays like a scene card's
+    expect(view.serviceManager.renderMapThumbnail.mock.calls).toEqual([[SNAPSHOT_THUMBNAIL_SIZE], [SNAPSHOT_THUMBNAIL_SIZE]]);
     const thumbnail = screen.getByRole('button', { name: 'Restore Snapshot 1' }).querySelector('img');
     expect(thumbnail?.getAttribute('src')).toMatch(/^app:\/\/local\/.*\/\.snapshots\/Cave\/.*\.jpg\?v=\d+$/);
   });
@@ -151,7 +154,7 @@ describe('scene snapshots page', () => {
   });
 
   it('overwrites a snapshot with the current map after confirmation', async () => {
-    const { vault } = renderPanel();
+    const { vault, view } = renderPanel();
     await saveSnapshot();
 
     vault.files.set(MAP_PATH, mapWithGoblinAt(42));
@@ -163,6 +166,8 @@ describe('scene snapshots page', () => {
     dialogs.confirmAction.mockResolvedValueOnce(true);
     chooseFromMenu('Snapshot 1', 'Overwrite with current map');
     await waitFor(() => expect(savedGoblinX(vault)).toBe(42));
+    expect(view.serviceManager.renderMapThumbnail).toHaveBeenLastCalledWith(SNAPSHOT_THUMBNAIL_SIZE);
+    expect(view.serviceManager.renderMapThumbnail).toHaveBeenCalledTimes(2);
     expect(screen.getByRole('group', { name: 'Snapshot 1' })).toBeTruthy();
   });
 

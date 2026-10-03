@@ -21,3 +21,7 @@ export function unitScaleOf(
 export function gameUnitsToWorld(units: number, scale: UnitScale): number {
   return (units / scale.unitDistance) * scale.cellSize;
 }
+
+export function worldToGameUnits(world: number, scale: UnitScale): number {
+  return (world / scale.cellSize) * scale.unitDistance;
+}

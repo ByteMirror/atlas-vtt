@@ -4,6 +4,7 @@ import { immer } from 'zustand/middleware/immer';
 import { temporal } from 'zundo';
 import {
   HISTORY_LIMIT,
+  abandonHistoryTransaction,
   beginHistoryTransaction,
   createHistoryOptions,
   endHistoryTransaction,
@@ -66,6 +67,33 @@ describe('history', () => {
     const { store, history } = createTestStore();
     store.getState().setSelection(['a']);
     expect(history().pastStates).toHaveLength(0);
+  });
+
+  it('leaves no step for an abandoned transaction whose gesture put its changes back', () => {
+    const { store, history } = createTestStore();
+    beginHistoryTransaction(store);
+    store.getState().moveToken('a', 30, 0);
+    store.getState().moveToken('a', 0, 0);
+    abandonHistoryTransaction(store);
+    expect(history().pastStates).toHaveLength(0);
+    store.getState().moveToken('a', 5, 0);
+    expect(history().pastStates).toHaveLength(1);
+  });
+
+  it('keeps the transaction around an abandoned one open', () => {
+    const { store, history } = createTestStore();
+    beginHistoryTransaction(store);
+    store.getState().moveToken('a', 10, 0);
+    beginHistoryTransaction(store);
+    store.getState().moveToken('a', 30, 0);
+    store.getState().moveToken('a', 10, 0);
+    abandonHistoryTransaction(store);
+    store.getState().moveToken('a', 12, 0);
+    expect(history().pastStates).toHaveLength(0);
+    endHistoryTransaction(store);
+    expect(history().pastStates).toHaveLength(1);
+    history().undo();
+    expect(tokenA(store)).toEqual({ x: 0, y: 0 });
   });
 
   it('collapses a transaction into a single undo step that restores the start state', () => {

@@ -8,6 +8,7 @@ import { useSceneTabStore } from '../../hooks/useSceneTabStore';
 import { MAX_NUMBER_KEY, searchSceneTabs, splitByMatches, type SceneSwitcherResult } from './sceneSwitcherSearch';
 import { SceneSwitcherFooter } from './SceneSwitcherFooter';
 import './scene-switcher.scss';
+import { STANDING_LIST } from '../../../keyboard/tooltipEscape';
 
 interface SceneSwitcherProps {
   isOpen: boolean;
@@ -131,7 +132,7 @@ function SceneSwitcherPanel({ onSwitchTab, onPresentTab, onClose }: SceneSwitche
             onBlur={onClose}
           />
         </div>
-        <div ref={listRef} id={`${idPrefix}-list`} role="listbox" className="atlas-scene-switcher__list" onScroll={updateHasMapsBelow}>
+        <div ref={listRef} id={`${idPrefix}-list`} role="listbox" {...STANDING_LIST} className="atlas-scene-switcher__list" onScroll={updateHasMapsBelow}>
           {results.map((result, index) => (
             <div
               key={result.tab.id}

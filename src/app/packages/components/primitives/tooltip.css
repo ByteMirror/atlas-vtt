@@ -36,6 +36,13 @@
   white-space: nowrap;
 }
 
+/* An explanation rather than a name: it wraps, and reads as text. */
+.tooltip-label--multiline {
+  max-width: 280px;
+  font-weight: 400;
+  white-space: normal;
+}
+
 .tooltip-kbd {
   display: inline-flex;
   align-items: center;

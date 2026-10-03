@@ -4,7 +4,7 @@ import { useAtlasSettings } from '../../../keyboard/useMapHotkeys';
 import { SettingsService } from '../../../services/SettingsService';
 import React, { useState, useRef, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import type { AssetManagerProps, Tab } from './types';
+import type { AnyAsset, AssetManagerProps, Tab } from './types';
 
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
@@ -22,6 +22,7 @@ import { useStatblockLink } from './hooks/useStatblockLink';
 import { useAssetManagerEffects } from './hooks/useAssetManagerEffects';
 import { useFollowSelectedCollection } from './hooks/useFollowSelectedCollection';
 import { useHeldWhile } from './hooks/useHeldWhile';
+import { useLoadingReveal } from '../primitives/useLoadingReveal';
 import { useSidebarLayout } from './hooks/useSidebarLayout';
 import { useRememberedPlace } from './hooks/useRememberedPlace';
 import { sortAssets } from './utils/assetSort';
@@ -32,6 +33,8 @@ import { useFilterSearch, useSearchKeywords } from './hooks/useFilterSearch';
 import { ActiveFilterBar } from './components/search/ActiveFilterBar';
 import { DIALOG_EXIT_DURATION, dialogBackdropVariants, useDialogWindowVariants } from '../primitives/dialogMotion';
 
+const NO_ASSETS: AnyAsset[] = [];
+
 const wrapperVariants = {
   hidden: { opacity: 1 },
   visible: { opacity: 1 },
@@ -41,7 +44,7 @@ const wrapperVariants = {
 export default function AssetManager({ isOpen, onClose, initialTab, onExitComplete }: AssetManagerProps): React.JSX.Element {
   const [search, setSearch] = useState('');
   const [activeTab, setActiveTab] = useState<Tab>('tokens');
-  const [selectedCollection, setSelectedCollection] = useState<string | null>(() => AssetService.defaultCollectionId());
+  const [selectedCollection, setSelectedCollection] = useState(() => AssetService.defaultCollectionId());
   const [collapsedSections, setCollapsedSections] = useState<{ folders: boolean; assets: boolean }>({ folders: false, assets: false });
   const [draggedItems, setDraggedItems] = useState<{ type: 'asset' | 'folder'; ids: string[] } | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
@@ -75,7 +78,7 @@ export default function AssetManager({ isOpen, onClose, initialTab, onExitComple
   });
 
   // The open folder, the selection and the tags belong to the collection they were chosen in.
-  const changeCollection = (collectionId: string | null): void => {
+  const changeCollection = (collectionId: string): void => {
     if (collectionId === selectedCollection) return;
     setSelectedCollection(collectionId);
     sel.resetForTab();
@@ -112,12 +115,17 @@ export default function AssetManager({ isOpen, onClose, initialTab, onExitComple
 
   const displayedFolders = useMemo(() => filterFolders(data.folders, creature.filter), [data.folders, creature.filter]);
 
-  // A tab switch keeps the previous tab's content on screen, untouched by the resets
-  // the switch triggers, until the new tab's assets have loaded; then the panes swap once.
-  const isTabLoading = (data.assetsTab ?? activeTab) !== activeTab;
-  const shown = useHeldWhile(isTabLoading, {
+  // A change of tab or collection keeps the previous content on screen, untouched by the
+  // resets the change triggers, while its assets load: a quick load swaps the panes once.
+  // A load that takes longer gives way to the skeleton of the new place, so the manager
+  // answers at once however long its content takes.
+  const showSkeleton = useLoadingReveal(data.assetsLoading);
+  const isPending = data.assetsLoading || showSkeleton;
+  const shown = useHeldWhile(data.assetsLoading && !showSkeleton, {
+    collection: selectedCollection,
     tab: activeTab,
-    assets: displayedAssets,
+    loading: isPending,
+    assets: isPending ? NO_ASSETS : displayedAssets,
     folders: displayedFolders,
     folderId: sel.selectedFolderId,
     folderPath: sel.selectedFolderId ? sel.getFolderPath(sel.selectedFolderId) : [],
@@ -185,95 +193,104 @@ export default function AssetManager({ isOpen, onClose, initialTab, onExitComple
               animate="visible"
               exit="exit"
             />
+            {/* The window moves as one piece. The container inside clips its content to the
+                window's corners; what is drawn around the window (a theme's ornament) hangs
+                from this element and so moves and fades with it. */}
             <motion.div
-              className={`atlas-asset-manager-container ${sidebar.isFloating ? 'atlas-sidebar-floating' : ''}`}
-              ref={containerRef}
+              className="atlas-asset-manager-window"
               variants={windowVariants}
               initial="hidden"
               animate="visible"
               exit="exit"
             >
-              <Sidebar
-                selectedTagIds={sel.selectedTagIds}
-                onSelectTag={sel.handleTagSelect}
-                onClearTags={() => sel.setSelectedTagIds([])}
-                tags={data.availableTags}
-                assets={data.assets}
-                collections={data.collections}
-                selectedCollection={selectedCollection}
-                onSelectCollection={changeCollection}
-                onManageTags={() => tags.setIsTagManagerOpen(true)}
-                onEditCollectionSettings={crud.setSettingsModalCollectionId}
-                onExportCollection={() => { void crud.handleExportCollection(); }}
-                onImportCollection={crud.handleImportCollection}
-                layout={sidebar}
-              />
-              <Header
-                app={data.app}
-                search={search}
-                onSearch={setSearch}
-                query={filterSearch}
-                activeTab={activeTab}
-                onTabChange={changeTab}
-                assetCounts={data.assetCounts}
-                onCreateTokens={() => crud.setIsTokenCreatorOpen(true)}
-                onCreateMap={crud.handleCreateMap}
-                onCreateCollection={crud.handleCreateCollection}
-                onCreateFolder={crud.handleCreateFolder}
-                onRefresh={() => { void crud.handleRefresh(); }}
-                sidebarToggleLabel={sidebar.toggleLabel}
-                onToggleSidebar={sidebar.toggle}
-                sel={sel}
-              />
               <div
-                className="atlas-asset-manager-body"
-                onDragOver={(e) => { if (draggedItems && sel.selectedFolderId === null) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; } }}
-                onDrop={(e) => { if (draggedItems && sel.selectedFolderId === null) { e.preventDefault(); crud.handleDrop(null); } }}
+                className={`atlas-asset-manager-container ${sidebar.isFloating ? 'atlas-sidebar-floating' : ''}`}
+                ref={containerRef}
               >
-                <ActiveFilterBar groups={filterSearch.chips} onReset={filterSearch.reset} />
-                <Breadcrumb
-                  activeTab={shown.tab}
-                  path={shown.folderPath}
-                  onNavigateToFolder={sel.handleNavigateToFolder}
+                <Sidebar
+                  selectedTagIds={sel.selectedTagIds}
+                  onSelectTag={sel.handleTagSelect}
+                  onClearTags={() => sel.setSelectedTagIds([])}
+                  tags={data.availableTags}
+                  tagsLoading={data.tagsLoading}
+                  assets={data.assets}
+                  collections={data.collections}
+                  selectedCollection={selectedCollection}
+                  onSelectCollection={changeCollection}
+                  onManageTags={() => tags.setIsTagManagerOpen(true)}
+                  onEditCollectionSettings={crud.setSettingsModalCollectionId}
+                  onExportCollection={() => { void crud.handleExportCollection(); }}
+                  onImportCollection={crud.handleImportCollection}
+                  layout={sidebar}
                 />
-                <div className="atlas-asset-manager-main">
-                  <AssetTagMenuContext.Provider value={tagMenuActions}>
-                    <Content
-                      activeTab={shown.tab}
-                      assets={shown.assets}
-                      folders={shown.folders}
-                      selectedAssetIds={sel.selectedAssetIds}
-                      selectedFolderIds={sel.selectedFolderIds}
-                      selectedFolderId={shown.folderId}
-                      folderDepth={shown.folderPath.length}
-                      refinement={shown.refinement}
-                      scrollKey={`${selectedCollection ?? 'default'}/${shown.tab}/${shown.folderId ?? ''}?${shown.refinement}`}
-                      scrollMemory={memory}
-                      onAssetSelect={sel.handleAssetSelect}
-                      onAssetContextMenu={handleAssetContextMenu}
-                      onFolderSelection={sel.handleFolderSelection}
-                      onFolderContextMenu={handleFolderContextMenu}
-                      onFolderDoubleClick={sel.handleFolderDoubleClick}
-                      onContentContextMenu={handleContentContextMenu}
-                      onClearSelection={sel.handleClearSelection}
-                      onClose={onClose}
-                      collapsedSections={collapsedSections}
-                      setCollapsedSections={setCollapsedSections}
-                      draggedItems={draggedItems}
-                      setDraggedItems={setDraggedItems}
-                      dropTarget={dropTarget}
-                      setDropTarget={setDropTarget}
-                      onDrop={crud.handleDrop}
-                      view={data.view}
-                      addTokens={data.addTokens}
-                      setSelection={data.setSelection}
-                      app={data.app}
-                      assetService={data.assetService}
-                      spawnCounts={sel.spawnCounts}
-                      onSpawnCountChange={sel.handleSpawnCountChange}
-                      {...(creature.isActive ? { onClearFilters: filterSearch.reset } : {})}
-                    />
-                  </AssetTagMenuContext.Provider>
+                <Header
+                  app={data.app}
+                  search={search}
+                  onSearch={setSearch}
+                  query={filterSearch}
+                  activeTab={activeTab}
+                  onTabChange={changeTab}
+                  assetCounts={data.assetCounts}
+                  onCreateTokens={() => crud.setIsTokenCreatorOpen(true)}
+                  onCreateMap={crud.handleCreateMap}
+                  onCreateCollection={crud.handleCreateCollection}
+                  onCreateFolder={crud.handleCreateFolder}
+                  onRefresh={() => { void crud.handleRefresh(); }}
+                  sidebarToggleLabel={sidebar.toggleLabel}
+                  onToggleSidebar={sidebar.toggle}
+                  sel={sel}
+                />
+                <div
+                  className="atlas-asset-manager-body"
+                  onDragOver={(e) => { if (draggedItems && sel.selectedFolderId === null) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; } }}
+                  onDrop={(e) => { if (draggedItems && sel.selectedFolderId === null) { e.preventDefault(); crud.handleDrop(null); } }}
+                >
+                  <ActiveFilterBar groups={filterSearch.chips} onReset={filterSearch.reset} />
+                  <Breadcrumb
+                    activeTab={shown.tab}
+                    path={shown.folderPath}
+                    onNavigateToFolder={sel.handleNavigateToFolder}
+                  />
+                  <div className="atlas-asset-manager-main">
+                    <AssetTagMenuContext.Provider value={tagMenuActions}>
+                      <Content
+                        activeTab={shown.tab}
+                        assets={shown.assets}
+                        folders={shown.folders}
+                        selectedAssetIds={sel.selectedAssetIds}
+                        selectedFolderIds={sel.selectedFolderIds}
+                        selectedFolderId={shown.folderId}
+                        folderDepth={shown.folderPath.length}
+                        refinement={shown.refinement}
+                        loading={shown.loading}
+                        showSkeleton={showSkeleton}
+                        assetCount={data.assetCounts?.[shown.tab] ?? null}
+                        scrollKey={`${shown.collection ?? 'default'}/${shown.tab}/${shown.folderId ?? ''}?${shown.refinement}`}
+                        scrollMemory={memory}
+                        onAssetSelect={sel.handleAssetSelect}
+                        onAssetContextMenu={handleAssetContextMenu}
+                        onFolderSelection={sel.handleFolderSelection}
+                        onFolderContextMenu={handleFolderContextMenu}
+                        onFolderDoubleClick={sel.handleFolderDoubleClick}
+                        onContentContextMenu={handleContentContextMenu}
+                        onClearSelection={sel.handleClearSelection}
+                        onClose={onClose}
+                        collapsedSections={collapsedSections}
+                        setCollapsedSections={setCollapsedSections}
+                        draggedItems={draggedItems}
+                        setDraggedItems={setDraggedItems}
+                        dropTarget={dropTarget}
+                        setDropTarget={setDropTarget}
+                        onDrop={crud.handleDrop}
+                        view={data.view}
+                        app={data.app}
+                        assetService={data.assetService}
+                        spawnCounts={sel.spawnCounts}
+                        onSpawnCountChange={sel.handleSpawnCountChange}
+                        {...(creature.isActive ? { onClearFilters: filterSearch.reset } : {})}
+                      />
+                    </AssetTagMenuContext.Provider>
+                  </div>
                 </div>
               </div>
             </motion.div>

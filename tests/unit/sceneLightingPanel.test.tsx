@@ -1,5 +1,5 @@
 import React from 'react';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createViewAtlasStore, type ViewAtlasStore } from '../../src/app/storeFactory';
 import { ViewStoreProvider } from '../../src/app/react/ViewStoreContext';
@@ -33,6 +33,7 @@ describe('SceneLightingPanel', () => {
     expect(screen.getByRole('heading', { name: 'Lighting settings' })).toBeTruthy();
     expect(toggleOf('Token vision').getAttribute('aria-checked')).toBe('true');
     expect(toggleOf('Remember explored areas').getAttribute('aria-checked')).toBe('true');
+    expect(toggleOf('Update sight when a token is dropped').getAttribute('aria-checked')).toBe('false');
     expect((screen.getByLabelText('Explored colour') as HTMLInputElement).value).toBe('#ffffff');
     expect((screen.getByLabelText('Unexplored colour') as HTMLInputElement).value).toBe('#000000');
     expect(screen.getByText('Counts as lit from')).toBeTruthy();
@@ -46,6 +47,22 @@ describe('SceneLightingPanel', () => {
     fireEvent.click(toggleOf('Remember explored areas'));
     expect(setSceneLighting).toHaveBeenCalledWith({ exploredMemory: false });
     expect(store.getState().lighting).toMatchObject({ tokenVision: false, exploredMemory: false });
+  });
+
+  it('switches sight on drop on, and off again as no choice at all: following the drag is the default', () => {
+    const { store } = renderPanel();
+    fireEvent.click(toggleOf('Update sight when a token is dropped'));
+    expect(store.getState().lighting.sightOnDrop).toBe(true);
+    expect(toggleOf('Update sight when a token is dropped').getAttribute('aria-checked')).toBe('true');
+    fireEvent.click(toggleOf('Update sight when a token is dropped'));
+    expect(store.getState().lighting).not.toHaveProperty('sightOnDrop');
+    expect(toggleOf('Update sight when a token is dropped').getAttribute('aria-checked')).toBe('false');
+  });
+
+  it('shows a scene that was saved with sight on drop off as off', () => {
+    const { store } = renderPanel();
+    act(() => store.getState().setSceneLighting({ sightOnDrop: false }));
+    expect(toggleOf('Update sight when a token is dropped').getAttribute('aria-checked')).toBe('false');
   });
 
   it('switches from the keyboard', () => {
@@ -98,6 +115,45 @@ describe('SceneLightingPanel', () => {
     expect(setSceneLighting).toHaveBeenCalledTimes(1);
     expect(setSceneLighting).toHaveBeenCalledWith({ litThreshold: 0.6 });
     expect(screen.getByText('60 %')).toBeTruthy();
+  });
+
+  it('draws darkvision as the system says and without a tint until the scene picks otherwise', () => {
+    renderPanel();
+    expect(screen.getByRole('radiogroup', { name: 'Darkvision looks' })).toBeTruthy();
+    expect(screen.getByRole('radio', { name: 'As the system says' }).getAttribute('aria-checked')).toBe('true');
+    expect(screen.getByLabelText<HTMLInputElement>('Darkvision tint').value).toBe('#ffffff');
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: 'No tint' }).disabled).toBe(true);
+  });
+
+  it('picks how darkvision looks, and stores the system\'s look as no choice at all', () => {
+    const { store } = renderPanel();
+    const pick = (label: string): void => void fireEvent.click(screen.getByRole('radio', { name: label }));
+    pick('In colour');
+    expect(store.getState().lighting.darkSightLook).toBe('colour');
+    pick('Grey');
+    expect(store.getState().lighting.darkSightLook).toBe('grey');
+    expect(screen.getByRole('radio', { name: 'Grey' }).getAttribute('aria-checked')).toBe('true');
+    pick('As the system says');
+    expect(store.getState().lighting).not.toHaveProperty('darkSightLook');
+  });
+
+  it('names the button that takes the tint back by its own text, without a label that would show as a tooltip', () => {
+    renderPanel();
+    const none = screen.getByRole('button', { name: 'No tint' });
+    expect(none.textContent).toBe('No tint');
+    expect(none.hasAttribute('aria-label')).toBe(false);
+    expect(none.hasAttribute('title')).toBe(false);
+  });
+
+  it('tints darkvision, and takes the tint back with No tint', () => {
+    const { store } = renderPanel();
+    fireEvent.change(screen.getByLabelText('Darkvision tint'), { target: { value: '#40ff80' } });
+    expect(store.getState().lighting.darkSightTint).toBe('#40ff80');
+    const none = screen.getByRole<HTMLButtonElement>('button', { name: 'No tint' });
+    expect(none.disabled).toBe(false);
+    fireEvent.click(none);
+    expect(store.getState().lighting).not.toHaveProperty('darkSightTint');
+    expect(screen.getByLabelText<HTMLInputElement>('Darkvision tint').value).toBe('#ffffff');
   });
 
   it('closes', () => {

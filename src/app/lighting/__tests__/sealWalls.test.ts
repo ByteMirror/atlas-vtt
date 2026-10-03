@@ -1,15 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { sealWalls, sealedWalls } from '../sealWalls';
-import { sealTolerance } from '../lightingConstants';
 import { crosses, segOf } from '../segments';
 import { computeVisibility, pointInPolygon } from '../../vision/visibility';
 import type { WallSegment } from '../../types/wallTypes';
+import { TOLERANCE, wall } from './sealFixtures';
 
-function wall(id: string, x1: number, y1: number, x2: number, y2: number, extra: Partial<WallSegment> = {}): WallSegment {
-  return { id, kind: 'wall', type: 'solid', p1: { x: x1, y: y1 }, p2: { x: x2, y: y2 }, ...extra };
-}
+// Wall-clock bound of the timed tests here. They take a few milliseconds; stepping along a wall
+// ten million pixels long, point by point, took minutes or never ended. The bound is far above
+// the first and far below the second, so a machine under load does not fail them.
+const SLOW = 15_000;
 
-const TOLERANCE = sealTolerance(2);
 
 describe('sealTolerance', () => {
   it('is about 13 px at 2 px texels', () => {
@@ -90,5 +90,57 @@ describe('sealWalls', () => {
     // Coarser texels seal wider gaps.
     expect(sealedWalls([wall('a', 0, 0, 100, 0), wall('b', 120, 0, 200, 0)], 4)).toHaveLength(3);
     expect(sealedWalls([wall('a', 0, 0, 100, 0), wall('b', 120, 0, 200, 0)], 2)).toHaveLength(2);
+  });
+});
+
+describe('sealWalls with walls far beyond the map', () => {
+  /** A room whose corners stop short of each other, with a wall inside that stops short of its north wall. */
+  const room = (): WallSegment[] => [
+    wall('n', 0, 0, 300, 0), wall('e', 308, 4, 308, 300), wall('s', 300, 306, 0, 306), wall('w', -6, 300, -6, 5), wall('t', 150, 150, 150, 9),
+    ...Array.from({ length: 60 }, (_, i) => wall(`p${i}`, 20 + i * 4, 40 + (i % 7) * 30, 23 + i * 4, 52 + (i % 7) * 30)),
+  ];
+  const bridgesOf = (walls: WallSegment[]): WallSegment[] => sealWalls(walls, TOLERANCE).slice(walls.length);
+
+  it('seals a room alike with a wall ten million pixels long among its walls, without stepping along it', () => {
+    const far = wall('far', -5_000_000, 5_000, 5_000_000, 5_400);
+    const expected = bridgesOf(room());
+    expect(expected.length).toBeGreaterThanOrEqual(5);
+
+    const started = performance.now();
+    const bridges = bridgesOf([...room(), far]);
+
+    expect(performance.now() - started).toBeLessThan(SLOW);
+    expect(bridges).toEqual(expected);
+  });
+
+  it('still bridges a wall end that stops short of the middle of such a wall', () => {
+    const far = wall('far', -5_000_000, -8, 5_000_000, -8);
+
+    const bridges = bridgesOf([wall('n', 0, 0, 300, 0), far]);
+
+    expect(bridges.map((bridge) => bridge.id).sort()).toEqual(['seal:n:p1:far', 'seal:n:p2:far']);
+    expect(bridges[0]).toMatchObject({ p1: { x: 0, y: 0 }, p2: { x: 0 } });
+    expect(bridges[0]!.p2.y).toBeCloseTo(-8, 1);
+  });
+
+  it('stays quick with a hundred such walls, which no grid of points could step along', () => {
+    const far = Array.from({ length: 100 }, (_, i) => wall(`far${i}`, -1_150_000, -1_150_000 + i * 70, 1_150_000, 1_150_000 - i * 70));
+
+    const started = performance.now();
+    const sealed = sealWalls([...room(), ...far], TOLERANCE);
+
+    expect(performance.now() - started).toBeLessThan(SLOW);
+    expect(sealed.length).toBeGreaterThanOrEqual(room().length + 100);
+  });
+
+  it.each([
+    ['not a number', NaN],
+    ['infinite', Infinity],
+    ['infinite the other way', -Infinity],
+    ['too large to square', 1e200],
+  ])('skips a wall with a coordinate that is %s', (_label, value) => {
+    const broken = [wall('x1', value, 0, 100, 100), wall('x2', 0, 0, 100, value), wall('x3', value, value, value, value)];
+
+    expect(bridgesOf([...room(), ...broken])).toEqual(bridgesOf(room()));
   });
 });

@@ -13,18 +13,6 @@ body.atlas-player-window {
   -webkit-user-select: none;
   user-select: none;
 
-  --background-primary: #202020;
-  --background-secondary: #262626;
-  --background-secondary-alt: #1a1a1a;
-  --background-modifier-border: #414141;
-  --background-modifier-border-hover: #515151;
-  --background-modifier-hover: rgba(255, 255, 255, 0.05);
-  --text-normal: #dcddde;
-  --text-muted: #999;
-  --text-faint: #666;
-  --interactive-accent: #7f6df2;
-  --interactive-accent-hover: #8875ff;
-
   #atlas-player-canvas {
     position: absolute;
     top: 0;
@@ -66,15 +54,20 @@ body.atlas-player-window {
     display: none;
   }
 
-  // Dice rolls drop in at the top centre, where the whole table can read them.
-  // The window is a drag region; the toasts must still take clicks to expand or dismiss.
-  .atlas-dice-toast-container {
+  // Rolls stand at the top centre, where the whole table can read them. The window
+  // is a drag region; the rolls must still take clicks to skip, expand or dismiss.
+  .atlas-dice-rolls {
+    position: fixed;
     top: 1rem;
     right: auto;
     left: 50%;
     transform: translateX(-50%);
     align-items: center;
     -webkit-app-region: no-drag;
+  }
+
+  .atlas-dice-roll__chip {
+    align-self: center;
   }
 
   .atlas-dice-toast--entering {
@@ -167,7 +160,7 @@ body.atlas-player-window {
   background: #1a1a1a;
 }
 
-// The DM's toasts slide in from the right edge; the player's drop from the top.
+// The DM's result cards slide in from the right edge; the player's drop from the top.
 @keyframes atlas-player-dice-toast-enter {
   from {
     opacity: 0;

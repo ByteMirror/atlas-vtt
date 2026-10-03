@@ -1,64 +1,25 @@
 import { Container, Mesh, UniformGroup, type Geometry, type Renderer, type RenderTexture, type Shader } from 'pixi.js';
-import { FALLOFF_HEIGHT, HALO } from '../../../lighting/lightingConstants';
+import { HALO, LIGHT_LEVELS, LIGHT_REACH } from '../../../lighting/lightingConstants';
+import type { VisionCone } from '../../../vision/visionCone';
 import type { MapBounds } from '../../../vision/visibility';
 import { destroyTree } from '../../utils/destroyTree';
-import { GLSL_VERSION } from './glsl';
+import { ENGINE_SHADERS } from './engineShaders';
+import { createDarknessMesh, destroyDarknessMesh, setDarknessMesh, type DarknessMesh, type DrawnDarkness } from './DarknessMap';
 import { createPlaceholder, createQuad, createShader, createTarget, destroyQuad, quadGeometry, renderInto, type Quad } from './gpu';
 import type { Tile } from './TileCache';
 
-const vertex = `${GLSL_VERSION}
-in vec2 aPosition;
-uniform vec4 uRect;
-uniform vec2 uMapWorld;
-out vec2 vWorld;
-void main() {
-  vWorld = uRect.xy + aPosition * uRect.zw;
-  gl_Position = vec4(vWorld / uMapWorld * 2.0 - 1.0, 0.0, 1.0);
-}`;
-
-// Height falloff E ∝ (d² + h²)^(−3/2): a lamp above the floor, round and hot under it, then
-// inverse-square; normalised to ½ at the bright radius and windowed to exactly zero at the
-// reach (Karis). A light without a bright radius uses a quarter of its reach as one; radii are
-// floored at 1 px so an empty light stays finite in the float target. A Gaussian halo around the
-// flame adds to the falloff before the window and the tile, so it cannot pass a wall. The tile
-// is read with texelFetch: its rect sits on this map's texel grid, so a texel here is a texel there.
-const fragment = `${GLSL_VERSION}
-in vec2 vWorld;
-uniform vec4 uRect;
-uniform vec2 uLight;
-uniform float uBright;
-uniform float uReach;
-uniform float uIntensity;
-uniform vec3 uColor;
-uniform float uHeight;
-uniform float uHaloGain;
-uniform float uHaloSize;
-uniform float uTexel;
-uniform sampler2D uTile;
-out vec4 finalColor;
-void main() {
-  ivec2 texel = ivec2(floor((vWorld - uRect.xy) / uTexel));
-  ivec2 size = textureSize(uTile, 0);
-  if (any(lessThan(texel, ivec2(0))) || any(greaterThanEqual(texel, size))) discard;
-  float d = distance(vWorld, uLight);
-  float reach = max(uReach, 1.0);
-  float b = max(max(uBright, reach * 0.25), 1.0);
-  float h = b * uHeight;
-  float e = 0.5 * pow((1.0 + d * d / (h * h)) / (1.0 + b * b / (h * h)), -1.5);
-  float s = max(b * uHaloSize, 1.0);
-  e += uHaloGain * exp(-(d * d) / (2.0 * s * s));
-  float q = d / reach;
-  float window = clamp(1.0 - q * q * q * q, 0.0, 1.0);
-  finalColor = vec4(uColor * uIntensity * e * window * window * texelFetch(uTile, texel, 0).r, 1.0);
-}`;
-
-/** One light's contribution this frame (radii already scaled by flicker). */
+/** One light's contribution this frame (bright radius and intensity already flickered). */
 export interface DrawnLight {
   tile: Tile;
   bright: number;
+  dim: number;
   reach: number;
   color: readonly [number, number, number];
   intensity: number;
+  /** A light that shines one way; unset shines all around. */
+  cone?: VisionCone | undefined;
+  /** Width of the soft edge past a beam's sides, in world pixels; unset, the fade past the dim radius. */
+  edge?: number | undefined;
 }
 
 interface Slot {
@@ -67,19 +28,32 @@ interface Slot {
   rect: Float32Array;
   light: Float32Array;
   color: Float32Array;
+  cone: Float32Array;
 }
+
+function isDarkness(light: DrawnLight | DrawnDarkness): light is DrawnDarkness {
+  return 'polygon' in light;
+}
+
+/** No cone: half an angle of a full turn, which the shader reads as all around. */
+const ALL_AROUND = [1, 0, 2 * Math.PI, 0] as const;
 
 /**
  * Every light's direct light over the map in world space (`rgba16float`, HDR): independent of
- * any camera, so the GM view and the player window read the same texture.
+ * any camera, so the GM view and the player window read the same texture. Lights add up; a
+ * darkness source erases what was drawn before it within its area, so the order of `draw`'s
+ * list is the order of priority: a light listed after a darkness shines in it.
  */
 export class LightMap {
   readonly texture: RenderTexture;
   readonly world: readonly [number, number];
   private readonly scene = new Container();
   private readonly slots: Slot[] = [];
+  private readonly darkSlots: DarknessMesh[] = [];
   private readonly quad: Quad = createQuad();
   private readonly geometry: Geometry = quadGeometry(this.quad);
+  /** The meshes were put in an order of priority: the next draw without a darkness puts them back. */
+  private ordered = false;
   /** Bound to idle slots, so no slot keeps a tile texture its owner may destroy. */
   private readonly placeholder: RenderTexture = createPlaceholder();
 
@@ -88,10 +62,14 @@ export class LightMap {
     this.world = [this.texture.source.pixelWidth * texel, this.texture.source.pixelHeight * texel];
   }
 
-  draw(lights: readonly DrawnLight[]): void {
-    while (this.slots.length < lights.length) this.slots.push(this.createSlot());
+  /** `lights` in their order of priority: a darkness source takes the light drawn before it out of its area instead of adding any. */
+  draw(lights: readonly (DrawnLight | DrawnDarkness)[]): void {
+    const shining = lights.filter((light): light is DrawnLight => !isDarkness(light));
+    const dark = lights.filter(isDarkness);
+    while (this.slots.length < shining.length) this.slots.push(this.createSlot());
+    while (this.darkSlots.length < dark.length) this.darkSlots.push(this.createDarkSlot());
     this.slots.forEach((slot, i) => {
-      const light = lights[i];
+      const light = shining[i];
       slot.mesh.visible = !!light;
       if (!light) return;
       const u = slot.uniforms.uniforms;
@@ -99,41 +77,77 @@ export class LightMap {
       slot.light[0] = light.tile.x;
       slot.light[1] = light.tile.y;
       u.uBright = light.bright;
+      u.uDim = light.dim;
       u.uReach = light.reach;
       u.uIntensity = light.intensity;
       slot.color.set(light.color);
+      const { cone } = light;
+      slot.cone.set(cone ? [Math.cos(cone.facing), Math.sin(cone.facing), cone.angle / 2, cone.apex ?? 0] : ALL_AROUND);
+      u.uEdge = light.edge ?? (LIGHT_REACH - 1) * light.dim;
       slot.mesh.shader!.resources.uTile = light.tile.texture.source;
     });
+    this.darkSlots.forEach((slot, i) => {
+      const darkness = dark[i];
+      slot.mesh.visible = !!darkness;
+      if (darkness) setDarknessMesh(slot, darkness);
+    });
+    // Without a darkness the meshes stay in the order they were made: lights only add up.
+    if (dark.length > 0 || this.ordered) this.order(lights, shining, dark);
     renderInto(this.renderer, this.scene, this.texture, [0, 0, 0, 0]);
     for (const slot of this.slots) slot.mesh.shader!.resources.uTile = this.placeholder.source;
+  }
+
+  /** Puts the meshes in the order of `lights`, so each darkness erases exactly the lights listed before it. */
+  private order(lights: readonly (DrawnLight | DrawnDarkness)[], shining: readonly DrawnLight[], dark: readonly DrawnDarkness[]): void {
+    lights.forEach((light, z) => {
+      const slot = isDarkness(light) ? this.darkSlots[dark.indexOf(light)] : this.slots[shining.indexOf(light)];
+      slot!.mesh.zIndex = z;
+    });
+    this.ordered = dark.length > 0;
+    this.scene.sortChildren();
+  }
+
+  private createDarkSlot(): DarknessMesh {
+    const slot = createDarknessMesh(this.world, [0, 0, 0, 1], 'erase');
+    this.scene.addChild(slot.mesh);
+    return slot;
   }
 
   private createSlot(): Slot {
     const rect = new Float32Array(4);
     const light = new Float32Array(2);
     const color = new Float32Array(3);
+    const cone = new Float32Array(ALL_AROUND);
     const uniforms = new UniformGroup({
       uRect: { value: rect, type: 'vec4<f32>' },
       uMapWorld: { value: new Float32Array(this.world), type: 'vec2<f32>' },
       uLight: { value: light, type: 'vec2<f32>' },
       uBright: { value: 0, type: 'f32' },
+      uDim: { value: 0, type: 'f32' },
       uReach: { value: 1, type: 'f32' },
       uIntensity: { value: 1, type: 'f32' },
-      uColor: { value: color, type: 'vec3<f32>' },
-      uHeight: { value: FALLOFF_HEIGHT, type: 'f32' },
+      uLightColor: { value: color, type: 'vec3<f32>' },
+      uBrightLevel: { value: LIGHT_LEVELS.bright, type: 'f32' },
+      uDimLevel: { value: LIGHT_LEVELS.dim, type: 'f32' },
       uHaloGain: { value: HALO.gain, type: 'f32' },
       uHaloSize: { value: HALO.size, type: 'f32' },
       uTexel: { value: this.texel, type: 'f32' },
+      uCone: { value: cone, type: 'vec4<f32>' },
+      uEdge: { value: 1, type: 'f32' },
     });
-    const shader = createShader(vertex, fragment, 'atlas-light-map', { lightUniforms: uniforms, uTile: this.placeholder.source });
+    const shader = createShader(ENGINE_SHADERS.lightMap, { lightUniforms: uniforms, uTile: this.placeholder.source });
     const mesh = new Mesh({ geometry: this.geometry, shader });
     mesh.blendMode = 'add';
     this.scene.addChild(mesh);
-    return { mesh, uniforms, rect, light, color };
+    return { mesh, uniforms, rect, light, color, cone };
   }
 
   destroy(): void {
     for (const { mesh } of this.slots) mesh.shader?.destroy();
+    for (const slot of this.darkSlots) {
+      this.scene.removeChild(slot.mesh);
+      destroyDarknessMesh(slot);
+    }
     destroyTree(this.scene);
     this.geometry.destroy();
     destroyQuad(this.quad);

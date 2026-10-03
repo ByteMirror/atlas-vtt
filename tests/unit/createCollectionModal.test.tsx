@@ -42,7 +42,7 @@ function setup(existingNames: string[] = []) {
 const radio = (name: string): HTMLElement => screen.getByRole('radio', { name: new RegExp(`^${name}`) });
 
 describe('CreateCollectionModal', () => {
-  it('creates a collection with a built-in system, its widgets and its bars', async () => {
+  it('creates a collection with a built-in system, its widgets and its resources', async () => {
     const { stored, onCreated, onClose } = setup();
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Gloomhollow' } });
     fireEvent.click(radio('Shadowdark'));
@@ -52,18 +52,18 @@ describe('CreateCollectionModal', () => {
     expect(onClose).toHaveBeenCalled();
     expect(stored.Gloomhollow).toMatchObject({
       systemPresetId: 'builtin:shadowdark',
-      defaultWidgets: { hpBar: true },
+      resources: [{ key: 'hp' }],
       widgets: { 'shadowdark-torch': { label: 'Torch' } },
     });
   });
 
-  it('starts Daggerheart collections with HP and Stress bars', async () => {
+  it('starts Daggerheart collections with HP and Stress', async () => {
     const { stored, onCreated } = setup();
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Age of Umbra' } });
     fireEvent.click(radio('Daggerheart'));
     fireEvent.click(screen.getByRole('button', { name: 'Create collection' }));
     await waitFor(() => expect(onCreated).toHaveBeenCalled());
-    expect(stored['Age of Umbra']).toMatchObject({ defaultWidgets: { hpBar: true, stressBar: true } });
+    expect(stored['Age of Umbra']).toMatchObject({ resources: [{ key: 'hp' }, { key: 'stress' }] });
   });
 
   it('refuses a name another collection has', () => {

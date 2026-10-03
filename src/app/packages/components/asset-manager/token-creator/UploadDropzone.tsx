@@ -1,17 +1,20 @@
 import React, { useRef } from 'react';
 import { Upload } from 'lucide-react';
 import { cn } from '../../../../../utils/cn';
+import { UVTT_ACCEPT } from '../../../../import/uvtt/uvttFileNames';
 
 interface UploadDropzoneProps {
   title: string;
   hint: string;
   multiple: boolean;
+  /** Offers Universal VTT map files beside images. */
+  acceptsMapFiles?: boolean;
   isDragging: boolean;
   onFiles: (files: File[]) => void;
 }
 
 /** Click-or-drop file picker in the rail. Drag state is owned by the window so drops anywhere count. */
-export function UploadDropzone({ title, hint, multiple, isDragging, onFiles }: UploadDropzoneProps): React.JSX.Element {
+export function UploadDropzone({ title, hint, multiple, acceptsMapFiles = false, isDragging, onFiles }: UploadDropzoneProps): React.JSX.Element {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const openPicker = (): void => inputRef.current?.click();
@@ -32,8 +35,8 @@ export function UploadDropzone({ title, hint, multiple, isDragging, onFiles }: U
       <div className="atlas-token-creator__dropzone-icon"><Upload /></div>
       <span className="atlas-token-creator__dropzone-title">{title}</span>
       <span className="atlas-token-creator__dropzone-hint">{hint}</span>
-      <span className="atlas-token-creator__dropzone-formats">PNG · JPG · WebP</span>
-      <input ref={inputRef} type="file" accept="image/*" multiple={multiple} onChange={handleChange} />
+      <span className="atlas-token-creator__dropzone-formats">{acceptsMapFiles ? 'PNG · JPG · WebP · Universal VTT' : 'PNG · JPG · WebP'}</span>
+      <input ref={inputRef} type="file" accept={acceptsMapFiles ? `image/*,${UVTT_ACCEPT}` : 'image/*'} multiple={multiple} onChange={handleChange} />
     </div>
   );
 }

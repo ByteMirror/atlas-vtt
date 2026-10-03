@@ -27,11 +27,13 @@ describe('LightingRenderer explored memory across a GPU reset', () => {
   }
 
   it('reloads the saved mask after a context change while lighting is off', async () => {
-    const { renderer, state, change, redAt, settle } = await setup();
+    const { renderer, state, change, redAt, settle, tick } = await setup();
     change({ lighting: { ...state.lighting, enabled: false } });
 
     renderer.runners.contextChange.emit(renderer.gl);
     expect(redAt(100, 100)).toBe(0);
+    // The reload waits for the next frame: PIXI's context runner only notes the restore.
+    tick();
     await settle();
     expect(redAt(100, 100)).toBe(255);
   });

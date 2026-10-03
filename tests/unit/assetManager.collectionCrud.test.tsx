@@ -24,7 +24,7 @@ afterEach(cleanup);
 
 /** The asset manager's collection wiring: the selection, its data and the Manage dialog's handlers. */
 function useManager(initialCollection: string) {
-  const [selected, setSelected] = useState<string | null>(initialCollection);
+  const [selected, setSelected] = useState(initialCollection);
   const data = useAssetData('tokens', selected, true);
   useFollowSelectedCollection(data.collections, selected, setSelected);
   const manage = useTagsAndCollections(

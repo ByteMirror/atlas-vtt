@@ -18,7 +18,8 @@
   flex-grow: 1;
   overflow: hidden;
   border-radius: 9999px;
-  background-color: var(--interactive-normal);
+  /* The border colour reads on every surface; --interactive-normal is the surface's own white in the light theme. */
+  background-color: var(--background-modifier-border);
 }
 
 .slider-range {

@@ -6,6 +6,9 @@
 import type { TokenEntity } from '../types';
 import type { InitiativeState, InitiativeEntry, InitiativeConfig } from '../types/initiativeTypes';
 import { createDefaultInitiativeState } from '../types/initiativeTypes';
+import type { InitiativeRules } from '../types/initiativeRulesTypes';
+import { DEFAULT_INITIATIVE_RULES } from '../gameSystems/initiativeRules';
+import { clearSittingOut, nextSideTurn, previousSideTurn, rollInitiativeDice } from '../initiative/turns';
 
 /**
  * Initiative slice state interface
@@ -21,17 +24,22 @@ export interface InitiativeSlice {
   addToInitiative: (entry: Omit<InitiativeEntry, 'id' | 'order' | 'isActive'>) => string;
   removeFromInitiative: (id: string) => void;
   updateInitiativeEntry: (id: string, updates: Partial<InitiativeEntry>) => void;
-  rollAllInitiative: () => void;
-  rollEntryInitiative: (id: string) => void;
+  /** Rolls `roll` (the collection's initiative dice; a d20 when left out) for every combatant. */
+  rollAllInitiative: (roll?: string) => void;
+  rollEntryInitiative: (id: string, roll?: string) => void;
   nextTurn: () => void;
   previousTurn: () => void;
   reorderInitiative: (fromIndex: number, toIndex: number) => void;
   moveToFront: (id: string) => void;
   moveToBack: (id: string) => void;
-  startCombat: () => void;
+  /** Starts a fight as `rules` say (in turn order when left out); it keeps that mode until it ends. */
+  startCombat: (rules?: InitiativeRules) => void;
   endCombat: () => void;
+  /** Whether a combatant sits the running round out. */
+  setInitiativeSitsOut: (id: string, sitsOut: boolean) => void;
+  /** Removes every combatant and ends the fight. */
+  resetInitiative: () => void;
   setInitiativeConfig: (config: Partial<InitiativeConfig>) => void;
-  syncInitiativeWithTokens: () => void;
 }
 
 /**
@@ -67,12 +75,8 @@ function generateInitiativeId(): string {
   return `init_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
 }
 
-/**
- * Roll a d20 (1-20)
- */
-function rollD20(): number {
-  return Math.floor(Math.random() * 20) + 1;
-}
+/** What a combatant rolls where the caller names no dice. */
+const DEFAULT_ROLL = DEFAULT_INITIATIVE_RULES.roll;
 
 /**
  * Update order indices for all entries after a modification
@@ -101,11 +105,6 @@ export function createInitiativeActions(
     addToInitiative: (entry) => {
       const id = generateInitiativeId();
       set((draft) => {
-        // Clear from removed list so auto-sync won't block future adds
-        if (!draft.initiative.removedTokenIds) draft.initiative.removedTokenIds = [];
-        const rmIdx = draft.initiative.removedTokenIds.indexOf(entry.tokenId);
-        if (rmIdx !== -1) draft.initiative.removedTokenIds.splice(rmIdx, 1);
-
         const order = draft.initiative.entries.length;
         const newEntry: InitiativeEntry = {
           ...entry,
@@ -122,15 +121,8 @@ export function createInitiativeActions(
       const index = draft.initiative.entries.findIndex(e => e.id === id);
       if (index === -1) return;
 
-      const tokenId = draft.initiative.entries[index]!.tokenId;
       const wasActive = draft.initiative.entries[index]!.isActive;
       draft.initiative.entries.splice(index, 1);
-
-      // Track removal so auto-sync doesn't re-add
-      if (!draft.initiative.removedTokenIds) draft.initiative.removedTokenIds = [];
-      if (!draft.initiative.removedTokenIds.includes(tokenId)) {
-        draft.initiative.removedTokenIds.push(tokenId);
-      }
 
       updateEntryOrders(draft.initiative.entries);
 
@@ -157,10 +149,9 @@ export function createInitiativeActions(
       }
     }),
 
-    rollAllInitiative: () => set((draft) => {
+    rollAllInitiative: (roll = DEFAULT_ROLL) => set((draft) => {
       draft.initiative.entries.forEach(entry => {
-        const roll = rollD20();
-        entry.initiative = roll + entry.initiativeModifier;
+        entry.initiative = rollInitiativeDice(roll) + entry.initiativeModifier;
       });
 
       // Sort by initiative if autoSort is enabled
@@ -171,15 +162,15 @@ export function createInitiativeActions(
 
     }),
 
-    rollEntryInitiative: (id) => set((draft) => {
+    rollEntryInitiative: (id, roll = DEFAULT_ROLL) => set((draft) => {
       const entry = draft.initiative.entries.find(e => e.id === id);
       if (entry) {
-        const roll = rollD20();
-        entry.initiative = roll + entry.initiativeModifier;
+        entry.initiative = rollInitiativeDice(roll) + entry.initiativeModifier;
       }
     }),
 
     nextTurn: () => set((draft) => {
+      if (draft.initiative.sides) return nextSideTurn(draft.initiative);
       if (draft.initiative.entries.length === 0) return;
 
       // Deactivate current entry
@@ -204,6 +195,7 @@ export function createInitiativeActions(
     }),
 
     previousTurn: () => set((draft) => {
+      if (draft.initiative.sides) return previousSideTurn(draft.initiative);
       if (draft.initiative.entries.length === 0) return;
 
       // Deactivate current entry
@@ -277,17 +269,24 @@ export function createInitiativeActions(
       }
     }),
 
-    startCombat: () => set((draft) => {
+    startCombat: (rules) => set((draft) => {
       draft.initiative.isActive = true;
       draft.initiative.round = 1;
-      draft.initiative.currentIndex = 0;
+      draft.initiative.entries.forEach(e => e.isActive = false);
+      clearSittingOut(draft.initiative);
 
-      // Set first entry as active
-      if (draft.initiative.entries.length > 0) {
-        draft.initiative.entries.forEach(e => e.isActive = false);
-        draft.initiative.entries[0]!.isActive = true;
+      // By sides the turn belongs to a side, never to one combatant
+      if (rules?.mode === 'sides') {
+        draft.initiative.sides = { first: rules.firstSide, active: rules.firstSide };
+        draft.initiative.currentIndex = -1;
+        return;
       }
 
+      delete draft.initiative.sides;
+      draft.initiative.currentIndex = 0;
+      if (draft.initiative.entries.length > 0) {
+        draft.initiative.entries[0]!.isActive = true;
+      }
     }),
 
     endCombat: () => set((draft) => {
@@ -297,38 +296,27 @@ export function createInitiativeActions(
 
       // Clear active state from all entries
       draft.initiative.entries.forEach(e => e.isActive = false);
+      delete draft.initiative.sides;
+      clearSittingOut(draft.initiative);
+    }),
 
+    setInitiativeSitsOut: (id, sitsOut) => set((draft) => {
+      const entry = draft.initiative.entries.find(e => e.id === id);
+      if (!entry) return;
+      if (sitsOut) entry.sitsOut = true;
+      else delete entry.sitsOut;
+    }),
+
+    resetInitiative: () => set((draft) => {
+      draft.initiative.entries = [];
+      draft.initiative.isActive = false;
+      draft.initiative.round = 0;
+      draft.initiative.currentIndex = -1;
+      delete draft.initiative.sides;
     }),
 
     setInitiativeConfig: (config) => set((draft) => {
       draft.initiative.config = { ...draft.initiative.config, ...config };
-    }),
-
-    syncInitiativeWithTokens: () => set((draft) => {
-      // Update initiative entries with current token HP values
-      draft.initiative.entries.forEach(entry => {
-        const token = draft.objects.tokens[entry.tokenId];
-        if (!token) return;
-
-        if (token.kind === 'character') {
-          // Update HP from token
-          if (typeof token.hp === 'object' && token.hp !== null) {
-            entry.hp = { current: token.hp.current, max: token.hp.max };
-          } else if (typeof token.hp === 'number') {
-            entry.hp = { current: token.hp, max: token.hp };
-          }
-
-          // Update stress if present
-          if (typeof token.stress === 'object' && token.stress !== null) {
-            entry.stress = { current: token.stress.current, max: token.stress.max };
-          } else if (typeof token.stress === 'number') {
-            entry.stress = { current: token.stress, max: token.maxStress ?? 10 };
-          }
-        }
-
-        // Check defeated status
-        entry.isDefeated = entry.hp.current <= 0;
-      });
     }),
   };
 }

@@ -1,0 +1,76 @@
+import { brightThresholdOf, litThresholdOf } from '../lighting/sceneLightingOptions';
+import type { LightLevel } from '../types/senseTypes';
+import type { Point } from '../types/visionTypes';
+import type { AmbientLight, LightReach } from './sight';
+import { pointInPolygon } from './visibility';
+
+/**
+ * The light level the scene's ambient light alone gives every point: dark below the lit
+ * threshold, bright from the bright threshold, dim between them (day is bright, dusk dim, night dark).
+ */
+export function ambientLevel(light: AmbientLight): LightLevel {
+  if (light.ambient < litThresholdOf(light)) return 'dark';
+  return light.ambient >= brightThresholdOf(light) ? 'bright' : 'dim';
+}
+
+/** The ambient light (0–1) at `point`: that of the topmost zone whose polygon contains it, else the scene's. */
+export function ambientAt(point: Point, light: AmbientLight): number {
+  const { zones } = light;
+  if (zones) {
+    for (let i = zones.length - 1; i >= 0; i--) {
+      if (pointInPolygon(point, zones[i]!.polygon)) return zones[i]!.ambient;
+    }
+  }
+  return light.ambient;
+}
+
+/** The light level the ambient light alone gives `point`, by the zone it lies in. */
+function ambientLevelAt(point: Point, light: AmbientLight): LightLevel {
+  return light.zones?.length ? ambientLevel({ ...light, ambient: ambientAt(point, light) }) : ambientLevel(light);
+}
+
+/**
+ * The light level the lights that outrank `above` give `point`: bright within a bright radius,
+ * dim within a dim one, where no wall is between. A darkness source is no light.
+ */
+function levelFromLights(point: Point, lights: readonly LightReach[], above = -Infinity): LightLevel {
+  let level: LightLevel = 'dark';
+  for (const light of lights) {
+    if (light.darkness || (light.priority ?? 0) <= above) continue;
+    const distance = Math.hypot(point.x - light.origin.x, point.y - light.origin.y);
+    if (distance > light.dim || !pointInPolygon(point, light.polygon)) continue;
+    if (distance <= light.bright) return 'bright';
+    level = 'dim';
+  }
+  return level;
+}
+
+/** The priority of the strongest darkness source that covers `point`; none covers it at -Infinity. */
+export function darknessAt(point: Point, lights: readonly LightReach[]): number {
+  let priority = -Infinity;
+  for (const light of lights) {
+    if (!light.darkness || (light.priority ?? 0) <= priority) continue;
+    if (Math.hypot(point.x - light.origin.x, point.y - light.origin.y) <= light.dim && pointInPolygon(point, light.polygon)) priority = light.priority ?? 0;
+  }
+  return priority;
+}
+
+/**
+ * How well `point` is lit, the brightest of the ambient light there (the scene's, or that of the
+ * zone the point lies in) and every light that reaches it.
+ * The one function sight rules read. Inside a darkness source (its dim radius, where no wall is
+ * between) neither the ambient light nor a light counts, unless the light's priority is higher
+ * than the darkness': such a light lights the point at its own level, and without one the
+ * point is `magical-dark`.
+ */
+export function lightLevelAt(point: Point, ambient: AmbientLight, lights: readonly LightReach[]): LightLevel {
+  const darkness = darknessAt(point, lights);
+  if (darkness > -Infinity) {
+    const outshining = levelFromLights(point, lights, darkness);
+    return outshining === 'dark' ? 'magical-dark' : outshining;
+  }
+  const fromAmbient = ambientLevelAt(point, ambient);
+  if (fromAmbient === 'bright') return 'bright';
+  const fromLights = levelFromLights(point, lights);
+  return fromLights === 'dark' ? fromAmbient : fromLights;
+}

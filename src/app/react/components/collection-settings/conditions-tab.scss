@@ -1,0 +1,46 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// Collection settings, Conditions tab — a condition's effect on sight
+// ═══════════════════════════════════════════════════════════════════════════
+// Imported inside the `.atlas-vtt-plugin` scope of styles/main.scss. The rows themselves are
+// styled with the modal (collection-settings-modal.scss).
+
+@use '../../../../../styles/tokens' as *;
+@use '../../../../../styles/mixins' as *;
+
+// Effect on sight: a select in every row, under one column label.
+$effect-width: 132px;
+// Badge, colour swatch, number toggle and delete button of a condition row.
+$condition-control: 24px;
+
+// Column labels over the rows' name field and effect select.
+.atlas-csm-condition-head {
+  @include atlas-flex-row($spacing-s);
+  // The rows' border and padding.
+  padding: 0 calc(#{$spacing-s} + #{$border-width-s});
+  font-size: $font-ui-smaller;
+  color: var(--text-muted);
+
+  > :first-child {
+    flex: 1;
+    margin-inline-start: calc(#{$condition-control} + #{$spacing-s});
+  }
+
+  > :last-child {
+    width: $effect-width;
+    margin-inline-end: calc(3 * (#{$condition-control} + #{$spacing-s}));
+  }
+}
+
+.atlas-csm-condition-effect {
+  width: $effect-width;
+  flex-shrink: 0;
+
+  .atlas-select-trigger {
+    height: $input-height-s;
+  }
+}
+
+// A condition without an effect, which most are, stays quiet.
+.atlas-csm-condition-effect--none .atlas-select-value {
+  color: var(--text-faint);
+}

@@ -14,6 +14,12 @@ describe('statblock notes', () => {
     expect(rewritten).toBe('---\ntoken-image: B/g.png\nimage: "atlas-vtt/x/Gold$\'s.png"\n---\nA goblin.');
   });
 
+  it('rewrites a `token` field without touching `token-image`', () => {
+    const raw = '---\ntoken-image: B/g.png\ntoken: B/g.png\n---\n';
+    const tokenNote: BundleFile = { ...note, statblockImage: { key: 'token', path: 'B/g.png' } };
+    expect(decode(rewriteContent(tokenNote, encode(raw), new Map([['B/g.png', 'C/g.png']])))).toBe('---\ntoken-image: B/g.png\ntoken: "C/g.png"\n---\n');
+  });
+
   it('leaves notes whose artwork did not move, or that have no such field, byte for byte', () => {
     const raw = encode('---\nimage: B/g.png\n---\n');
     expect(rewriteContent(note, raw, new Map([['other', 'x']]))).toBe(raw);
@@ -34,5 +40,35 @@ describe('JSON files', () => {
   it('returns the original bytes when no path in it moves', () => {
     const raw = encode('{"mapPath":"a/b.atlasmap"}');
     expect(rewriteContent(scene, raw, new Map([['elsewhere', 'x']]))).toBe(raw);
+  });
+});
+
+describe('loot bases', () => {
+  const base: BundleFile = { vaultPath: 'Items/Items.base', role: 'loot-base' };
+  const moves = new Map([
+    ['Items/Items.base', 'atlas-vtt/collections/c/loot/Items/Items.base'],
+    ['Items/Armor/Shield.md', 'atlas-vtt/collections/c/loot/Items/Armor/Shield.md'],
+    ['Art/shield.png', 'atlas-vtt/collections/c/files/shield.png'],
+    ['token-1', 'token-2'],
+  ]);
+
+  it('points the folders and files it asks for at their new place, also inside a quoted filter', () => {
+    const raw = [
+      '- file.inFolder("Items")',
+      "- 'file.inFolder(\"Items/Armor/\")'",
+      '- file.path == "Items/Armor/Shield.md"',
+      '- file.folder.startsWith("Items/Armor")',
+    ].join('\n');
+    expect(decode(rewriteContent(base, encode(raw), moves))).toBe([
+      '- file.inFolder("atlas-vtt/collections/c/loot/Items")',
+      "- 'file.inFolder(\"atlas-vtt/collections/c/loot/Items/Armor/\")'",
+      '- file.path == "atlas-vtt/collections/c/loot/Items/Armor/Shield.md"',
+      '- file.folder.startsWith("atlas-vtt/collections/c/loot/Items/Armor")',
+    ].join('\n'));
+  });
+
+  it('leaves tags, property values and folders whose files went elsewhere byte for byte', () => {
+    const raw = encode('- file.hasTag("Items")\n- type == "Items"\n- file.inFolder("Art")\n- file.inFolder("Other")');
+    expect(rewriteContent(base, raw, moves)).toBe(raw);
   });
 });

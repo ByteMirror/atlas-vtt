@@ -14,7 +14,7 @@ const assetService = {
 };
 
 function storeWith(mapPath: string | null): StoreApi<ViewAtlasState> {
-  const token = { id: 't1', kind: 'character', name: 'Goblin', imagePath: 'atlas-vtt/collections/Goblin Warrens/tokens/goblin.webp', x: 35, y: 35 };
+  const token = { id: 't1', kind: 'character', name: 'Goblin', imagePath: 'atlas-vtt/collections/Goblin Warrens/tokens/goblin.webp', x: 35, y: 35, resources: { hp: { current: 2, max: 7 }, str: { current: 8, max: 8 } }, overriddenMax: ['hp'] };
   const state = { mapPath, objects: { tokens: { t1: token } } };
   return { getState: () => state } as unknown as StoreApi<ViewAtlasState>;
 }
@@ -34,4 +34,14 @@ it('falls back to the default collection when the scene lies outside every colle
   await saveMapTokensAsEncounter({} as never, storeWith(null), null, ['t1']);
 
   expect(vi.mocked(saveEncounter).mock.calls[0]?.[2]).toBe('default');
+});
+
+it('saves each token\'s state in the fields every Atlas reads', async () => {
+  await saveMapTokensAsEncounter({} as never, storeWith(null), null, ['t1']);
+
+  const [draft] = vi.mocked(saveEncounter).mock.calls[0]![3];
+  expect(draft!.state).toEqual({
+    kind: 'character', name: 'Goblin', imagePath: 'atlas-vtt/collections/Goblin Warrens/tokens/goblin.webp',
+    hp: { current: 2, max: 7 }, statblockResources: { str: { current: 8, max: 8 } }, maxHpOverridden: true,
+  });
 });

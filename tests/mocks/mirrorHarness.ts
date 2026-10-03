@@ -15,6 +15,8 @@ export interface Dm {
   tick(time: number): void;
   /** Something on the DM's stage changed. */
   change(): void;
+  /** The view's scene starts or finishes loading (`isMapLoading` in the source's store). */
+  setLoading(loading: boolean): void;
   scheduler: RenderScheduler;
 }
 
@@ -56,8 +58,11 @@ export function setupMirror(): MirrorHarness {
     const scheduler = new RenderScheduler(app);
     const layers: LayerVisibility[] = [{ layer: pins, visible: false }];
     const canvas = document.createElement('canvas');
+    let loading = false;
+    const store = { getState: () => ({ isMapLoading: loading }) } as unknown as NonNullable<PlayerFrameSource['store']>;
     const source: PlayerFrameSource = {
       canvas,
+      store,
       getCamera: () => DM_CAMERA,
       withPlayerSafeFrame: (capture) => captureWithLayerVisibility(layers, render, capture),
       beforeRender: {
@@ -66,7 +71,13 @@ export function setupMirror(): MirrorHarness {
         withPlayerSafeFrame: (capture) => captureBeforeRender(layers, render, capture),
       },
     };
-    return { source, scheduler, tick: (time) => ticker.update(time), change: () => { group.structureDidChange = true; } };
+    return {
+      source,
+      scheduler,
+      tick: (time) => ticker.update(time),
+      change: () => { group.structureDidChange = true; },
+      setLoading: (value) => { loading = value; },
+    };
   }
 
   const dm = createDm();

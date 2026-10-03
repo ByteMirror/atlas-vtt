@@ -24,3 +24,11 @@
     box-shadow: $shadow-sm;
   }
 }
+
+// Choices of unequal length (a long first label, short others) share the row by what each needs,
+// each with the same padding on every side.
+.atlas-segmented--fit .atlas-segmented__option {
+  flex: 1 1 auto;
+  padding: $spacing-xs;
+  white-space: nowrap;
+}

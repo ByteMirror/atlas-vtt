@@ -10,6 +10,7 @@ import { createLucideIconTexture } from './utils/lucideIconTexture';
 import { splitStrokeByBrush } from './drawingEraseUtils';
 import { FogCursorPreview } from './fog/FogCursorPreview';
 import { destroyTree } from './utils/destroyTree';
+import { isHandled } from './utils/handledEvents';
 
 export interface DrawingSettings {
   color: string;
@@ -239,7 +240,8 @@ export class DrawingRenderer {
   // ── Input ───────────────────────────────────────────────────────────
 
   private onPointerDown(e: PIXI.FederatedPointerEvent): void {
-    if (!this.isToolActive() || e.button !== 0) return;
+    // A press a pin, door badge or light marker took is not a stroke.
+    if (!this.isToolActive() || e.button !== 0 || isHandled(e)) return;
 
     const world = this.viewport.toWorld(e.global);
     const tool = this.store.getState().activeTool;

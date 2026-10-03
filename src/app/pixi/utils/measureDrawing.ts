@@ -49,6 +49,13 @@ export function drawMeasurePoint(graphics: Graphics, color: number, point: Point
   graphics.circle(point.x, point.y, POINT_RADIUS - 1).stroke({ width: 2, color, alpha: 1 });
 }
 
+/** A circular area around `center`: a translucent fill, an accent outline and a bright inner ring. */
+export function drawMeasureCircle(graphics: Graphics, color: number, center: Point, radius: number): void {
+  graphics.circle(center.x, center.y, radius).fill({ color, alpha: 0.1 });
+  graphics.circle(center.x, center.y, radius).stroke({ width: 3, color, alpha: 0.8 });
+  graphics.circle(center.x, center.y, Math.max(0, radius - 1)).stroke({ width: 1.5, color, alpha: 1 });
+}
+
 export function createMeasureLabelText(): Text {
   const text = new Text({ text: '', style: { fontSize: LABEL_FONT_SIZE, fill: 0xffffff, fontWeight: 'normal' } });
   text.eventMode = 'none';

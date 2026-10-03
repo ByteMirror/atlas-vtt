@@ -47,6 +47,14 @@ export interface PlayerFrameSource {
   beforeRender?: BeforeRenderCapture;
 }
 
+/**
+ * Whether the canvas shows no loaded scene: one is loading or failed to load, so fog and
+ * tokens may be missing. Players keep the last frame until a scene is loaded again.
+ */
+function isBetweenScenes(source: PlayerFrameSource): boolean {
+  return source.store?.getState().mapLoaded === false;
+}
+
 /** What the mirror shows, read anew on every frame. */
 export interface MirrorInputs {
   source(): PlayerFrameSource | null;
@@ -68,6 +76,11 @@ export interface MirrorInputs {
  * stale; `frame`, run on every display frame of the player window, then asks the canvas for a
  * render once one is due, so players always end on the DM's latest state and an idle canvas
  * is never rendered.
+ *
+ * While the presented scene loads, nothing live is captured: the store is rewritten in steps
+ * and the canvas shows the scene half built (unlit, without fog or line of sight), which would
+ * give away the map. Players keep the last frame, and the mirror stays stale, so the first
+ * display frame after the load asks for the finished scene.
  */
 export class PlayerFrameMirror {
   private stale = true;
@@ -111,6 +124,12 @@ export class PlayerFrameMirror {
       if (this.lastHeld) this.stale = true;
       this.lastHeld = null;
 
+      if (isBetweenScenes(source) || isLoading(source)) {
+        // The wait for a requested render starts when the scene is in, not before
+        this.stale = true;
+        this.requestedAt = null;
+        return;
+      }
       if (!source.beforeRender) {
         this.mirror(source, source, now);
         return;
@@ -130,7 +149,7 @@ export class PlayerFrameMirror {
     const source = this.watched;
     // A canvas that is no longer presented, or stands behind a held frame, is not what players see
     if (!source?.beforeRender || source !== this.inputs.source() || this.inputs.heldFrame()) return;
-    if (!this.isDue(frameTime) || frameTime - this.lastFrameAt > ASLEEP_AFTER_MS) {
+    if (isBetweenScenes(source) || isLoading(source) || !this.isDue(frameTime) || frameTime - this.lastFrameAt > ASLEEP_AFTER_MS) {
       this.stale = true;
       return;
     }
@@ -181,4 +200,9 @@ export class PlayerFrameMirror {
       this.failing = true;
     }
   }
+}
+
+/** A source without a store never counts as loading. */
+function isLoading(source: PlayerFrameSource): boolean {
+  return source.store?.getState().isMapLoading === true;
 }

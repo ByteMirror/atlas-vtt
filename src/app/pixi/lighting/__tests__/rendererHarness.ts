@@ -1,12 +1,13 @@
-import { Container, Sprite, Texture, type Application, type WebGLRenderer } from 'pixi.js';
+import { Container, RenderTexture, Sprite, Texture, type Application, type WebGLRenderer } from 'pixi.js';
 import type { Viewport } from 'pixi-viewport';
 import { vi } from 'vitest';
 import type { ViewAtlasState, ViewAtlasStore } from '../../../storeFactory';
 import type { MeasurementSettings } from '../../../grid/measurementFormat';
 import type { TokenEntity } from '../../../types';
+import type { SightRules } from '../../../vision/sightRules';
 import { createTestRenderer, readRgba } from '../engine/__tests__/gpuTestUtils';
 import { ExploredTexture } from '../ExploredTexture';
-import { LightingRenderer } from '../LightingRenderer';
+import { LightingRenderer, type LightingRendererDeps } from '../LightingRenderer';
 import { saveExploredMask } from '../exploredMaskSaving';
 
 export const SIZE = 256;
@@ -25,6 +26,10 @@ export interface Harness {
   settle: () => Promise<void>;
   /** Resolves the first mask decode, when it was held with `holdFirstDecode`. */
   releaseFirstDecode: () => void;
+  /** One frame of the app's ticker, which the harness does not run. */
+  tick: () => void;
+  /** Renders the lighting layer as the stage does. */
+  renderStage: () => void;
   dispose: () => void;
 }
 
@@ -34,6 +39,10 @@ interface HarnessOptions {
   holdFirstDecode?: boolean;
   /** The first mask decode fails. */
   failFirstDecode?: boolean;
+  attempt?: LightingRendererDeps['attempt'];
+  onUnavailable?: LightingRendererDeps['onUnavailable'];
+  /** The sight rules of the map's collection; unset, the generic ones. */
+  rules?: () => SightRules;
 }
 
 /** A token with vision; a range (in game units) limits what it sees to a circle. */
@@ -91,7 +100,7 @@ async function fullMask(renderer: WebGLRenderer): Promise<string> {
   return mask;
 }
 
-export async function createHarness({ patch = {}, holdFirstDecode = false, failFirstDecode = false }: HarnessOptions = {}): Promise<Harness> {
+export async function createHarness({ patch = {}, holdFirstDecode = false, failFirstDecode = false, attempt, onUnavailable, rules }: HarnessOptions = {}): Promise<Harness> {
   const renderer = await createTestRenderer(SIZE);
   const setExploredMask = vi.fn();
   const listeners = new Set<(state: ViewAtlasState) => void>();
@@ -101,9 +110,17 @@ export async function createHarness({ patch = {}, holdFirstDecode = false, failF
     objects: { walls: {}, lights: {}, tokens: {} },
     grid: null,
     exploredMask: await fullMask(renderer),
+    heldTokens: {},
     setExploredMask,
+    exploredEdits: 0,
+    // As the store counts an edit of the memory, or takes one back.
+    setExploredEdits: (exploredEdits: number): void => change({ exploredEdits }),
     ...patch,
   } as unknown as ViewAtlasState;
+  const change = (next: Record<string, unknown>): void => {
+    Object.assign(state, next);
+    for (const listener of listeners) listener(state);
+  };
 
   let releaseFirstDecode = (): void => undefined;
   const gate = new Promise<void>((resolve) => (releaseFirstDecode = resolve));
@@ -120,25 +137,28 @@ export async function createHarness({ patch = {}, holdFirstDecode = false, failF
     getState: () => state,
     subscribe: (listener: (next: ViewAtlasState) => void) => (listeners.add(listener), () => listeners.delete(listener)),
   } as unknown as ViewAtlasStore;
-  const app = { renderer, ticker: { add: vi.fn(), remove: vi.fn() } } as unknown as Application;
+  const ticks: (() => void)[] = [];
+  const app = { renderer, ticker: { add: (tick: () => void) => ticks.push(tick), remove: vi.fn() } } as unknown as Application;
+  const viewport = new Container();
   const lighting = new LightingRenderer({
-    viewport: new Container() as unknown as Viewport,
+    viewport: viewport as unknown as Viewport,
     app,
     store,
     measurement: () => ({ unitDistance: 5 }) as unknown as MeasurementSettings,
     bounds: () => ({ width: SIZE, height: SIZE }),
     albedo: () => null,
+    ...(attempt ? { attempt } : {}),
+    ...(onUnavailable ? { onUnavailable } : {}),
+    ...(rules ? { rules } : {}),
   });
-  const explored = (): ExploredTexture => (lighting as unknown as { explored: ExploredTexture }).explored;
+  const explored = (): ExploredTexture => (lighting as unknown as { memory: { texture: ExploredTexture } }).memory.texture;
+  const stageTarget = RenderTexture.create({ width: SIZE, height: SIZE });
   return {
     renderer,
     lighting,
     state,
     setExploredMask,
-    change: (next) => {
-      Object.assign(state, next);
-      for (const listener of listeners) listener(state);
-    },
+    change,
     redAt: (x, y) => readRgba(renderer, explored().texture)[(y * explored().texture.width + x) * 4]!,
     settle: async () => {
       await Promise.allSettled(decodes.mock.results.map((result) => result.value as Promise<void>));
@@ -146,8 +166,12 @@ export async function createHarness({ patch = {}, holdFirstDecode = false, failF
       await nextFrame();
     },
     releaseFirstDecode: () => releaseFirstDecode(),
+    tick: () => ticks.forEach((tick) => tick()),
+    renderStage: () => renderer.render({ container: viewport, target: stageTarget, clear: true }),
     dispose: () => {
       lighting.destroy();
+      viewport.destroy({ children: true });
+      stageTarget.destroy(true);
       renderer.destroy();
     },
   };

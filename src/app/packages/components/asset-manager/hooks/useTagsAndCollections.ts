@@ -1,7 +1,7 @@
 import type * as React from 'react';
 import { useState, useCallback } from 'react';
 import type { AnyAsset, Tag } from '../types';
-import { AssetService } from '../../../../services/AssetService';
+import type { AssetService } from '../../../../services/AssetService';
 import { hasAssetTag, type TagGroup } from '../../../../services/tagGroups';
 import { showAtlasToast } from '../../../../react/components/AtlasToast';
 import { tagGroupOfTab, type TagsByGroup } from '../utils/assetTags';
@@ -23,14 +23,13 @@ export interface TagsAndCollectionsState {
 
 export function useTagsAndCollections(
   assetService: AssetService | null,
-  selectedCollection: string | null,
+  collection: string,
   tagsByGroup: TagsByGroup,
   setAssets: React.Dispatch<React.SetStateAction<AnyAsset[]>>,
   reloadCollections: () => Promise<void>,
   reloadGlobalTags: () => Promise<void>
 ): TagsAndCollectionsState {
   const [isTagManagerOpen, setIsTagManagerOpen] = useState(false);
-  const collection = selectedCollection || AssetService.defaultCollectionId();
 
   /** Rewrites the tags of the loaded assets that belong to `group`. */
   const retagAssets = useCallback((group: TagGroup, retag: (tags: string[]) => string[]): void => {

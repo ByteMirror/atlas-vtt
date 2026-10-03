@@ -40,7 +40,8 @@ let warming = new WeakSet<Document>();
 /**
  * The documents where a stage got no WebGL context or lost it. The browser
  * blocks WebGL for a page whose contexts keep getting lost, so later stages
- * would stay blank too: their rolls show as result cards instead.
+ * would stay blank too: their rolls show as result cards instead, until a lost
+ * context comes back (after a GPU reset or sleep).
  */
 let withoutDice = new WeakSet<Document>();
 
@@ -58,6 +59,7 @@ function buildStage(doc: Document): StageLease {
   // belong to the document it will be shown in.
   const canvas = doc.adoptNode(createEl('canvas', { cls: 'atlas-dice-stage__canvas', attr: { 'aria-hidden': 'true' } }));
   canvas.addEventListener('webglcontextlost', () => withoutDice.add(doc));
+  canvas.addEventListener('webglcontextrestored', () => withoutDice.delete(doc));
   try {
     return { canvas, renderer: new DiceRenderer(canvas) };
   } catch {

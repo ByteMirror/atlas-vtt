@@ -29,13 +29,15 @@ describe('stagePool', () => {
     expect(canShowDice(popout)).toBe(true);
   });
 
-  it('shows rolls as cards once a stage lost its WebGL context', () => {
+  it('shows rolls as cards while a stage has lost its WebGL context', () => {
     const lease = borrowStage(document);
     // Forget the missing context of jsdom: only the loss below should count
     resetStagePool();
     expect(canShowDice(document)).toBe(true);
     lease.canvas.dispatchEvent(new Event('webglcontextlost'));
     expect(canShowDice(document)).toBe(false);
+    lease.canvas.dispatchEvent(new Event('webglcontextrestored'));
+    expect(canShowDice(document)).toBe(true);
   });
 
   it('reuses a returned stage for the same document', () => {

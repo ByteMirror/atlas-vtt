@@ -2,6 +2,11 @@
   "version": "0.6.0-beta.0",
   "releases": [
     {
+      "version": "0.6.0-beta.0",
+      "title": "Coming in 0.6.0",
+      "markdown": "## Fixed\n\n- Rolls show as result cards when the graphics card cannot draw 3D dice, for example after Obsidian lost or blocked WebGL, instead of an empty white panel. Contributed by ISorokaI"
+    },
+    {
       "version": "0.5.0",
       "date": "2026-10-02",
       "title": "Dynamic lighting as an experimental feature, 3D dice, token resources and map imports",

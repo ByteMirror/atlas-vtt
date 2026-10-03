@@ -64,6 +64,19 @@ function nightSheet(canvas: HTMLCanvasElement): boolean {
 }
 
 /**
+ * Sets up the shadow map of a renderer every stage draws with: soft (VSM) and
+ * drawn only when a stage asks for it (`StageShadow.update`).
+ */
+export function prepareShadowMap(renderer: THREE.WebGLRenderer): void {
+  // VSM: the only shadow type with a truly soft edge. Its cost does not grow
+  // with the dice, only with the map (see `SHADOW_MAP`).
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.VSMShadowMap;
+  // Drawn when it changed, not on every frame (see `update`).
+  renderer.shadowMap.autoUpdate = false;
+}
+
+/**
  * **Where the key light stands.**
  *
  * It once hung almost straight above the table, so the shadow would lie
@@ -96,14 +109,16 @@ export class StageShadow {
    */
   private stale = true;
 
-  constructor(private readonly renderer: THREE.WebGLRenderer, scene: THREE.Scene) {
-    renderer.shadowMap.enabled = true;
-    // VSM: the only shadow type with a truly soft edge. Its cost does not grow
-    // with the dice, only with the map (see `SHADOW_MAP`).
-    renderer.shadowMap.type = THREE.VSMShadowMap;
-    // Drawn when it changed, not on every frame (see `update`).
-    renderer.shadowMap.autoUpdate = false;
-
+  /**
+   * `renderer` is shared by every stage of the document (`DiceGpu`), so its
+   * shadow map is asked for right before this stage draws; `canvas` is where
+   * the stage is shown, whose page decides the shadow's colour.
+   */
+  constructor(
+    private readonly renderer: THREE.WebGLRenderer,
+    scene: THREE.Scene,
+    private readonly canvas: HTMLCanvasElement,
+  ) {
     this.key = new THREE.DirectionalLight(0xfff0da, KEY_INTENSITY);
     this.key.castShadow = true;
     this.key.shadow.mapSize.set(SHADOW_MAP, SHADOW_MAP);
@@ -174,8 +189,8 @@ export class StageShadow {
     for (const { anim } of dice) height = Math.max(height, (anim.p[1] - anim.floor) / (anim.radius * 2.6));
     const softness = Math.min(1, Math.max(0, height));
     this.key.shadow.radius = SHADOW_SHARP.blur + (SHADOW_SOFT.blur - SHADOW_SHARP.blur) * softness;
-    // Read on every frame: the renderer is pooled and outlives a theme switch.
-    const night = nightSheet(this.renderer.domElement);
+    // Read on every frame: the stage is pooled and outlives a theme switch.
+    const night = nightSheet(this.canvas);
     const shadowGain = night ? NIGHT_SHADOW_GAIN : 1;
     this.floorMat.color.setHex(night ? 0x000000 : INK);
     this.floorMat.opacity =

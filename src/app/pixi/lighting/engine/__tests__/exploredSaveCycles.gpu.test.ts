@@ -40,6 +40,16 @@ describe('explored memory through saves and restores', () => {
     return { renderer, explored, texels: () => renderer.extract.pixels({ target: explored.texture }).pixels };
   }
 
+  it('keeps no decoded mask on the graphics card once it is drawn', async () => {
+    const { renderer, explored } = await large();
+    const mask = saveExploredMask(explored.toCanvas());
+    await explored.load(mask);
+    const managed = (): number => renderer.texture.managedTextures.filter((source) => source && !source.destroyed).length;
+    const before = managed();
+    for (let i = 0; i < 3; i++) await explored.load(mask);
+    expect(managed()).toBe(before);
+  });
+
   it('is the same after twenty saves and restores: no texel lost, none gained, none changed', { timeout: 120_000 }, async () => {
     const { explored, texels } = await large();
     const original = texels().slice();

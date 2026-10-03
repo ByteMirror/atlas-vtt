@@ -40,13 +40,16 @@ export class RendererService {
    * @returns The PixiJS application instance
    */
   public async init(containerEl: HTMLElement): Promise<Application | null> {
+    // A view that lights its scenes draws through a back buffer from the start (`PixiAppManager`);
+    // a view restored at startup gets here before the settings are read.
+    await this.settingsService.initialize();
     if (!this.renderer) {
       // Create PixiAppManager instance with container dimensions for split-view support
       if (!this.pixiAppManager) {
         // Use container dimensions so the canvas fits its pane in split-view
         const width = containerEl.clientWidth || window.innerWidth;
         const height = containerEl.clientHeight || window.innerHeight;
-        this.pixiAppManager = new PixiAppManager(width, height);
+        this.pixiAppManager = new PixiAppManager(width, height, this.settingsService.isExperimentalOn('dynamicLighting'));
       }
       
       // Pass the PixiAppManager instance to the orchestrator

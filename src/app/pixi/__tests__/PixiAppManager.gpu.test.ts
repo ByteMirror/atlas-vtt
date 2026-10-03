@@ -1,4 +1,4 @@
-import { Ticker, isWebGLSupported } from 'pixi.js';
+import { Ticker, isWebGLSupported, type WebGLRenderer } from 'pixi.js';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PixiAppManager } from '../PixiAppManager';
 
@@ -47,6 +47,24 @@ describe('PixiAppManager.init with real renderers', () => {
     await manager.init(container);
     expectOpenMap('webgl');
     expect(error).not.toHaveBeenCalled();
+  });
+
+  it('gives the canvas the antialiasing of a view that does not light its scenes', async () => {
+    await manager.init(container);
+    const renderer = manager.app.renderer as WebGLRenderer;
+    expect(renderer.gl.getContextAttributes()?.antialias).toBe(true);
+    expect(renderer.backBuffer.useBackBuffer).toBe(false);
+  });
+
+  it('draws a view that lights its scenes through an antialiased back buffer, the canvas without samples', async () => {
+    manager.destroy();
+    manager = new PixiAppManager(320, 240, true);
+    await manager.init(container);
+    const renderer = manager.app.renderer as WebGLRenderer;
+    expect(renderer.gl.getContextAttributes()?.antialias).toBe(false);
+    expect(renderer.backBuffer.useBackBuffer).toBe(true);
+    expect((renderer.backBuffer as unknown as { _antialias: boolean })._antialias).toBe(true);
+    expectOpenMap('webgl');
   });
 
   it('opens with the Canvas renderer, and starts no WebGL renderer, when no WebGL context can be created', async () => {

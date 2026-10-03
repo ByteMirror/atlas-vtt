@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { borrowStage, resetStagePool, returnStage, warmStages } from '../../../src/app/dice3d/stagePool';
+import { borrowStage, canShowDice, resetStagePool, returnStage, warmStages } from '../../../src/app/dice3d/stagePool';
 
 describe('stagePool', () => {
   beforeEach(() => {
@@ -19,6 +19,23 @@ describe('stagePool', () => {
     expect(lease.canvas.ownerDocument).toBe(document);
     expect(lease.canvas.classList.contains('atlas-dice-stage__canvas')).toBe(true);
     expect(lease.canvas.getAttribute('aria-hidden')).toBe('true');
+  });
+
+  it('shows rolls as cards in a document once a stage got no WebGL, and only there', () => {
+    const popout = document.implementation.createHTMLDocument('popout');
+    expect(canShowDice(document)).toBe(true);
+    borrowStage(document);
+    expect(canShowDice(document)).toBe(false);
+    expect(canShowDice(popout)).toBe(true);
+  });
+
+  it('shows rolls as cards once a stage lost its WebGL context', () => {
+    const lease = borrowStage(document);
+    // Forget the missing context of jsdom: only the loss below should count
+    resetStagePool();
+    expect(canShowDice(document)).toBe(true);
+    lease.canvas.dispatchEvent(new Event('webglcontextlost'));
+    expect(canShowDice(document)).toBe(false);
   });
 
   it('reuses a returned stage for the same document', () => {

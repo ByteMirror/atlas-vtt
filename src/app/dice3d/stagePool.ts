@@ -37,6 +37,12 @@ let pools = new WeakMap<Document, StageLease[]>();
 let lent = new WeakMap<Document, number>();
 /** The documents whose stages are being built ahead. */
 let warming = new WeakSet<Document>();
+/**
+ * The documents where a stage got no WebGL context or lost it. The browser
+ * blocks WebGL for a page whose contexts keep getting lost, so later stages
+ * would stay blank too: their rolls show as result cards instead.
+ */
+let withoutDice = new WeakSet<Document>();
 
 function poolOf(doc: Document): StageLease[] {
   let pool = pools.get(doc);
@@ -51,12 +57,19 @@ function buildStage(doc: Document): StageLease {
   // Adopted before the context is created, so the canvas and its context
   // belong to the document it will be shown in.
   const canvas = doc.adoptNode(createEl('canvas', { cls: 'atlas-dice-stage__canvas', attr: { 'aria-hidden': 'true' } }));
+  canvas.addEventListener('webglcontextlost', () => withoutDice.add(doc));
   try {
     return { canvas, renderer: new DiceRenderer(canvas) };
   } catch {
-    // No WebGL (jsdom, very old devices): the math runs, the picture is missing.
+    // No WebGL (jsdom, a blocked or broken GPU): the math runs, the picture is missing.
+    withoutDice.add(doc);
     return { canvas, renderer: null };
   }
+}
+
+/** Whether `doc` can show 3D dice: false once one of its stages had no WebGL. */
+export function canShowDice(doc: Document): boolean {
+  return !withoutDice.has(doc);
 }
 
 export function borrowStage(doc: Document): StageLease {
@@ -147,4 +160,5 @@ export function resetStagePool(): void {
   pools = new WeakMap();
   lent = new WeakMap();
   warming = new WeakSet();
+  withoutDice = new WeakSet();
 }

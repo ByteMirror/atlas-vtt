@@ -1,5 +1,6 @@
 ## Improved
 
+- Set how loud dice are under Settings → Dice → Dice volume, or turn their sounds off by sliding it all the way down. It applies to thrown dice and to result cards. Contributed by ISorokaI
 - Number every cell of a square grid, the same way hex grids already could. A new Letters and numbers format (A1, B1, …) is available on square and hex grids alike
 - An open map uses much less graphics memory: 3D dice share one drawing context per window, and with dynamic lighting on the map no longer keeps antialiasing buffers it does not draw into
 

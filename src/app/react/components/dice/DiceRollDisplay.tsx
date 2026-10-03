@@ -1,12 +1,12 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useAtlasUI } from '../../root/AtlasUIContext';
-import { useDiceDisplay } from '../../hooks/useDiceDisplay';
+import { useDiceDisplay, useDiceVolume } from '../../hooks/useDiceDisplay';
 import { diceFontClass, useDiceLook } from '../../hooks/useDiceLook';
 import { cn } from '../../../../utils/cn';
 import { throwStyle } from '../../../dice3d/diceDisplay';
 import { diceSceneToShow } from '../../../dice3d/rollPresentation';
-import { warmDiceSounds } from '../../../dice3d/audio/diceSamples';
+import { setDiceVolume, warmDiceSounds } from '../../../dice3d/audio/diceSamples';
 import { canShowDice, warmStages } from '../../../dice3d/stagePool';
 import type { DiceRollResult } from '../../../tools/DiceTool';
 import { DiceRollStack } from '../dice3d/DiceRollStack';
@@ -29,9 +29,12 @@ interface DiceRollDisplayProps {
  * Every dice roll, at the top centre of the map: thrown as 3D dice, or as a
  * result card when 3D dice are off or the roll holds dice no real body shows.
  */
-export function DiceRollDisplay({ container, prepare, muted = false }: DiceRollDisplayProps): React.ReactElement | null {
+export function DiceRollDisplay({ container, prepare, muted: windowMuted = false }: DiceRollDisplayProps): React.ReactElement | null {
   const { app, view } = useAtlasUI();
   const display = useDiceDisplay(app ?? undefined);
+  const volume = useDiceVolume(app ?? undefined);
+  // At volume 0 the dice stay silent; nothing is decoded or scheduled for them
+  const muted = windowMuted || volume === 0;
   const look = useDiceLook(app ?? undefined);
   const { toasts, addToast, dismissToast, dismissAllToasts } = useDiceToasts();
   const [rolls, setRolls] = useState<readonly StackedRoll[]>([]);
@@ -54,6 +57,11 @@ export function DiceRollDisplay({ container, prepare, muted = false }: DiceRollD
     document.addEventListener('atlas-dice-rolled', handler);
     return (): void => document.removeEventListener('atlas-dice-rolled', handler);
   }, [addToast, prepare, display, muted, stageDoc]);
+
+  // One audio context plays every window's dice; only the window that sounds sets its volume
+  useEffect(() => {
+    if (!windowMuted) setDiceVolume(volume);
+  }, [volume, windowMuted]);
 
   // Dice stages are built while nothing rolls, so that the first roll does not wait for one.
   useEffect(() => {

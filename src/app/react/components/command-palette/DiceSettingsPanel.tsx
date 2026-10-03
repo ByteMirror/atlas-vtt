@@ -1,19 +1,20 @@
 import React from 'react';
 import { SegmentedControl } from '../../../packages/components/primitives/SegmentedControl';
 import { useAtlasUI } from '../../root/AtlasUIContext';
-import { useDiceDisplay } from '../../hooks/useDiceDisplay';
+import { useDiceDisplay, useDiceVolume } from '../../hooks/useDiceDisplay';
 import { useDiceLook } from '../../hooks/useDiceLook';
 import { useDicePreviews } from '../../hooks/useDicePreviews';
 import { DICE_DISPLAY_HINTS, DICE_DISPLAY_OPTIONS } from '../../../dice3d/diceDisplay';
 import { DICE_FONT_OPTIONS } from '../../../dice3d/diceLook';
 import { SettingsService } from '../../../services/SettingsService';
 import { DiceColourStrip } from './DiceColourStrip';
-import { SettingRow } from './SettingRows';
+import { SettingRow, SettingSliderRow } from './SettingRows';
 
 /** How dice rolls look, for every map: how they are shown, and the dice themselves. */
 export function DiceSettingsPanel(): React.ReactElement {
   const { app } = useAtlasUI();
   const display = useDiceDisplay(app ?? undefined);
+  const volume = Math.round(useDiceVolume(app ?? undefined) * 100);
   const look = useDiceLook(app ?? undefined);
   const previews = useDicePreviews(app ?? undefined, look.font);
   const settings = SettingsService.forApp(app ?? undefined);
@@ -30,6 +31,16 @@ export function DiceSettingsPanel(): React.ReactElement {
             onChange={(value) => settings?.setDiceDisplay(value)}
           />
         </SettingRow>
+        <SettingSliderRow
+          label="Dice volume"
+          hint="How loud dice sound when they roll and land. All the way down turns them off."
+          value={volume}
+          min={0}
+          max={100}
+          step={5}
+          displayValue={volume === 0 ? 'Off' : `${volume}%`}
+          onChange={(percent) => settings?.setDiceVolume(percent / 100)}
+        />
       </div>
 
       <div className="atlas-command-palette-panel-column">

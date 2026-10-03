@@ -54,6 +54,21 @@ export function diceSettingsSection(settings: SettingsService): AtlasSettingSect
         return unsubscribe;
       },
     }, {
+      name: 'Dice volume',
+      desc: 'How loud dice sound when they roll and land. All the way down turns dice sounds off.',
+      aliases: ['dice', 'sound', 'volume', 'mute', 'audio', 'quiet'],
+      render: (setting) => {
+        let unsubscribe: (() => void) | undefined;
+        setting.addSlider((slider) => {
+          const percent = (): number => Math.round(settings.getDiceVolume() * 100);
+          slider.setLimits(0, 100, 5)
+            .setValue(percent())
+            .onChange((value) => settings.setDiceVolume(value / 100));
+          unsubscribe = settings.onChange(() => { slider.setValue(percent()); });
+        });
+        return unsubscribe;
+      },
+    }, {
       name: 'Dice colour',
       desc: 'Light card, dark with light numbers, or your accent colour. The command palette\'s Dice settings show each one.',
       aliases: ['dice', 'colour', 'color', 'skin', 'accent', 'dark'],

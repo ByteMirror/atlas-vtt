@@ -46,6 +46,8 @@ export interface AtlasSettings {
   laserPointer: LaserPointerSettings;
   /** How rolls show: a result card, or 3D dice at double or normal speed. Read with `getDiceDisplay`. */
   diceDisplay: DiceDisplay;
+  /** Loudness of dice sounds, 0 (silent) to 1. Read with `getDiceVolume`. */
+  diceVolume: number;
   /** Colour of the dice: card stock, dark or the accent colour. Read with `getDiceLook`. */
   diceColour: DiceColour;
   /** Face of the dice numerals and roll totals. Read with `getDiceLook`. */
@@ -79,6 +81,7 @@ const DEFAULT_SETTINGS: AtlasSettings = {
   },
   laserPointer: DEFAULT_LASER_POINTER_SETTINGS,
   diceDisplay: 'full',
+  diceVolume: 1,
   diceColour: DEFAULT_DICE_LOOK.colour,
   diceFont: DEFAULT_DICE_LOOK.font,
   systemPresets: [],
@@ -330,6 +333,19 @@ export class SettingsService {
   setDiceDisplay(display: DiceDisplay): void {
     if (this.settings.diceDisplay === display) return;
     this.settings.diceDisplay = display;
+    this.commit();
+  }
+
+  /** The stored dice volume, 0 to 1; full volume when the file holds something else. */
+  getDiceVolume(): number {
+    const volume = this.settings.diceVolume;
+    return typeof volume === 'number' && volume >= 0 && volume <= 1 ? volume : 1;
+  }
+
+  setDiceVolume(volume: number): void {
+    const next = Math.min(1, Math.max(0, volume));
+    if (this.settings.diceVolume === next) return;
+    this.settings.diceVolume = next;
     this.commit();
   }
 

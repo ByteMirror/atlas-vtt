@@ -1,6 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { borrowStage, canShowDice, resetStagePool, returnStage, warmStages } from '../../../src/app/dice3d/stagePool';
 
+// jsdom has no WebGL. three's renderer would fail halfway and leave context listeners on the
+// canvas that throw when a test dispatches context events, so the stage fails as a whole.
+vi.mock('../../../src/app/dice3d/DiceRenderer', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../../../src/app/dice3d/DiceRenderer')>(),
+  DiceRenderer: class {
+    constructor() {
+      throw new Error('No WebGL');
+    }
+  },
+}));
+
 describe('stagePool', () => {
   beforeEach(() => {
     // jsdom has no WebGL; silence three's report of the missing context.
